@@ -1,8 +1,10 @@
 .inventory-panel {
   position: absolute;
-  right: 20px;
-  bottom: 20px;
-  width: 460px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: auto;
+  max-width: 90vw;
   background: #0d1117;
   border: 2px solid #30363d;
   color: #c9d1d9;
@@ -16,8 +18,9 @@
 }
 
 .inventory-panel--collapsed {
-  width: 200px;
-  height: 64px;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .inventory-panel__header {
@@ -65,62 +68,68 @@
 }
 
 .inventory-panel__body {
-  padding: 16px;
-  gap: 20px;
+  padding: 12px;
+  gap: 12px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  max-height: 80vh;
+  max-height: 75vh;
+  max-width: 450px;
+  align-items: center;
 }
 
 @media (max-width: 767px) {
   .inventory-panel {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: auto;
-    bottom: auto;
-    width: 100% !important;
-    height: auto !important;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90vw !important;
+    max-width: 90vw;
     max-height: 85vh;
     overflow-y: auto;
-    border-radius: 0;
-    border: none;
+    border-radius: 8px;
     z-index: 5000;
-    transform: none;
     background: #0d1117f2;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
-  
+
   .inventory-panel--collapsed {
-    display: none !important;
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+    pointer-events: none;
   }
 
   .inventory-panel__body {
     flex: 1;
-    max-height: calc(85vh - 60px);
-    padding: 16px;
-    gap: 20px;
+    max-height: calc(90vh - 80px);
+    padding: 12px;
+    gap: 12px;
+    max-width: none;
   }
 
   .inventory-grid {
-    gap: 4px;
+    gap: 2px;
     grid-template-columns: repeat(5, 1fr);
   }
 
   .inventory-grid--backpack {
     grid-template-columns: repeat(10, 1fr);
+    gap: 2px;
   }
 
   .inventory-slot {
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 20px;
+    min-height: 20px;
     border-width: 1px;
+    font-size: 10px;
+    padding: 1px;
+    font-size: 12px;
   }
 
   .inventory-item-icon {
-    font-size: 18px;
+    font-size: 14px;
   }
 
   .inventory-tooltip {
@@ -195,11 +204,12 @@
 .inventory-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 4px;
+  gap: 3px;
 }
 
 .inventory-grid--backpack {
   grid-template-columns: repeat(10, 1fr);
+  gap: 1px;
 }
 
 .inventory-slot {
@@ -211,8 +221,10 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 24px;
+  min-height: 24px;
+  font-size: 12px;
+  padding: 2px;
 }
 
 .inventory-slot:hover {
@@ -240,7 +252,7 @@
 .inventory-slot.quality-epic { background: rgba(192, 132, 252, 0.1); }
 
 .inventory-item-icon {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: bold;
 }
 
