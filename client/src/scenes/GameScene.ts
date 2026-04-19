@@ -494,7 +494,10 @@ export class GameScene extends Phaser.Scene {
     this.targetMoveDirection = { x: h, y: v };
 
     // Smooth direction changes to prevent snap turns
-    const dirSmooth = 0.25;
+    // For mobile: use faster response since joystick already has smoothing
+    // For keyboard: use slower smoothing for natural feel
+    const isJoystickActive = this.smoothedJoystickVector.x !== 0 || this.smoothedJoystickVector.y !== 0;
+    const dirSmooth = isJoystickActive ? 0.6 : 0.25;
     this.currentMoveDirection.x += (this.targetMoveDirection.x - this.currentMoveDirection.x) * dirSmooth;
     this.currentMoveDirection.y += (this.targetMoveDirection.y - this.currentMoveDirection.y) * dirSmooth;
 
