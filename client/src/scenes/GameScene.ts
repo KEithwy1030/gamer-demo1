@@ -112,6 +112,7 @@ export class GameScene extends Phaser.Scene {
   private joystickPointer?: Phaser.Input.Pointer;
   private joystickVector: Vector2 = { x: 0, y: 0 };
   private mobileOverlay?: HTMLElement;
+  private touchMoveListener?: (e: TouchEvent) => void;
 
   constructor() {
     super(GameScene.KEY);
@@ -427,12 +428,14 @@ export class GameScene extends Phaser.Scene {
 
     this.input.addPointer(3);
     
-    // Prevent iOS Safari bounce/scroll
-    document.addEventListener("touchmove", (e) => {
-      if (e.target instanceof HTMLCanvasElement || (e.target as HTMLElement).closest("#mobile-action-overlay")) {
+    // Prevent iOS Safari bounce/scroll only on game canvas and joystick overlay
+    this.touchMoveListener = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (target === this.game.canvas || (this.mobileOverlay && this.mobileOverlay.contains(target))) {
         e.preventDefault();
       }
-    }, { passive: false });
+    };
+    document.addEventListener("touchmove", this.touchMoveListener, { passive: false });
 
     this.unsubscribeRuntime = this.runtime.subscribe((state) => {
       this.latestState = state;
@@ -898,6 +901,10 @@ export class GameScene extends Phaser.Scene {
     if (this.mobileOverlay) {
       this.mobileOverlay.remove();
       this.mobileOverlay = undefined;
+    }
+    if (this.touchMoveListener) {
+      document.removeEventListener("touchmove", this.touchMoveListener);
+      this.touchMoveListener = undefined;
     }
     for (const marker of this.playerMarkers.values()) marker.destroy();
     for (const marker of this.monsterMarkers.values()) marker.destroy();
