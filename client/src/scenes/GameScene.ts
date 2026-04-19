@@ -108,6 +108,11 @@ export class GameScene extends Phaser.Scene {
 
   private static readonly MOBILE_SPEED_SCALE = 0.35;
 
+  // Smoothed input state for keyboard to match joystick feel
+  private smoothedKeyboardInput: Vector2 = { x: 0, y: 0 };
+  private currentMoveDirection: Vector2 = { x: 0, y: 0 };
+  private targetMoveDirection: Vector2 = { x: 0, y: 0 };
+
   // DOM-based joystick state
   private joystickContainer?: HTMLElement;
   private joystickKnobEl?: HTMLElement;
@@ -402,6 +407,18 @@ export class GameScene extends Phaser.Scene {
     if (Math.abs(this.smoothedJoystickVector.x) < 0.001) this.smoothedJoystickVector.x = 0;
     if (Math.abs(this.smoothedJoystickVector.y) < 0.001) this.smoothedJoystickVector.y = 0;
 
+    // Smooth keyboard input to match joystick feel
+    let targetKbX = 0, targetKbY = 0;
+    if (this.moveKeys) {
+      targetKbX = Number(this.moveKeys.right.isDown) - Number(this.moveKeys.left.isDown);
+      targetKbY = Number(this.moveKeys.down.isDown) - Number(this.moveKeys.up.isDown);
+    }
+    const kbSmooth = 0.2;
+    this.smoothedKeyboardInput.x += (targetKbX - this.smoothedKeyboardInput.x) * kbSmooth;
+    this.smoothedKeyboardInput.y += (targetKbY - this.smoothedKeyboardInput.y) * kbSmooth;
+    if (Math.abs(this.smoothedKeyboardInput.x) < 0.01) this.smoothedKeyboardInput.x = 0;
+    if (Math.abs(this.smoothedKeyboardInput.y) < 0.01) this.smoothedKeyboardInput.y = 0;
+
     for (const m of this.playerMarkers.values()) { m.step(alpha); m.root.setDepth(m.root.y); }
     for (const m of this.monsterMarkers.values()) { m.step(alpha); m.root.setDepth(m.root.y); }
     for (const m of this.dropMarkers.values()) { m.root.setDepth(m.root.y); }
@@ -448,11 +465,50 @@ export class GameScene extends Phaser.Scene {
   }
 
   private emitMoveInput(time: number): void {
-    let h = 0, v = 0;
-    if (this.moveKeys) { h = Number(this.moveKeys.right.isDown) - Number(this.moveKeys.left.isDown); v = Number(this.moveKeys.down.isDown) - Number(this.moveKeys.up.isDown); }
-    if (this.smoothedJoystickVector.x !== 0 || this.smoothedJoystickVector.y !== 0) { h = this.smoothedJoystickVector.x; v = this.smoothedJoystickVector.y; }
-    const dir = { x: h, y: v };
-    if (h !== 0 || v !== 0) { const m = Math.sqrt(h * h + v * v); this.lastFacingDirection = { x: h / m, y: v / m }; }
+    if (!this.onMoveInput) return;
+
+    // Use smoothed keyboard input by default
+    let h = this.smoothedKeyboardInput.x;
+    let v = this.smoothedKeyboardInput.y;
+
+    // Override with joystick input if active
+    if (this.smoothedJoystickVector.x !== 0 || this.smoothedJoystickVector.y !== 0) {
+      h = this.smoothedJoystickVector.x;
+      v = this.smoothedJoystickVector.y;
+    }
+
+    // Calculate target direction
+    this.targetMoveDirection = { x: h, y: v };
+
+    // Smooth direction changes to prevent snap turns
+    const dirSmooth = 0.25;
+    this.currentMoveDirection.x += (this.targetMoveDirection.x - this.currentMoveDirection.x) * dirSmooth;
+    this.currentMoveDirection.y += (this.targetMoveDirection.y - this.currentMoveDirection.y) * dirSmooth;
+
+    // Clean up near-zero values
+    if (Math.abs(this.currentMoveDirection.x) < 0.01) this.currentMoveDirection.x = 0;
+    if (Math.abs(this.currentMoveDirection.y) < 0.01) this.currentMoveDirection.y = 0;
+
+    const dir = { x: this.currentMoveDirection.x, y: this.currentMoveDirection.y };
+
+    // Update facing direction only when there's significant movement
+    const mag = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
+    if (mag > 0.1) {
+      // Smooth facing direction updates
+      const targetFacingX = dir.x / mag;
+      const targetFacingY = dir.y / mag;
+      const facingSmooth = 0.3;
+      this.lastFacingDirection.x += (targetFacingX - this.lastFacingDirection.x) * facingSmooth;
+      this.lastFacingDirection.y += (targetFacingY - this.lastFacingDirection.y) * facingSmooth;
+
+      // Re-normalize to ensure we keep a unit vector
+      const facingMag = Math.sqrt(this.lastFacingDirection.x * this.lastFacingDirection.x + this.lastFacingDirection.y * this.lastFacingDirection.y);
+      if (facingMag > 0) {
+        this.lastFacingDirection.x /= facingMag;
+        this.lastFacingDirection.y /= facingMag;
+      }
+    }
+
     if (Math.abs(dir.x - this.lastMoveDirection.x) < 0.01 && Math.abs(dir.y - this.lastMoveDirection.y) < 0.01 && time - this.lastMoveSentAt < 60) return;
     this.lastMoveDirection = dir; this.lastMoveSentAt = time; this.onMoveInput?.(dir);
   }
