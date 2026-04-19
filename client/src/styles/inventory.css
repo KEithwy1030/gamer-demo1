@@ -106,7 +106,7 @@
 
   .inventory-grid {
     gap: 15px;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, 1fr);
   }
 
   .inventory-slot {
@@ -142,7 +142,7 @@
 .inventory-mobile-toggle {
   position: fixed;
   top: 20px;
-  left: 140px;
+  right: 20px;
   width: 54px;
   height: 54px;
   background: #238636;
