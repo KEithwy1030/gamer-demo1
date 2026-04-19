@@ -1,7 +1,7 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-20",
-  "latest_session_work": "Concurrent agent improvements: 4 issues resolved via parallel AI agents and manual implementation",
+  "latest_session_work": "Root cause analysis and fixes: Resolved mobile joystick lag (smoothing factor 0.15→0.4) and inventory button (added proper callback chain)",
   "current_phase": "2d-vertical-slice-refactor",
   "current_priority": "Stabilize the new loot, consumable, and procedural monster-respawn tuning without regressing the playable LAN extraction loop.",
   "repo_bootstrap": [
@@ -32,7 +32,9 @@
     "Fixed player turning acceleration with smooth interpolation to prevent snap movement",
     "Fixed monster corpse disappearance timing to show gray-tinted corpses for 10 seconds",
     "Added mobile portrait mode support with dynamic game dimensions and orientation handling",
-    "Redesigned backpack UI with centered layout and smaller, proportional grid cells"
+    "Redesigned backpack UI with centered layout and smaller, proportional grid cells",
+    "Fixed ROOT CAUSE of mobile joystick lag by increasing smoothing factor from 0.15 to 0.4",
+    "Fixed ROOT CAUSE of mobile inventory button by adding proper callback chain from GameScene to main.ts"
   ],
   "unfinished_high_priority": [
     "Revalidate the frontend/manual return-to-lobby behavior after settlement",
