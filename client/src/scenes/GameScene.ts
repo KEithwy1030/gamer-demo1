@@ -1,4 +1,4 @@
-import type { SkillId, Vector2 } from "@gamer/shared";
+import type { SkillId, Vector2, WeaponType } from "@gamer/shared";
 import Phaser from "phaser";
 import { DropMarker } from "../game/entities/DropMarker";
 import { MonsterMarker } from "../game/entities/MonsterMarker";
@@ -87,7 +87,10 @@ export class GameScene extends Phaser.Scene {
   private onPickup?: () => void;
   private onStartExtract?: () => void;
   private lastMoveDirection: Vector2 = { x: 0, y: 0 };
+  private lastFacingDirection: Vector2 = { x: 0, y: 1 };
   private lastMoveSentAt = 0;
+
+  private static readonly MOBILE_SPEED_SCALE = 1.0;
 
   private atmosphericOverlay?: Phaser.GameObjects.Graphics;
 
@@ -378,19 +381,15 @@ export class GameScene extends Phaser.Scene {
     const knobRadius = 35;
 
     this.joystickBase = this.add.circle(joystickX, joystickY, baseRadius, 0x000000, 0.3)
-      .setScrollFactor(0).setDepth(1000).setInteractive();
+      .setScrollFactor(0).setDepth(1000).setInteractive({ priorityID: 0 });
+
     this.joystickKnob = this.add.circle(joystickX, joystickY, knobRadius, 0xffffff, 0.2)
       .setScrollFactor(0).setDepth(1001);
 
     this.joystickBase.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      // Use pointer ID for tracking
       this.joystickPointer = pointer;
       this.updateJoystick(pointer);
-    });
-
-    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-      if (this.joystickPointer && this.joystickPointer.id === pointer.id) {
-        this.updateJoystick(pointer);
-      }
     });
 
     const stopJoystick = (pointer: Phaser.Input.Pointer) => {
@@ -407,8 +406,8 @@ export class GameScene extends Phaser.Scene {
     this.input.on("pointerout", stopJoystick);
 
     // --- ACTION BUTTONS ---
-    const btnRadius = 45;
-    const btnPadding = 20;
+    const btnRadius = 60; // Increased hit area
+    const btnPadding = 15;
     const bottomRightX = width - btnPadding - btnRadius;
     const bottomRightY = height - btnPadding - btnRadius;
 
@@ -427,25 +426,25 @@ export class GameScene extends Phaser.Scene {
       const by = bottomRightY - (1 - row) * (btnRadius * 2 + btnPadding);
 
       const container = this.add.container(bx, by).setScrollFactor(0).setDepth(1000);
-      const circle = this.add.circle(0, 0, btnRadius, 0x0f172a, 0.8).setInteractive();
+      const circle = this.add.circle(0, 0, btnRadius, 0x0f172a, 0.8).setInteractive({ priorityID: 10 });
       circle.setStrokeStyle(3, btn.color, 1);
 
       const textLabel = this.add.text(0, -8, btn.label, {
         fontFamily: "monospace",
-        fontSize: "16px",
+        fontSize: "18px", // Slightly larger
         fontStyle: "bold",
         color: "#ffffff"
       }).setOrigin(0.5);
 
-      const keyLabel = this.add.text(0, 12, btn.id, {
+      const keyLabel = this.add.text(0, 15, btn.id, {
         fontFamily: "monospace",
-        fontSize: "12px",
+        fontSize: "14px",
         color: "#" + btn.color.toString(16).padStart(6, '0')
       }).setOrigin(0.5);
 
       container.add([circle, textLabel, keyLabel]);
 
-      circle.on("pointerdown", () => {
+      circle.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
         circle.setScale(0.9);
         btn.action();
       });
@@ -502,7 +501,10 @@ export class GameScene extends Phaser.Scene {
     this.shakeCamera(0.005, 100);
     const selfPlayerId = this.latestState?.selfPlayerId;
     const selfPlayer = this.latestState?.players.find(p => p.id === selfPlayerId);
-    if (selfPlayer) this.createSkillVfx(selfPlayer.x, selfPlayer.y, 0xffffff);
+    if (selfPlayer) {
+      const weaponType = selfPlayer.weaponType || "sword";
+      this.createWeaponVfx(selfPlayer.x, selfPlayer.y, weaponType, this.lastFacingDirection);
+    }
   }
 
   private handleSkill(): void {
@@ -520,6 +522,98 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
+  }
+
+  private createWeaponVfx(x: number, y: number, weaponType: WeaponType, direction: Vector2): void {
+    const angle = Math.atan2(direction.y, direction.x);
+    
+    if (weaponType === "sword") {
+      const g = this.add.graphics();
+      g.setPosition(x, y);
+      g.setDepth(y + 100);
+      const color = 0xe2e8f0;
+      const len = 45;
+      
+      g.lineStyle(2, color, 1);
+      g.fillStyle(color, 0.8);
+      g.beginPath();
+      g.moveTo(0, 0);
+      g.lineTo(Math.cos(angle - 0.15) * 12, Math.sin(angle - 0.15) * 12);
+      g.lineTo(Math.cos(angle) * len, Math.sin(angle) * len);
+      g.lineTo(Math.cos(angle + 0.15) * 12, Math.sin(angle + 0.15) * 12);
+      g.closePath();
+      g.fillPath();
+      
+      g.setScale(0.2);
+      this.tweens.add({
+        targets: g,
+        scale: 1,
+        duration: 80,
+        onComplete: () => {
+          this.tweens.add({
+            targets: g,
+            alpha: 0,
+            duration: 120,
+            onComplete: () => g.destroy()
+          });
+        }
+      });
+    } else if (weaponType === "blade") {
+      const g = this.add.graphics();
+      g.setPosition(x, y);
+      g.setDepth(y + 100);
+      const color = 0xfbbf24;
+      const radius = 45;
+      const startAngle = angle - Math.PI / 3;
+      const endAngle = angle + Math.PI / 3;
+      
+      const animObj = { val: 0 };
+      this.tweens.add({
+        targets: animObj,
+        val: 1,
+        duration: 200,
+        onUpdate: () => {
+          const progress = animObj.val;
+          g.clear();
+          g.lineStyle(5, color, 1 - progress);
+          g.beginPath();
+          g.arc(0, 0, radius, startAngle, startAngle + (endAngle - startAngle) * progress);
+          g.strokePath();
+        },
+        onComplete: () => g.destroy()
+      });
+    } else if (weaponType === "spear") {
+      const ring = this.add.graphics();
+      const color = 0xef4444;
+      ring.lineStyle(4, color, 1);
+      ring.strokeCircle(0, 0, 50);
+      ring.setPosition(x, y);
+      ring.setDepth(y + 100);
+      ring.setScale(0.3);
+
+      this.tweens.add({
+        targets: ring,
+        alpha: 0,
+        scale: 1.6,
+        duration: 250,
+        ease: "Cubic.out",
+        onComplete: () => ring.destroy()
+      });
+    } else {
+      this.createSkillVfx(x, y, 0xffffff);
+    }
+    
+    // Always add a small flash at the player position
+    const flashColor = weaponType === "sword" ? 0xe2e8f0 : (weaponType === "blade" ? 0xfbbf24 : (weaponType === "spear" ? 0xef4444 : 0xffffff));
+    const flash = this.add.circle(x, y, 20, flashColor, 0.4);
+    flash.setDepth(y + 99);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scale: 1.2,
+      duration: 150,
+      onComplete: () => flash.destroy()
+    });
   }
 
   update(time: number, delta: number): void {
@@ -540,6 +634,11 @@ export class GameScene extends Phaser.Scene {
       this.obstacleLayer.list.forEach((obj: any) => {
         if (obj.setDepth) obj.setDepth(obj.y);
       });
+    }
+
+    // Bug 1 Fix: Update joystick every frame if active
+    if (this.joystickPointer && (this.joystickPointer.isDown || this.joystickPointer.active)) {
+      this.updateJoystick(this.joystickPointer);
     }
 
     this.emitMoveInput(time);
@@ -608,11 +707,25 @@ export class GameScene extends Phaser.Scene {
 
     // Combine with joystick input
     if (this.joystickVector.x !== 0 || this.joystickVector.y !== 0) {
-      horizontal = this.joystickVector.x;
-      vertical = this.joystickVector.y;
+      // Bug 3 Fix: Apply speed scale and ensure magnitude <= 1.0
+      let jx = this.joystickVector.x;
+      let jy = this.joystickVector.y;
+      const mag = Math.sqrt(jx * jx + jy * jy);
+      if (mag > 1.0) {
+        jx /= mag;
+        jy /= mag;
+      }
+      horizontal = jx * GameScene.MOBILE_SPEED_SCALE;
+      vertical = jy * GameScene.MOBILE_SPEED_SCALE;
     }
 
     const nextDirection = { x: horizontal, y: vertical };
+    
+    if (horizontal !== 0 || vertical !== 0) {
+      const mag = Math.sqrt(horizontal * horizontal + vertical * vertical);
+      this.lastFacingDirection = { x: horizontal / mag, y: vertical / mag };
+    }
+
     const changed = Math.abs(nextDirection.x - this.lastMoveDirection.x) > 0.01 || 
                     Math.abs(nextDirection.y - this.lastMoveDirection.y) > 0.01;
     
