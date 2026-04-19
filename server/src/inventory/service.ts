@@ -52,8 +52,8 @@ export class InventoryService {
       const anchor = playerList[index % Math.max(playerList.length, 1)];
       const angle = (Math.PI * 2 * index) / seedTemplates.length;
       const distance = 80 + (index % 3) * 36;
-      const baseX = anchor?.state?.x ?? 2400;
-      const baseY = anchor?.state?.y ?? 2400;
+      const baseX = anchor?.state?.x ?? MATCH_MAP_WIDTH / 2;
+      const baseY = anchor?.state?.y ?? MATCH_MAP_HEIGHT / 2;
 
       this.spawnDrop(room, {
         item: this.createItem(templateId),

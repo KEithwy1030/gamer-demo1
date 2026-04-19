@@ -1,23 +1,25 @@
 import crypto from "node:crypto";
 import { buildInventoryItem } from "../loot/loot-manager.js";
+import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "../internal-constants.js";
 import type { Chest, InventoryItem, RuntimeRoom } from "../types.js";
 
-/** Fixed chest spawn positions spread across the 4800x4800 map. */
-const CHEST_SPAWN_POSITIONS: Array<{ x: number; y: number }> = [
-  // Near-corner positions (offset inward so chests are reachable)
-  { x: 400,  y: 400  },
-  { x: 4400, y: 400  },
-  { x: 400,  y: 4400 },
-  { x: 4400, y: 4400 },
-  // Mid-edge positions
-  { x: 2400, y: 400  },
-  { x: 2400, y: 4400 },
-  { x: 400,  y: 2400 },
-  { x: 4400, y: 2400 },
-  // Inner zone anchors
-  { x: 1400, y: 1400 },
-  { x: 3400, y: 3400 }
+const CHEST_SPAWN_LAYOUTS: Array<{ xRatio: number; yRatio: number }> = [
+  { xRatio: 0.08, yRatio: 0.08 },
+  { xRatio: 0.92, yRatio: 0.08 },
+  { xRatio: 0.08, yRatio: 0.92 },
+  { xRatio: 0.92, yRatio: 0.92 },
+  { xRatio: 0.5, yRatio: 0.08 },
+  { xRatio: 0.5, yRatio: 0.92 },
+  { xRatio: 0.08, yRatio: 0.5 },
+  { xRatio: 0.92, yRatio: 0.5 },
+  { xRatio: 0.24, yRatio: 0.24 },
+  { xRatio: 0.76, yRatio: 0.76 }
 ];
+
+const CHEST_SPAWN_POSITIONS: Array<{ x: number; y: number }> = CHEST_SPAWN_LAYOUTS.map((position) => ({
+  x: Math.round(MATCH_MAP_WIDTH * position.xRatio),
+  y: Math.round(MATCH_MAP_HEIGHT * position.yRatio)
+}));
 
 const CHEST_LOOT_TEMPLATES = [
   "armor_hands_common",

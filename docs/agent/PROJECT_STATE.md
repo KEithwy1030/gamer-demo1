@@ -80,6 +80,11 @@ The intended game is a top-down multiplayer extraction demo. The current approve
   - frontend/manual return to lobby after settlement
   - any user-visible polish expectations around feedback and pacing
 - The latest equipment refactor and backend combat-tuning pass now have fresh passing client and server TypeScript verification.
+- Backend map/playfield tuning is now enlarged and more densely populated:
+  - shared map size is increased from `4800x4800` to `6400x6400`
+  - backend monster spawn layout grows from `11` spawn points to `26`
+  - chest anchors and default center-based drop seeding now derive from the active map size instead of hardcoded `2400`/`4800` assumptions
+- The backend map/monster density pass still needs a live in-room feel check beyond automated verification.
 
 ## Technical Reality
 

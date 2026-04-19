@@ -3,6 +3,17 @@
 ## 2026-04-19
 
 - Goal:
+  Fix backend map scale and monster-density tuning for Issue 20 and Issue 21.
+- Actions:
+  - Increased shared match map size from `4800x4800` to `6400x6400`
+  - Replaced the small hardcoded monster spawn list with a larger ratio-based spawn layout that now produces `26` monsters across the expanded map
+  - Converted chest positions, default drop-seed centering, and the backend E2E extract-center constant to match the larger map
+- Verification:
+  - Verification pending in this session: rebuild shared/server, run automated backend test loop, and inspect spawned monster totals from runtime
+- Follow-up:
+  - Run a live/manual pacing pass to judge whether density still needs respawn or further spawn redistribution
+
+- Goal:
   Convert the project from a technically running LAN prototype into a repo with durable memory and a clearer 2D-game-focused execution baseline.
 - Actions:
   - Created canonical agent memory files under `docs/agent/`

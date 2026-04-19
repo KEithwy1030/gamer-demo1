@@ -10,7 +10,7 @@ const SERVER_DIR = fileURLToPath(new URL("../server/", import.meta.url));
 const DIST_ENTRY = fileURLToPath(new URL("../server/dist/index.js", import.meta.url));
 
 const MOVE_STEP_PER_INPUT = 28;
-const EXTRACT_CENTER = { x: 2400, y: 2400 };
+const EXTRACT_CENTER = { x: 3200, y: 3200 };
 const ATTACK_RANGE = 58;
 const PICKUP_RADIUS = 140;
 const POSITION_TOLERANCE = 36;

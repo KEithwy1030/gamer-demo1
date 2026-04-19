@@ -37,19 +37,48 @@ interface CombatPlayerState {
   direction: { x: number; y: number };
 }
 
-const MONSTER_SPAWN_DEFINITIONS: MonsterSpawnDefinition[] = [
-  { id: "normal_nw_1", type: "normal", x: 900, y: 950 },
-  { id: "normal_nw_2", type: "normal", x: 1350, y: 720 },
-  { id: "normal_ne_1", type: "normal", x: 3900, y: 900 },
-  { id: "normal_ne_2", type: "normal", x: 3450, y: 760 },
-  { id: "normal_sw_1", type: "normal", x: 780, y: 3720 },
-  { id: "normal_sw_2", type: "normal", x: 1320, y: 4040 },
-  { id: "normal_se_1", type: "normal", x: 3940, y: 3820 },
-  { id: "normal_se_2", type: "normal", x: 3480, y: 4100 },
-  { id: "elite_north", type: "elite", x: 2400, y: 1120 },
-  { id: "elite_west", type: "elite", x: 1120, y: 2400 },
-  { id: "elite_east", type: "elite", x: 3680, y: 2400 }
+interface SpawnLayoutDefinition {
+  id: string;
+  type: MonsterType;
+  xRatio: number;
+  yRatio: number;
+}
+
+const MONSTER_SPAWN_LAYOUTS: SpawnLayoutDefinition[] = [
+  { id: "normal_nw_outer_1", type: "normal", xRatio: 0.13, yRatio: 0.14 },
+  { id: "normal_nw_outer_2", type: "normal", xRatio: 0.19, yRatio: 0.11 },
+  { id: "normal_nw_outer_3", type: "normal", xRatio: 0.24, yRatio: 0.18 },
+  { id: "normal_ne_outer_1", type: "normal", xRatio: 0.81, yRatio: 0.12 },
+  { id: "normal_ne_outer_2", type: "normal", xRatio: 0.86, yRatio: 0.17 },
+  { id: "normal_ne_outer_3", type: "normal", xRatio: 0.75, yRatio: 0.2 },
+  { id: "normal_sw_outer_1", type: "normal", xRatio: 0.12, yRatio: 0.79 },
+  { id: "normal_sw_outer_2", type: "normal", xRatio: 0.18, yRatio: 0.85 },
+  { id: "normal_sw_outer_3", type: "normal", xRatio: 0.24, yRatio: 0.74 },
+  { id: "normal_se_outer_1", type: "normal", xRatio: 0.78, yRatio: 0.77 },
+  { id: "normal_se_outer_2", type: "normal", xRatio: 0.85, yRatio: 0.84 },
+  { id: "normal_se_outer_3", type: "normal", xRatio: 0.73, yRatio: 0.87 },
+  { id: "normal_north_mid_1", type: "normal", xRatio: 0.4, yRatio: 0.24 },
+  { id: "normal_north_mid_2", type: "normal", xRatio: 0.6, yRatio: 0.22 },
+  { id: "normal_south_mid_1", type: "normal", xRatio: 0.38, yRatio: 0.76 },
+  { id: "normal_south_mid_2", type: "normal", xRatio: 0.62, yRatio: 0.78 },
+  { id: "normal_west_mid_1", type: "normal", xRatio: 0.23, yRatio: 0.4 },
+  { id: "normal_west_mid_2", type: "normal", xRatio: 0.2, yRatio: 0.61 },
+  { id: "normal_east_mid_1", type: "normal", xRatio: 0.77, yRatio: 0.39 },
+  { id: "normal_east_mid_2", type: "normal", xRatio: 0.8, yRatio: 0.6 },
+  { id: "elite_north", type: "elite", xRatio: 0.5, yRatio: 0.18 },
+  { id: "elite_west", type: "elite", xRatio: 0.18, yRatio: 0.5 },
+  { id: "elite_east", type: "elite", xRatio: 0.82, yRatio: 0.5 },
+  { id: "elite_south", type: "elite", xRatio: 0.5, yRatio: 0.82 },
+  { id: "elite_inner_nw", type: "elite", xRatio: 0.34, yRatio: 0.34 },
+  { id: "elite_inner_se", type: "elite", xRatio: 0.66, yRatio: 0.66 }
 ];
+
+const MONSTER_SPAWN_DEFINITIONS: MonsterSpawnDefinition[] = MONSTER_SPAWN_LAYOUTS.map((spawn) => ({
+  id: spawn.id,
+  type: spawn.type,
+  x: Math.round(MATCH_MAP_WIDTH * spawn.xRatio),
+  y: Math.round(MATCH_MAP_HEIGHT * spawn.yRatio)
+}));
 
 export interface PlayerAttackOutcome {
   monsters: MonsterState[];
