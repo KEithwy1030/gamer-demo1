@@ -25,7 +25,8 @@
     "Added scripted backend E2E loop coverage for create -> join -> start -> combat -> pickup -> extract -> settlement",
     "Revalidated equipment and loot stat pipeline with passing client/server TypeScript checks",
     "Hardened backend LAN/mobile connectivity with permissive default CORS, explicit Socket.IO polling fallback, and less aggressive ping timeouts",
-    "Adjusted backend combat tuning: doubled player weapon ranges, implemented blade/spear server skill handlers, and reduced monster damage/range to the latest GDD values"
+    "Adjusted backend combat tuning: doubled player weapon ranges, implemented blade/spear server skill handlers, and reduced monster damage/range to the latest GDD values",
+    "Retuned combat again: doubled player weapon ranges a second time, increased all implemented skill damage by 10x, normalized all skill cooldowns to 3 seconds, rebuilt shared/dist, and revalidated client/server TypeScript checks"
   ],
   "unfinished_high_priority": [
     "Revalidate the frontend/manual return-to-lobby behavior after settlement",

@@ -6,20 +6,20 @@ export const WEAPON_DEFINITIONS: Record<string, WeaponDefinition> = {
     name: "Sword",
     attackPower: 10,
     attacksPerSecond: 1.5,
-    range: 116
+    range: 232
   },
   blade: {
     type: "blade",
     name: "Blade",
     attackPower: 15,
     attacksPerSecond: 1,
-    range: 128
+    range: 256
   },
   spear: {
     type: "spear",
     name: "Spear",
     attackPower: 20,
     attacksPerSecond: 0.5,
-    range: 180
+    range: 360
   }
 };

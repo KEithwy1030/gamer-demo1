@@ -11,7 +11,6 @@ import {
   ATTACK_CONE_SPEAR_DEG,
   ATTACK_CONE_SWORD_DEG,
   ATTACK_RANGE_BUFFER,
-  DODGE_COOLDOWN_MS,
   DODGE_DISTANCE,
   DODGE_INVULNERABLE_MS,
   MATCH_MAP_HEIGHT,
@@ -42,6 +41,8 @@ export interface PlayerDeathPayload {
   roomCode: string;
   timestamp: number;
 }
+
+const SKILL_COOLDOWN_MS = 3000;
 
 export function resolvePlayerAttack(
   room: RuntimeRoom,
@@ -106,7 +107,7 @@ export function resolvePlayerSkillCast(
 
   switch (payload.skillId) {
     case "common_dodge": {
-      if (lastCastAt && now - lastCastAt < DODGE_COOLDOWN_MS) {
+      if (lastCastAt && now - lastCastAt < SKILL_COOLDOWN_MS) {
         throw new Error("Dodge is on cooldown.");
       }
 
@@ -116,20 +117,20 @@ export function resolvePlayerSkillCast(
       return emptyResolution();
     }
     case "sword_dashSlash": {
-      requireSkillCooldown(combatState, payload.skillId, now, 6000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       movePlayerByDirection(caster.state!, 96);
       const target = selectAttackTarget(room, caster, "sword", 96);
       return target
-        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 18 + attackPowerBonus, now), now)
+        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 180 + attackPowerBonus, now), now)
         : emptyResolution();
     }
     case "blade_sweep": {
-      requireSkillCooldown(combatState, payload.skillId, now, 7000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       const targets = selectAttackTargets(room, caster, "blade", 80, 90);
-      return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, 22 + attackPowerBonus, now), now);
+      return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, 220 + attackPowerBonus, now), now);
     }
     case "blade_guard": {
-      requireSkillCooldown(combatState, payload.skillId, now, 12000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       addTimedModifier(caster, {
         sourceId: payload.skillId,
         expiresAt: now + 2000,
@@ -138,7 +139,7 @@ export function resolvePlayerSkillCast(
       return emptyResolution();
     }
     case "blade_overpower": {
-      requireSkillCooldown(combatState, payload.skillId, now, 10000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       addTimedModifier(caster, {
         sourceId: payload.skillId,
         expiresAt: now + 4000,
@@ -147,14 +148,14 @@ export function resolvePlayerSkillCast(
       return emptyResolution();
     }
     case "spear_heavyThrust": {
-      requireSkillCooldown(combatState, payload.skillId, now, 8000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       const target = selectAttackTarget(room, caster, "spear", 160, 50);
       return target
-        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 30 + attackPowerBonus, now), now)
+        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 300 + attackPowerBonus, now), now)
         : emptyResolution();
     }
     case "spear_warCry": {
-      requireSkillCooldown(combatState, payload.skillId, now, 12000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       addTimedModifier(caster, {
         sourceId: payload.skillId,
         expiresAt: now + 3000,
@@ -164,10 +165,10 @@ export function resolvePlayerSkillCast(
       return emptyResolution();
     }
     case "spear_draggingStrike": {
-      requireSkillCooldown(combatState, payload.skillId, now, 9000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       setPendingBasicAttack(caster, {
         sourceId: payload.skillId,
-        bonusDamage: 8,
+        bonusDamage: 80,
         slowMultiplier: 0.25,
         slowDurationMs: 2000
       });

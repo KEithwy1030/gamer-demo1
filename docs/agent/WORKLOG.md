@@ -109,3 +109,17 @@
   - `npx.cmd tsc --noEmit -p server/tsconfig.json` passed
 - Follow-up:
   - Run an in-room gameplay sanity pass for buff expiry, spear drag next-hit consumption, and blade/spear skill feel
+
+- Goal:
+  Apply the follow-up combat retuning pass for weapon reach, skill damage, and uniform skill cooldowns.
+- Actions:
+  - Doubled shared weapon ranges again to sword `232`, blade `256`, and spear `360`
+  - Increased implemented skill damage values to sword dash slash `180`, blade sweep `220`, spear heavy thrust `300`, and spear dragging strike next-hit bonus `+80`
+  - Normalized all implemented skill cooldowns, including dodge, to `3000ms`
+  - Updated monster-side skill damage mirrors and rebuilt `shared/dist` so the server runtime sees the new weapon ranges
+- Verification:
+  - `npm.cmd run build --workspace shared` passed
+  - `npx.cmd tsc --noEmit -p server/tsconfig.json` passed
+  - `npx.cmd tsc --noEmit -p client/tsconfig.json` passed
+- Follow-up:
+  - Run an in-room sanity pass for the new reach and burst-damage tuning

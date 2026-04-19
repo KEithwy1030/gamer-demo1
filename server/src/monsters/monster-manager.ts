@@ -239,10 +239,10 @@ export function handlePlayerSkill(
 
   switch (payload.skillId) {
     case "blade_sweep":
-      return applySkillDamageToMonsters(room, player, findAttackableMonsters(room, player.state, 80, 90), scaleOutgoingDamage(player, 22 + player.state.attackPower, now));
+      return applySkillDamageToMonsters(room, player, findAttackableMonsters(room, player.state, 80, 90), scaleOutgoingDamage(player, 220 + player.state.attackPower, now));
     case "spear_heavyThrust": {
       const target = findAttackableMonster(room, player.state, 160, 50);
-      return applySkillDamageToMonsters(room, player, target ? [target] : [], scaleOutgoingDamage(player, 30 + player.state.attackPower, now));
+      return applySkillDamageToMonsters(room, player, target ? [target] : [], scaleOutgoingDamage(player, 300 + player.state.attackPower, now));
     }
     default:
       return undefined;
