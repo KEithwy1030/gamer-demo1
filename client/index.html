@@ -5,13 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Gamer Demo 1</title>
     <style>
-      html, body, #app {
+      html, body {
         margin: 0;
         width: 100%;
         height: 100%;
         background: #0b1020;
         overflow: hidden;
-        -webkit-overflow-scrolling: auto;
+      }
+      #app {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: #0b1020;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
       }
       canvas {
         touch-action: none;

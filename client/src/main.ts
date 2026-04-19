@@ -33,6 +33,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
     gameRoot.style.width = "100%";
     gameRoot.style.height = "100vh";
     gameRoot.style.position = "relative";
+    gameRoot.style.overflow = "hidden";
     gameRoot.hidden = true;
     sceneRoot.style.width = "100%";
     sceneRoot.style.height = "100%";
