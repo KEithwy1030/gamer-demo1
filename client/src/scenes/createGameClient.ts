@@ -95,6 +95,7 @@ export function createGameClientController(
       runtime.setCombatText(
         `战斗: ${payload.attackerId.slice(0, 4)} -> ${payload.targetId.slice(0, 4)} -${payload.amount}`
       );
+      getScene()?.onCombatResult?.(payload);
     },
     setTimer(secondsRemaining) {
       runtime.setTimer(secondsRemaining);
@@ -188,6 +189,9 @@ export function createGameClientController(
       height: 720,
       backgroundColor: "#020617",
       scene: [GameScene],
+      input: {
+        activePointers: 3
+      },
       physics: {
         default: "arcade",
         arcade: {
@@ -215,7 +219,10 @@ export function createGameClientController(
         );
         if (nearby) network.sendPickup({ dropId: nearby.id });
       },
-      onStartExtract: () => network.sendStartExtract()
+      onStartExtract: () => network.sendStartExtract(),
+      onOpenChest: (chestId: string) => network.sendOpenChest(chestId),
+      subscribeChestsInit: (cb: any) => network.onChestsInit(cb),
+      subscribeChestOpened: (cb: any) => network.onChestOpened(cb)
     });
   }
 

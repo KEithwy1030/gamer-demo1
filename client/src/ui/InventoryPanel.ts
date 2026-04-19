@@ -91,12 +91,51 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   toggle.type = "button";
   toggle.className = "inventory-panel__toggle";
   toggle.textContent = "打开背包";
+  
+  const mobileToggle = document.createElement("div");
+  mobileToggle.className = "inventory-mobile-toggle";
+  mobileToggle.textContent = "背包";
+  
+  const closeInventory = () => {
+    element.classList.add("inventory-panel--collapsed");
+    toggle.textContent = "打开背包";
+  };
+  
+  const openInventory = () => {
+    element.classList.remove("inventory-panel--collapsed");
+    toggle.textContent = "收起";
+  };
+
   toggle.addEventListener("click", () => {
-    const collapsed = element.classList.toggle("inventory-panel--collapsed");
-    toggle.textContent = collapsed ? "打开背包" : "收起";
+    if (element.classList.contains("inventory-panel--collapsed")) openInventory();
+    else closeInventory();
+  });
+  
+  mobileToggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openInventory();
   });
 
-  header.append(titleWrap, toggle);
+  const mobileClose = document.createElement("button");
+  mobileClose.className = "inventory-panel__toggle";
+  mobileClose.style.display = "none";
+  mobileClose.textContent = "关闭";
+  mobileClose.style.backgroundColor = "#f85149";
+  mobileClose.style.borderColor = "#f85149";
+  
+  // Update visibility on media query
+  const mq = window.matchMedia("(max-width: 767px)");
+  const handleMq = (m: MediaQueryList | MediaQueryListEvent) => {
+    mobileClose.style.display = m.matches ? "flex" : "none";
+    toggle.style.display = m.matches ? "none" : "flex";
+  };
+  mq.addEventListener("change", handleMq);
+  handleMq(mq);
+
+  mobileClose.addEventListener("click", closeInventory);
+
+  header.append(titleWrap, toggle, mobileClose);
+  document.body.append(mobileToggle);
 
   const body = document.createElement("div");
   body.className = "inventory-panel__body";
@@ -174,17 +213,42 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     const tooltip = createTooltip(item, type !== "item");
     slot.append(icon, tooltip);
 
-    slot.addEventListener("mouseenter", () => {
+    const toggleTooltip = (show: boolean) => {
       clearHideTimeout();
-      if (activeTooltip && activeTooltip !== tooltip) {
-        activeTooltip.classList.remove("is-visible");
+      if (show) {
+        if (activeTooltip && activeTooltip !== tooltip) {
+          activeTooltip.classList.remove("is-visible");
+        }
+        activeTooltip = tooltip;
+        tooltip.classList.add("is-visible");
+      } else {
+        startHideTimeout();
       }
-      activeTooltip = tooltip;
-      tooltip.classList.add("is-visible");
+    };
+
+    slot.addEventListener("mouseenter", () => {
+      if (window.matchMedia("(min-width: 768px)").matches) {
+        toggleTooltip(true);
+      }
     });
 
     slot.addEventListener("mouseleave", () => {
-      startHideTimeout();
+      if (window.matchMedia("(min-width: 768px)").matches) {
+        toggleTooltip(false);
+      }
+    });
+
+    slot.addEventListener("click", (e) => {
+      if (window.matchMedia("(max-width: 767px)").matches) {
+        e.stopPropagation();
+        const wasVisible = tooltip.classList.contains("is-visible");
+        if (wasVisible) {
+          toggleTooltip(false);
+          activeTooltip = null;
+        } else {
+          toggleTooltip(true);
+        }
+      }
     });
 
     return slot;

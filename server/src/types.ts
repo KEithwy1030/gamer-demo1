@@ -76,6 +76,24 @@ export interface DropState {
   createdAt: number;
 }
 
+export interface Chest {
+  id: string;
+  x: number;
+  y: number;
+  isOpen: boolean;
+  loot: InventoryItem[];
+}
+
+export interface PlayerOpenChestPayload {
+  chestId: string;
+}
+
+export interface ChestOpenedPayload {
+  chestId: string;
+  playerId: string;
+  loot: InventoryItem[];
+}
+
 export interface PlayerPickupPayload {
   dropId: string;
 }
@@ -243,6 +261,7 @@ export interface RuntimeRoom {
   monsterSyncInterval?: NodeJS.Timeout;
   monsters?: Map<string, RuntimeMonster>;
   drops?: Map<string, DropState>;
+  chests?: Map<string, Chest>;
   extract?: RuntimeRoomExtractState;
 }
 

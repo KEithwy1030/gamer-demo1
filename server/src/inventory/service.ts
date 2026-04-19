@@ -266,6 +266,24 @@ export class InventoryService {
     };
   }
 
+  addItemsToInventory(room: RuntimeRoom, playerId: string, items: InventoryItem[]): InventoryUpdatePayload {
+    const player = this.getPlayer(room, playerId);
+    const inventory = this.getInventory(player);
+
+    for (const item of items) {
+      const placement = findFirstFit(inventory, item);
+      if (placement) {
+        inventory.items.push({
+          item: cloneItem(item),
+          x: placement.x,
+          y: placement.y
+        });
+      }
+    }
+
+    return this.buildInventoryUpdate(player);
+  }
+
   listDrops(room: RuntimeRoom): DropState[] {
     return [...(room.drops?.values() ?? [])].map(cloneDrop);
   }

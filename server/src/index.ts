@@ -40,11 +40,14 @@ import {
   tickMonsters
 } from "./monsters/monster-manager.js";
 import { RoomStore } from "./room-store.js";
+import { listChests, openChest, spawnChests } from "./chests/chest-manager.js";
 import type {
+  ChestOpenedPayload,
   GameSocket,
   MatchSettlementEnvelope,
   PlayerDropItemPayload,
   PlayerEquipItemPayload,
+  PlayerOpenChestPayload,
   PlayerUnequipItemPayload,
   PlayerPickupPayload,
   RoomStartPayload,
@@ -364,6 +367,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       inventoryService.initializeRoom(context.room);
       initializeExtractState(context.room);
       spawnInitialMonsters(context.room);
+      spawnChests(context.room);
       io.to(context.room.code).emit(SocketEvent.RoomState, context.roomState);
       startPlayerSyncLoop(context.room.code);
       startMatchTimerLoop(context.room.code);
@@ -406,6 +410,10 @@ function attachRoomHandlers(socket: GameSocket): void {
       io.to(context.room.code).emit(
         SocketEvent.MatchTimer,
         roomStore.getRemainingSeconds(context.room.code)
+      );
+      io.to(context.room.code).emit(
+        SocketEvent.ChestsInit,
+        listChests(context.room)
       );
       if (context.room.extract?.isOpen) {
         io.to(context.room.code).emit(SocketEvent.ExtractOpened, {
@@ -642,6 +650,47 @@ function attachRoomHandlers(socket: GameSocket): void {
       }
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to start extract.");
+    }
+  });
+
+  socket.on(SocketEvent.PlayerOpenChest, (payload: PlayerOpenChestPayload) => {
+    try {
+      const session = buildSession(socket);
+      const roomCode = session.roomCode;
+      if (!roomCode) {
+        throw new Error("Player is not currently in a room.");
+      }
+
+      const context = roomStore.getRoomByCodeSnapshot(roomCode);
+      const player = context.room.players.get(session.playerId);
+      if (!player?.state) {
+        throw new Error("Player is not active in the current match.");
+      }
+
+      if (!player.state.isAlive) {
+        throw new Error("Dead players cannot open chests.");
+      }
+
+      const { loot } = openChest(
+        context.room,
+        session.playerId,
+        payload.chestId,
+        player.state.x,
+        player.state.y
+      );
+
+      const inventoryUpdate = inventoryService.addItemsToInventory(context.room, session.playerId, loot);
+
+      const chestOpenedPayload: ChestOpenedPayload = {
+        chestId: payload.chestId,
+        playerId: session.playerId,
+        loot
+      };
+
+      io.to(roomCode).emit(SocketEvent.ChestOpened, chestOpenedPayload);
+      io.to(socket.id).emit(SocketEvent.InventoryUpdate, inventoryUpdate);
+    } catch (error) {
+      emitRoomError(socket, error instanceof Error ? error.message : "Failed to open chest.");
     }
   });
 

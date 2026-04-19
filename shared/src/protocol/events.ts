@@ -28,7 +28,10 @@ export const SocketEvent = {
   PlayerDied: "player:died",
   ExtractOpened: "extract:opened",
   ExtractProgress: "extract:progress",
-  ExtractSuccess: "extract:success"
+  ExtractSuccess: "extract:success",
+  ChestsInit: "chests:init",
+  ChestOpened: "chest:opened",
+  PlayerOpenChest: "player:openChest"
 } as const;
 
 export type SocketEventName = (typeof SocketEvent)[keyof typeof SocketEvent];

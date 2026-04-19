@@ -67,6 +67,19 @@ export interface SettlementEnvelope {
   settlement?: unknown;
 }
 
+export interface ChestState {
+  id: string;
+  x: number;
+  y: number;
+  isOpen: boolean;
+}
+
+export interface ChestOpenedPayload {
+  chestId: string;
+  playerId: string;
+  loot: any[];
+}
+
 const DEFAULT_SERVER_PORT = "3000";
 
 export class GameSocketClient {
@@ -160,6 +173,14 @@ export class GameSocketClient {
     return this.on(SocketEvent.ExtractSuccess, listener);
   }
 
+  onChestsInit(listener: (chests: ChestState[]) => void): Unsubscribe {
+    return this.on(SocketEvent.ChestsInit, listener);
+  }
+
+  onChestOpened(listener: (payload: ChestOpenedPayload) => void): Unsubscribe {
+    return this.on(SocketEvent.ChestOpened, listener);
+  }
+
   onSettlement(listener: (payload: SettlementEnvelope | unknown) => void): Unsubscribe {
     return this.on(SocketEvent.MatchSettlement, listener);
   }
@@ -214,6 +235,10 @@ export class GameSocketClient {
 
   sendStartExtract(): void {
     this.socket.emit(SocketEvent.PlayerStartExtract);
+  }
+
+  sendOpenChest(chestId: string): void {
+    this.socket.emit(SocketEvent.PlayerOpenChest, { chestId });
   }
 
   private on<TPayload>(event: string, listener: (payload: TPayload) => void): Unsubscribe {

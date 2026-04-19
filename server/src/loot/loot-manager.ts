@@ -94,7 +94,7 @@ function pickDropDefinitions(monsterType: MonsterType): string[] {
   return results;
 }
 
-function buildInventoryItem(definitionId: string): InventoryItem | undefined {
+export function buildInventoryItem(definitionId: string): InventoryItem | undefined {
   const definition = ITEM_DEFINITIONS[definitionId];
   if (!definition) {
     return undefined;

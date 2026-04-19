@@ -1,9 +1,10 @@
-import type { SkillId, Vector2, WeaponType } from "@gamer/shared";
+import type { CombatEventPayload, SkillId, Vector2, WeaponType } from "@gamer/shared";
 import Phaser from "phaser";
 import { DropMarker } from "../game/entities/DropMarker";
 import { MonsterMarker } from "../game/entities/MonsterMarker";
 import { PlayerMarker } from "../game/entities/PlayerMarker";
 import { MatchRuntimeStore, type MatchViewState } from "../game";
+import type { ChestOpenedPayload, ChestState } from "../network/socketClient";
 import type { ExtractUiState } from "./createGameClient";
 
 export interface GameSceneInitData {
@@ -14,6 +15,10 @@ export interface GameSceneInitData {
   onSkill?: (skillId: SkillId) => void;
   onPickup?: () => void;
   onStartExtract?: () => void;
+  onCombatResult?: (payload: CombatEventPayload) => void;
+  onOpenChest?: (chestId: string) => void;
+  subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
+  subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
 }
 
 type TerrainPalette = {
@@ -44,6 +49,8 @@ export class GameScene extends Phaser.Scene {
   private readonly playerMarkers = new Map<string, PlayerMarker>();
   private readonly monsterMarkers = new Map<string, MonsterMarker>();
   private readonly dropMarkers = new Map<string, DropMarker>();
+  private readonly chestSprites = new Map<string, Phaser.GameObjects.Image>();
+  private readonly chestLabels = new Map<string, Phaser.GameObjects.Text>();
   private terrainLayer?: Phaser.GameObjects.TileSprite;
   private detailLayer?: Phaser.GameObjects.Graphics;
   private obstacleLayer?: Phaser.GameObjects.Container;
@@ -86,6 +93,12 @@ export class GameScene extends Phaser.Scene {
   private onSkill?: (skillId: SkillId) => void;
   private onPickup?: () => void;
   private onStartExtract?: () => void;
+  public onCombatResult?: (payload: CombatEventPayload) => void;
+  private onOpenChest?: (chestId: string) => void;
+  private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
+  private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
+  private chestUnsubscribes: (() => void)[] = [];
+  private interactionPrompt?: Phaser.GameObjects.Text;
   private lastMoveDirection: Vector2 = { x: 0, y: 0 };
   private lastFacingDirection: Vector2 = { x: 0, y: 1 };
   private lastMoveSentAt = 0;
@@ -297,6 +310,36 @@ export class GameScene extends Phaser.Scene {
     bCtx.closePath();
     bCtx.fill();
     this.textures.addCanvas("beacon", bCanvas);
+
+    // 10. Generate 'chest_closed' (32x32)
+    const ccCanvas = document.createElement("canvas");
+    ccCanvas.width = 32;
+    ccCanvas.height = 32;
+    const ccCtx = ccCanvas.getContext("2d")!;
+    ccCtx.fillStyle = "#8B4513"; // Brown
+    ccCtx.fillRect(2, 8, 28, 22);
+    ccCtx.strokeStyle = "#5C2E00"; // Dark brown
+    ccCtx.lineWidth = 2;
+    ccCtx.strokeRect(3, 9, 26, 20);
+    ccCtx.fillStyle = "#FFD700"; // Gold latch
+    ccCtx.fillRect(14, 18, 4, 6);
+    this.textures.addCanvas("chest_closed", ccCanvas);
+
+    // 11. Generate 'chest_open' (32x32)
+    const coCanvas = document.createElement("canvas");
+    coCanvas.width = 32;
+    coCanvas.height = 32;
+    const coCtx = coCanvas.getContext("2d")!;
+    coCtx.fillStyle = "#8B4513";
+    coCtx.fillRect(2, 12, 28, 18); // Smaller body (lid open)
+    coCtx.strokeStyle = "#5C2E00";
+    coCtx.lineWidth = 2;
+    coCtx.strokeRect(3, 13, 26, 16);
+    coCtx.fillStyle = "#FFD700"; // Gold glow inside
+    coCtx.globalAlpha = 0.6;
+    coCtx.fillRect(6, 4, 20, 10);
+    coCtx.globalAlpha = 1.0;
+    this.textures.addCanvas("chest_open", coCanvas);
   }
 
   init(data: GameSceneInitData): void {
@@ -307,6 +350,45 @@ export class GameScene extends Phaser.Scene {
     this.onSkill = data.onSkill;
     this.onPickup = data.onPickup;
     this.onStartExtract = data.onStartExtract;
+    this.onOpenChest = data.onOpenChest;
+    this.subscribeChestsInit = data.subscribeChestsInit;
+    this.subscribeChestOpened = data.subscribeChestOpened;
+    this.onCombatResult = (payload) => this.handleCombatResult(payload);
+  }
+
+  private handleCombatResult(payload: CombatEventPayload): void {
+    const target = this.playerMarkers.get(payload.targetId) || this.monsterMarkers.get(payload.targetId);
+    if (!target) return;
+
+    // 1. Floating Damage Number
+    const color = payload.isCritical ? "#fbbf24" : "#ef4444"; // Yellow for crit, Red for normal
+    const fontSize = payload.isCritical ? "24px" : "18px";
+    const text = this.add.text(target.root.x, target.root.y - 30, `-${payload.amount}`, {
+      fontFamily: "monospace",
+      fontSize,
+      fontStyle: "bold",
+      color,
+      stroke: "#000000",
+      strokeThickness: 4
+    }).setOrigin(0.5).setDepth(3000);
+
+    this.tweens.add({
+      targets: text,
+      y: text.y - 40,
+      alpha: 0,
+      duration: 800,
+      ease: "Cubic.out",
+      onComplete: () => text.destroy()
+    });
+
+    // 2. Flash Effect
+    this.flashEffect(target.root);
+
+    // 3. Optional Hit Stop on Self
+    if (payload.targetId === this.latestState?.selfPlayerId) {
+      this.shakeCamera(0.008, 150);
+      this.applyHitStop(50);
+    }
   }
 
   create(): void {
@@ -343,6 +425,15 @@ export class GameScene extends Phaser.Scene {
       frameRate: 8, repeat: -1
     });
 
+    this.input.addPointer(3);
+    
+    // Prevent iOS Safari bounce/scroll
+    document.addEventListener("touchmove", (e) => {
+      if (e.target instanceof HTMLCanvasElement || (e.target as HTMLElement).closest("#mobile-action-overlay")) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
     this.unsubscribeRuntime = this.runtime.subscribe((state) => {
       this.latestState = state;
       this.syncWorld(state);
@@ -364,8 +455,83 @@ export class GameScene extends Phaser.Scene {
 
     this.createAtmosphere();
     this.initHud();
+    this.initChests();
     this.showTutorial();
     this.initTouchControls();
+  }
+
+  private initChests(): void {
+    if (this.subscribeChestsInit) {
+      this.chestUnsubscribes.push(this.subscribeChestsInit((chests) => {
+        chests.forEach(chest => {
+          if (!this.chestSprites.has(chest.id)) {
+            const sprite = this.add.image(chest.x, chest.y, chest.isOpen ? "chest_open" : "chest_closed");
+            sprite.setDepth(chest.y);
+            this.chestSprites.set(chest.id, sprite);
+
+            if (!chest.isOpen) {
+              const label = this.add.text(chest.x, chest.y - 30, "宝箱", {
+                fontFamily: "monospace",
+                fontSize: "14px",
+                color: "#ffffff",
+                stroke: "#000000",
+                strokeThickness: 3
+              }).setOrigin(0.5).setDepth(chest.y + 1);
+              this.chestLabels.set(chest.id, label);
+
+              // Pulsing glow
+              this.tweens.add({
+                targets: sprite,
+                alpha: 0.7,
+                duration: 800,
+                yoyo: true,
+                repeat: -1,
+                ease: "Sine.easeInOut"
+              });
+            }
+          }
+        });
+      }));
+    }
+
+    if (this.subscribeChestOpened) {
+      this.chestUnsubscribes.push(this.subscribeChestOpened((payload) => {
+        const sprite = this.chestSprites.get(payload.chestId);
+        if (sprite) {
+          sprite.setTexture("chest_open");
+          this.tweens.killTweensOf(sprite);
+          sprite.setAlpha(1);
+          
+          // Brief golden particle burst (using simple circles)
+          for (let i = 0; i < 8; i++) {
+            const p = this.add.circle(sprite.x, sprite.y, 4, 0xfacc15);
+            p.setDepth(sprite.depth + 1);
+            this.tweens.add({
+              targets: p,
+              x: p.x + (Math.random() - 0.5) * 100,
+              y: p.y + (Math.random() - 0.5) * 100,
+              alpha: 0,
+              scale: 0.1,
+              duration: 600,
+              onComplete: () => p.destroy()
+            });
+          }
+        }
+        const label = this.chestLabels.get(payload.chestId);
+        if (label) {
+          label.destroy();
+          this.chestLabels.delete(payload.chestId);
+        }
+      }));
+    }
+
+    this.interactionPrompt = this.add.text(0, 0, "按 E 开箱", {
+      fontFamily: "monospace",
+      fontSize: "16px",
+      color: "#facc15",
+      stroke: "#000000",
+      strokeThickness: 4
+    }).setOrigin(0.5).setDepth(4000).setVisible(false);
   }
 
   private initTouchControls(): void {
@@ -436,7 +602,7 @@ export class GameScene extends Phaser.Scene {
     const buttons = [
       { label: "攻击", id: "A", color: "#ef4444", action: () => this.handleAttack() },
       { label: "技能", id: "B", color: "#38bdf8", action: () => this.handleSkill() },
-      { label: "拾取", id: "C", color: "#eab308", action: () => this.onPickup?.() },
+      { label: "交互", id: "C", color: "#eab308", action: () => this.handleInteract() },
       { label: "撤离", id: "F", color: "#2dd4bf", action: () => this.onStartExtract?.() },
     ];
 
@@ -663,6 +829,7 @@ export class GameScene extends Phaser.Scene {
 
     this.emitMoveInput(time);
     this.emitActionInput();
+    this.updateChests();
     this.tickExtractBeacon(time);
 
     const selfPlayerId = this.latestState?.selfPlayerId;
@@ -671,6 +838,45 @@ export class GameScene extends Phaser.Scene {
     const selfMarker = this.playerMarkers.get(selfPlayerId);
     if (selfMarker) {
       this.cameras.main.startFollow(selfMarker.root, true, 0.12, 0.12);
+    }
+  }
+
+  private updateChests(): void {
+    if (!this.interactionPrompt) return;
+
+    const selfPlayerId = this.latestState?.selfPlayerId;
+    if (!selfPlayerId) {
+      this.interactionPrompt.setVisible(false);
+      return;
+    }
+
+    const selfMarker = this.playerMarkers.get(selfPlayerId);
+    if (!selfMarker) {
+      this.interactionPrompt.setVisible(false);
+      return;
+    }
+
+    let nearestChestId: string | null = null;
+    let minDistance = 80;
+
+    for (const [id, sprite] of this.chestSprites.entries()) {
+      // Only closed chests are interactable
+      if (sprite.texture.key === "chest_closed") {
+        const dist = Phaser.Math.Distance.Between(selfMarker.root.x, selfMarker.root.y, sprite.x, sprite.y);
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearestChestId = id;
+        }
+      }
+    }
+
+    if (nearestChestId) {
+      const chest = this.chestSprites.get(nearestChestId)!;
+      this.interactionPrompt.setPosition(chest.x, chest.y - 50);
+      this.interactionPrompt.setVisible(true);
+      this.interactionPrompt.setData("chestId", nearestChestId);
+    } else {
+      this.interactionPrompt.setVisible(false);
     }
   }
 
@@ -685,6 +891,8 @@ export class GameScene extends Phaser.Scene {
   shutdown(): void {
     this.unsubscribeRuntime?.();
     this.unsubscribeRuntime = null;
+    this.chestUnsubscribes.forEach(unsub => unsub());
+    this.chestUnsubscribes = [];
     this.extractPulseTween?.stop();
     this.extractPulseTween = undefined;
     if (this.mobileOverlay) {
@@ -694,9 +902,9 @@ export class GameScene extends Phaser.Scene {
     for (const marker of this.playerMarkers.values()) marker.destroy();
     for (const marker of this.monsterMarkers.values()) marker.destroy();
     for (const marker of this.dropMarkers.values()) marker.destroy();
-    this.playerMarkers.clear();
-    this.monsterMarkers.clear();
-    this.dropMarkers.clear();
+    for (const label of this.chestLabels.values()) label.destroy();
+    this.chestSprites.clear();
+    this.chestLabels.clear();
     this.regionLabels = [];
   }
 
@@ -766,10 +974,19 @@ export class GameScene extends Phaser.Scene {
       this.handleSkill();
     }
     if (this.pickupKey && Phaser.Input.Keyboard.JustDown(this.pickupKey)) {
-      this.onPickup?.();
+      this.handleInteract();
     }
     if (this.extractKey && Phaser.Input.Keyboard.JustDown(this.extractKey)) {
       this.onStartExtract?.();
+    }
+  }
+
+  private handleInteract(): void {
+    if (this.interactionPrompt?.visible) {
+      const chestId = this.interactionPrompt.getData("chestId");
+      if (chestId) this.onOpenChest?.(chestId);
+    } else {
+      this.onPickup?.();
     }
   }
 
