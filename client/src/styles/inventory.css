@@ -1,0 +1,229 @@
+.inventory-panel {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  width: 380px;
+  background: #0d1117;
+  border: 2px solid #30363d;
+  color: #c9d1d9;
+  font-family: 'Courier New', Courier, monospace;
+  box-shadow: 4px 4px 0px rgba(0,0,0,0.8);
+  z-index: 1000;
+  transition: all 0.2s steps(4);
+  display: flex;
+  flex-direction: column;
+  image-rendering: pixelated;
+}
+
+.inventory-panel--collapsed {
+  width: 200px;
+  height: 64px;
+}
+
+.inventory-panel__header {
+  padding: 12px 16px;
+  border-bottom: 2px solid #30363d;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #161b22;
+}
+
+.inventory-panel__title {
+  margin: 0;
+  font-size: 16px;
+  color: #58a6ff;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: bold;
+}
+
+.inventory-panel__summary {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #8b949e;
+}
+
+.inventory-panel__toggle {
+  background: #238636;
+  border: 2px solid #2ea043;
+  color: white;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+}
+
+.inventory-panel__toggle:active {
+  box-shadow: none;
+  transform: translate(2px, 2px);
+}
+
+.inventory-panel__body {
+  padding: 16px;
+  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  max-height: 70vh;
+}
+
+.inventory-panel--collapsed .inventory-panel__body {
+  display: none;
+}
+
+.inventory-section h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #f0f6fc;
+  text-transform: uppercase;
+  border-left: 4px solid #58a6ff;
+  padding-left: 8px;
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.inventory-grid--backpack {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.inventory-slot {
+  aspect-ratio: 1;
+  background: #0d1117;
+  border: 2px solid #30363d;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.inventory-slot:hover {
+  background: #161b22;
+  border-color: #8b949e;
+}
+
+.inventory-slot--empty::before {
+  content: attr(data-label);
+  font-size: 10px;
+  color: #30363d;
+  text-align: center;
+  position: absolute;
+}
+
+/* Quality Colors */
+.quality-common { color: #cccccc; border-color: #cccccc; }
+.quality-uncommon { color: #4ade80; border-color: #4ade80; }
+.quality-rare { color: #60a5fa; border-color: #60a5fa; }
+.quality-epic { color: #c084fc; border-color: #c084fc; }
+
+.inventory-slot.quality-common { background: rgba(204, 204, 204, 0.1); }
+.inventory-slot.quality-uncommon { background: rgba(74, 222, 128, 0.1); }
+.inventory-slot.quality-rare { background: rgba(96, 165, 250, 0.1); }
+.inventory-slot.quality-epic { background: rgba(192, 132, 252, 0.1); }
+
+.inventory-item-icon {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.inventory-slot-label {
+  position: absolute;
+  bottom: -18px;
+  left: 0;
+  width: 100%;
+  font-size: 10px;
+  text-align: center;
+  color: #8b949e;
+}
+
+.inventory-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 120%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0d1117;
+  border: 2px solid #30363d;
+  padding: 12px;
+  width: 220px;
+  z-index: 1100;
+  font-size: 12px;
+  box-shadow: 4px 4px 0px rgba(0,0,0,0.8);
+  pointer-events: auto;
+}
+
+.inventory-tooltip.is-visible {
+  display: block;
+}
+
+.tooltip-header {
+  border-bottom: 1px solid #30363d;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.tooltip-name {
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.tooltip-rarity {
+  font-size: 10px;
+  padding: 1px 4px;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+}
+
+.tooltip-slot {
+  color: #8b949e;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.tooltip-stats {
+  margin-bottom: 8px;
+}
+
+.stat-line {
+  margin: 2px 0;
+}
+
+.stat-line--positive {
+  color: #4ade80;
+}
+
+.tooltip-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  border-top: 1px solid #30363d;
+  padding-top: 8px;
+}
+
+.tooltip-actions button {
+  flex: 1;
+  background: #21262d;
+  border: 1px solid #30363d;
+  color: #c9d1d9;
+  padding: 10px 4px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 40px;
+}
+
+.tooltip-actions button:hover {
+  background: #30363d;
+}
+
+.tooltip-actions .btn-drop {
+  color: #f85149;
+}

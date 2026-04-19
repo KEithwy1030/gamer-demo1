@@ -1,0 +1,50 @@
+{
+  "project": "gamer-demo1",
+  "updated_at": "2026-04-19",
+  "current_phase": "2d-vertical-slice-refactor",
+  "current_priority": "Stabilize the new equipment and loot stat pipeline without regressing the playable LAN extraction loop.",
+  "repo_bootstrap": [
+    "AGENTS.md",
+    "docs/agent/STATUS.json",
+    "docs/agent/PROJECT_STATE.md"
+  ],
+  "active_tracks": [
+    "2D scene readability",
+    "entity presentation",
+    "LAN room flow stability",
+    "full-loop playtest validation",
+    "full-loop automation coverage",
+    "equipment and loot stat stability"
+  ],
+  "recently_completed": [
+    "Created canonical repo memory system under docs/agent/",
+    "Reframed execution plan around a 2D playable vertical slice",
+    "Refactored GameScene into a readable 2D battlefield layout",
+    "Refactored player, monster, and drop markers into more game-like 2D entities",
+    "Fixed LAN default server URL resolution and Phaser canvas resize issues",
+    "Added scripted backend E2E loop coverage for create -> join -> start -> combat -> pickup -> extract -> settlement",
+    "Revalidated equipment and loot stat pipeline with passing client/server TypeScript checks",
+    "Hardened backend LAN/mobile connectivity with permissive default CORS, explicit Socket.IO polling fallback, and less aggressive ping timeouts"
+  ],
+  "unfinished_high_priority": [
+    "Revalidate the frontend/manual return-to-lobby behavior after settlement",
+    "Make obstacles authoritative for movement/collision, not just visual",
+    "Improve combat and interaction feedback beyond static markers",
+    "Keep frontend optimization work isolated from protocol-breaking backend changes"
+  ],
+  "integration_status": {
+    "client_typecheck": "passing",
+    "client_build": "passing",
+    "server_health": "passing",
+    "lan_create_join_start": "passing",
+    "backend_e2e_test_loop": "passing",
+    "visual_quality": "improved but still below target",
+    "full_demo_acceptance": "backend loop validated; frontend/manual acceptance still pending",
+    "equipment_pipeline_typecheck": "passing"
+  },
+  "runtime_defaults": {
+    "client_url": "http://192.168.1.204:5173/",
+    "server_health": "http://localhost:3000/health"
+  },
+  "coordination_rule": "During external frontend optimization work, avoid breaking protocol or gameplay baseline used for UI testing."
+}

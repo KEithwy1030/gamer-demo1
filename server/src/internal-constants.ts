@@ -1,0 +1,63 @@
+import {
+  DEFAULT_ROOM_CAPACITY as SHARED_DEFAULT_ROOM_CAPACITY,
+  MATCH_DURATION_SEC as SHARED_MATCH_DURATION_SEC,
+  MAP_HEIGHT,
+  MAP_WIDTH,
+  MAX_ROOM_CAPACITY as SHARED_MAX_ROOM_CAPACITY,
+  MIN_ROOM_CAPACITY as SHARED_MIN_ROOM_CAPACITY,
+  PLAYER_BASE_SPEED as SHARED_PLAYER_BASE_SPEED,
+  ROOM_CODE_LENGTH as SHARED_ROOM_CODE_LENGTH,
+  SERVER_PLAYER_SYNC_HZ as SHARED_SERVER_PLAYER_SYNC_HZ
+} from "../../shared/dist/data/constants.js";
+
+function getNumberOverride(name: string, fallback: number): number {
+  const rawValue = process.env[name];
+  if (!rawValue) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(rawValue, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export const DEFAULT_ROOM_CAPACITY = SHARED_DEFAULT_ROOM_CAPACITY;
+export const MIN_ROOM_CAPACITY = SHARED_MIN_ROOM_CAPACITY;
+export const MAX_ROOM_CAPACITY = SHARED_MAX_ROOM_CAPACITY;
+export const ROOM_CODE_LENGTH = SHARED_ROOM_CODE_LENGTH;
+export const SERVER_PLAYER_SYNC_HZ = SHARED_SERVER_PLAYER_SYNC_HZ;
+export const MATCH_DURATION_SEC = getNumberOverride("MATCH_DURATION_SEC", SHARED_MATCH_DURATION_SEC);
+export const MATCH_MAP_WIDTH = MAP_WIDTH;
+export const MATCH_MAP_HEIGHT = MAP_HEIGHT;
+export const EXTRACT_OPEN_SEC = getNumberOverride("EXTRACT_OPEN_SEC", 600);
+export const EXTRACT_CENTER_RADIUS = 96;
+export const EXTRACT_CHANNEL_DURATION_MS = getNumberOverride("EXTRACT_CHANNEL_DURATION_MS", 5000);
+export const SPAWN_RING_RADIUS = 280;
+export const PLAYER_BASE_HP = 100;
+export const PLAYER_BASE_MOVE_SPEED = SHARED_PLAYER_BASE_SPEED;
+export const DEFAULT_WEAPON_TYPE = "sword";
+export const MOVE_STEP_PER_INPUT = 28;
+export const PLAYER_HIT_RADIUS = 28;
+export const ATTACK_RANGE_BUFFER = 28;
+export const ATTACK_CONE_SWORD_DEG = 100;
+export const ATTACK_CONE_BLADE_DEG = 80;
+export const ATTACK_CONE_SPEAR_DEG = 50;
+export const DODGE_DISTANCE = 150;
+export const DODGE_INVULNERABLE_MS = 200;
+export const DODGE_COOLDOWN_MS = 5000;
+export const SERVER_MONSTER_SYNC_HZ = 10;
+export const MONSTER_TICK_MS = Math.floor(1000 / SERVER_MONSTER_SYNC_HZ);
+export const MONSTER_CONTACT_RADIUS = 30;
+export const NORMAL_MONSTER_MAX_HP = 45;
+export const ELITE_MONSTER_MAX_HP = 90;
+export const NORMAL_MONSTER_AGGRO_RANGE = 220;
+export const ELITE_MONSTER_AGGRO_RANGE = 320;
+export const NORMAL_MONSTER_LEASH_RANGE = 520;
+export const ELITE_MONSTER_LEASH_RANGE = 680;
+export const NORMAL_MONSTER_ATTACK_RANGE = 56;
+export const ELITE_MONSTER_ATTACK_RANGE = 68;
+export const NORMAL_MONSTER_ATTACK_DAMAGE = 8;
+export const ELITE_MONSTER_ATTACK_DAMAGE = 15;
+export const NORMAL_MONSTER_MOVE_SPEED = 120;
+export const ELITE_MONSTER_MOVE_SPEED = 145;
+export const NORMAL_MONSTER_ATTACK_COOLDOWN_MS = 1100;
+export const ELITE_MONSTER_ATTACK_COOLDOWN_MS = 1450;

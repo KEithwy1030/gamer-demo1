@@ -1,0 +1,2 @@
+[   20459ms] [LOG] %c %c %c %c %c Phaser v3.90.0 (Canvas | Web Audio) %c https://phaser.io/v390 background: #ff0000 background: #ffff00 background: #00ff00 background: #00ffff color: #ffffff; background: #000000 background: transparent @ http://localhost:5174/node_modules/.vite/deps/phaser.js?v=2da77e33:8455
+[   20527ms] [ERROR] Failed to process file: %s "%s" image ground @ http://localhost:5174/node_modules/.vite/deps/phaser.js?v=2da77e33:66299

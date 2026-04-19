@@ -1,0 +1,13 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <!-- Shadow -->
+    <ellipse cx="32" cy="40" rx="20" ry="8" fill="rgba(0,0,0,0.3)" />
+    <!-- Body -->
+    <circle cx="32" cy="32" r="20" fill="#3b82f6" stroke="#1e3a8a" stroke-width="3" />
+    <!-- Head/Helmet -->
+    <circle cx="32" cy="32" r="12" fill="#1e40af" stroke="#1d4ed8" stroke-width="2" />
+    <!-- Visor (Facing direction is Up by default in our SVG, but we can make it Point Right for 0 rotation) -->
+    <!-- Let's assume 0 rotation = Facing Right -->
+    <rect x="36" y="28" width="12" height="8" rx="2" fill="#60a5fa" />
+    <!-- Backpack -->
+    <rect x="14" y="24" width="8" height="16" rx="2" fill="#1d4ed8" />
+</svg>
