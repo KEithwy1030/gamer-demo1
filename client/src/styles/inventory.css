@@ -78,11 +78,12 @@
     position: fixed;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100% !important;
-    height: 100% !important;
-    max-height: 100vh;
+    right: auto;
+    bottom: auto;
+    width: 55% !important;
+    height: auto !important;
+    max-height: 85vh;
+    overflow-y: auto;
     border-radius: 0;
     border: none;
     z-index: 5000;
@@ -98,14 +99,14 @@
 
   .inventory-panel__body {
     flex: 1;
-    max-height: 100vh;
+    max-height: calc(85vh - 60px);
     padding: 24px;
     gap: 30px;
   }
 
   .inventory-grid {
     gap: 15px;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .inventory-slot {
@@ -141,7 +142,7 @@
 .inventory-mobile-toggle {
   position: fixed;
   top: 20px;
-  right: 20px;
+  left: 140px;
   width: 54px;
   height: 54px;
   background: #238636;

@@ -30,6 +30,9 @@ export interface ExtractUiState {
   secondsRemaining: number | null;
   message: string | null;
   didSucceed: boolean;
+  x?: number;
+  y?: number;
+  radius?: number;
 }
 
 export interface GameClientController {
@@ -139,7 +142,10 @@ export function createGameClientController(
         progress: null,
         secondsRemaining: resolveCountdownSeconds(payload),
         message: payload?.message ?? "撤离点现已开启。",
-        didSucceed: false
+        didSucceed: false,
+        x: payload?.x,
+        y: payload?.y,
+        radius: payload?.radius
       });
     }),
     network.onExtractProgress((payload) => {

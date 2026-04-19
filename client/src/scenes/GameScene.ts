@@ -102,6 +102,7 @@ export class GameScene extends Phaser.Scene {
   private lastMoveDirection: Vector2 = { x: 0, y: 0 };
   private lastFacingDirection: Vector2 = { x: 0, y: 1 };
   private lastMoveSentAt = 0;
+  private extractAutoStarted = false;
 
   private static readonly MOBILE_SPEED_SCALE = 0.5;
 
@@ -466,7 +467,7 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor("#040814");
-    this.cameras.main.setZoom(1); 
+    this.cameras.main.setZoom(0.75); 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.shutdown();
     });
@@ -734,15 +735,13 @@ export class GameScene extends Phaser.Scene {
     (window as any).__gameActions = {
       attack: () => this.handleAttack(),
       skill:  () => this.handleSkill(),
-      pickup: () => this.handleInteract(),
-      extract: () => this.onStartExtract?.()
+      pickup: () => this.handleInteract()
     };
 
     const buttons = [
       { label: "攻", color: "#ef4444", action: "attack"  as const },
       { label: "技", color: "#38bdf8", action: "skill"   as const },
       { label: "捡", color: "#4ade80", action: "pickup"  as const },
-      { label: "撤", color: "#facc15", action: "extract" as const },
     ];
 
     buttons.forEach(btn => {
@@ -940,6 +939,26 @@ export class GameScene extends Phaser.Scene {
     if (!selfPlayerId) return;
 
     const selfMarker = this.playerMarkers.get(selfPlayerId);
+
+    // Auto-extract logic (Issue 34)
+    if (this.extractState.isOpen && selfMarker) {
+      const ex = this.extractState.x ?? (this.latestState ? this.latestState.width / 2 : 0);
+      const ey = this.extractState.y ?? (this.latestState ? this.latestState.height / 2 : 0);
+      const er = this.extractState.radius ?? 96;
+      const dist = Phaser.Math.Distance.Between(selfMarker.root.x, selfMarker.root.y, ex, ey);
+      
+      if (dist <= er) {
+        if (!this.extractAutoStarted && !this.extractState.isExtracting) {
+          this.onStartExtract?.();
+          this.extractAutoStarted = true;
+        }
+      } else {
+        this.extractAutoStarted = false;
+      }
+    } else {
+      this.extractAutoStarted = false;
+    }
+
     if (selfMarker) {
       this.cameras.main.startFollow(selfMarker.root, true, 0.12, 0.12);
     }
@@ -1097,9 +1116,6 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.pickupKey && Phaser.Input.Keyboard.JustDown(this.pickupKey)) {
       this.handleInteract();
-    }
-    if (this.extractKey && Phaser.Input.Keyboard.JustDown(this.extractKey)) {
-      this.onStartExtract?.();
     }
   }
 
@@ -1423,7 +1439,7 @@ export class GameScene extends Phaser.Scene {
 
     // Controls Hint (Bottom Right)
     const isTouch = navigator.maxTouchPoints > 0;
-    const hintText = isTouch ? "虚拟摇杆 移动 | A 攻击 | B 技能 | C 拾取 | D 撤离" : "WASD 移动 | 空格 攻击 | Q 技能 | E 拾取 | F 撤离";
+    const hintText = isTouch ? "虚拟摇杆 移动 | A 攻击 | B 技能 | C 拾取" : "WASD 移动 | 空格 攻击 | Q 技能 | E 拾取";
 
     this.controlsHint = this.add.text(width - 20, height - 20, hintText, {
       fontFamily: "monospace",
@@ -1459,7 +1475,7 @@ export class GameScene extends Phaser.Scene {
 
     const isTouch = navigator.maxTouchPoints > 0;
     const moveHint = isTouch ? "● 移动: 虚拟摇杆" : "● 移动: WASD";
-    const actionHint = isTouch ? "● 攻击: A | 技能: B\n● 交互: C | 撤离: D" : "● 攻击: 空格 | 技能: Q\n● 交互: E | 撤离: F";
+    const actionHint = isTouch ? "● 攻击: A | 技能: B\n● 交互: C" : "● 攻击: 空格 | 技能: Q\n● 交互: E";
 
     const content = this.add.text(10, 40, 
       moveHint + "\n" +
