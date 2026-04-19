@@ -546,6 +546,12 @@ function attachRoomHandlers(socket: GameSocket): void {
       const resolution = resolvePlayerAttack(context.room, session.playerId, payload);
       const monsterOutcome = handleMonsterPlayerAttack(context, session.playerId, payload);
 
+      // Broadcast the attack event to all clients in the room to trigger VFX
+      io.to(roomCode).emit(CombatSocketEvent.PlayerAttack, {
+        playerId: session.playerId,
+        attackId: payload.attackId
+      });
+
       for (const event of resolution.combatEvents) {
         const interruption = interruptPlayerExtract(context.room, event.targetId, "damaged");
         if (interruption) {

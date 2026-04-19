@@ -47,6 +47,7 @@ export interface GameClientController {
   applyDrops(drops: WorldDrop[]): void;
   setInventory(payload: InventoryUpdateEvent): void;
   setCombatResult(payload: CombatEventPayload): void;
+  onPlayerAttack(payload: { playerId: string; attackId: string }): void;
   setTimer(secondsRemaining: number): void;
   setExtractState(payload: Partial<ExtractUiState>): void;
   getSelfPlayerId(): string | null;
@@ -100,6 +101,9 @@ export function createGameClientController(
       );
       getScene()?.onCombatResult?.(payload);
     },
+    onPlayerAttack(payload) {
+      getScene()?.onPlayerAttack?.(payload);
+    },
     setTimer(secondsRemaining) {
       runtime.setTimer(secondsRemaining);
     },
@@ -133,6 +137,7 @@ export function createGameClientController(
     network.onMonstersState((monsters) => controller.applyMonsters(monsters)),
     network.onDropsState((drops) => controller.applyDrops(drops)),
     network.onInventoryUpdate((payload) => controller.setInventory(payload)),
+    network.onPlayerAttack((payload) => controller.onPlayerAttack(payload)),
     network.onCombatResult((payload) => controller.setCombatResult(payload)),
     network.onMatchTimer((secondsRemaining) => controller.setTimer(secondsRemaining)),
     network.onExtractOpened((payload) => {
@@ -322,9 +327,11 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
         instanceId: asString(item.instanceId, cryptoId()),
         definitionId: asString(item.templateId, asString(item.definitionId, "unknown")),
         name: translateItemName(asString(item.name, asString(item.templateId, "未知物品"))),
+        kind: asOptionalStringValue(item.kind),
         rarity: asOptionalStringValue(item.rarity),
         x: asOptionalNumber(entry.x),
         y: asOptionalNumber(entry.y),
+        healAmount: asOptionalNumber(item.healAmount),
         modifiers: normalizeItemModifiers(item.modifiers),
         affixes: normalizeAffixes(item.affixes)
       }];
@@ -336,8 +343,10 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
           instanceId: asString(item.instanceId, cryptoId()),
           definitionId: asString(item.templateId, asString(item.definitionId, "unknown")),
           name: translateItemName(asString(item.name, slot)),
+          kind: asOptionalStringValue(item.kind),
           rarity: asOptionalStringValue(item.rarity),
           slot,
+          healAmount: asOptionalNumber(item.healAmount),
           modifiers: normalizeItemModifiers(item.modifiers),
           affixes: normalizeAffixes(item.affixes)
         }]];
@@ -348,6 +357,9 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
 
 function translateItemName(name: string): string {
   const map: Record<string, string> = {
+    "Sword": "制式长剑",
+    "Blade": "突击者之刃",
+    "Spear": "猎人长矛",
     "Starter Sword": "制式长剑",
     "gold pouch": "金币袋",
     "jade idol": "古玉像",
@@ -363,8 +375,14 @@ function translateItemName(name: string): string {
 }
 
 function translateSlot(slot: string): string {
-  if (slot === "weapon") return "武器";
-  return slot;
+  const map: Record<string, string> = {
+    "weapon": "武器",
+    "head": "头盔",
+    "chest": "护甲",
+    "hands": "手套",
+    "shoes": "鞋子"
+  };
+  return map[slot] ?? slot;
 }
 
 function normalizeItemModifiers(value: unknown): MatchInventoryItem["modifiers"] | undefined {

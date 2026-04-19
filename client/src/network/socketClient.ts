@@ -157,6 +157,10 @@ export class GameSocketClient {
     return this.on(SocketEvent.InventoryUpdate, listener);
   }
 
+  onPlayerAttack(listener: (payload: { playerId: string; attackId: string }) => void): Unsubscribe {
+    return this.on(SocketEvent.PlayerAttack, listener);
+  }
+
   onCombatResult(listener: (payload: CombatEventPayload) => void): Unsubscribe {
     return this.on(SocketEvent.CombatResult, listener);
   }
@@ -231,6 +235,10 @@ export class GameSocketClient {
 
   sendDropItem(payload: { itemInstanceId: string }): void {
     this.socket.emit(SocketEvent.PlayerDropItem, payload);
+  }
+
+  sendUseItem(payload: { itemInstanceId: string }): void {
+    this.socket.emit(SocketEvent.PlayerUseItem, payload);
   }
 
   sendStartExtract(): void {
