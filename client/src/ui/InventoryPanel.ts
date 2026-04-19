@@ -10,6 +10,7 @@ export interface InventoryPanelOptions {
   onEquip(instanceId: string): void;
   onUnequip(instanceId: string): void;
   onDrop(instanceId: string): void;
+  onUse(instanceId: string): void;
 }
 
 const SLOT_ORDER = ["weapon", "head", "chest", "hands", "shoes"] as const;
@@ -23,21 +24,21 @@ const SLOT_LABELS: Record<string, string> = {
 };
 
 const RARITY_LABELS: Record<string, string> = {
-  common: "白装",
-  uncommon: "绿装",
-  rare: "蓝装",
-  epic: "紫装"
+  common: "普通",
+  uncommon: "稀有",
+  rare: "精良",
+  epic: "史诗"
 };
 
 const STAT_LABELS: Record<string, string> = {
   attackPower: "攻击力",
   attackSpeed: "攻击速度",
-  maxHp: "最大生命",
+  maxHp: "最大生命值",
   moveSpeed: "移动速度",
   damageReduction: "伤害减免",
   critRate: "暴击率",
   critDamage: "暴击伤害",
-  hpRegen: "生命回复",
+  hpRegen: "生命恢复",
   dodgeRate: "闪避率",
   slow: "减速",
   bleed: "流血",
@@ -45,7 +46,16 @@ const STAT_LABELS: Record<string, string> = {
   antiCrit: "抗暴率"
 };
 
-const AFFIX_LABELS: Record<string, string> = STAT_LABELS;
+const PERCENT_STATS = new Set([
+  "attackSpeed",
+  "damageReduction",
+  "critRate",
+  "critDamage",
+  "dodgeRate",
+  "slow",
+  "slowResist",
+  "antiCrit"
+]);
 
 export function createInventoryPanel(options: InventoryPanelOptions): InventoryPanelApi {
   let hideTimeout: number | undefined;
@@ -79,55 +89,57 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
   const title = document.createElement("h3");
   title.className = "inventory-panel__title";
-  title.textContent = "角色背包";
+  title.textContent = "背囊";
 
   const summary = document.createElement("p");
   summary.className = "inventory-panel__summary";
-  summary.textContent = "等待数据...";
+  summary.textContent = "正在获取背囊信息...";
 
   titleWrap.append(title, summary);
 
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.className = "inventory-panel__toggle";
-  toggle.textContent = "打开背包";
-  
+  toggle.textContent = "展开";
+
   const mobileToggle = document.createElement("div");
   mobileToggle.className = "inventory-mobile-toggle";
-  mobileToggle.textContent = "背包";
-  
+  mobileToggle.textContent = "背囊";
+
   const closeInventory = () => {
     element.classList.add("inventory-panel--collapsed");
-    toggle.textContent = "打开背包";
+    toggle.textContent = "展开";
   };
-  
+
   const openInventory = () => {
     element.classList.remove("inventory-panel--collapsed");
     toggle.textContent = "收起";
   };
 
   toggle.addEventListener("click", () => {
-    if (element.classList.contains("inventory-panel--collapsed")) openInventory();
-    else closeInventory();
+    if (element.classList.contains("inventory-panel--collapsed")) {
+      openInventory();
+    } else {
+      closeInventory();
+    }
   });
-  
-  mobileToggle.addEventListener("click", (e) => {
-    e.stopPropagation();
+
+  mobileToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
     openInventory();
   });
 
   const mobileClose = document.createElement("button");
   mobileClose.className = "inventory-panel__toggle";
   mobileClose.style.display = "none";
-  mobileClose.textContent = "关闭";
+  mobileClose.textContent = "收起";
   mobileClose.style.backgroundColor = "#f85149";
   mobileClose.style.borderColor = "#f85149";
-  
-  // Update visibility on media query
+
   const mq = window.matchMedia("(max-width: 767px)");
-  const handleMq = (m: MediaQueryList | MediaQueryListEvent) => {
-    mobileClose.style.display = m.matches ? "flex" : "none";
-    toggle.style.display = m.matches ? "none" : "flex";
+  const handleMq = (media: MediaQueryList | MediaQueryListEvent) => {
+    mobileClose.style.display = media.matches ? "flex" : "none";
+    toggle.style.display = media.matches ? "none" : "flex";
   };
   mq.addEventListener("change", handleMq);
   handleMq(mq);
@@ -143,14 +155,14 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   const equipmentSection = document.createElement("div");
   equipmentSection.className = "inventory-section";
   const equipmentTitle = document.createElement("h4");
-  equipmentTitle.textContent = "已装备";
+  equipmentTitle.textContent = "装备栏";
   const equipmentGrid = document.createElement("div");
   equipmentGrid.className = "inventory-grid inventory-grid--equipment";
 
   const backpackSection = document.createElement("div");
-  backpackSection.className = "inventory-section";
+  backpackSection.className = "inventory-section inventory-section--backpack";
   const backpackTitle = document.createElement("h4");
-  backpackTitle.textContent = "背包物品";
+  backpackTitle.textContent = "背包 (10×10)";
   const backpackGrid = document.createElement("div");
   backpackGrid.className = "inventory-grid inventory-grid--backpack";
 
@@ -163,7 +175,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     element,
     render(inventory) {
       if (!inventory) {
-        summary.textContent = "等待背包数据...";
+        summary.textContent = "正在获取背包信息...";
         equipmentGrid.replaceChildren();
         backpackGrid.replaceChildren();
         return;
@@ -171,7 +183,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
       const itemCount = inventory.items.length;
       const weapon = inventory.equipment.weapon;
-      summary.textContent = `${weapon?.name ?? "赤手空拳"} | ${itemCount} 个物品`;
+      summary.textContent = `${weapon?.name ?? "赤手空拳"} | ${itemCount} 件物品`;
 
       equipmentGrid.replaceChildren();
       for (const slotKey of SLOT_ORDER) {
@@ -179,7 +191,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
       }
 
       backpackGrid.replaceChildren();
-      const totalSlots = 16;
+      const totalSlots = 100;
       for (let index = 0; index < totalSlots; index += 1) {
         backpackGrid.append(createGridSlot("item", inventory.items[index]));
       }
@@ -209,7 +221,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     const icon = document.createElement("div");
     icon.className = "inventory-item-icon";
     icon.textContent = (item.name || "?")[0]?.toUpperCase() ?? "?";
-    
+
     const tooltip = createTooltip(item, type !== "item");
     slot.append(icon, tooltip);
 
@@ -238,9 +250,9 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
       }
     });
 
-    slot.addEventListener("click", (e) => {
+    slot.addEventListener("click", (event) => {
       if (window.matchMedia("(max-width: 767px)").matches) {
-        e.stopPropagation();
+        event.stopPropagation();
         const wasVisible = tooltip.classList.contains("is-visible");
         if (wasVisible) {
           toggleTooltip(false);
@@ -267,6 +279,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     });
 
     const rarity = (item.rarity ?? "common").toLowerCase();
+
     const header = document.createElement("div");
     header.className = "tooltip-header";
 
@@ -287,36 +300,35 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     const statsContainer = document.createElement("div");
     statsContainer.className = "tooltip-stats";
 
-    const allStats: Array<{ label: string; value: number; key: string }> = [];
-
     for (const [key, value] of Object.entries(item.modifiers ?? {})) {
       if (value != null && value !== 0) {
-        allStats.push({ label: STAT_LABELS[key] ?? key, value, key });
+        statsContainer.append(createStatLine(key, value));
       }
     }
 
     for (const affix of item.affixes ?? []) {
-      allStats.push({ label: AFFIX_LABELS[affix.key] ?? affix.key, value: affix.value, key: affix.key });
+      statsContainer.append(createStatLine(affix.key, affix.value));
     }
 
-    for (const { label, value, key } of allStats) {
-      const isPercent = ["attackSpeed", "damageReduction", "critRate", "critDamage", "dodgeRate", "slow", "slowResist", "antiCrit"].includes(key);
-      const amountStr = isPercent ? `${Math.round(value * 100)}%` : `${Math.round(value * 10) / 10}`;
-      const sign = value >= 0 ? "+" : "";
-      
+    if (item.kind === "consumable" && item.healAmount) {
       const line = document.createElement("div");
-      line.className = "stat-line";
-      if (value > 0) {
-        line.classList.add("stat-line--positive");
-      }
-      line.textContent = `${label} ${sign}${amountStr}`;
+      line.className = "stat-line stat-line--positive";
+      line.textContent = `治疗 +${item.healAmount} 生命值`;
       statsContainer.append(line);
     }
 
     const actions = document.createElement("div");
     actions.className = "tooltip-actions";
 
-    if (!isEquipped) {
+    if (item.kind === "consumable") {
+      const useBtn = document.createElement("button");
+      useBtn.textContent = "使用";
+      useBtn.onclick = (event) => {
+        event.stopPropagation();
+        options.onUse(item.instanceId);
+      };
+      actions.append(useBtn);
+    } else if (!isEquipped) {
       const equipBtn = document.createElement("button");
       equipBtn.textContent = "装备";
       equipBtn.onclick = (event) => {
@@ -334,16 +346,33 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
       actions.append(unequipBtn);
     }
 
-    const dropBtn = document.createElement("button");
-    dropBtn.textContent = "丢弃";
-    dropBtn.className = "btn-drop";
-    dropBtn.onclick = (event) => {
-      event.stopPropagation();
-      options.onDrop(item.instanceId);
-    };
-    actions.append(dropBtn);
+    if (!isEquipped) {
+      const dropBtn = document.createElement("button");
+      dropBtn.textContent = "丢弃";
+      dropBtn.className = "btn-drop";
+      dropBtn.onclick = (event) => {
+        event.stopPropagation();
+        options.onDrop(item.instanceId);
+      };
+      actions.append(dropBtn);
+    }
 
     tooltip.append(header, slotInfo, statsContainer, actions);
     return tooltip;
+  }
+
+  function createStatLine(key: string, value: number): HTMLElement {
+    const line = document.createElement("div");
+    line.className = "stat-line";
+    if (value > 0) {
+      line.classList.add("stat-line--positive");
+    }
+
+    const amount = PERCENT_STATS.has(key)
+      ? `${Math.round(value * 100)}%`
+      : `${Math.round(value * 10) / 10}`;
+    const sign = value >= 0 ? "+" : "";
+    line.textContent = `${STAT_LABELS[key] ?? key} ${sign}${amount}`;
+    return line;
   }
 }

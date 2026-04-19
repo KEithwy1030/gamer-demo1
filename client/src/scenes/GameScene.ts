@@ -16,6 +16,7 @@ export interface GameSceneInitData {
   onPickup?: () => void;
   onStartExtract?: () => void;
   onCombatResult?: (payload: CombatEventPayload) => void;
+  onPlayerAttack?: (payload: { playerId: string; attackId: string }) => void;
   onOpenChest?: (chestId: string) => void;
   subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
@@ -63,10 +64,8 @@ export class GameScene extends Phaser.Scene {
   private hudContainer?: Phaser.GameObjects.Container;
   private hpBar?: { track: Phaser.GameObjects.Graphics; fill: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text };
   private timerText?: Phaser.GameObjects.Text;
-  private roomCodeText?: Phaser.GameObjects.Text;
+  private weaponNameText?: Phaser.GameObjects.Text;
   private combatText?: Phaser.GameObjects.Text;
-  private controlsHint?: Phaser.GameObjects.Text;
-  private tutorialPanel?: Phaser.GameObjects.Container;
   private regionLabels: Phaser.GameObjects.Text[] = [];
   private latestState: MatchViewState | null = null;
   private worldSignature = "";
@@ -94,6 +93,7 @@ export class GameScene extends Phaser.Scene {
   private onPickup?: () => void;
   private onStartExtract?: () => void;
   public onCombatResult?: (payload: CombatEventPayload) => void;
+  private onPlayerAttack?: (payload: { playerId: string; attackId: string }) => void;
   private onOpenChest?: (chestId: string) => void;
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
@@ -104,14 +104,13 @@ export class GameScene extends Phaser.Scene {
   private lastMoveSentAt = 0;
   private extractAutoStarted = false;
 
-  private static readonly MOBILE_SPEED_SCALE = 0.5;
-
-  private atmosphericOverlay?: Phaser.GameObjects.Graphics;
+  private static readonly MOBILE_SPEED_SCALE = 0.35;
 
   // DOM-based joystick state
   private joystickContainer?: HTMLElement;
   private joystickKnobEl?: HTMLElement;
   private joystickVector: Vector2 = { x: 0, y: 0 };
+  private smoothedJoystickVector: Vector2 = { x: 0, y: 0 };
   private joystickTouchId: number | null = null;
   private joystickBaseCenter: { x: number; y: number } = { x: 0, y: 0 };
   private mobileOverlay?: HTMLElement;
@@ -361,6 +360,34 @@ export class GameScene extends Phaser.Scene {
     this.subscribeChestsInit = data.subscribeChestsInit;
     this.subscribeChestOpened = data.subscribeChestOpened;
     this.onCombatResult = (payload) => this.handleCombatResult(payload);
+    this.onPlayerAttack = (payload) => this.handleServerPlayerAttack(payload);
+  }
+
+  private handleServerPlayerAttack(payload: { playerId: string; attackId: string }): void {
+    const player = this.latestState?.players.find(p => p.id === payload.playerId);
+    if (!player) return;
+
+    const weaponType = player.weaponType || "sword";
+    
+    // For local player, we use the last recorded facing direction for precision
+    // For other players, we use their current state direction
+    let direction = player.direction;
+    if (payload.playerId === this.latestState?.selfPlayerId) {
+      direction = this.lastFacingDirection;
+    } else {
+      const mag = Math.sqrt(direction.x * direction.x + direction.y * direction.y);
+      if (mag > 0) {
+        direction = { x: direction.x / mag, y: direction.y / mag };
+      } else {
+        direction = { x: 0, y: 1 };
+      }
+    }
+
+    this.createWeaponVfx(player.x, player.y, weaponType, direction);
+    
+    if (payload.playerId === this.latestState?.selfPlayerId) {
+      this.shakeCamera(0.005, 100);
+    }
   }
 
   private handleCombatResult(payload: CombatEventPayload): void {
@@ -522,7 +549,6 @@ export class GameScene extends Phaser.Scene {
 
     this.initHud();
     this.initChests();
-    this.showTutorial();
     this.initTouchControls();
   }
 
@@ -778,13 +804,6 @@ export class GameScene extends Phaser.Scene {
 
   private handleAttack(): void {
     this.onAttack?.();
-    this.shakeCamera(0.005, 100);
-    const selfPlayerId = this.latestState?.selfPlayerId;
-    const selfPlayer = this.latestState?.players.find(p => p.id === selfPlayerId);
-    if (selfPlayer) {
-      const weaponType = selfPlayer.weaponType || "sword";
-      this.createWeaponVfx(selfPlayer.x, selfPlayer.y, weaponType, this.lastFacingDirection);
-    }
   }
 
   private handleSkill(): void {
@@ -911,6 +930,13 @@ export class GameScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     const alpha = Phaser.Math.Clamp(delta / 120, 0.08, 0.22);
+    
+    // Smoothing joystickVector: lerp toward raw joystickVector at 0.15 per frame
+    this.smoothedJoystickVector.x += (this.joystickVector.x - this.smoothedJoystickVector.x) * 0.15;
+    this.smoothedJoystickVector.y += (this.joystickVector.y - this.smoothedJoystickVector.y) * 0.15;
+    if (Math.abs(this.smoothedJoystickVector.x) < 0.001) this.smoothedJoystickVector.x = 0;
+    if (Math.abs(this.smoothedJoystickVector.y) < 0.001) this.smoothedJoystickVector.y = 0;
+
     for (const marker of this.playerMarkers.values()) {
       marker.step(alpha);
       marker.root.setDepth(marker.root.y);
@@ -1083,10 +1109,10 @@ export class GameScene extends Phaser.Scene {
       vertical = Number(this.moveKeys.down.isDown) - Number(this.moveKeys.up.isDown);
     }
 
-    // Combine with joystick input (already scaled by MOBILE_SPEED_SCALE in the DOM handler)
-    if (this.joystickVector.x !== 0 || this.joystickVector.y !== 0) {
-      horizontal = this.joystickVector.x;
-      vertical = this.joystickVector.y;
+    // Combine with joystick input (now using smoothedJoystickVector)
+    if (this.smoothedJoystickVector.x !== 0 || this.smoothedJoystickVector.y !== 0) {
+      horizontal = this.smoothedJoystickVector.x;
+      vertical = this.smoothedJoystickVector.y;
     }
 
     const nextDirection = { x: horizontal, y: vertical };
@@ -1337,7 +1363,7 @@ export class GameScene extends Phaser.Scene {
       fill.fillStyle(color, 1);
       fill.fillRect(22, 22, (240 - 4) * hpRatio, 20);
       
-      label.setText(`HP: ${selfPlayer.hp} / ${selfPlayer.maxHp}`);
+      label.setText(`生命值: ${selfPlayer.hp} / ${selfPlayer.maxHp}`);
     } else if (this.hpBar) {
       this.hpBar.label.setText("正在部署角色...");
     }
@@ -1354,9 +1380,11 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Update Room Code
-    if (this.roomCodeText) {
-      this.roomCodeText.setText(`终端ID: ${state.code || "------"}`);
+    // Update Weapon Name
+    if (this.weaponNameText && selfPlayer) {
+      const invWeapon = state.inventory?.equipment.weapon?.name;
+      const weaponName = invWeapon || (selfPlayer.weaponType === "sword" ? "制式长剑" : (selfPlayer.weaponType === "blade" ? "突击者之刃" : (selfPlayer.weaponType === "spear" ? "猎人长矛" : "未知武器")));
+      this.weaponNameText.setText(`武器: ${weaponName}`);
     }
 
     // Update Combat Text
@@ -1384,7 +1412,7 @@ export class GameScene extends Phaser.Scene {
     
     const hpFill = this.add.graphics();
     
-    const hpLabel = this.add.text(hpX + 8, hpY + 4, "HP: -- / --", {
+    const hpLabel = this.add.text(hpX + 8, hpY + 4, "生命值: -- / --", {
       fontFamily: "monospace",
       fontSize: "14px",
       fontStyle: "bold",
@@ -1396,23 +1424,28 @@ export class GameScene extends Phaser.Scene {
     this.hpBar = { track: hpTrack, fill: hpFill, label: hpLabel };
     this.hudContainer.add([hpTrack, hpFill, hpLabel]);
 
-    // Timer & Room Code (Top Right)
-    this.timerText = this.add.text(width - 20, 20, "00:00", {
+    // Timer (Top Center)
+    this.timerText = this.add.text(width / 2, 20, "00:00", {
       fontFamily: "monospace",
-      fontSize: "24px",
+      fontSize: "28px",
       fontStyle: "bold",
       color: "#fbbf24",
       stroke: "#451a03",
-      strokeThickness: 4
-    }).setOrigin(1, 0);
+      strokeThickness: 5
+    }).setOrigin(0.5, 0);
 
-    this.roomCodeText = this.add.text(width - 20, 50, "CODE: ------", {
+    this.hudContainer.add(this.timerText);
+
+    // Current Weapon Name (Bottom Left)
+    this.weaponNameText = this.add.text(20, height - 150, "武器: ---", {
       fontFamily: "monospace",
-      fontSize: "12px",
-      color: "#94a3b8"
-    }).setOrigin(1, 0);
-
-    this.hudContainer.add([this.timerText, this.roomCodeText]);
+      fontSize: "18px",
+      fontStyle: "bold",
+      color: "#f8fafc",
+      stroke: "#0f172a",
+      strokeThickness: 4
+    }).setOrigin(0, 1);
+    this.hudContainer.add(this.weaponNameText);
 
     // Combat Info (Bottom Center)
     this.combatText = this.add.text(width / 2, height - 80, "", {
@@ -1426,84 +1459,6 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5, 1);
     
     this.hudContainer.add(this.combatText);
-
-    // Controls Hint (Bottom Right)
-    const isTouch = navigator.maxTouchPoints > 0;
-    const hintText = isTouch ? "虚拟摇杆 移动 | A 攻击 | B 技能 | C 拾取" : "WASD 移动 | 空格 攻击 | Q 技能 | E 拾取";
-
-    this.controlsHint = this.add.text(width - 20, height - 20, hintText, {
-      fontFamily: "monospace",
-      fontSize: "12px",
-      color: "#64748b",
-      backgroundColor: "rgba(15, 23, 42, 0.6)",
-      padding: { x: 8, y: 4 }
-    }).setOrigin(1, 1);
-    
-    this.hudContainer.add(this.controlsHint);
-  }
-
-  private showTutorial(): void {
-    const panelWidth = 280;
-    const panelHeight = 180;
-    const x = 20;
-    const y = 80; // Below HP bar
-
-    this.tutorialPanel = this.add.container(x, y).setScrollFactor(0).setDepth(300);
-
-    const bg = this.add.graphics();
-    bg.fillStyle(0x0f172a, 0.9);
-    bg.fillRect(0, 0, panelWidth, panelHeight);
-    bg.lineStyle(3, 0x38bdf8, 1);
-    bg.strokeRect(0, 0, panelWidth, panelHeight);
-
-    const title = this.add.text(10, 10, "任务目标", {
-      fontFamily: "monospace",
-      fontSize: "18px",
-      fontStyle: "bold",
-      color: "#38bdf8"
-    });
-
-    const isTouch = navigator.maxTouchPoints > 0;
-    const moveHint = isTouch ? "● 移动: 虚拟摇杆" : "● 移动: WASD";
-    const actionHint = isTouch ? "● 攻击: A | 技能: B\n● 交互: C" : "● 攻击: 空格 | 技能: Q\n● 交互: E";
-
-    const content = this.add.text(10, 40, 
-      moveHint + "\n" +
-      actionHint + "\n\n" +
-      "目标: 击杀怪物, 收集战利品\n前往中心区域撤离。", {
-      fontFamily: "monospace",
-      fontSize: "13px",
-      lineSpacing: 6,
-      color: "#f8fafc"
-    });
-
-    const footer = this.add.text(panelWidth - 10, panelHeight - 10, "按任意键或点击关闭", {
-      fontFamily: "monospace",
-      fontSize: "11px",
-      color: "#94a3b8"
-    }).setOrigin(1, 1);
-
-    this.tutorialPanel.add([bg, title, content, footer]);
-
-    const dismiss = () => {
-      if (!this.tutorialPanel) return;
-      this.tweens.add({
-        targets: this.tutorialPanel,
-        alpha: 0,
-        x: x - 20,
-        duration: 400,
-        onComplete: () => {
-          this.tutorialPanel?.destroy();
-          this.tutorialPanel = undefined;
-        }
-      });
-      this.input.off("pointerdown", dismiss);
-      this.input.keyboard?.off("keydown", dismiss);
-    };
-
-    this.input.on("pointerdown", dismiss);
-    this.input.keyboard?.once("keydown", dismiss);
-    this.time.delayedCall(10000, dismiss);
   }
 }
 

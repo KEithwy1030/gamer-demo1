@@ -2,7 +2,7 @@
   position: absolute;
   right: 20px;
   bottom: 20px;
-  width: 380px;
+  width: 460px;
   background: #0d1117;
   border: 2px solid #30363d;
   color: #c9d1d9;
@@ -80,7 +80,7 @@
     left: 0;
     right: auto;
     bottom: auto;
-    width: 55% !important;
+    width: 100% !important;
     height: auto !important;
     max-height: 85vh;
     overflow-y: auto;
@@ -88,7 +88,7 @@
     border: none;
     z-index: 5000;
     transform: none;
-    background: #0d1117e6;
+    background: #0d1117f2;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
@@ -100,23 +100,27 @@
   .inventory-panel__body {
     flex: 1;
     max-height: calc(85vh - 60px);
-    padding: 24px;
-    gap: 30px;
+    padding: 16px;
+    gap: 20px;
   }
 
   .inventory-grid {
-    gap: 15px;
-    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  .inventory-grid--backpack {
+    grid-template-columns: repeat(10, 1fr);
   }
 
   .inventory-slot {
-    min-width: 64px;
-    min-height: 64px;
-    border-width: 3px;
+    min-width: 40px;
+    min-height: 40px;
+    border-width: 1px;
   }
 
   .inventory-item-icon {
-    font-size: 32px;
+    font-size: 18px;
   }
 
   .inventory-tooltip {
@@ -169,6 +173,16 @@
   display: none;
 }
 
+.inventory-section {
+  position: relative;
+}
+
+.inventory-section--backpack {
+  border-top: 2px solid #30363d;
+  padding-top: 20px;
+  margin-top: 10px;
+}
+
 .inventory-section h4 {
   margin: 0 0 12px;
   font-size: 14px;
@@ -181,11 +195,11 @@
 .inventory-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
+  gap: 4px;
 }
 
 .inventory-grid--backpack {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(10, 1fr);
 }
 
 .inventory-slot {
@@ -197,6 +211,8 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .inventory-slot:hover {
@@ -224,7 +240,7 @@
 .inventory-slot.quality-epic { background: rgba(192, 132, 252, 0.1); }
 
 .inventory-item-icon {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: bold;
 }
 
