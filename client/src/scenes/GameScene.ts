@@ -365,7 +365,12 @@ export class GameScene extends Phaser.Scene {
 
     const overlay = document.createElement("div");
     overlay.style.cssText = "position:fixed;right:16px;bottom:16px;display:grid;grid-template-columns:repeat(2,70px);gap:8px;z-index:3000;";
-    const actions = [{ label: "攻", color: "#ef4444", fn: () => this.handleAttack() }, { label: "技", color: "#38bdf8", fn: () => this.handleSkill() }, { label: "捡", color: "#4ade80", fn: () => this.handleInteract() }];
+    const actions = [
+      { label: "攻", color: "#ef4444", fn: () => this.handleAttack() },
+      { label: "技", color: "#38bdf8", fn: () => this.handleSkill() },
+      { label: "捡", color: "#4ade80", fn: () => this.handleInteract() },
+      { label: "包", color: "#fbbf24", fn: () => this.handleToggleInventory() }
+    ];
     actions.forEach(a => {
       const btn = document.createElement("div");
       btn.style.cssText = `width:70px;height:70px;border-radius:50%;background:rgba(15,23,42,0.85);border:3px solid ${a.color};display:flex;align-items:center;justify-content:center;color:${a.color};font-weight:bold;font-size:22px;`;
@@ -385,6 +390,12 @@ export class GameScene extends Phaser.Scene {
     }
   }
   private handleInteract(): void { if (this.interactionPrompt?.visible) { const id = this.interactionPrompt.getData("chestId"); if (id) this.onOpenChest?.(id); } else this.onPickup?.(); }
+
+  private handleToggleInventory(): void {
+    // Emit inventory toggle event that main.ts can listen to
+    const inventoryEvent = new CustomEvent('toggleInventory');
+    window.dispatchEvent(inventoryEvent);
+  }
 
   private createWeaponVfx(x: number, y: number, type: WeaponType, dir: Vector2): void {
     const angle = Math.atan2(dir.y, dir.x);

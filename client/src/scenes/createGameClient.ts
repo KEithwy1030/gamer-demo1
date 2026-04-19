@@ -21,6 +21,7 @@ export interface GameClientControllerOptions extends GameSocketClientOptions {
   onSettlement?: (payload: SettlementPayload) => void;
   onExtractStateChange?: (payload: ExtractUiState) => void;
   onInventoryChange?: (payload: MatchInventoryState | null) => void;
+  onToggleInventory?: () => void;
 }
 
 export interface ExtractUiState {
@@ -50,6 +51,7 @@ export interface GameClientController {
   onPlayerAttack(payload: { playerId: string; attackId: string }): void;
   setTimer(secondsRemaining: number): void;
   setExtractState(payload: Partial<ExtractUiState>): void;
+  toggleInventory(): void;
   getSelfPlayerId(): string | null;
   getMatchSnapshot(): RoomRuntimeSnapshot | null;
 }
@@ -114,6 +116,9 @@ export function createGameClientController(
       };
       options.onExtractStateChange?.(extractState);
       getScene()?.setExtractState(extractState);
+    },
+    toggleInventory() {
+      options.onToggleInventory?.();
     },
     getSelfPlayerId() {
       return runtime.getState().selfPlayerId;

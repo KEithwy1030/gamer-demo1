@@ -101,6 +101,9 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
       },
       onSettlement: (payload) => {
         resultsOverlay.show(payload);
+      },
+      onToggleInventory: () => {
+        inventoryPanel.element.hidden = !inventoryPanel.element.hidden;
       }
     });
 
