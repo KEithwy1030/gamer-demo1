@@ -17,6 +17,17 @@ if (app) {
 async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
   let sessionVersion = 0;
 
+  // Handle orientation changes for mobile portrait mode
+  const handleOrientationChange = () => {
+    const isPortrait = window.innerHeight > window.innerWidth;
+    document.body.classList.toggle('portrait-mode', isPortrait);
+    document.body.classList.toggle('landscape-mode', !isPortrait);
+  };
+
+  window.addEventListener('resize', handleOrientationChange);
+  window.addEventListener('orientationchange', handleOrientationChange);
+  handleOrientationChange(); // Initial check
+
   await createSession();
 
   async function createSession(): Promise<void> {
@@ -71,6 +82,9 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
       },
       onDrop: (instanceId) => {
         gameController?.network.sendDropItem({ itemInstanceId: instanceId });
+      },
+      onUse: (instanceId) => {
+        gameController?.network.sendUseItem({ itemInstanceId: instanceId });
       }
     });
     inventoryPanel.element.hidden = true;

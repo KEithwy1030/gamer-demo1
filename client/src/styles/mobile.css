@@ -1,0 +1,33 @@
+/* Mobile portrait mode enhancements */
+@media screen and (orientation: portrait) {
+  #app {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+  
+  /* Ensure touch controls work in portrait */
+  .mobile-controls {
+    position: fixed !important;
+    z-index: 3000 !important;
+  }
+  
+  /* Portrait-specific adjustments */
+  .joystick-container {
+    bottom: 20px !important;
+    left: 20px !important;
+  }
+  
+  .action-buttons {
+    bottom: 20px !important;
+    right: 20px !important;
+  }
+}
+
+@media screen and (max-width: 768px) and (orientation: portrait) {
+  /* Portrait mode specific styles */
+  html, body {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}

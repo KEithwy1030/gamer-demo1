@@ -193,11 +193,17 @@ export function createGameClientController(
       syncGameViewport();
       return;
     }
+
+    // Detect if mobile portrait mode
+    const isMobilePortrait = window.innerWidth < 768 && window.innerHeight > window.innerWidth;
+    const baseWidth = isMobilePortrait ? 720 : 1280;  // Swap dimensions for portrait
+    const baseHeight = isMobilePortrait ? 1280 : 720;
+
     game = new Phaser.Game({
       type: Phaser.CANVAS,
       parent: options.parent,
-      width: 1280,
-      height: 720,
+      width: baseWidth,
+      height: baseHeight,
       backgroundColor: "#020617",
       scene: [GameScene],
       input: {
@@ -211,7 +217,8 @@ export function createGameClientController(
       },
       scale: {
         mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        resizeInterval: 100
       }
     });
     syncGameViewport();
