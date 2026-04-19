@@ -2,7 +2,7 @@ import type { WeaponType } from "./game";
 
 export type EquipmentSlot = "weapon" | "head" | "chest" | "hands" | "shoes";
 export type ItemRarity = "common" | "uncommon" | "rare" | "epic";
-export type ItemCategory = "weapon" | "armor" | "gold" | "treasure";
+export type ItemCategory = "weapon" | "armor" | "gold" | "treasure" | "consumable";
 export type ArmorType = Exclude<EquipmentSlot, "weapon">;
 export type TreasureSize = "small" | "medium" | "large";
 export type AffixKey =
@@ -37,6 +37,7 @@ export interface ItemDefinition {
   goldAmount?: number;
   treasureSize?: TreasureSize;
   treasureValue?: number;
+  healAmount?: number;
   stats?: Partial<{
     attackPower: number;
     attackSpeedBonus: number;
@@ -58,8 +59,10 @@ export interface Affix {
 export interface InventoryItemInstance {
   instanceId: string;
   definitionId: string;
+  kind?: ItemCategory;
   rarity?: ItemRarity;
   name?: string;
+  healAmount?: number;
   affixes?: Affix[];
   modifiers?: Partial<{
     attackPower: number;

@@ -65,19 +65,19 @@ export class InventoryService {
   }
 
   initializePlayer(player: RuntimePlayer): void {
-    if (player.inventory) {
-      return;
+    if (!player.inventory) {
+      player.inventory = {
+        width: INVENTORY_WIDTH,
+        height: INVENTORY_HEIGHT,
+        items: [],
+        equipment: {}
+      };
     }
 
-    const starterWeapon = this.createItem("starter_sword");
-    player.inventory = {
-      width: INVENTORY_WIDTH,
-      height: INVENTORY_HEIGHT,
-      items: [],
-      equipment: {
-        weapon: starterWeapon
-      }
-    };
+    if (!player.inventory.equipment.weapon) {
+      player.inventory.equipment.weapon = this.createItem("starter_sword");
+    }
+
     player.deathLootDropped = false;
     this.applyEquipmentStats(player);
   }
@@ -229,6 +229,34 @@ export class InventoryService {
     };
   }
 
+  useItem(room: RuntimeRoom, playerId: string, itemInstanceId: string): MutationResult {
+    const player = this.getPlayer(room, playerId);
+    const inventory = this.getInventory(player);
+    this.assertAlive(player);
+
+    const entryIndex = inventory.items.findIndex((entry) => entry.item.instanceId === itemInstanceId);
+    if (entryIndex < 0) {
+      throw new Error("Consumable is not in the backpack.");
+    }
+
+    const [entry] = inventory.items.splice(entryIndex, 1);
+    if (entry.item.kind !== "consumable" || !entry.item.healAmount) {
+      inventory.items.splice(entryIndex, 0, entry);
+      throw new Error("Item cannot be used.");
+    }
+
+    if (!player.state) {
+      throw new Error("Player is not active in the match.");
+    }
+
+    player.state.hp = Math.min(player.state.maxHp, player.state.hp + entry.item.healAmount);
+
+    return {
+      inventoryUpdate: this.buildInventoryUpdate(player),
+      drops: this.listDrops(room)
+    };
+  }
+
   handleDeath(room: RuntimeRoom, playerId: string): MutationResult | undefined {
     const player = this.getPlayer(room, playerId);
     if (player.deathLootDropped) {
@@ -346,6 +374,7 @@ export class InventoryService {
       weaponType: template.weaponType,
       goldValue: template.goldValue,
       treasureValue: template.treasureValue,
+      healAmount: template.healAmount,
       modifiers: template.modifiers ? { ...template.modifiers } : undefined,
       affixes: []
     };

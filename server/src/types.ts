@@ -21,7 +21,7 @@ export interface SocketSession {
   roomCode?: string;
 }
 
-export type InventoryItemKind = "weapon" | "equipment" | "treasure" | "currency";
+export type InventoryItemKind = "weapon" | "equipment" | "treasure" | "currency" | "consumable";
 
 export type EquipmentSlot = "weapon" | "head" | "chest" | "hands" | "shoes";
 
@@ -49,6 +49,7 @@ export interface InventoryItem {
   weaponType?: PlayerState["weaponType"];
   goldValue: number;
   treasureValue: number;
+  healAmount?: number;
   modifiers?: ItemStatModifiers;
   affixes: Affix[];
 }
@@ -107,6 +108,10 @@ export interface PlayerUnequipItemPayload {
 }
 
 export interface PlayerDropItemPayload {
+  itemInstanceId: string;
+}
+
+export interface PlayerUseItemPayload {
   itemInstanceId: string;
 }
 
@@ -237,6 +242,7 @@ export interface RuntimePlayer extends LobbyPlayer {
 }
 
 export interface RuntimeMonster extends MonsterState {
+  spawnId: string;
   spawnX: number;
   spawnY: number;
   aggroRange: number;
@@ -246,6 +252,13 @@ export interface RuntimeMonster extends MonsterState {
   moveSpeed: number;
   attackCooldownMs: number;
   nextAttackAt: number;
+  deadAt?: number;
+  respawnAt?: number;
+}
+
+export interface MonsterRespawnEntry {
+  spawnId: string;
+  respawnAt: number;
 }
 
 export interface RuntimeRoom {
@@ -260,6 +273,8 @@ export interface RuntimeRoom {
   matchTimerInterval?: NodeJS.Timeout;
   monsterSyncInterval?: NodeJS.Timeout;
   monsters?: Map<string, RuntimeMonster>;
+  monsterSpawnDefinitions?: Array<{ id: string; type: MonsterType; x: number; y: number }>;
+  pendingMonsterRespawns?: MonsterRespawnEntry[];
   drops?: Map<string, DropState>;
   chests?: Map<string, Chest>;
   extract?: RuntimeRoomExtractState;

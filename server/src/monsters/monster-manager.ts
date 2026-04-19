@@ -37,48 +37,16 @@ interface CombatPlayerState {
   direction: { x: number; y: number };
 }
 
-interface SpawnLayoutDefinition {
-  id: string;
-  type: MonsterType;
-  xRatio: number;
-  yRatio: number;
-}
-
-const MONSTER_SPAWN_LAYOUTS: SpawnLayoutDefinition[] = [
-  { id: "normal_nw_outer_1", type: "normal", xRatio: 0.13, yRatio: 0.14 },
-  { id: "normal_nw_outer_2", type: "normal", xRatio: 0.19, yRatio: 0.11 },
-  { id: "normal_nw_outer_3", type: "normal", xRatio: 0.24, yRatio: 0.18 },
-  { id: "normal_ne_outer_1", type: "normal", xRatio: 0.81, yRatio: 0.12 },
-  { id: "normal_ne_outer_2", type: "normal", xRatio: 0.86, yRatio: 0.17 },
-  { id: "normal_ne_outer_3", type: "normal", xRatio: 0.75, yRatio: 0.2 },
-  { id: "normal_sw_outer_1", type: "normal", xRatio: 0.12, yRatio: 0.79 },
-  { id: "normal_sw_outer_2", type: "normal", xRatio: 0.18, yRatio: 0.85 },
-  { id: "normal_sw_outer_3", type: "normal", xRatio: 0.24, yRatio: 0.74 },
-  { id: "normal_se_outer_1", type: "normal", xRatio: 0.78, yRatio: 0.77 },
-  { id: "normal_se_outer_2", type: "normal", xRatio: 0.85, yRatio: 0.84 },
-  { id: "normal_se_outer_3", type: "normal", xRatio: 0.73, yRatio: 0.87 },
-  { id: "normal_north_mid_1", type: "normal", xRatio: 0.4, yRatio: 0.24 },
-  { id: "normal_north_mid_2", type: "normal", xRatio: 0.6, yRatio: 0.22 },
-  { id: "normal_south_mid_1", type: "normal", xRatio: 0.38, yRatio: 0.76 },
-  { id: "normal_south_mid_2", type: "normal", xRatio: 0.62, yRatio: 0.78 },
-  { id: "normal_west_mid_1", type: "normal", xRatio: 0.23, yRatio: 0.4 },
-  { id: "normal_west_mid_2", type: "normal", xRatio: 0.2, yRatio: 0.61 },
-  { id: "normal_east_mid_1", type: "normal", xRatio: 0.77, yRatio: 0.39 },
-  { id: "normal_east_mid_2", type: "normal", xRatio: 0.8, yRatio: 0.6 },
-  { id: "elite_north", type: "elite", xRatio: 0.5, yRatio: 0.18 },
-  { id: "elite_west", type: "elite", xRatio: 0.18, yRatio: 0.5 },
-  { id: "elite_east", type: "elite", xRatio: 0.82, yRatio: 0.5 },
-  { id: "elite_south", type: "elite", xRatio: 0.5, yRatio: 0.82 },
-  { id: "elite_inner_nw", type: "elite", xRatio: 0.34, yRatio: 0.34 },
-  { id: "elite_inner_se", type: "elite", xRatio: 0.66, yRatio: 0.66 }
-];
-
-const MONSTER_SPAWN_DEFINITIONS: MonsterSpawnDefinition[] = MONSTER_SPAWN_LAYOUTS.map((spawn) => ({
-  id: spawn.id,
-  type: spawn.type,
-  x: Math.round(MATCH_MAP_WIDTH * spawn.xRatio),
-  y: Math.round(MATCH_MAP_HEIGHT * spawn.yRatio)
-}));
+const NORMAL_MONSTER_COUNT = 40;
+const ELITE_MONSTER_COUNT = 3;
+const CENTER_EXCLUSION_RADIUS = 300;
+const PLAYER_SPAWN_EXCLUSION_RADIUS = 200;
+const SPAWN_JITTER_PX = 200;
+const MONSTER_CORPSE_DURATION_MS = 10_000;
+const MONSTER_RESPAWN_DELAY_MS = 60_000;
+const MAP_MARGIN_PX = 96;
+const PLAYER_SPAWN_X = MATCH_MAP_WIDTH * 0.1;
+const PLAYER_SPAWN_Y = MATCH_MAP_HEIGHT * 0.1;
 
 export interface PlayerAttackOutcome {
   monsters: MonsterState[];
@@ -113,9 +81,13 @@ export function spawnInitialMonsters(room: RuntimeRoom): MonsterState[] {
   const monsters = ensureMonsterState(room);
   monsters.clear();
 
-  MONSTER_SPAWN_DEFINITIONS.forEach((spawn) => {
-    monsters.set(spawn.id, buildRuntimeMonster(spawn));
-  });
+  room.pendingMonsterRespawns = [];
+  room.monsterSpawnDefinitions = generateMonsterSpawnDefinitions();
+
+  for (const spawn of room.monsterSpawnDefinitions) {
+    const monster = buildRuntimeMonster(spawn);
+    monsters.set(monster.id, monster);
+  }
 
   return listMonsterStates(room);
 }
@@ -129,17 +101,25 @@ export function listMonsterStates(room: RuntimeRoom): MonsterState[] {
     hp: monster.hp,
     maxHp: monster.maxHp,
     targetPlayerId: monster.targetPlayerId,
-    isAlive: monster.isAlive
+    isAlive: monster.isAlive,
+    deadAt: monster.deadAt
   }));
 }
 
 export function tickMonsters(context: RuntimeContext): MonsterTickResult {
   const room = context.room;
+  const monsters = ensureMonsterState(room);
   const combatEvents: CombatEventPayload[] = [];
   let playerStateChanged = false;
+  const now = Date.now();
 
-  for (const monster of ensureMonsterState(room).values()) {
+  processMonsterRespawns(room, now);
+
+  for (const monster of [...monsters.values()]) {
     if (!monster.isAlive) {
+      if (monster.deadAt && now - monster.deadAt > MONSTER_CORPSE_DURATION_MS) {
+        monsters.delete(monster.id);
+      }
       continue;
     }
 
@@ -150,14 +130,13 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
       continue;
     }
 
-    syncPlayerCombatState(target);
+    syncPlayerCombatState(target, now);
     const distance = distanceBetween(monster.x, monster.y, target.state.x, target.state.y);
     if (distance > monster.attackRange + MONSTER_CONTACT_RADIUS + PLAYER_HIT_RADIUS) {
       moveMonsterTowards(monster, target.state);
       continue;
     }
 
-    const now = Date.now();
     if (now < monster.nextAttackAt) {
       continue;
     }
@@ -224,19 +203,22 @@ export function handlePlayerAttack(
   );
   targetMonster.targetPlayerId = player.id;
   targetMonster.hp = Math.max(0, targetMonster.hp - attackPower);
-  targetMonster.isAlive = targetMonster.hp > 0;
+
+  const monsterDied = targetMonster.hp <= 0;
+  if (monsterDied) {
+    markMonsterDead(room, targetMonster, now);
+  }
 
   const combat: CombatEventPayload = {
     attackerId: player.id,
     targetId: targetMonster.id,
     amount: attackPower,
     targetHp: targetMonster.hp,
-    targetAlive: targetMonster.isAlive
+    targetAlive: !monsterDied
   };
 
   let spawnedDrops: DropState[] = [];
-  if (!targetMonster.isAlive) {
-    targetMonster.targetPlayerId = undefined;
+  if (monsterDied) {
     const nextKills = typeof player.state.killsMonsters === "number"
       ? player.state.killsMonsters + 1
       : 1;
@@ -268,10 +250,10 @@ export function handlePlayerSkill(
 
   switch (payload.skillId) {
     case "blade_sweep":
-      return applySkillDamageToMonsters(room, player, findAttackableMonsters(room, player.state, 80, 90), scaleOutgoingDamage(player, 220 + player.state.attackPower, now));
+      return applySkillDamageToMonsters(room, player, findAttackableMonsters(room, player.state, 80, 90), scaleOutgoingDamage(player, 220 + player.state.attackPower, now), now);
     case "spear_heavyThrust": {
       const target = findAttackableMonster(room, player.state, 160, 50);
-      return applySkillDamageToMonsters(room, player, target ? [target] : [], scaleOutgoingDamage(player, 300 + player.state.attackPower, now));
+      return applySkillDamageToMonsters(room, player, target ? [target] : [], scaleOutgoingDamage(player, 300 + player.state.attackPower, now), now);
     }
     default:
       return undefined;
@@ -282,6 +264,7 @@ function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
   const stats = getMonsterStats(spawn.type);
   return {
     id: `monster_${spawn.id}_${crypto.randomUUID().slice(0, 8)}`,
+    spawnId: spawn.id,
     type: spawn.type,
     x: spawn.x,
     y: spawn.y,
@@ -289,6 +272,8 @@ function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
     maxHp: stats.maxHp,
     targetPlayerId: undefined,
     isAlive: true,
+    deadAt: undefined,
+    respawnAt: undefined,
     spawnX: spawn.x,
     spawnY: spawn.y,
     aggroRange: stats.aggroRange,
@@ -409,7 +394,8 @@ function applySkillDamageToMonsters(
   room: RuntimeRoom,
   player: RuntimePlayer,
   targets: RuntimeMonster[],
-  damage: number
+  damage: number,
+  now: number
 ): PlayerSkillOutcome {
   const combatEvents: CombatEventPayload[] = [];
   const spawnedDrops: DropState[] = [];
@@ -417,9 +403,10 @@ function applySkillDamageToMonsters(
   for (const monster of targets) {
     monster.targetPlayerId = player.id;
     monster.hp = Math.max(0, monster.hp - damage);
-    monster.isAlive = monster.hp > 0;
-    if (!monster.isAlive) {
-      monster.targetPlayerId = undefined;
+    const monsterDied = monster.hp <= 0;
+
+    if (monsterDied) {
+      markMonsterDead(room, monster, now);
       const nextKills = typeof player.state!.killsMonsters === "number"
         ? player.state!.killsMonsters + 1
         : 1;
@@ -432,7 +419,7 @@ function applySkillDamageToMonsters(
       targetId: monster.id,
       amount: damage,
       targetHp: monster.hp,
-      targetAlive: monster.isAlive
+      targetAlive: !monsterDied
     });
   }
 
@@ -442,6 +429,160 @@ function applySkillDamageToMonsters(
     combatEvents,
     spawnedDrops
   };
+}
+
+function markMonsterDead(room: RuntimeRoom, monster: RuntimeMonster, deadAt: number): void {
+  if (!monster.isAlive && monster.deadAt) {
+    return;
+  }
+
+  monster.isAlive = false;
+  monster.deadAt = deadAt;
+  monster.respawnAt = deadAt + MONSTER_RESPAWN_DELAY_MS;
+  monster.targetPlayerId = undefined;
+
+  room.pendingMonsterRespawns ??= [];
+  if (!room.pendingMonsterRespawns.some((entry) => entry.spawnId === monster.spawnId)) {
+    room.pendingMonsterRespawns.push({
+      spawnId: monster.spawnId,
+      respawnAt: monster.respawnAt
+    });
+  }
+}
+
+function processMonsterRespawns(room: RuntimeRoom, now: number): void {
+  const pending = room.pendingMonsterRespawns;
+  const spawnDefinitions = room.monsterSpawnDefinitions;
+  if (!pending || !spawnDefinitions || pending.length === 0) {
+    return;
+  }
+
+  const monsters = ensureMonsterState(room);
+  const remaining = [];
+
+  for (const entry of pending) {
+    if (entry.respawnAt > now) {
+      remaining.push(entry);
+      continue;
+    }
+
+    const spawn = spawnDefinitions.find((definition) => definition.id === entry.spawnId);
+    if (!spawn) {
+      continue;
+    }
+
+    const monster = buildRuntimeMonster(spawn);
+    monsters.set(monster.id, monster);
+  }
+
+  room.pendingMonsterRespawns = remaining;
+}
+
+function generateMonsterSpawnDefinitions(): MonsterSpawnDefinition[] {
+  const normals = generateNormalSpawnDefinitions();
+  const elites = generateEliteSpawnDefinitions();
+  return [...normals, ...elites];
+}
+
+function generateNormalSpawnDefinitions(): MonsterSpawnDefinition[] {
+  const columns = 8;
+  const rows = 6;
+  const candidates: Array<{ x: number; y: number }> = [];
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const baseX = ((column + 0.5) / columns) * MATCH_MAP_WIDTH;
+      const baseY = ((row + 0.5) / rows) * MATCH_MAP_HEIGHT;
+      const point = jitterPoint(baseX, baseY);
+      if (isValidSpawnPoint(point.x, point.y)) {
+        candidates.push(point);
+      }
+    }
+  }
+
+  shuffleInPlace(candidates);
+
+  while (candidates.length < NORMAL_MONSTER_COUNT) {
+    const fallback = randomValidPoint();
+    candidates.push(fallback);
+  }
+
+  return candidates.slice(0, NORMAL_MONSTER_COUNT).map((point, index) => ({
+    id: `normal_${index + 1}`,
+    type: "normal",
+    x: Math.round(point.x),
+    y: Math.round(point.y)
+  }));
+}
+
+function generateEliteSpawnDefinitions(): MonsterSpawnDefinition[] {
+  const quadrants = shuffleArray(["nw", "ne", "sw", "se"] as const).slice(0, ELITE_MONSTER_COUNT);
+
+  return quadrants.map((quadrant, index) => {
+    const point = randomPointInQuadrant(quadrant);
+    return {
+      id: `elite_${index + 1}`,
+      type: "elite",
+      x: Math.round(point.x),
+      y: Math.round(point.y)
+    };
+  });
+}
+
+function randomPointInQuadrant(quadrant: "nw" | "ne" | "sw" | "se"): { x: number; y: number } {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const xRange = quadrant === "nw" || quadrant === "sw"
+      ? [MAP_MARGIN_PX, MATCH_MAP_WIDTH / 2 - MAP_MARGIN_PX]
+      : [MATCH_MAP_WIDTH / 2 + MAP_MARGIN_PX, MATCH_MAP_WIDTH - MAP_MARGIN_PX];
+    const yRange = quadrant === "nw" || quadrant === "ne"
+      ? [MAP_MARGIN_PX, MATCH_MAP_HEIGHT / 2 - MAP_MARGIN_PX]
+      : [MATCH_MAP_HEIGHT / 2 + MAP_MARGIN_PX, MATCH_MAP_HEIGHT - MAP_MARGIN_PX];
+
+    const point = jitterPoint(
+      randomBetween(xRange[0], xRange[1]),
+      randomBetween(yRange[0], yRange[1])
+    );
+
+    if (isValidSpawnPoint(point.x, point.y)) {
+      return point;
+    }
+  }
+
+  return randomValidPoint();
+}
+
+function randomValidPoint(): { x: number; y: number } {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const point = {
+      x: randomBetween(MAP_MARGIN_PX, MATCH_MAP_WIDTH - MAP_MARGIN_PX),
+      y: randomBetween(MAP_MARGIN_PX, MATCH_MAP_HEIGHT - MAP_MARGIN_PX)
+    };
+    if (isValidSpawnPoint(point.x, point.y)) {
+      return point;
+    }
+  }
+
+  return {
+    x: MATCH_MAP_WIDTH / 2 + CENTER_EXCLUSION_RADIUS + MAP_MARGIN_PX,
+    y: MATCH_MAP_HEIGHT / 2
+  };
+}
+
+function jitterPoint(x: number, y: number): { x: number; y: number } {
+  return {
+    x: clamp(x + randomBetween(-SPAWN_JITTER_PX, SPAWN_JITTER_PX), MAP_MARGIN_PX, MATCH_MAP_WIDTH - MAP_MARGIN_PX),
+    y: clamp(y + randomBetween(-SPAWN_JITTER_PX, SPAWN_JITTER_PX), MAP_MARGIN_PX, MATCH_MAP_HEIGHT - MAP_MARGIN_PX)
+  };
+}
+
+function isValidSpawnPoint(x: number, y: number): boolean {
+  const centerDistance = distanceBetween(x, y, MATCH_MAP_WIDTH / 2, MATCH_MAP_HEIGHT / 2);
+  if (centerDistance < CENTER_EXCLUSION_RADIUS) {
+    return false;
+  }
+
+  const spawnDistance = distanceBetween(x, y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y);
+  return spawnDistance >= PLAYER_SPAWN_EXCLUSION_RADIUS;
 }
 
 function distanceBetween(ax: number, ay: number, bx: number, by: number): number {
@@ -467,4 +608,21 @@ function getAngleBetween(a: { x: number; y: number }, b: { x: number; y: number 
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function randomBetween(min: number, max: number): number {
+  return min + Math.random() * (max - min);
+}
+
+function shuffleArray<T>(values: readonly T[]): T[] {
+  const copy = [...values];
+  shuffleInPlace(copy);
+  return copy;
+}
+
+function shuffleInPlace<T>(values: T[]): void {
+  for (let index = values.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [values[index], values[swapIndex]] = [values[swapIndex], values[index]];
+  }
 }

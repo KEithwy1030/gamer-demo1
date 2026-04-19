@@ -17,6 +17,7 @@ interface ItemTemplate {
   weaponType?: InventoryItem["weaponType"];
   goldValue: number;
   treasureValue: number;
+  healAmount?: number;
   modifiers?: ItemStatModifiers;
 }
 
@@ -112,6 +113,17 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
     height: 1,
     goldValue: 40,
     treasureValue: 0
+  },
+  health_potion: {
+    templateId: "health_potion",
+    name: "回血药",
+    kind: "consumable",
+    rarity: "common",
+    width: 1,
+    height: 1,
+    goldValue: 0,
+    treasureValue: 0,
+    healAmount: 30
   }
 };
 

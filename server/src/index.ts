@@ -36,6 +36,7 @@ import { InventoryService } from "./inventory/index.js";
 import {
   handlePlayerAttack as handleMonsterPlayerAttack,
   handlePlayerSkill as handleMonsterPlayerSkill,
+  listMonsterStates,
   spawnInitialMonsters,
   tickMonsters
 } from "./monsters/monster-manager.js";
@@ -50,6 +51,7 @@ import type {
   PlayerOpenChestPayload,
   PlayerUnequipItemPayload,
   PlayerPickupPayload,
+  PlayerUseItemPayload,
   RoomStartPayload,
   RuntimeContext,
   SocketSession
@@ -396,16 +398,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       );
       io.to(context.room.code).emit(
         SocketEvent.StateMonsters,
-        context.room.monsters ? [...context.room.monsters.values()].map((monster) => ({
-          id: monster.id,
-          type: monster.type,
-          x: Math.round(monster.x),
-          y: Math.round(monster.y),
-          hp: monster.hp,
-          maxHp: monster.maxHp,
-          targetPlayerId: monster.targetPlayerId,
-          isAlive: monster.isAlive
-        })) : []
+        listMonsterStates(context.room)
       );
       io.to(context.room.code).emit(
         SocketEvent.MatchTimer,
@@ -522,6 +515,22 @@ function attachRoomHandlers(socket: GameSocket): void {
       io.to(session.roomCode).emit(SocketEvent.StatePlayers, roomStore.listPlayerStates(context.room));
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to drop item.");
+    }
+  });
+
+  socket.on(SocketEvent.PlayerUseItem, (payload: PlayerUseItemPayload) => {
+    try {
+      const session = buildSession(socket);
+      if (!session.roomCode) {
+        throw new Error("Player is not currently in a room.");
+      }
+
+      const context = roomStore.getRoomByCodeSnapshot(session.roomCode);
+      const result = inventoryService.useItem(context.room, session.playerId, payload.itemInstanceId);
+      io.to(socket.id).emit(SocketEvent.InventoryUpdate, result.inventoryUpdate);
+      io.to(session.roomCode).emit(SocketEvent.StatePlayers, roomStore.listPlayerStates(context.room));
+    } catch (error) {
+      emitRoomError(socket, error instanceof Error ? error.message : "Failed to use item.");
     }
   });
 

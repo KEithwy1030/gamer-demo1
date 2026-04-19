@@ -9,6 +9,7 @@ export interface MonsterState {
   maxHp: number;
   targetPlayerId?: string;
   isAlive: boolean;
+  deadAt?: number;
 }
 
 export interface MonsterSpawnDefinition {

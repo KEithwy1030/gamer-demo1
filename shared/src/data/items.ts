@@ -100,5 +100,13 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
     size: { width: 2, height: 2 },
     treasureSize: "large",
     treasureValue: 220
+  },
+  health_potion: {
+    id: "health_potion",
+    name: "回血药",
+    category: "consumable",
+    rarity: "common",
+    size: { width: 1, height: 1 },
+    healAmount: 30
   }
 };
