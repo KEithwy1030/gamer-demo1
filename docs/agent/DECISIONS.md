@@ -51,3 +51,12 @@
   LAN mobile clients do not originate from `localhost`, and browser/network conditions on phones are less stable than desktop localhost testing.
 - Consequence:
   Backend connectivity defaults are now safer for real-device LAN sessions without requiring extra environment tuning.
+
+## 2026-04-20: Monster Population Should Be Procedural Per Match, Not Fixed
+
+- Decision:
+  Replace the fixed backend monster spawn table with per-match procedural spawn generation, while keeping corpse persistence and spawn-point-based delayed respawn.
+- Why:
+  The user explicitly asked for more distributed monster placement, half as many elites, visible corpses, and respawns tied back to the same spawn points instead of one-shot fixed placements.
+- Consequence:
+  Monster population tuning now depends on spawn-generation rules and lifecycle timings rather than a static coordinate list.

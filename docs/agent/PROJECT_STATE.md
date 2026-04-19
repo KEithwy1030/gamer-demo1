@@ -54,7 +54,7 @@ The intended game is a top-down multiplayer extraction demo. The current approve
   - project equipped item stats into runtime player state for combat and movement
   - keep equip, unequip, and drop event wiring consistent with the current inventory API
 - Backend combat tuning now matches the latest requested GDD pass for these items:
-  - player basic attack range is doubled again to sword `232`, blade `256`, spear `360`
+  - player basic attack range is now sword `116`, blade `128`, spear `180`
   - blade skills `blade_sweep`, `blade_guard`, and `blade_overpower` are implemented server-side
   - spear skills `spear_heavyThrust`, `spear_warCry`, and `spear_draggingStrike` are implemented server-side
   - all implemented skill cooldowns are normalized to `3s`
@@ -82,8 +82,14 @@ The intended game is a top-down multiplayer extraction demo. The current approve
 - The latest equipment refactor and backend combat-tuning pass now have fresh passing client and server TypeScript verification.
 - Backend map/playfield tuning is now enlarged and more densely populated:
   - shared map size is increased from `4800x4800` to `6400x6400`
-  - backend monster spawn layout grows from `11` spawn points to `26`
+  - backend monster spawns are now procedural per match with `40` normal positions and `3` elite positions
   - chest anchors and default center-based drop seeding now derive from the active map size instead of hardcoded `2400`/`4800` assumptions
+- Backend loot and monster lifecycle now include:
+  - normal monsters have a `50%` chance to drop loot
+  - elite monsters always drop `2` items
+  - equippable drops roll quality on drop generation, with stronger quality odds for elites
+  - `health_potion` is a usable consumable that restores `30 HP` capped to max HP
+  - dead monsters remain as corpses for `10s` and respawn from the same spawn definition after `60s` total from death
 - The backend map/monster density pass still needs a live in-room feel check beyond automated verification.
 
 ## Technical Reality
@@ -116,6 +122,7 @@ The intended game is a top-down multiplayer extraction demo. The current approve
 - The backend now explicitly exposes both Socket.IO `websocket` and `polling` transports, with relaxed ping/connect timeouts for mobile LAN clients.
 - Phaser canvas resize logic was fixed after a bug where the game rendered at `0x0` and only the DOM inventory panel was visible.
 - `scripts/test-loop.mjs` starts the server with accelerated extract/match timers for automated validation and runs a dual-client Socket.IO loop test end to end.
+- A root [tsconfig.json](/E:/CursorData/gamer/tsconfig.json) now exists so `npx tsc --build` works from repo root.
 
 ## Acceptance Standard Now
 

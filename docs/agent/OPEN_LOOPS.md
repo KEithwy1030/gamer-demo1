@@ -66,3 +66,17 @@
   Run a live sanity pass for equip, unequip, drop, pickup, movement speed changes, basic attack reach, combat damage changes, and the new sword/blade/spear skill effects in an active room.
 - Blocking reason:
   Type safety is green, but runtime behavior still needs explicit gameplay validation.
+
+## 6. Procedural Monster Spawn And Respawn Feel Still Needs Live Validation
+
+- Symptom:
+  Monster placement is now procedural and corpses persist before delayed respawn, but the actual in-room pacing and readability have not been manually judged yet.
+- Confirmed facts:
+  - each new match now generates `40` normal monster spawn points with exclusion zones around center extract and the player-side spawn area
+  - elites now spawn as `3` monsters placed in different quadrants
+  - monster corpses remain for `10s`
+  - respawns occur `60s` after death from the original spawn definition
+- Next step:
+  Run a live room and judge whether procedural spread, elite pressure, corpse readability, and 60-second respawn pacing feel correct.
+- Blocking reason:
+  This needs runtime gameplay judgment, not just compile verification.

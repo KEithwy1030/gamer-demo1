@@ -244,6 +244,7 @@ export function createGameClientController(
       },
       onStartExtract: () => network.sendStartExtract(),
       onOpenChest: (chestId: string) => network.sendOpenChest(chestId),
+      onToggleInventory: () => controller.toggleInventory(),
       subscribeChestsInit: (cb: any) => network.onChestsInit(cb),
       subscribeChestOpened: (cb: any) => network.onChestOpened(cb)
     });

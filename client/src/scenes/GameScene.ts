@@ -18,6 +18,7 @@ export interface GameSceneInitData {
   onCombatResult?: (payload: CombatEventPayload) => void;
   onPlayerAttack?: (payload: { playerId: string; attackId: string }) => void;
   onOpenChest?: (chestId: string) => void;
+  onToggleInventory?: () => void;
   subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
 }
@@ -97,6 +98,7 @@ export class GameScene extends Phaser.Scene {
   public onCombatResult?: (payload: CombatEventPayload) => void;
   public onPlayerAttack?: (payload: { playerId: string; attackId: string }) => void;
   private onOpenChest?: (chestId: string) => void;
+  private onToggleInventory?: () => void;
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
   private chestUnsubscribes: (() => void)[] = [];
@@ -106,7 +108,7 @@ export class GameScene extends Phaser.Scene {
   private lastMoveSentAt = 0;
   private extractAutoStarted = false;
 
-  private static readonly MOBILE_SPEED_SCALE = 0.35;
+  private static readonly MOBILE_SPEED_SCALE = 0.8;
 
   // Smoothed input state for keyboard to match joystick feel
   private smoothedKeyboardInput: Vector2 = { x: 0, y: 0 };
@@ -226,6 +228,7 @@ export class GameScene extends Phaser.Scene {
     this.onPickup = data.onPickup;
     this.onStartExtract = data.onStartExtract;
     this.onOpenChest = data.onOpenChest;
+    this.onToggleInventory = data.onToggleInventory;
     this.subscribeChestsInit = data.subscribeChestsInit;
     this.subscribeChestOpened = data.subscribeChestOpened;
     this.onCombatResult = (payload) => this.handleCombatResult(payload);
@@ -364,7 +367,7 @@ export class GameScene extends Phaser.Scene {
     document.addEventListener("touchend", this.domTouchEnd); document.addEventListener("touchcancel", this.domTouchEnd);
 
     const overlay = document.createElement("div");
-    overlay.style.cssText = "position:fixed;right:16px;bottom:16px;display:grid;grid-template-columns:repeat(2,70px);gap:8px;z-index:3000;";
+    overlay.style.cssText = "position:fixed;right:16px;bottom:16px;display:grid;grid-template-columns:repeat(2,70px);gap:6px;z-index:3000;";
     const actions = [
       { label: "攻", color: "#ef4444", fn: () => this.handleAttack() },
       { label: "技", color: "#38bdf8", fn: () => this.handleSkill() },
@@ -392,9 +395,8 @@ export class GameScene extends Phaser.Scene {
   private handleInteract(): void { if (this.interactionPrompt?.visible) { const id = this.interactionPrompt.getData("chestId"); if (id) this.onOpenChest?.(id); } else this.onPickup?.(); }
 
   private handleToggleInventory(): void {
-    // Emit inventory toggle event that main.ts can listen to
-    const inventoryEvent = new CustomEvent('toggleInventory');
-    window.dispatchEvent(inventoryEvent);
+    // Call the controller's toggle inventory method
+    this.onToggleInventory?.();
   }
 
   private createWeaponVfx(x: number, y: number, type: WeaponType, dir: Vector2): void {
@@ -413,8 +415,8 @@ export class GameScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     const alpha = Phaser.Math.Clamp(delta / 120, 0.08, 0.22);
-    this.smoothedJoystickVector.x += (this.joystickVector.x - this.smoothedJoystickVector.x) * 0.15;
-    this.smoothedJoystickVector.y += (this.joystickVector.y - this.smoothedJoystickVector.y) * 0.15;
+    this.smoothedJoystickVector.x += (this.joystickVector.x - this.smoothedJoystickVector.x) * 0.4;
+    this.smoothedJoystickVector.y += (this.joystickVector.y - this.smoothedJoystickVector.y) * 0.4;
     if (Math.abs(this.smoothedJoystickVector.x) < 0.001) this.smoothedJoystickVector.x = 0;
     if (Math.abs(this.smoothedJoystickVector.y) < 0.001) this.smoothedJoystickVector.y = 0;
 

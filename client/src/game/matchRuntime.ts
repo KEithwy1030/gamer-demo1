@@ -4,10 +4,12 @@ export interface MatchInventoryItem {
   instanceId: string;
   definitionId: string;
   name: string;
+  kind?: string;
   rarity?: string;
   x?: number;
   y?: number;
   slot?: string;
+  healAmount?: number;
   affixes?: Array<{ key: string; value: number }>;
   modifiers?: Partial<{
     attackPower: number;

@@ -57,7 +57,8 @@ export function resolvePlayerAttack(
   syncPlayerCombatState(attacker, now);
   const attackerState = attacker.state!;
   const weapon = getWeaponDefinition(attackerState.weaponType);
-  const cooldownMs = Math.round(1000 / Math.max(weapon.attacksPerSecond + attackerState.attackSpeed, 0.1));
+  const baseInterval = Math.round(1000 / weapon.attacksPerSecond);
+  const cooldownMs = Math.round(baseInterval / Math.max(1 + attackerState.attackSpeed, 0.1));
 
   if (combatState.lastAttackAt && now - combatState.lastAttackAt < cooldownMs) {
     throw new Error("Attack is on cooldown.");
@@ -117,20 +118,20 @@ export function resolvePlayerSkillCast(
       return emptyResolution();
     }
     case "sword_dashSlash": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
-      movePlayerByDirection(caster.state!, 96);
-      const target = selectAttackTarget(room, caster, "sword", 96);
+      requireSkillCooldown(combatState, payload.skillId, now, 4000);
+      movePlayerByDirection(caster.state!, 150);
+      const target = selectAttackTarget(room, caster, "sword", 150);
       return target
-        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 180 + attackPowerBonus, now), now)
+        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 45 + attackPowerBonus, now), now)
         : emptyResolution();
     }
     case "blade_sweep": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
-      const targets = selectAttackTargets(room, caster, "blade", 80, 90);
-      return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, 220 + attackPowerBonus, now), now);
+      requireSkillCooldown(combatState, payload.skillId, now, 4000);
+      const targets = selectAttackTargets(room, caster, "blade", 100, 90);
+      return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, 55 + attackPowerBonus, now), now);
     }
     case "blade_guard": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
+      requireSkillCooldown(combatState, payload.skillId, now, 5000);
       addTimedModifier(caster, {
         sourceId: payload.skillId,
         expiresAt: now + 2000,
@@ -139,37 +140,37 @@ export function resolvePlayerSkillCast(
       return emptyResolution();
     }
     case "blade_overpower": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
+      requireSkillCooldown(combatState, payload.skillId, now, 4000);
       addTimedModifier(caster, {
         sourceId: payload.skillId,
         expiresAt: now + 4000,
-        attackDamageMultiplier: 0.25
+        attackDamageMultiplier: 0.60
       }, now);
       return emptyResolution();
     }
     case "spear_heavyThrust": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
-      const target = selectAttackTarget(room, caster, "spear", 160, 50);
+      requireSkillCooldown(combatState, payload.skillId, now, 5000);
+      const target = selectAttackTarget(room, caster, "spear", 180, 50);
       return target
-        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 300 + attackPowerBonus, now), now)
+        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 75 + attackPowerBonus, now), now)
         : emptyResolution();
     }
     case "spear_warCry": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
+      requireSkillCooldown(combatState, payload.skillId, now, 6000);
       addTimedModifier(caster, {
         sourceId: payload.skillId,
         expiresAt: now + 3000,
         damageReductionBonus: 0.25,
-        moveSpeedMultiplier: 0.15
+        moveSpeedMultiplier: 0.20
       }, now);
       return emptyResolution();
     }
     case "spear_draggingStrike": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
+      requireSkillCooldown(combatState, payload.skillId, now, 4000);
       setPendingBasicAttack(caster, {
         sourceId: payload.skillId,
-        bonusDamage: 80,
-        slowMultiplier: 0.25,
+        bonusDamage: 50,
+        slowMultiplier: 0.40,
         slowDurationMs: 2000
       });
       return emptyResolution();
