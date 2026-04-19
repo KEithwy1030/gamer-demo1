@@ -520,7 +520,6 @@ export class GameScene extends Phaser.Scene {
       this.extractKey = keys.F;
     }
 
-    this.createAtmosphere();
     this.initHud();
     this.initChests();
     this.showTutorial();
@@ -1284,15 +1283,6 @@ export class GameScene extends Phaser.Scene {
     if (!this.extractBeacon) return;
     const glow = this.extractBeacon.list[0] as Phaser.GameObjects.Arc;
     if (glow) glow.setScale(1 + Math.sin(time / 360) * 0.05);
-  }
-
-  private createAtmosphere(): void {
-    const { width, height } = this.scale;
-    this.atmosphericOverlay = this.add.graphics();
-    this.atmosphericOverlay.setDepth(1000).setScrollFactor(0);
-    this.atmosphericOverlay.fillStyle(0x040814, 0.45).fillRect(0, 0, width, height);
-    this.atmosphericOverlay.fillStyle(0x000000, 0.3).fillRect(0, 0, width, 120);
-    this.atmosphericOverlay.fillRect(0, height - 120, width, 120);
   }
 
   private syncPlayers(state: MatchViewState): void {
