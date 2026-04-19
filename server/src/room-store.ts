@@ -23,6 +23,7 @@ import {
   ROOM_CODE_LENGTH,
   SPAWN_RING_RADIUS
 } from "./internal-constants.js";
+import { setPlayerBaseStats, syncPlayerCombatState } from "./combat/player-effects.js";
 import type {
   MatchStartContext,
   RoomStateEnvelope,
@@ -55,6 +56,8 @@ function buildPlayerState(player: RuntimePlayer): PlayerState {
   if (!player.state) {
     throw new Error(`Missing runtime state for player ${player.id}`);
   }
+
+  syncPlayerCombatState(player);
 
   return {
     ...player.state,
@@ -216,6 +219,7 @@ export class RoomStore {
       throw new Error("Player is not active in the current match.");
     }
 
+    syncPlayerCombatState(player);
     const directionMagnitude = getDirectionMagnitude(direction);
     const normalizedDirection = normalizeDirection(direction);
     player.state.direction = normalizedDirection;
@@ -314,6 +318,15 @@ export class RoomStore {
         killsPlayers: 0,
         killsMonsters: 0
       };
+      setPlayerBaseStats(player, {
+        maxHp: PLAYER_BASE_HP,
+        weaponType: DEFAULT_WEAPON_TYPE,
+        moveSpeed: PLAYER_BASE_MOVE_SPEED,
+        attackPower: 0,
+        attackSpeed: 0,
+        critRate: 0,
+        damageReduction: 0
+      }, room.startedAt ?? Date.now());
     });
   }
 

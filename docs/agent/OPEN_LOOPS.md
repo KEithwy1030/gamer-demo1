@@ -58,7 +58,9 @@
   - `npx tsc --noEmit -p server/tsconfig.json` passes
   - equip/drop/unequip payloads are wired on `itemInstanceId`
   - loot slot mapping and rarity-based affix generation are aligned with the current item model
+  - doubled player weapon range plus blade/spear skill handlers compile on the server
+  - monster attack damage/range are reduced to the latest requested values
 - Next step:
-  Run a live sanity pass for equip, unequip, drop, pickup, movement speed changes, and combat damage changes in an active room.
+  Run a live sanity pass for equip, unequip, drop, pickup, movement speed changes, combat damage changes, and the new blade/spear skill effects in an active room.
 - Blocking reason:
   Type safety is green, but runtime behavior still needs explicit gameplay validation.

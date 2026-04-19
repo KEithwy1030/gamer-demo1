@@ -109,6 +109,33 @@ export interface RuntimeCombatState {
   lastCastAtBySkillId: Partial<Record<SkillId, number>>;
   invulnerableUntil?: number;
   killsPlayers?: number;
+  activeModifiers: RuntimeTimedCombatModifier[];
+  pendingBasicAttack?: PendingBasicAttackModifier;
+}
+
+export interface RuntimeTimedCombatModifier {
+  sourceId: string;
+  expiresAt: number;
+  attackDamageMultiplier?: number;
+  damageReductionBonus?: number;
+  moveSpeedMultiplier?: number;
+}
+
+export interface PendingBasicAttackModifier {
+  sourceId: string;
+  bonusDamage: number;
+  slowMultiplier?: number;
+  slowDurationMs?: number;
+}
+
+export interface RuntimePlayerBaseStats {
+  maxHp: number;
+  weaponType: WeaponType;
+  moveSpeed: number;
+  attackPower: number;
+  attackSpeed: number;
+  critRate: number;
+  damageReduction: number;
 }
 
 export interface RuntimePlayerExtractState {
@@ -183,6 +210,7 @@ export interface RuntimePlayer extends LobbyPlayer {
   socketId: string;
   joinedAt: number;
   state?: ServerPlayerState;
+  baseStats?: RuntimePlayerBaseStats;
   combat?: RuntimeCombatState;
   extract?: RuntimePlayerExtractState;
   inventory?: InventoryState;

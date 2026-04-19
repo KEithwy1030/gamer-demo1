@@ -35,6 +35,7 @@ import {
 import { InventoryService } from "./inventory/index.js";
 import {
   handlePlayerAttack as handleMonsterPlayerAttack,
+  handlePlayerSkill as handleMonsterPlayerSkill,
   spawnInitialMonsters,
   tickMonsters
 } from "./monsters/monster-manager.js";
@@ -579,6 +580,7 @@ function attachRoomHandlers(socket: GameSocket): void {
 
       const context = roomStore.getRoomByCodeSnapshot(roomCode);
       const resolution = resolvePlayerSkillCast(context.room, session.playerId, payload);
+      const monsterOutcome = handleMonsterPlayerSkill(context, session.playerId, payload);
 
       for (const event of resolution.combatEvents) {
         const interruption = interruptPlayerExtract(context.room, event.targetId, "damaged");
@@ -590,6 +592,16 @@ function attachRoomHandlers(socket: GameSocket): void {
 
       for (const death of resolution.deaths) {
         io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
+      }
+
+      if (monsterOutcome) {
+        for (const event of monsterOutcome.combatEvents) {
+          io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
+        }
+        io.to(roomCode).emit(SocketEvent.StateMonsters, monsterOutcome.monsters);
+        if (monsterOutcome.spawnedDrops.length > 0) {
+          io.to(roomCode).emit(SocketEvent.LootSpawned, monsterOutcome.spawnedDrops);
+        }
       }
 
       flushDeathDrops(roomCode);

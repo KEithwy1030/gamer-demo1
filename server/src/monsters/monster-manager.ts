@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { WEAPON_DEFINITIONS } from "../../../shared/dist/data/weapons.js";
-import type { AttackRequestPayload, CombatEventPayload } from "../../../shared/dist/types/combat.js";
+import type { AttackRequestPayload, CombatEventPayload, SkillCastPayload } from "../../../shared/dist/types/combat.js";
 import type { MonsterSpawnDefinition, MonsterState, MonsterType } from "../../../shared/dist/types/monsters.js";
 import {
   ELITE_MONSTER_AGGRO_RANGE,
@@ -24,6 +24,11 @@ import {
   PLAYER_HIT_RADIUS
 } from "../internal-constants.js";
 import { createDropsForMonster, listWorldDrops } from "../loot/loot-manager.js";
+import {
+  consumePendingBasicAttack,
+  scaleOutgoingDamage,
+  syncPlayerCombatState
+} from "../combat/player-effects.js";
 import type { DropState, RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../types.js";
 
 interface CombatPlayerState {
@@ -58,6 +63,13 @@ export interface MonsterTickResult {
   drops: DropState[];
   combatEvents: CombatEventPayload[];
   playerStateChanged: boolean;
+}
+
+export interface PlayerSkillOutcome {
+  monsters: MonsterState[];
+  drops: DropState[];
+  combatEvents: CombatEventPayload[];
+  spawnedDrops: DropState[];
 }
 
 export function ensureMonsterState(room: RuntimeRoom): Map<string, RuntimeMonster> {
@@ -109,6 +121,7 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
       continue;
     }
 
+    syncPlayerCombatState(target);
     const distance = distanceBetween(monster.x, monster.y, target.state.x, target.state.y);
     if (distance > monster.attackRange + MONSTER_CONTACT_RADIUS + PLAYER_HIT_RADIUS) {
       moveMonsterTowards(monster, target.state);
@@ -158,8 +171,8 @@ export function handlePlayerAttack(
   }
 
   const weapon = WEAPON_DEFINITIONS[player.state.weaponType];
-  const attackPower = weapon.attackPower + player.state.attackPower;
   const now = Date.now();
+  syncPlayerCombatState(player, now);
   if (now < (player.attackCooldownEndsAt ?? 0)) {
     return undefined;
   }
@@ -174,6 +187,12 @@ export function handlePlayerAttack(
     };
   }
 
+  const pendingBasicAttack = consumePendingBasicAttack(player);
+  const attackPower = scaleOutgoingDamage(
+    player,
+    weapon.attackPower + player.state.attackPower + (pendingBasicAttack?.bonusDamage ?? 0),
+    now
+  );
   targetMonster.targetPlayerId = player.id;
   targetMonster.hp = Math.max(0, targetMonster.hp - attackPower);
   targetMonster.isAlive = targetMonster.hp > 0;
@@ -189,7 +208,7 @@ export function handlePlayerAttack(
   let spawnedDrops: DropState[] = [];
   if (!targetMonster.isAlive) {
     targetMonster.targetPlayerId = undefined;
-    const nextKills = "killsMonsters" in player.state && typeof player.state.killsMonsters === "number"
+    const nextKills = typeof player.state.killsMonsters === "number"
       ? player.state.killsMonsters + 1
       : 1;
     (player.state as unknown as Record<string, unknown>).killsMonsters = nextKills;
@@ -202,6 +221,32 @@ export function handlePlayerAttack(
     combat,
     spawnedDrops
   };
+}
+
+export function handlePlayerSkill(
+  context: RuntimeContext,
+  playerId: string,
+  payload: SkillCastPayload
+): PlayerSkillOutcome | undefined {
+  const room = context.room;
+  const player = room.players.get(playerId);
+  if (!player?.state || !player.state.isAlive) {
+    return undefined;
+  }
+
+  const now = Date.now();
+  syncPlayerCombatState(player, now);
+
+  switch (payload.skillId) {
+    case "blade_sweep":
+      return applySkillDamageToMonsters(room, player, findAttackableMonsters(room, player.state, 80, 90), scaleOutgoingDamage(player, 22 + player.state.attackPower, now));
+    case "spear_heavyThrust": {
+      const target = findAttackableMonster(room, player.state, 160, 50);
+      return applySkillDamageToMonsters(room, player, target ? [target] : [], scaleOutgoingDamage(player, 30 + player.state.attackPower, now));
+    }
+    default:
+      return undefined;
+  }
 }
 
 function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
@@ -296,38 +341,99 @@ function moveMonsterTowards(monster: RuntimeMonster, target: CombatPlayerState):
   monster.y = clamp(monster.y + ((target.y - monster.y) / distance) * step, 48, MATCH_MAP_HEIGHT - 48);
 }
 
-function findAttackableMonster(room: RuntimeRoom, playerState: CombatPlayerState, attackRange: number): RuntimeMonster | undefined {
-  let closestMonster: RuntimeMonster | undefined;
-  let closestDistance = Number.POSITIVE_INFINITY;
+function findAttackableMonster(
+  room: RuntimeRoom,
+  playerState: CombatPlayerState,
+  attackRange: number,
+  coneOverrideDeg?: number
+): RuntimeMonster | undefined {
+  return findAttackableMonsters(room, playerState, attackRange, coneOverrideDeg)[0];
+}
 
-  for (const monster of ensureMonsterState(room).values()) {
+function findAttackableMonsters(
+  room: RuntimeRoom,
+  playerState: CombatPlayerState,
+  attackRange: number,
+  coneOverrideDeg?: number
+): RuntimeMonster[] {
+  const facing = normalizeDirection(playerState.direction);
+  const maxAngleDeg = coneOverrideDeg == null ? 78 : coneOverrideDeg / 2;
+
+  return [...ensureMonsterState(room).values()]
+    .filter((monster) => monster.isAlive)
+    .map((monster) => {
+      const dx = monster.x - playerState.x;
+      const dy = monster.y - playerState.y;
+      const distance = Math.hypot(dx, dy);
+      const angleDeg = getAngleBetween(facing, normalizeDirection({ x: dx, y: dy }));
+      return { monster, distance, angleDeg };
+    })
+    .filter(({ distance, angleDeg }) => (
+      distance <= attackRange + MONSTER_CONTACT_RADIUS
+      && (facing.x === 0 && facing.y === 0 ? true : angleDeg <= maxAngleDeg)
+    ))
+    .sort((a, b) => a.distance - b.distance)
+    .map(({ monster }) => monster);
+}
+
+function applySkillDamageToMonsters(
+  room: RuntimeRoom,
+  player: RuntimePlayer,
+  targets: RuntimeMonster[],
+  damage: number
+): PlayerSkillOutcome {
+  const combatEvents: CombatEventPayload[] = [];
+  const spawnedDrops: DropState[] = [];
+
+  for (const monster of targets) {
+    monster.targetPlayerId = player.id;
+    monster.hp = Math.max(0, monster.hp - damage);
+    monster.isAlive = monster.hp > 0;
     if (!monster.isAlive) {
-      continue;
+      monster.targetPlayerId = undefined;
+      const nextKills = typeof player.state!.killsMonsters === "number"
+        ? player.state!.killsMonsters + 1
+        : 1;
+      (player.state! as unknown as Record<string, unknown>).killsMonsters = nextKills;
+      spawnedDrops.push(...createDropsForMonster(room, monster));
     }
 
-    const distance = distanceBetween(playerState.x, playerState.y, monster.x, monster.y);
-    if (distance > attackRange + MONSTER_CONTACT_RADIUS || distance >= closestDistance) {
-      continue;
-    }
-
-    const facing = playerState.direction;
-    if (facing.x !== 0 || facing.y !== 0) {
-      const nx = (monster.x - playerState.x) / Math.max(distance, 1);
-      const ny = (monster.y - playerState.y) / Math.max(distance, 1);
-      if ((facing.x * nx) + (facing.y * ny) < 0.2) {
-        continue;
-      }
-    }
-
-    closestDistance = distance;
-    closestMonster = monster;
+    combatEvents.push({
+      attackerId: player.id,
+      targetId: monster.id,
+      amount: damage,
+      targetHp: monster.hp,
+      targetAlive: monster.isAlive
+    });
   }
 
-  return closestMonster;
+  return {
+    monsters: listMonsterStates(room),
+    drops: listWorldDrops(room),
+    combatEvents,
+    spawnedDrops
+  };
 }
 
 function distanceBetween(ax: number, ay: number, bx: number, by: number): number {
   return Math.hypot(ax - bx, ay - by);
+}
+
+function normalizeDirection(direction: { x: number; y: number }): { x: number; y: number } {
+  const length = Math.hypot(direction.x, direction.y);
+  if (length === 0) {
+    return { x: 0, y: 0 };
+  }
+
+  return {
+    x: direction.x / length,
+    y: direction.y / length
+  };
+}
+
+function getAngleBetween(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  const dot = clamp((a.x * b.x) + (a.y * b.y), -1, 1);
+  return (Math.acos(dot) * 180) / Math.PI;
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -2,7 +2,8 @@ import { WEAPON_DEFINITIONS } from "../../../shared/dist/data/weapons.js";
 import type {
   AttackRequestPayload,
   CombatEventPayload,
-  SkillCastPayload
+  SkillCastPayload,
+  StatusEffectType
 } from "../../../shared/dist/types/combat.js";
 import type { WeaponType } from "../../../shared/dist/types/game.js";
 import {
@@ -17,6 +18,14 @@ import {
   MATCH_MAP_WIDTH,
   PLAYER_HIT_RADIUS
 } from "../internal-constants.js";
+import {
+  addTimedModifier,
+  consumePendingBasicAttack,
+  ensureCombatState,
+  scaleOutgoingDamage,
+  setPendingBasicAttack,
+  syncPlayerCombatState
+} from "./player-effects.js";
 import type {
   RuntimePlayer,
   RuntimeRoom
@@ -44,10 +53,10 @@ export function resolvePlayerAttack(
   const attacker = getActivePlayer(room, attackerId);
   const now = Date.now();
   const combatState = ensureCombatState(attacker);
+  syncPlayerCombatState(attacker, now);
   const attackerState = attacker.state!;
   const weapon = getWeaponDefinition(attackerState.weaponType);
   const cooldownMs = Math.round(1000 / Math.max(weapon.attacksPerSecond + attackerState.attackSpeed, 0.1));
-  const attackPower = weapon.attackPower + attackerState.attackPower;
 
   if (combatState.lastAttackAt && now - combatState.lastAttackAt < cooldownMs) {
     throw new Error("Attack is on cooldown.");
@@ -60,7 +69,27 @@ export function resolvePlayerAttack(
     return emptyResolution();
   }
 
-  return applyDamage(room, attacker, target, attackPower, now);
+  const pendingBasicAttack = consumePendingBasicAttack(attacker);
+  const attackPower = scaleOutgoingDamage(
+    attacker,
+    weapon.attackPower + attackerState.attackPower + (pendingBasicAttack?.bonusDamage ?? 0),
+    now
+  );
+
+  return applyDamage(
+    room,
+    attacker,
+    target,
+    attackPower,
+    now,
+    pendingBasicAttack?.slowMultiplier && pendingBasicAttack.slowDurationMs
+      ? {
+        sourceId: pendingBasicAttack.sourceId,
+        slowMultiplier: pendingBasicAttack.slowMultiplier,
+        slowDurationMs: pendingBasicAttack.slowDurationMs
+      }
+      : undefined
+  );
 }
 
 export function resolvePlayerSkillCast(
@@ -71,8 +100,9 @@ export function resolvePlayerSkillCast(
   const caster = getActivePlayer(room, casterId);
   const combatState = ensureCombatState(caster);
   const now = Date.now();
-  const lastCastAt = combatState.lastCastAtBySkillId[payload.skillId];
+  syncPlayerCombatState(caster, now);
   const attackPowerBonus = caster.state!.attackPower;
+  const lastCastAt = combatState.lastCastAtBySkillId[payload.skillId];
 
   switch (payload.skillId) {
     case "common_dodge": {
@@ -89,24 +119,62 @@ export function resolvePlayerSkillCast(
       requireSkillCooldown(combatState, payload.skillId, now, 6000);
       movePlayerByDirection(caster.state!, 96);
       const target = selectAttackTarget(room, caster, "sword", 96);
-      return target ? applyDamage(room, caster, target, 18 + attackPowerBonus, now) : emptyResolution();
+      return target
+        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 18 + attackPowerBonus, now), now)
+        : emptyResolution();
     }
     case "blade_sweep": {
       requireSkillCooldown(combatState, payload.skillId, now, 7000);
       const targets = selectAttackTargets(room, caster, "blade", 80, 90);
-      return applyDamageToTargets(room, caster, targets, 22 + attackPowerBonus, now);
+      return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, 22 + attackPowerBonus, now), now);
+    }
+    case "blade_guard": {
+      requireSkillCooldown(combatState, payload.skillId, now, 12000);
+      addTimedModifier(caster, {
+        sourceId: payload.skillId,
+        expiresAt: now + 2000,
+        damageReductionBonus: 0.4
+      }, now);
+      return emptyResolution();
+    }
+    case "blade_overpower": {
+      requireSkillCooldown(combatState, payload.skillId, now, 10000);
+      addTimedModifier(caster, {
+        sourceId: payload.skillId,
+        expiresAt: now + 4000,
+        attackDamageMultiplier: 0.25
+      }, now);
+      return emptyResolution();
     }
     case "spear_heavyThrust": {
       requireSkillCooldown(combatState, payload.skillId, now, 8000);
       const target = selectAttackTarget(room, caster, "spear", 160, 50);
-      return target ? applyDamage(room, caster, target, 30 + attackPowerBonus, now) : emptyResolution();
+      return target
+        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 30 + attackPowerBonus, now), now)
+        : emptyResolution();
+    }
+    case "spear_warCry": {
+      requireSkillCooldown(combatState, payload.skillId, now, 12000);
+      addTimedModifier(caster, {
+        sourceId: payload.skillId,
+        expiresAt: now + 3000,
+        damageReductionBonus: 0.25,
+        moveSpeedMultiplier: 0.15
+      }, now);
+      return emptyResolution();
+    }
+    case "spear_draggingStrike": {
+      requireSkillCooldown(combatState, payload.skillId, now, 9000);
+      setPendingBasicAttack(caster, {
+        sourceId: payload.skillId,
+        bonusDamage: 8,
+        slowMultiplier: 0.25,
+        slowDurationMs: 2000
+      });
+      return emptyResolution();
     }
     case "sword_bladeFlurry":
     case "sword_shadowStep":
-    case "blade_guard":
-    case "blade_overpower":
-    case "spear_warCry":
-    case "spear_draggingStrike":
       throw new Error(`Skill ${payload.skillId} is not implemented yet.`);
     default:
       throw new Error("Unknown skill.");
@@ -118,9 +186,10 @@ function applyDamage(
   attacker: RuntimePlayer,
   target: RuntimePlayer,
   amount: number,
-  timestamp: number
+  timestamp: number,
+  onHitEffect?: PlayerHitEffect
 ): CombatResolution {
-  return applyDamageToTargets(room, attacker, [target], amount, timestamp);
+  return applyDamageToTargets(room, attacker, [target], amount, timestamp, onHitEffect);
 }
 
 function applyDamageToTargets(
@@ -128,7 +197,8 @@ function applyDamageToTargets(
   attacker: RuntimePlayer,
   targets: RuntimePlayer[],
   amount: number,
-  timestamp: number
+  timestamp: number,
+  onHitEffect?: PlayerHitEffect
 ): CombatResolution {
   if (!attacker.state) {
     throw new Error("Attacker must have active state.");
@@ -142,6 +212,7 @@ function applyDamageToTargets(
       continue;
     }
 
+    syncPlayerCombatState(target, timestamp);
     const targetCombatState = ensureCombatState(target);
     if (targetCombatState.invulnerableUntil && targetCombatState.invulnerableUntil > timestamp) {
       continue;
@@ -150,17 +221,19 @@ function applyDamageToTargets(
     const mitigatedAmount = Math.max(1, Math.round(amount * (1 - target.state.damageReduction)));
     target.state.hp = Math.max(0, target.state.hp - mitigatedAmount);
     const targetAlive = target.state.hp > 0;
+    target.state.isAlive = targetAlive;
+    const statusApplied = applyOnHitEffect(target, onHitEffect, timestamp);
 
     combatEvents.push({
       attackerId: attacker.id,
       targetId: target.id,
       amount: mitigatedAmount,
+      statusApplied,
       targetHp: target.state.hp,
       targetAlive
     });
 
     if (!targetAlive) {
-      target.state.isAlive = false;
       const attackerCombatState = ensureCombatState(attacker);
       attackerCombatState.killsPlayers = (attackerCombatState.killsPlayers ?? 0) + 1;
       deaths.push({
@@ -186,14 +259,6 @@ function getActivePlayer(room: RuntimeRoom, playerId: string): RuntimePlayer {
   }
 
   return player;
-}
-
-function ensureCombatState(player: RuntimePlayer) {
-  player.combat ??= {
-    lastCastAtBySkillId: {}
-  };
-
-  return player.combat;
 }
 
 function getWeaponDefinition(weaponType: WeaponType) {
@@ -307,6 +372,34 @@ function emptyResolution(): CombatResolution {
     combatEvents: [],
     deaths: []
   };
+}
+
+interface PlayerHitEffect {
+  sourceId: string;
+  slowMultiplier?: number;
+  slowDurationMs?: number;
+}
+
+function applyOnHitEffect(
+  target: RuntimePlayer,
+  effect: PlayerHitEffect | undefined,
+  now: number
+): StatusEffectType[] | undefined {
+  if (!effect || !target.state?.isAlive) {
+    return undefined;
+  }
+
+  const applied: StatusEffectType[] = [];
+  if (effect.slowMultiplier && effect.slowDurationMs) {
+    addTimedModifier(target, {
+      sourceId: effect.sourceId,
+      expiresAt: now + effect.slowDurationMs,
+      moveSpeedMultiplier: -effect.slowMultiplier
+    }, now);
+    applied.push("slow");
+  }
+
+  return applied.length > 0 ? applied : undefined;
 }
 
 function requireSkillCooldown(

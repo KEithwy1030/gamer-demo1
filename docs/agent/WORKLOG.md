@@ -95,3 +95,17 @@
   - `npx.cmd tsc --noEmit -p server/tsconfig.json` passed
 - Follow-up:
   - Run a live dual-device LAN mobile sanity pass to confirm polling fallback and reconnect behavior on real phones
+
+- Goal:
+  Fix the requested backend combat tuning issues for player weapon range, blade/spear skills, and monster damage/range.
+- Actions:
+  - Doubled shared weapon ranges to sword `116`, blade `128`, and spear `180`
+  - Added runtime combat-effect support for timed reductions, temporary movement buffs, and spear drag's next-hit modifier
+  - Implemented `blade_guard`, `blade_overpower`, `spear_warCry`, and `spear_draggingStrike` server-side
+  - Extended blade sweep and spear heavy thrust handling so they also resolve against monsters
+  - Reduced monster attack damage/range to normal `4` / `20` and elite `7` / `24`
+- Verification:
+  - `npm.cmd run build --workspace shared` passed
+  - `npx.cmd tsc --noEmit -p server/tsconfig.json` passed
+- Follow-up:
+  - Run an in-room gameplay sanity pass for buff expiry, spear drag next-hit consumption, and blade/spear skill feel

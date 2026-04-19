@@ -70,7 +70,29 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  max-height: 70vh;
+  max-height: 80vh;
+}
+
+@media (max-width: 767px) {
+  .inventory-panel {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100% !important;
+    max-height: 90vh;
+    border-radius: 20px 20px 0 0;
+    border-width: 4px 0 0 0;
+    transition: transform 0.3s ease-out;
+  }
+  
+  .inventory-panel--collapsed {
+    transform: translateY(calc(100% - 64px));
+    width: 100% !important;
+  }
+
+  .inventory-panel__body {
+    max-height: 70vh;
+  }
 }
 
 .inventory-panel--collapsed .inventory-panel__body {

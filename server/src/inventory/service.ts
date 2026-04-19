@@ -17,6 +17,7 @@ import {
   PLAYER_BASE_HP,
   PLAYER_BASE_MOVE_SPEED
 } from "../internal-constants.js";
+import { setPlayerBaseStats } from "../combat/player-effects.js";
 import { getItemTemplate, listSeedDropTemplateIds } from "./catalog.js";
 
 const INVENTORY_WIDTH = 10;
@@ -381,18 +382,15 @@ export class InventoryService {
     }
 
     position.maxHp = PLAYER_BASE_HP + maxHpBonus;
-    position.hp = Math.min(position.hp, position.maxHp);
-    position.attackPower = attackPowerBonus;
-    position.attackSpeed = attackSpeedBonus;
-    position.critRate = critRateBonus;
-    position.damageReduction = damageReductionBonus;
-    position.moveSpeed = PLAYER_BASE_MOVE_SPEED + moveSpeedBonus;
-
-    if (equippedWeapon?.weaponType) {
-      position.weaponType = equippedWeapon.weaponType;
-    } else {
-      position.weaponType = DEFAULT_WEAPON_TYPE;
-    }
+    setPlayerBaseStats(player, {
+      maxHp: PLAYER_BASE_HP + maxHpBonus,
+      weaponType: equippedWeapon?.weaponType ?? DEFAULT_WEAPON_TYPE,
+      attackPower: attackPowerBonus,
+      attackSpeed: attackSpeedBonus,
+      critRate: critRateBonus,
+      damageReduction: damageReductionBonus,
+      moveSpeed: PLAYER_BASE_MOVE_SPEED + moveSpeedBonus
+    });
   }
 }
 

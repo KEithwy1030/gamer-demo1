@@ -53,6 +53,12 @@ The intended game is a top-down multiplayer extraction demo. The current approve
   - generate rarity-based affixes on monster drops
   - project equipped item stats into runtime player state for combat and movement
   - keep equip, unequip, and drop event wiring consistent with the current inventory API
+- Backend combat tuning now matches the latest requested GDD pass for these items:
+  - player basic attack range is doubled to sword `116`, blade `128`, spear `180`
+  - blade skills `blade_sweep`, `blade_guard`, and `blade_overpower` are implemented server-side
+  - spear skills `spear_heavyThrust`, `spear_warCry`, and `spear_draggingStrike` are implemented server-side
+  - monster attack damage is reduced to normal `4`, elite `7`
+  - monster attack range is reduced to normal `20`, elite `24`
 
 ### What Is Still Not Good Enough
 
@@ -66,7 +72,7 @@ The intended game is a top-down multiplayer extraction demo. The current approve
 - Full-loop validation is still incomplete:
   - frontend/manual return to lobby after settlement
   - any user-visible polish expectations around feedback and pacing
-- The latest equipment refactor now has fresh passing client/server TypeScript verification.
+- The latest equipment refactor and backend combat-tuning pass now have fresh passing server TypeScript verification.
 
 ## Technical Reality
 

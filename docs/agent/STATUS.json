@@ -24,7 +24,8 @@
     "Fixed LAN default server URL resolution and Phaser canvas resize issues",
     "Added scripted backend E2E loop coverage for create -> join -> start -> combat -> pickup -> extract -> settlement",
     "Revalidated equipment and loot stat pipeline with passing client/server TypeScript checks",
-    "Hardened backend LAN/mobile connectivity with permissive default CORS, explicit Socket.IO polling fallback, and less aggressive ping timeouts"
+    "Hardened backend LAN/mobile connectivity with permissive default CORS, explicit Socket.IO polling fallback, and less aggressive ping timeouts",
+    "Adjusted backend combat tuning: doubled player weapon ranges, implemented blade/spear server skill handlers, and reduced monster damage/range to the latest GDD values"
   ],
   "unfinished_high_priority": [
     "Revalidate the frontend/manual return-to-lobby behavior after settlement",
@@ -40,7 +41,8 @@
     "backend_e2e_test_loop": "passing",
     "visual_quality": "improved but still below target",
     "full_demo_acceptance": "backend loop validated; frontend/manual acceptance still pending",
-    "equipment_pipeline_typecheck": "passing"
+    "equipment_pipeline_typecheck": "passing",
+    "combat_tuning_typecheck": "passing"
   },
   "runtime_defaults": {
     "client_url": "http://192.168.1.204:5173/",

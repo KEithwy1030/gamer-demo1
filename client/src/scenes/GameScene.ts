@@ -90,7 +90,7 @@ export class GameScene extends Phaser.Scene {
   private lastFacingDirection: Vector2 = { x: 0, y: 1 };
   private lastMoveSentAt = 0;
 
-  private static readonly MOBILE_SPEED_SCALE = 1.0;
+  private static readonly MOBILE_SPEED_SCALE = 0.7;
 
   private atmosphericOverlay?: Phaser.GameObjects.Graphics;
 
@@ -98,7 +98,7 @@ export class GameScene extends Phaser.Scene {
   private joystickKnob?: Phaser.GameObjects.Arc;
   private joystickPointer?: Phaser.Input.Pointer;
   private joystickVector: Vector2 = { x: 0, y: 0 };
-  private touchButtons: Map<string, Phaser.GameObjects.Container> = new Map();
+  private mobileOverlay?: HTMLElement;
 
   constructor() {
     super(GameScene.KEY);
@@ -369,27 +369,39 @@ export class GameScene extends Phaser.Scene {
   }
 
   private initTouchControls(): void {
-    const isTouch = this.sys.game.device.input.touch || navigator.maxTouchPoints > 0;
+    const isTouch = navigator.maxTouchPoints > 0;
     if (!isTouch) return;
 
     const { width, height } = this.scale;
 
     // --- VIRTUAL JOYSTICK ---
-    const joystickX = 120;
-    const joystickY = height - 120;
+    // Start anywhere in left half
+    const joystickX = 140;
+    const joystickY = height - 140;
     const baseRadius = 80;
     const knobRadius = 35;
 
-    this.joystickBase = this.add.circle(joystickX, joystickY, baseRadius, 0x000000, 0.3)
-      .setScrollFactor(0).setDepth(1000).setInteractive({ priorityID: 0 });
+    this.joystickBase = this.add.circle(joystickX, joystickY, baseRadius, 0xffffff, 0.1)
+      .setScrollFactor(0).setDepth(2000);
+    this.joystickBase.setStrokeStyle(3, 0xffffff, 0.2);
 
-    this.joystickKnob = this.add.circle(joystickX, joystickY, knobRadius, 0xffffff, 0.2)
-      .setScrollFactor(0).setDepth(1001);
+    this.joystickKnob = this.add.circle(joystickX, joystickY, knobRadius, 0xffffff, 0.4)
+      .setScrollFactor(0).setDepth(2001);
 
-    this.joystickBase.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      // Use pointer ID for tracking
-      this.joystickPointer = pointer;
-      this.updateJoystick(pointer);
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      // If no joystick pointer and in left half, start joystick
+      if (!this.joystickPointer && pointer.x < width / 2) {
+        this.joystickPointer = pointer;
+        this.joystickBase?.setPosition(pointer.x, pointer.y);
+        this.joystickKnob?.setPosition(pointer.x, pointer.y);
+        this.updateJoystick(pointer);
+      }
+    });
+
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      if (this.joystickPointer && this.joystickPointer.id === pointer.id) {
+        this.updateJoystick(pointer);
+      }
     });
 
     const stopJoystick = (pointer: Phaser.Input.Pointer) => {
@@ -397,7 +409,9 @@ export class GameScene extends Phaser.Scene {
         this.joystickPointer = undefined;
         this.joystickVector = { x: 0, y: 0 };
         if (this.joystickKnob && this.joystickBase) {
-          this.joystickKnob.setPosition(this.joystickBase.x, this.joystickBase.y);
+          // Reset to default position
+          this.joystickBase.setPosition(joystickX, height - 140);
+          this.joystickKnob.setPosition(joystickX, height - 140);
         }
       }
     };
@@ -405,70 +419,79 @@ export class GameScene extends Phaser.Scene {
     this.input.on("pointerup", stopJoystick);
     this.input.on("pointerout", stopJoystick);
 
-    // --- ACTION BUTTONS ---
-    const btnRadius = 60; // Increased hit area
-    const btnPadding = 15;
-    const bottomRightX = width - btnPadding - btnRadius;
-    const bottomRightY = height - btnPadding - btnRadius;
+    // --- DOM ACTION BUTTONS ---
+    const overlay = document.createElement("div");
+    overlay.id = "mobile-action-overlay";
+    overlay.style.position = "absolute";
+    overlay.style.bottom = "30px";
+    overlay.style.right = "30px";
+    overlay.style.display = "grid";
+    overlay.style.gridTemplateColumns = "repeat(2, 1fr)";
+    overlay.style.gap = "20px";
+    overlay.style.zIndex = "3000";
+    overlay.style.pointerEvents = "auto";
+    overlay.style.userSelect = "none";
+    overlay.style.webkitUserSelect = "none";
 
     const buttons = [
-      { id: "A", label: "攻击", color: 0xef4444, action: () => this.handleAttack() },
-      { id: "B", label: "技能", color: 0x38bdf8, action: () => this.handleSkill() },
-      { id: "C", label: "拾取", color: 0xeab308, action: () => this.onPickup?.() },
-      { id: "D", label: "撤离", color: 0x2dd4bf, action: () => this.onStartExtract?.() },
+      { label: "攻击", id: "A", color: "#ef4444", action: () => this.handleAttack() },
+      { label: "技能", id: "B", color: "#38bdf8", action: () => this.handleSkill() },
+      { label: "拾取", id: "C", color: "#eab308", action: () => this.onPickup?.() },
+      { label: "撤离", id: "F", color: "#2dd4bf", action: () => this.onStartExtract?.() },
     ];
 
-    // Layout in a 2x2 grid
-    buttons.forEach((btn, i) => {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const bx = bottomRightX - (1 - col) * (btnRadius * 2 + btnPadding);
-      const by = bottomRightY - (1 - row) * (btnRadius * 2 + btnPadding);
+    buttons.forEach(btn => {
+      const el = document.createElement("div");
+      el.style.width = "80px";
+      el.style.height = "80px";
+      el.style.borderRadius = "50%";
+      el.style.background = "rgba(15, 23, 42, 0.85)";
+      el.style.border = `3px solid ${btn.color}`;
+      el.style.display = "flex";
+      el.style.flexDirection = "column";
+      el.style.alignItems = "center";
+      el.style.justifyContent = "center";
+      el.style.color = "#ffffff";
+      el.style.fontWeight = "bold";
+      el.style.fontSize = "16px";
+      el.style.boxShadow = "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)";
+      el.style.touchAction = "none";
 
-      const container = this.add.container(bx, by).setScrollFactor(0).setDepth(1000);
-      const circle = this.add.circle(0, 0, btnRadius, 0x0f172a, 0.8).setInteractive({ priorityID: 10 });
-      circle.setStrokeStyle(3, btn.color, 1);
+      const label = document.createElement("span");
+      label.textContent = btn.label;
+      const keyHint = document.createElement("span");
+      keyHint.textContent = btn.id;
+      keyHint.style.fontSize = "12px";
+      keyHint.style.color = btn.color;
+      keyHint.style.marginTop = "2px";
 
-      const textLabel = this.add.text(0, -8, btn.label, {
-        fontFamily: "monospace",
-        fontSize: "18px", // Slightly larger
-        fontStyle: "bold",
-        color: "#ffffff"
-      }).setOrigin(0.5);
+      el.append(label, keyHint);
 
-      const keyLabel = this.add.text(0, 15, btn.id, {
-        fontFamily: "monospace",
-        fontSize: "14px",
-        color: "#" + btn.color.toString(16).padStart(6, '0')
-      }).setOrigin(0.5);
-
-      container.add([circle, textLabel, keyLabel]);
-
-      circle.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-        circle.setScale(0.9);
+      el.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        el.style.transform = "scale(0.9)";
         btn.action();
       });
-      circle.on("pointerup", () => circle.setScale(1));
-      circle.on("pointerout", () => circle.setScale(1));
+      el.addEventListener("touchend", () => {
+        el.style.transform = "scale(1)";
+      });
+      el.addEventListener("touchcancel", () => {
+        el.style.transform = "scale(1)";
+      });
 
-      this.touchButtons.set(btn.id, container);
+      overlay.append(el);
     });
 
+    document.getElementById("app")?.append(overlay);
+    this.mobileOverlay = overlay;
+
     // Reposition on resize
-    this.scale.on("resize", (gameSize: Phaser.Structs.Size) => {
-      const { width: nw, height: nh } = gameSize;
+    this.scale.on("resize", () => {
       if (this.joystickBase && this.joystickKnob) {
-        this.joystickBase.setPosition(joystickX, nh - 120);
-        this.joystickKnob.setPosition(joystickX, nh - 120);
+        this.joystickBase.setPosition(140, this.scale.height - 140);
+        this.joystickKnob.setPosition(140, this.scale.height - 140);
       }
-      this.touchButtons.forEach((container, id) => {
-        const i = Array.from(this.touchButtons.keys()).indexOf(id);
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        const bx = nw - btnPadding - btnRadius - (1 - col) * (btnRadius * 2 + btnPadding);
-        const by = nh - btnPadding - btnRadius - (1 - row) * (btnRadius * 2 + btnPadding);
-        container.setPosition(bx, by);
-      });
     });
   }
 
@@ -531,29 +554,30 @@ export class GameScene extends Phaser.Scene {
       const g = this.add.graphics();
       g.setPosition(x, y);
       g.setDepth(y + 100);
-      const color = 0xe2e8f0;
-      const len = 45;
+      const color = 0xe2e8f0; // Silver
+      const len = 50;
       
-      g.lineStyle(2, color, 1);
-      g.fillStyle(color, 0.8);
+      g.fillStyle(color, 1);
       g.beginPath();
+      // Triangle pointing in direction
       g.moveTo(0, 0);
-      g.lineTo(Math.cos(angle - 0.15) * 12, Math.sin(angle - 0.15) * 12);
+      g.lineTo(Math.cos(angle - 0.2) * 15, Math.sin(angle - 0.2) * 15);
       g.lineTo(Math.cos(angle) * len, Math.sin(angle) * len);
-      g.lineTo(Math.cos(angle + 0.15) * 12, Math.sin(angle + 0.15) * 12);
+      g.lineTo(Math.cos(angle + 0.2) * 15, Math.sin(angle + 0.2) * 15);
       g.closePath();
       g.fillPath();
       
-      g.setScale(0.2);
+      g.setScale(0.1);
       this.tweens.add({
         targets: g,
         scale: 1,
-        duration: 80,
+        duration: 60,
+        ease: "Cubic.out",
         onComplete: () => {
           this.tweens.add({
             targets: g,
             alpha: 0,
-            duration: 120,
+            duration: 100,
             onComplete: () => g.destroy()
           });
         }
@@ -562,41 +586,42 @@ export class GameScene extends Phaser.Scene {
       const g = this.add.graphics();
       g.setPosition(x, y);
       g.setDepth(y + 100);
-      const color = 0xfbbf24;
-      const radius = 45;
-      const startAngle = angle - Math.PI / 3;
-      const endAngle = angle + Math.PI / 3;
+      const color = 0xfbbf24; // Orange/Amber
+      const radius = 55;
+      const sweep = (120 * Math.PI) / 180;
+      const startAngle = angle - sweep / 2;
+      const endAngle = angle + sweep / 2;
       
       const animObj = { val: 0 };
       this.tweens.add({
         targets: animObj,
         val: 1,
-        duration: 200,
+        duration: 180,
         onUpdate: () => {
           const progress = animObj.val;
           g.clear();
-          g.lineStyle(5, color, 1 - progress);
+          g.lineStyle(6, color, 1 - progress);
           g.beginPath();
-          g.arc(0, 0, radius, startAngle, startAngle + (endAngle - startAngle) * progress);
+          g.arc(0, 0, radius, startAngle, startAngle + sweep * progress);
           g.strokePath();
         },
         onComplete: () => g.destroy()
       });
     } else if (weaponType === "spear") {
       const ring = this.add.graphics();
-      const color = 0xef4444;
-      ring.lineStyle(4, color, 1);
-      ring.strokeCircle(0, 0, 50);
+      const color = 0xef4444; // Red
+      ring.lineStyle(6, color, 1);
+      ring.strokeCircle(0, 0, 60);
       ring.setPosition(x, y);
       ring.setDepth(y + 100);
-      ring.setScale(0.3);
+      ring.setScale(0.2);
 
       this.tweens.add({
         targets: ring,
         alpha: 0,
-        scale: 1.6,
-        duration: 250,
-        ease: "Cubic.out",
+        scale: 1.8,
+        duration: 300,
+        ease: "Expo.out",
         onComplete: () => ring.destroy()
       });
     } else {
@@ -605,12 +630,12 @@ export class GameScene extends Phaser.Scene {
     
     // Always add a small flash at the player position
     const flashColor = weaponType === "sword" ? 0xe2e8f0 : (weaponType === "blade" ? 0xfbbf24 : (weaponType === "spear" ? 0xef4444 : 0xffffff));
-    const flash = this.add.circle(x, y, 20, flashColor, 0.4);
+    const flash = this.add.circle(x, y, 25, flashColor, 0.5);
     flash.setDepth(y + 99);
     this.tweens.add({
       targets: flash,
       alpha: 0,
-      scale: 1.2,
+      scale: 1.5,
       duration: 150,
       onComplete: () => flash.destroy()
     });
@@ -634,11 +659,6 @@ export class GameScene extends Phaser.Scene {
       this.obstacleLayer.list.forEach((obj: any) => {
         if (obj.setDepth) obj.setDepth(obj.y);
       });
-    }
-
-    // Bug 1 Fix: Update joystick every frame if active
-    if (this.joystickPointer && (this.joystickPointer.isDown || this.joystickPointer.active)) {
-      this.updateJoystick(this.joystickPointer);
     }
 
     this.emitMoveInput(time);
@@ -667,6 +687,10 @@ export class GameScene extends Phaser.Scene {
     this.unsubscribeRuntime = null;
     this.extractPulseTween?.stop();
     this.extractPulseTween = undefined;
+    if (this.mobileOverlay) {
+      this.mobileOverlay.remove();
+      this.mobileOverlay = undefined;
+    }
     for (const marker of this.playerMarkers.values()) marker.destroy();
     for (const marker of this.monsterMarkers.values()) marker.destroy();
     for (const marker of this.dropMarkers.values()) marker.destroy();
@@ -707,16 +731,14 @@ export class GameScene extends Phaser.Scene {
 
     // Combine with joystick input
     if (this.joystickVector.x !== 0 || this.joystickVector.y !== 0) {
-      // Bug 3 Fix: Apply speed scale and ensure magnitude <= 1.0
       let jx = this.joystickVector.x;
       let jy = this.joystickVector.y;
       const mag = Math.sqrt(jx * jx + jy * jy);
-      if (mag > 1.0) {
-        jx /= mag;
-        jy /= mag;
-      }
-      horizontal = jx * GameScene.MOBILE_SPEED_SCALE;
-      vertical = jy * GameScene.MOBILE_SPEED_SCALE;
+      
+      // Cap magnitude at 1.0 then apply scale
+      const cappedMag = Math.min(1.0, mag);
+      horizontal = (jx / mag) * cappedMag * GameScene.MOBILE_SPEED_SCALE;
+      vertical = (jy / mag) * cappedMag * GameScene.MOBILE_SPEED_SCALE;
     }
 
     const nextDirection = { x: horizontal, y: vertical };
@@ -1061,7 +1083,7 @@ export class GameScene extends Phaser.Scene {
     this.hudContainer.add(this.combatText);
 
     // Controls Hint (Bottom Right)
-    const isTouch = this.sys.game.device.input.touch || navigator.maxTouchPoints > 0;
+    const isTouch = navigator.maxTouchPoints > 0;
     const hintText = isTouch ? "虚拟摇杆 移动 | A 攻击 | B 技能 | C 拾取 | D 撤离" : "WASD 移动 | 空格 攻击 | Q 技能 | E 拾取 | F 撤离";
 
     this.controlsHint = this.add.text(width - 20, height - 20, hintText, {
@@ -1096,7 +1118,7 @@ export class GameScene extends Phaser.Scene {
       color: "#38bdf8"
     });
 
-    const isTouch = this.sys.game.device.input.touch || navigator.maxTouchPoints > 0;
+    const isTouch = navigator.maxTouchPoints > 0;
     const moveHint = isTouch ? "● 移动: 虚拟摇杆" : "● 移动: WASD";
     const actionHint = isTouch ? "● 攻击: A | 技能: B\n● 交互: C | 撤离: D" : "● 攻击: 空格 | 技能: Q\n● 交互: E | 撤离: F";
 
