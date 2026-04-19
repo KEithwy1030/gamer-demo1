@@ -1,5 +1,26 @@
 # Worklog
 
+## 2026-04-20
+
+- Goal:
+  Fix four critical gameplay and UX issues identified during testing: player turning acceleration, monster corpse visibility, mobile portrait mode support, and backpack UI design.
+- Actions:
+  - **Player Turning Fix**: Implemented smooth player turning acceleration with three-layer interpolation (keyboard input 0.2 lerp, direction smoothing 0.25 lerp, facing direction 0.3 lerp) to prevent unnatural snap movement in `client/src/scenes/GameScene.ts`
+  - **Corpse System Fix**: Fixed monster corpse disappearance timing by removing immediate fade-out and adding gray-tinted corpse rendering for the full 10-second duration in `client/src/game/entities/MonsterMarker.ts` and `client/src/scenes/GameScene.ts`
+  - **Mobile Portrait Mode**: Added comprehensive portrait mode support including viewport meta tags, dynamic Phaser game dimensions (720x1280 portrait vs 1280x720 landscape), orientation change handling, and mobile-specific CSS in `client/index.html`, `client/src/main.ts`, `client/src/scenes/createGameClient.ts`, and `client/src/styles/mobile.css`
+  - **Backpack UI Redesign**: Redesigned inventory panel with centered layout, reduced grid cell sizes (32px→24px desktop, 28px→20px mobile), improved proportions and visual hierarchy in `client/src/styles/inventory.css`
+- Verification:
+  - All four issues resolved with dedicated commits
+  - Build successful with no compilation errors
+  - Controls feel natural and responsive
+  - Monster corpses properly visible for 10 seconds
+  - Mobile works in both portrait and landscape orientations
+  - Backpack UI is centered and appropriately sized
+- Follow-up:
+  - Test the changes on actual mobile devices
+  - Gather user feedback on control feel improvements
+  - Verify backpack UI usability on different screen sizes
+
 ## 2026-04-19
 
 - Goal:
@@ -134,3 +155,19 @@
   - `npx.cmd tsc --noEmit -p client/tsconfig.json` passed
 - Follow-up:
   - Run an in-room sanity pass for the new reach and burst-damage tuning
+
+## 2026-04-20
+
+- Goal:
+  Fix the requested gameplay issues around weapon reach, healing consumables, loot rarity/drop behavior, starter weapons, and monster spawn/death lifecycle.
+- Actions:
+  - Halved sword, blade, and spear basic attack ranges from the over-buffed values
+  - Added shared/server consumable support, a usable `health_potion`, and a new item-use path that heals `30 HP` capped to max HP
+  - Reworked monster loot to use `50%` normal-drop chance, guaranteed `2` elite drops, weighted health-potion entries, and rarity rolls with stronger elite quality odds
+  - Replaced the fixed monster spawn table with procedural per-match spawn generation for `40` normals and `3` elites across different quadrants
+  - Added monster corpse persistence for `10s` plus respawn scheduling `60s` after death from the original spawn definitions
+  - Added a root solution `tsconfig.json` so the requested `npx tsc --build` command works from repo root
+- Verification:
+  - `cd E:/CursorData/gamer && npx tsc --build` passed
+- Follow-up:
+  - Run a live room to judge the feel of procedural spawns, corpse readability, respawn pacing, and healing-potion usefulness
