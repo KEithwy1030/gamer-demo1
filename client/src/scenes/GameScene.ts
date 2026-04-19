@@ -540,11 +540,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   private syncMonsters(state: MatchViewState): void {
-    state.monsters.forEach(m => {
-      const mm = this.monsterMarkers.get(m.id);
-      if (mm) mm.sync(m);
-      else this.monsterMarkers.set(m.id, new MonsterMarker(this, m));
-    });
+    const currentIds = new Set<string>();
+    for (const monster of state.monsters) {
+      currentIds.add(monster.id);
+      const existing = this.monsterMarkers.get(monster.id);
+      if (existing) {
+        existing.sync(monster);
+      } else {
+        this.monsterMarkers.set(monster.id, new MonsterMarker(this, monster));
+      }
+    }
+
+    // Remove monsters that are no longer in the state (corpses that have been cleaned up)
+    for (const [id, marker] of this.monsterMarkers.entries()) {
+      if (!currentIds.has(id)) {
+        marker.destroy();
+        this.monsterMarkers.delete(id);
+      }
+    }
   }
 
   private syncDrops(state: MatchViewState): void {
