@@ -130,3 +130,50 @@
 - 期望行为：除白装外，应实际掉落其他颜色品质装备；并且每提升一个品质等级，就增加一个词条，形成明确的品质成长层级。
 - 实际行为：当前只有白色装备掉落，设计中的其他品质装备没有实际掉落。
 
+## 执行 Agent 参考仓库
+
+以下仓库不是要求直接照搬，而是供执行 agent 按模块参考实现方式，以加快当前项目优化：
+
+### 1. 移动端触控 / 虚拟摇杆 / 按钮输入
+- `Gamegur-us/phaser-touch-control-plugin`
+  - https://github.com/Gamegur-us/phaser-touch-control-plugin
+  - 参考价值：Phaser 移动端虚拟摇杆、触控按钮、移动端输入层处理。
+- `ShawnHymel/phaser-plugin-virtual-gamepad`
+  - https://github.com/ShawnHymel/phaser-plugin-virtual-gamepad
+  - 参考价值：Phaser 虚拟手柄、摇杆 + 右侧按钮布局与输入映射。
+- `InformalPenguins/phaser-vjoy-plugin`
+  - https://github.com/InformalPenguins/phaser-vjoy-plugin
+  - 参考价值：Phaser 虚拟摇杆插件实现思路，可参考移动端方向输入与触控处理。
+
+### 2. Phaser 顶视角动作 / RPG 表现
+- `tlmader/theodoric`
+  - https://github.com/tlmader/theodoric
+  - 参考价值：Phaser 顶视角 action RPG，可参考战斗表现、怪物、地图与动作反馈组织方式。
+- `smdooley/phaser-action-rpg`
+  - https://github.com/smdooley/phaser-action-rpg
+  - 参考价值：Phaser action RPG 基础结构，可参考动作战斗与场景组织。
+
+### 3. Phaser + Node.js + Socket.IO 多人同步
+- `Jerenaux/basic-mmo-phaser`
+  - https://github.com/Jerenaux/basic-mmo-phaser
+  - 参考价值：Phaser + Node.js + Socket.IO 的多人同步示例，可参考多人状态同步和联机基础骨架。
+- `vezwork/phasocketonline`
+  - https://github.com/vezwork/phasocketonline
+  - 参考价值：浏览器多人游戏 client/server 拆分思路，可参考 Phaser + Socket.IO 联机组织方式。
+
+### 4. 地图移动 / 角色控制参考
+- `Annoraaq/grid-engine`
+  - https://github.com/Annoraaq/grid-engine
+  - 参考价值：Phaser 3 角色移动引擎；虽然偏网格移动，但可参考移动、碰撞、角色控制设计思路。
+- `Annoraaq/grid-movement`
+  - https://github.com/Annoraaq/grid-movement
+  - 参考价值：Phaser 顶视角移动教程代码，可参考角色移动逻辑的组织方式。
+
+## 使用建议
+- 不建议整体替换当前项目架构。
+- 优先按模块借鉴：
+  - 移动端输入层
+  - 多人同步结构
+  - 顶视角动作战斗反馈
+  - 角色移动/控制思路
+- 执行 agent 在借鉴时，应优先抽取实现方法，而不是整包迁移外部项目代码。
