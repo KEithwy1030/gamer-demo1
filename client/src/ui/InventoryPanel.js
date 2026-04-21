@@ -40,8 +40,10 @@ const PERCENT_STATS = new Set([
 ]);
 const TOOLTIP_MARGIN = 12;
 const TOOLTIP_GAP = 10;
+const TOOLTIP_SWITCH_DELAY = 140;
 export function createInventoryPanel(options) {
     let hideTimeout;
+    let pendingShowTimeout;
     let activeTooltip = null;
     const ownedTooltips = new Set();
     const clearHideTimeout = () => {
@@ -59,8 +61,15 @@ export function createInventoryPanel(options) {
             }
         }, 220);
     };
+    const clearPendingShowTimeout = () => {
+        if (pendingShowTimeout) {
+            clearTimeout(pendingShowTimeout);
+            pendingShowTimeout = undefined;
+        }
+    };
     const removeOwnedTooltips = () => {
         clearHideTimeout();
+        clearPendingShowTimeout();
         activeTooltip = null;
         for (const tooltip of ownedTooltips) {
             tooltip.remove();
@@ -244,7 +253,9 @@ export function createInventoryPanel(options) {
             tooltip.style.transform = placeAbove ? "translate(-50%, -100%)" : "translate(-50%, 0)";
         };
         const shouldKeepVisible = (relatedTarget) => relatedTarget instanceof Node && (slot.contains(relatedTarget) || tooltip.contains(relatedTarget));
+        const isInventorySlotTarget = (relatedTarget) => relatedTarget instanceof Element && relatedTarget.closest(".inventory-slot") !== null;
         const showTooltip = () => {
+            clearPendingShowTimeout();
             clearHideTimeout();
             if (activeTooltip && activeTooltip !== tooltip) {
                 activeTooltip.classList.remove("is-visible");
@@ -253,22 +264,34 @@ export function createInventoryPanel(options) {
             tooltip.classList.add("is-visible");
             positionTooltip();
         };
+        const queueTooltipShow = () => {
+            if (activeTooltip && activeTooltip !== tooltip) {
+                clearPendingShowTimeout();
+                pendingShowTimeout = window.setTimeout(() => {
+                    pendingShowTimeout = undefined;
+                    showTooltip();
+                }, TOOLTIP_SWITCH_DELAY);
+                return;
+            }
+            showTooltip();
+        };
         slot.addEventListener("mouseenter", () => {
             if (window.matchMedia("(min-width: 768px)").matches) {
-                showTooltip();
+                queueTooltipShow();
             }
         });
         slot.addEventListener("mouseleave", (event) => {
-            if (window.matchMedia("(min-width: 768px)").matches && !shouldKeepVisible(event.relatedTarget)) {
+            if (window.matchMedia("(min-width: 768px)").matches && !shouldKeepVisible(event.relatedTarget) && !isInventorySlotTarget(event.relatedTarget)) {
                 startHideTimeout();
             }
         });
         tooltip.addEventListener("mouseenter", () => {
+            clearPendingShowTimeout();
             clearHideTimeout();
             activeTooltip = tooltip;
         });
         tooltip.addEventListener("mouseleave", (event) => {
-            if (!shouldKeepVisible(event.relatedTarget)) {
+            if (!shouldKeepVisible(event.relatedTarget) && !isInventorySlotTarget(event.relatedTarget)) {
                 startHideTimeout();
             }
         });

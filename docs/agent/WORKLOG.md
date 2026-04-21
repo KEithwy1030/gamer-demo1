@@ -330,3 +330,15 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Revalidate on Web that hovering an equipment or backpack slot now keeps the detail card visually attached to that slot instead of drifting to the lower-right
+
+- Goal:
+  Remove the remaining desktop inventory annoyance where moving from a hovered slot toward the detail card could cross a neighboring slot and instantly replace or dismiss the active detail card.
+- Actions:
+  - Updated `client/src/ui/InventoryPanel.{js,ts}` to add a short desktop hover-intent delay before switching from one visible tooltip to another
+  - Changed slot/tooltip leave handling so moving across neighboring inventory slots no longer immediately starts the old hide path while the player is still steering into the current detail card
+  - Kept mobile tap behavior unchanged so this desktop-specific forgiveness does not alter touch interaction
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Revalidate on Web that you can move from a slot into its detail card without briefly crossing a sibling slot and losing the current card
