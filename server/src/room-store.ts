@@ -17,7 +17,6 @@ import {
   MATCH_DURATION_SEC,
   MATCH_MAP_HEIGHT,
   MATCH_MAP_WIDTH,
-  MOVE_STEP_PER_INPUT,
   PLAYER_BASE_HP,
   PLAYER_BASE_MOVE_SPEED,
   ROOM_CODE_LENGTH,
@@ -211,7 +210,7 @@ export class RoomStore {
     return this.getPlayerStatesFromRoom(room);
   }
 
-  movePlayer(session: SocketSession, direction: Vector2): RuntimeContext {
+  setPlayerMoveInput(session: SocketSession, direction: Vector2): RuntimeContext {
     const room = this.getRequiredRoomBySession(session);
     const player = room.players.get(session.playerId);
 
@@ -222,25 +221,51 @@ export class RoomStore {
     syncPlayerCombatState(player);
     const directionMagnitude = getDirectionMagnitude(direction);
     const normalizedDirection = normalizeDirection(direction);
-    player.state.direction = normalizedDirection;
+    player.moveInput = {
+      x: normalizedDirection.x * directionMagnitude,
+      y: normalizedDirection.y * directionMagnitude
+    };
 
     if (directionMagnitude === 0) {
       return this.toRuntimeContext(room);
     }
 
-    const moveStep = MOVE_STEP_PER_INPUT
-      * directionMagnitude
-      * (player.state.moveSpeed / PLAYER_BASE_MOVE_SPEED);
-    player.state.x = clamp(
-      Math.round(player.state.x + normalizedDirection.x * moveStep),
-      24,
-      MATCH_MAP_WIDTH - 24
-    );
-    player.state.y = clamp(
-      Math.round(player.state.y + normalizedDirection.y * moveStep),
-      24,
-      MATCH_MAP_HEIGHT - 24
-    );
+    player.state.direction = normalizedDirection;
+
+    return this.toRuntimeContext(room);
+  }
+
+  advancePlayerMovement(roomCode: string, tickMs: number): RuntimeContext {
+    const room = this.getRoomByCode(roomCode);
+
+    for (const player of room.players.values()) {
+      if (!player.state?.isAlive) {
+        player.moveInput = { x: 0, y: 0 };
+        continue;
+      }
+
+      syncPlayerCombatState(player);
+
+      const moveInput = player.moveInput ?? { x: 0, y: 0 };
+      const directionMagnitude = getDirectionMagnitude(moveInput);
+      if (directionMagnitude === 0) {
+        continue;
+      }
+
+      const normalizedDirection = normalizeDirection(moveInput);
+      const moveStep = (player.state.moveSpeed * tickMs / 1000) * directionMagnitude;
+      player.state.direction = normalizedDirection;
+      player.state.x = clamp(
+        player.state.x + normalizedDirection.x * moveStep,
+        24,
+        MATCH_MAP_WIDTH - 24
+      );
+      player.state.y = clamp(
+        player.state.y + normalizedDirection.y * moveStep,
+        24,
+        MATCH_MAP_HEIGHT - 24
+      );
+    }
 
     return this.toRuntimeContext(room);
   }
@@ -318,6 +343,7 @@ export class RoomStore {
         killsPlayers: 0,
         killsMonsters: 0
       };
+      player.moveInput = { x: 0, y: 0 };
       setPlayerBaseStats(player, {
         maxHp: PLAYER_BASE_HP,
         weaponType: DEFAULT_WEAPON_TYPE,

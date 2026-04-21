@@ -1,221 +1,42 @@
 # 搜打撤 · Demo 1
 
-一款基于浏览器的 2D 俯视角局域网联机搜打撤原型游戏。
+浏览器局域网联机的 2D 俯视角搜打撤原型，代码是 monorepo：
 
-核心体验：进入地图 → 搜刮资源 / 打怪 / 与其他玩家对抗 → 管理背包与装备 → 前往撤离点成功撤离，带出物资。
+- `client/`: `TypeScript + Phaser 3 + Vite`
+- `server/`: `Node.js + Express + Socket.IO`
+- `shared/`: 共享类型、协议和静态数据
 
----
+## Canonical Docs
 
-## 核心玩法循环
+- 规则真源：[MASTER_SPEC.md](/E:/CursorData/gamer/MASTER_SPEC.md)
+- 执行清单：[WORK_QUEUE.md](/E:/CursorData/gamer/WORK_QUEUE.md)
+- 当前实现基线：[docs/agent/CANONICAL_BASELINE.md](/E:/CursorData/gamer/docs/agent/CANONICAL_BASELINE.md)
+- 规格差异矩阵：[docs/agent/DELTA_MATRIX.md](/E:/CursorData/gamer/docs/agent/DELTA_MATRIX.md)
+- 持续状态记录：[docs/agent/STATUS.json](/E:/CursorData/gamer/docs/agent/STATUS.json), [docs/agent/PROJECT_STATE.md](/E:/CursorData/gamer/docs/agent/PROJECT_STATE.md), [docs/agent/OPEN_LOOPS.md](/E:/CursorData/gamer/docs/agent/OPEN_LOOPS.md), [docs/agent/DECISIONS.md](/E:/CursorData/gamer/docs/agent/DECISIONS.md), [docs/agent/WORKLOG.md](/E:/CursorData/gamer/docs/agent/WORKLOG.md)
 
-```
-创建/加入房间 → 开局进入同一张地图 → 移动/攻击/打怪
-→ 怪物掉落装备/金币/珍品 → 捡起物品管理背包
-→ 比较装备词条选择更优搭配 → 前往撤离区读条撤离
-→ 成功撤离带出物资 / 死亡或超时则失败结算
-```
+`README.md` 只保留简要说明，不再承载可漂移参数。运行时数值、消费路径、已知偏差以 baseline/delta 文档为准。
 
-装备词条是核心选择压力：玩家需要在「更强的战斗装备」和「更高价值的珍品」之间不断取舍。
-
----
-
-## 游戏规则
-
-| 参数 | 数值 |
-|------|------|
-| 单局时长 | 15 分钟 |
-| 撤离点开放时间 | 第 10 分钟 |
-| 撤离读条时长 | 5 秒（受击/离区即中断） |
-| 死亡后果 | 背包及穿戴装备全部掉落，无保护 |
-| 房间人数 | 最多 6 人，最少 1 人可开局 |
-
-### 阶段节奏
-
-- **0~5 分钟**：分散出生，搜刮基础装备，零星 PVP
-- **5~10 分钟**：向中心汇聚，精英怪和高价值资源点成为争夺核心
-- **10~15 分钟**：撤离点开放，幸存玩家围绕撤离点激烈对抗
-
----
-
-## 武器系统
-
-三种武器，定位明显不同：
-
-| 武器 | 攻击力 | 攻击速度 | 攻击距离 | 定位 |
-|------|--------|----------|----------|------|
-| 剑 | 10 | 1.5次/秒 | 58px | 高频压制、灵活缠斗 |
-| 刀 | 15 | 1.0次/秒 | 64px | 均衡压制、正面对拼 |
-| 枪 | 20 | 0.5次/秒 | 90px | 重击爆发、抓失误 |
-
-每种武器有 3 个主动技能 + 1 个通用闪避技能。
-
----
-
-## 装备系统
-
-### 槽位（5个）
-
-`武器 / 头盔 / 护甲 / 手套 / 鞋子`
-
-### 品质与词条数
-
-| 品质 | 基础属性 | 随机副词条 | 颜色 |
-|------|----------|-----------|------|
-| 白装 | 2条固定 | 0条 | #cccccc |
-| 绿装 | 2条固定 | 1条随机 | #4ade80 |
-| 蓝装 | 2条固定 | 2条随机 | #60a5fa |
-| 紫装 | 2条固定 | 3条随机 | #c084fc |
-
-### 各部位词条池
-
-| 部位 | 可随机词条 |
-|------|-----------|
-| 武器 | 攻击力、攻击速度、暴击率、暴击伤害、减速、流血 |
-| 头盔 | 防暴击、视野范围 |
-| 护甲 | 血量、减伤、每秒回血 |
-| 手套 | 攻击力、攻击速度 |
-| 鞋子 | 闪避率、移动速度、防减速概率 |
-
----
-
-## 掉落系统
-
-### 普通怪掉落
-- 金币 20~40（必掉）
-- 白装 25% / 绿装 8% / 武器 5%
-- 普通珍品（1×1格）10%
-
-### 精英怪掉落
-- 金币 60~120（必掉）
-- 绿装 35% / 蓝装 20% / 紫装 5% / 武器 15%
-- 稀有珍品（中/大体积）30%
-
-### 珍品（纯撤离计分道具）
-
-| 体积 | 背包占格 | 来源 |
-|------|----------|------|
-| 小（1×1） | 1格 | 普通怪 |
-| 中（1×2） | 2格 | 精英怪 |
-| 大（2×2） | 4格 | 精英怪（低概率） |
-
-珍品没有战斗属性，唯一价值是带出去换结算得分。玩家需要在「放珍品」和「放更多装备」之间做取舍。
-
----
-
-## 技术架构
-
-```
-/
-├── client/          # TypeScript + Phaser 3 + Vite
-│   ├── src/scenes/  # GameScene（主游戏）、createGameClient
-│   ├── src/game/    # 实体表现层（PlayerMarker、MonsterMarker、DropMarker）
-│   ├── src/ui/      # InventoryPanel（背包/装备面板）
-│   ├── src/network/ # Socket.IO 客户端封装
-│   ├── src/app/     # 大厅 App（房间创建/加入/等待）
-│   └── src/results/ # 结算界面
-├── server/          # Node.js + Socket.IO
-│   ├── src/combat/  # 战斗结算（服务端权威）
-│   ├── src/inventory/ # 背包与装备服务
-│   ├── src/loot/    # 掉落生成与词条滚动
-│   ├── src/monsters/ # 怪物 AI 与状态管理
-│   └── src/extract/ # 撤离逻辑
-└── shared/          # 前后端共享
-    ├── src/types/   # 类型定义（inventory、game、combat 等）
-    ├── src/data/    # 静态数据（武器表、物品模板）
-    └── src/protocol/ # Socket 事件名枚举
-```
-
-### 服务端权威边界
-
-以下逻辑**必须**由服务端决定，客户端只做展示：
-
-- 玩家最终位置
-- 攻击命中与伤害结算
-- 怪物状态与掉落生成
-- 拾取校验
-- 死亡判定 / 撤离成功判定
-- 结算结果
-
----
-
-## 当前实现状态
-
-### 已完成
-
-- LAN 房间流程：创建 / 加入 / 开始
-- 2D 像素风游戏场景（地面、路径、障碍、撤离区）
-- 玩家、怪物、掉落物的 2D 像素风表现
-- 完整后端游戏循环（打怪 → 掉落 → 拾取 → 撤离 → 结算）
-- 装备系统：5槽位、品质颜色、随机词条生成、词条影响战斗数值
-- 背包面板：词条展示、品质颜色、装备/卸下操作
-- 战斗反馈：怪物死亡粒子特效、技能 VFX
-- 新手教程 HUD（10秒自动消失）
-- 像素风大厅界面（背景动画、游戏风格按钮）
-- 手机端触控支持（虚拟摇杆 + 操作按钮）
-- 后端自动化 E2E 测试（`scripts/test-loop.mjs`）
-
-### 尚未完成（按优先级）
-
-- [ ] 三种武器手感差异（目前仅剑可用）
-- [ ] 9个武器技能全部实现
-- [ ] 背包格子系统（物品占多格，拖拽排列）
-- [ ] 玩家死亡全掉落
-- [ ] 完整结算界面（击杀数、带出物品列表、珍品得分）
-- [ ] 障碍物碰撞（当前为视觉装饰，不阻挡移动）
-- [ ] 前端手动验证撤离后返回大厅流程
-
----
-
-## 本地启动
+## Quick Start
 
 ```bash
-# 安装依赖（根目录执行一次）
 npm install
-
-# 启动服务端
-cd server && npm run dev
-
-# 启动客户端（另开终端）
-cd client && npm run dev
+npm run dev --workspace server
+npm run dev --workspace client
 ```
 
-- 本机访问：`http://localhost:5173/`
-- 局域网其他设备：`http://192.168.1.204:5173/`
+- 本机默认客户端：`http://localhost:5173/`
+- 服务端健康检查：`http://localhost:3000/health`
+- 局域网访问地址以当前主机 IP 为准，见 [docs/agent/CANONICAL_BASELINE.md](/E:/CursorData/gamer/docs/agent/CANONICAL_BASELINE.md)
 
-### 运行后端 E2E 测试
+## Automated Check
 
 ```bash
 node scripts/test-loop.mjs
 ```
 
----
+该脚本覆盖 `create -> join -> start -> combat -> pickup -> extract -> settlement` 的后端主链。
 
-## 操作说明
+## Historical References
 
-| 操作 | 键盘 | 手机 |
-|------|------|------|
-| 移动 | WASD / 方向键 | 左侧虚拟摇杆 |
-| 普通攻击 | Space | 按钮 A |
-| 技能 | Q | 按钮 B |
-| 拾取/交互 | E | 按钮 C |
-| 撤离 | F | 按钮 D |
-| 背包 | Tab 或界面按钮 | 触控 |
-
----
-
-## Agent 协作规范
-
-本项目使用多 Agent 并行开发模式：
-
-- **战略 Agent（Claude）**：任务分配、验收、架构决策、文档维护
-- **后端 Worker（Codex）**：服务端逻辑、协议、数值系统
-- **前端 Worker（Gemini）**：客户端表现、UI、动画、触控
-
-### 关键约定
-
-1. 修改前必须先读文件，不允许盲改
-2. 后端逻辑变更后必须同步更新 `shared/src/` 的类型定义
-3. 不得在未协调的情况下修改 Socket 事件名（`shared/src/protocol/events.ts`）
-4. 每次重要变更后更新 `docs/agent/` 下的记忆文件
-
-详细项目状态见 [`docs/agent/PROJECT_STATE.md`](docs/agent/PROJECT_STATE.md)。
+- 历史设计源：[GDD_Demo1_v1.3.docx](/E:/CursorData/gamer/GDD_Demo1_v1.3.docx)
+- 历史/废弃文档目录：[docs/archive/](/E:/CursorData/gamer/docs/archive/README.md)

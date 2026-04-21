@@ -144,6 +144,7 @@ export class MonsterMarker {
     if (monster.isAlive) {
       this.root.setAlpha(1);
       this.sprite.setVisible(true);
+      this.sprite.clearTint();
       this.label.setVisible(true);
       this.hpTrack.setVisible(true);
       this.hpFill.setVisible(true);

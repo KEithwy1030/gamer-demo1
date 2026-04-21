@@ -64,7 +64,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
         gameController?.destroy();
         gameController = null;
         inventoryPanel.render(null);
-        inventoryPanel.element.hidden = true;
+        setInventoryAvailable(false);
         resultsOverlay.hide();
         gameRoot.hidden = true;
         lobbyRoot.hidden = false;
@@ -87,7 +87,31 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
         gameController?.network.sendUseItem({ itemInstanceId: instanceId });
       }
     });
-    inventoryPanel.element.hidden = true;
+    const setInventoryAvailable = (available: boolean) => {
+      inventoryPanel.element.hidden = !available;
+      if (!available) {
+        inventoryPanel.element.classList.add("inventory-panel--collapsed");
+      }
+
+      const launcher = document.querySelector(".inventory-mobile-toggle");
+      if (launcher instanceof HTMLElement) {
+        launcher.hidden = !available;
+        launcher.style.display = available ? "flex" : "none";
+      }
+    };
+
+    const toggleInventoryPanel = () => {
+      if (inventoryPanel.element.hidden) {
+        return;
+      }
+
+      const launcher = document.querySelector(".inventory-mobile-toggle");
+      if (launcher instanceof HTMLElement) {
+        launcher.click();
+      }
+    };
+
+    setInventoryAvailable(false);
 
     gameRoot.append(sceneRoot, inventoryPanel.element, resultsOverlay.element);
     appRoot.replaceChildren(lobbyRoot, gameRoot);
@@ -103,7 +127,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
         resultsOverlay.show(payload);
       },
       onToggleInventory: () => {
-        inventoryPanel.element.hidden = !inventoryPanel.element.hidden;
+        toggleInventoryPanel();
       }
     });
 
@@ -112,7 +136,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
       (payload) => {
         resultsOverlay.hide();
         inventoryPanel.render(lastInventory);
-        inventoryPanel.element.hidden = false;
+        setInventoryAvailable(true);
         lobbyRoot.hidden = true;
         gameRoot.hidden = false;
         

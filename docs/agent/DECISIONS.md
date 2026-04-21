@@ -60,3 +60,30 @@
   The user explicitly asked for more distributed monster placement, half as many elites, visible corpses, and respawns tied back to the same spawn points instead of one-shot fixed placements.
 - Consequence:
   Monster population tuning now depends on spawn-generation rules and lifecycle timings rather than a static coordinate list.
+
+## 2026-04-20: Client Bundles Must Prefer TS Sources Over Checked-In JS Siblings
+
+- Decision:
+  Configure Vite to resolve `client/src` imports to `.ts/.tsx` before `.js/.jsx`.
+- Why:
+  The repo contains checked-in compiled JS beside authored TS, and the browser was silently executing stale JS versions. This caused repeated "already fixed" regressions for mobile controls, corpse cleanup, and inventory UI.
+- Consequence:
+  Client-side fixes should land in the TS source of truth again, while legacy JS copies are only a compatibility path until the duplicates are cleaned up.
+
+## 2026-04-21: Canonical Doc Set Moved To Root Spec/Queue Plus Audited Agent Memory
+
+- Decision:
+  Treat `AGENTS.md` + root `MASTER_SPEC.md` + root `WORK_QUEUE.md` + `docs/agent/{STATUS,PROJECT_STATE,OPEN_LOOPS,DECISIONS,WORKLOG,CANONICAL_BASELINE,DELTA_MATRIX}` as the only canonical documentation set.
+- Why:
+  The repo had accumulated duplicate plans, extracted GDD text, and old prompt/playbook files that drifted away from the actual implementation.
+- Consequence:
+  Superseded docs live under `docs/archive/` as reference-only material, and future agents should baseline against the audited docs before changing code.
+
+## 2026-04-21: Player Movement Authority Must Be Tick-Based, Not Packet-Based
+
+- Decision:
+  Player movement authority now advances on the fixed server player sync tick using each player's latest stored input vector, instead of applying distance directly on every accepted move packet.
+- Why:
+  The strongest evidence-backed root cause for joystick turn-time acceleration was packet-count-sensitive movement: turning generated more accepted input packets, which previously meant more movement steps per second.
+- Consequence:
+  Client input cadence can no longer change effective move speed by itself. Future movement tuning should happen through tick rate and move-speed values, not packet throttling heuristics.

@@ -1,135 +1,73 @@
 # Project State
 
-## What This Repo Is
+## Canonical Source Set
 
-This repo is a LAN multiplayer browser game prototype built as a monorepo:
+Use these as the live documentation surface, in order:
+
+1. [MASTER_SPEC.md](/E:/CursorData/gamer/MASTER_SPEC.md)
+2. [WORK_QUEUE.md](/E:/CursorData/gamer/WORK_QUEUE.md)
+3. [docs/agent/STATUS.json](/E:/CursorData/gamer/docs/agent/STATUS.json)
+4. [docs/agent/PROJECT_STATE.md](/E:/CursorData/gamer/docs/agent/PROJECT_STATE.md)
+5. [docs/agent/OPEN_LOOPS.md](/E:/CursorData/gamer/docs/agent/OPEN_LOOPS.md)
+6. [docs/agent/DECISIONS.md](/E:/CursorData/gamer/docs/agent/DECISIONS.md)
+7. [docs/agent/CANONICAL_BASELINE.md](/E:/CursorData/gamer/docs/agent/CANONICAL_BASELINE.md)
+8. [docs/agent/DELTA_MATRIX.md](/E:/CursorData/gamer/docs/agent/DELTA_MATRIX.md)
+9. [docs/agent/WORKLOG.md](/E:/CursorData/gamer/docs/agent/WORKLOG.md)
+
+Historical docs under [docs/archive/](/E:/CursorData/gamer/docs/archive/README.md) and [GDD_Demo1_v1.3.docx](/E:/CursorData/gamer/GDD_Demo1_v1.3.docx) are reference-only.
+
+## Repo Shape
 
 - `client/`: `TypeScript + Phaser 3 + Vite`
-- `server/`: `Node.js + Socket.IO`
-- `shared/`: shared protocol, types, and gameplay constants
+- `server/`: `Node.js + Express + Socket.IO`
+- `shared/`: shared protocol, types, and gameplay/static data
+- `scripts/`: local utility scripts including end-to-end loop validation
 
-The intended game is a top-down multiplayer extraction demo. The current approved direction is not "finish every system first". It is:
+The workspace is a git worktree. `.git/` exists at repo root.
 
-- make the prototype clearly read as a 2D game scene
-- keep LAN room flow working
-- then validate the full playable loop
+## Current Audited Truth
 
-## Current Truth
+- Root workspace uses npm workspaces for `client`, `server`, and `shared`.
+- The browser entry is [client/src/main.ts](/E:/CursorData/gamer/client/src/main.ts), but `client/src/` still contains 24 `.ts` files and 24 same-basename `.js` siblings.
+- `main.ts` and many downstream client modules use extensionless imports such as `./app`, `./network`, and `./scenes`.
+- Current [client/vite.config.ts](/E:/CursorData/gamer/client/vite.config.ts) does not override extension resolution, so the runtime still risks resolving authored TS entry points into checked-in JS siblings for much of the graph.
+- Server runtime imports `shared/dist/**` directly from source files under [server/src/](/E:/CursorData/gamer/server/src/index.ts).
+- Client runtime is split:
+  - many game/network imports reach into `../../../shared/src/**`
+  - some type imports use `@gamer/shared`
+- This means client and server do not currently consume the same built shared surface.
 
-### Working Today
+## Runtime Defaults
 
-- LAN room flow works:
-  - create room
-  - join room
-  - host starts match
-- both clients enter the same scene
-- A scripted backend E2E loop now passes locally:
-  - create room
-  - join room
-  - start match
-  - kill monster
-  - observe loot spawn
-  - pick up item
-  - wait for extract open
-  - start extract
-  - receive settlement
-- Client build and typecheck pass.
-- Server health endpoint responds successfully.
-- Backend LAN/mobile socket compatibility is now explicitly hardened:
-  - if `CLIENT_ORIGIN` is unset, server CORS accepts any origin via `corsOrigin: true`
-  - Socket.IO explicitly allows both `websocket` and `polling`
-  - Socket.IO ping/connect timeouts are now more tolerant for higher-latency mobile clients
-  - player movement now preserves analog touch-vector magnitude instead of forcing every non-zero vector to full-speed movement
-- The scene now contains:
-  - terrain zones
-  - paths
-  - central extract plaza
-  - obstacle visuals
-  - more game-like player/monster/drop markers
-- Inventory is now a collapsible auxiliary panel instead of the main page focus.
-- The equipment system source has been expanded to:
-  - align client/server equip payload naming on `itemInstanceId`
-  - use `weapon/head/chest/hands/shoes` slot naming consistently
-  - generate rarity-based affixes on monster drops
-  - project equipped item stats into runtime player state for combat and movement
-  - keep equip, unequip, and drop event wiring consistent with the current inventory API
-- Backend combat tuning now matches the latest requested GDD pass for these items:
-  - player basic attack range is now sword `116`, blade `128`, spear `180`
-  - blade skills `blade_sweep`, `blade_guard`, and `blade_overpower` are implemented server-side
-  - spear skills `spear_heavyThrust`, `spear_warCry`, and `spear_draggingStrike` are implemented server-side
-  - all implemented skill cooldowns are normalized to `3s`
-  - implemented skill damage/buff tuning is now:
-    - sword dash slash `180`
-    - blade sweep `220`
-    - blade overpower remains `+25%` outgoing damage
-    - spear heavy thrust `300`
-    - spear dragging strike next-hit bonus `+80`
-  - monster attack damage is reduced to normal `4`, elite `7`
-  - monster attack range is reduced to normal `20`, elite `24`
+- Client dev server default: `0.0.0.0:5173`
+- Server default port: `3000`
+- Shared constants currently define:
+  - map: `6400 x 6400`
+  - room capacity: default `6`, max `6`
+  - match duration: `900s`
+- Server runtime currently defines:
+  - extract open: `180s`
+  - extract radius: `96`
+  - extract channel: `5000ms`
+  - monster counts: `40` normal, `3` elite
+  - corpse persistence: `10000ms`
+  - respawn delay: `60000ms`
+- Shared item/weapons currently define:
+  - inventory grid: `10 x 6`
+  - health potion heal: `30`
+  - base weapon reach: sword `116`, blade `128`, spear `180`
 
-### What Is Still Not Good Enough
+See [docs/agent/CANONICAL_BASELINE.md](/E:/CursorData/gamer/docs/agent/CANONICAL_BASELINE.md) for the detailed audited baseline and evidence pointers.
 
-- The game still lacks satisfying gameplay feedback.
-- Obstacles currently improve scene readability but do not yet act as authoritative collision blockers.
-- Combat and interaction feedback are still too weak for a convincing demo:
-  - attack feel
-  - hit feedback
-  - pickup feedback
-  - extract feedback
-- Full-loop validation is still incomplete:
-  - frontend/manual return to lobby after settlement
-  - any user-visible polish expectations around feedback and pacing
-- The latest equipment refactor and backend combat-tuning pass now have fresh passing client and server TypeScript verification.
-- Backend map/playfield tuning is now enlarged and more densely populated:
-  - shared map size is increased from `4800x4800` to `6400x6400`
-  - backend monster spawns are now procedural per match with `40` normal positions and `3` elite positions
-  - chest anchors and default center-based drop seeding now derive from the active map size instead of hardcoded `2400`/`4800` assumptions
-- Backend loot and monster lifecycle now include:
-  - normal monsters have a `50%` chance to drop loot
-  - elite monsters always drop `2` items
-  - equippable drops roll quality on drop generation, with stronger quality odds for elites
-  - `health_potion` is a usable consumable that restores `30 HP` capped to max HP
-  - dead monsters remain as corpses for `10s` and respawn from the same spawn definition after `60s` total from death
-- The backend map/monster density pass still needs a live in-room feel check beyond automated verification.
+## Validation State
 
-## Technical Reality
-
-### Important Client Files
-
-- [client/src/main.ts](/E:/CursorData/gamer/client/src/main.ts)
-- [client/src/scenes/createGameClient.ts](/E:/CursorData/gamer/client/src/scenes/createGameClient.ts)
-- [client/src/scenes/GameScene.ts](/E:/CursorData/gamer/client/src/scenes/GameScene.ts)
-- [client/src/game/entities/PlayerMarker.ts](/E:/CursorData/gamer/client/src/game/entities/PlayerMarker.ts)
-- [client/src/game/entities/MonsterMarker.ts](/E:/CursorData/gamer/client/src/game/entities/MonsterMarker.ts)
-- [client/src/game/entities/DropMarker.ts](/E:/CursorData/gamer/client/src/game/entities/DropMarker.ts)
-- [client/src/ui/InventoryPanel.ts](/E:/CursorData/gamer/client/src/ui/InventoryPanel.ts)
-
-### Important Server Files
-
-- [server/src/index.ts](/E:/CursorData/gamer/server/src/index.ts)
-- [server/src/combat/combat-service.ts](/E:/CursorData/gamer/server/src/combat/combat-service.ts)
-- [server/src/inventory/index.ts](/E:/CursorData/gamer/server/src/inventory/index.ts)
-- [server/src/loot/loot-manager.ts](/E:/CursorData/gamer/server/src/loot/loot-manager.ts)
-- [server/src/monsters/monster-manager.ts](/E:/CursorData/gamer/server/src/monsters/monster-manager.ts)
-- [server/src/extract/index.ts](/E:/CursorData/gamer/server/src/extract/index.ts)
-- [scripts/test-loop.mjs](/E:/CursorData/gamer/scripts/test-loop.mjs)
-
-## Runtime Facts
-
-- Frontend is normally served at `http://localhost:5173/`.
-- LAN clients should use `http://192.168.1.204:5173/`.
-- Default server URL resolution was changed so LAN clients connect to the host machine instead of their own `localhost`.
-- The backend now explicitly exposes both Socket.IO `websocket` and `polling` transports, with relaxed ping/connect timeouts for mobile LAN clients.
-- Phaser canvas resize logic was fixed after a bug where the game rendered at `0x0` and only the DOM inventory panel was visible.
-- `scripts/test-loop.mjs` starts the server with accelerated extract/match timers for automated validation and runs a dual-client Socket.IO loop test end to end.
-- A root [tsconfig.json](/E:/CursorData/gamer/tsconfig.json) now exists so `npx tsc --build` works from repo root.
-
-## Acceptance Standard Now
-
-The current demo standard is defined by [EXECUTION_PLAN.md](/E:/CursorData/gamer/EXECUTION_PLAN.md):
-
-- it must first read as a 2D game scene
-- it must keep LAN multiplayer flow working
-- it must then support a complete playable extraction loop
-
-Any claim that the demo is "ready" must be checked against those standards, not just build success or socket connectivity.
+- `scripts/test-loop.mjs` exists for backend main-loop validation.
+- Server-side player movement is now applied on the fixed player sync tick using the latest stored input vector, not directly on each move packet.
+- A direct `RoomStore` verification script measured equal cumulative travel (`300`) for steady input and noisy multi-update-per-tick input over `20` ticks at `50ms`, which closes the packet-cadence root cause for turn-time acceleration at the authority layer.
+- The active frontend inventory path now renders backpack slots from the real `inventory.width x inventory.height` model and places items by `x/y`, instead of hardcoding `16` sequential slots.
+- Mobile inventory entry has been moved away from the top-right HUD, and mobile backpack layout now preserves true column count with horizontal scrolling instead of shrinking `10` columns into tiny tap targets.
+- Manual frontend acceptance remains incomplete for lobby recovery, real-device controls, and final feel tuning.
+- Obstacles are still visually informative but not authoritative collision blockers.
+- The most important implementation drift today is not feature count. It is source-of-truth drift between:
+  - client TS vs checked-in JS siblings
+  - client `shared/src` consumption vs server `shared/dist` consumption

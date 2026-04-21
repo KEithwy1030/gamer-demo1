@@ -2,6 +2,8 @@ import Phaser from "phaser";
 import { DropMarker } from "../game/entities/DropMarker";
 import { MonsterMarker } from "../game/entities/MonsterMarker";
 import { PlayerMarker } from "../game/entities/PlayerMarker";
+import { createKeyboardControls } from "../input/keyboardControls";
+import { createMobileControls } from "../input/mobileControls";
 export class GameScene extends Phaser.Scene {
     static KEY = "GameScene";
     runtime;
@@ -38,11 +40,7 @@ export class GameScene extends Phaser.Scene {
         message: "撤离点将在后期开启。",
         didSucceed: false
     };
-    moveKeys;
-    attackKey;
-    skillKey;
-    pickupKey;
-    extractKey;
+    keyboardControls;
     onMoveInput;
     onAttack;
     onSkill;
@@ -50,27 +48,20 @@ export class GameScene extends Phaser.Scene {
     onStartExtract;
     onCombatResult;
     onOpenChest;
+    onToggleInventory;
     subscribeChestsInit;
     subscribeChestOpened;
     chestUnsubscribes = [];
     interactionPrompt;
     lastMoveDirection = { x: 0, y: 0 };
     lastFacingDirection = { x: 0, y: 1 };
+    currentMoveDirection = { x: 0, y: 0 };
     lastMoveSentAt = 0;
     extractAutoStarted = false;
     static MOBILE_SPEED_SCALE = 0.5;
     atmosphericOverlay;
-    // DOM-based joystick state
-    joystickContainer;
-    joystickKnobEl;
+    mobileControls;
     joystickVector = { x: 0, y: 0 };
-    joystickTouchId = null;
-    joystickBaseCenter = { x: 0, y: 0 };
-    mobileOverlay;
-    // DOM touch listeners stored for cleanup
-    domTouchStart;
-    domTouchMove;
-    domTouchEnd;
     constructor() {
         super(GameScene.KEY);
     }
@@ -299,6 +290,7 @@ export class GameScene extends Phaser.Scene {
         this.onPickup = data.onPickup;
         this.onStartExtract = data.onStartExtract;
         this.onOpenChest = data.onOpenChest;
+        this.onToggleInventory = data.onToggleInventory;
         this.subscribeChestsInit = data.subscribeChestsInit;
         this.subscribeChestOpened = data.subscribeChestOpened;
         this.onCombatResult = (payload) => this.handleCombatResult(payload);
@@ -435,12 +427,7 @@ export class GameScene extends Phaser.Scene {
         });
         const keyboard = this.input.keyboard;
         if (keyboard) {
-            const keys = keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,Q,E,F");
-            this.moveKeys = { up: keys.W, down: keys.S, left: keys.A, right: keys.D };
-            this.attackKey = keys.SPACE;
-            this.skillKey = keys.Q;
-            this.pickupKey = keys.E;
-            this.extractKey = keys.F;
+            this.keyboardControls = createKeyboardControls(keyboard);
         }
         this.initHud();
         this.initChests();
@@ -519,159 +506,18 @@ export class GameScene extends Phaser.Scene {
         const isTouch = navigator.maxTouchPoints > 0;
         if (!isTouch)
             return;
-        // ── JOYSTICK (pure DOM, left side) ──────────────────────────────────────
-        const joystickWrap = document.createElement("div");
-        joystickWrap.id = "mobile-joystick-wrap";
-        joystickWrap.style.cssText = [
-            "position:fixed",
-            "left:16px",
-            "bottom:16px",
-            "width:120px",
-            "height:120px",
-            "touch-action:none", // iOS scroll prevention — ONLY on this element
-            "z-index:3000",
-            "user-select:none",
-            "-webkit-user-select:none"
-        ].join(";");
-        const joystickBase = document.createElement("div");
-        joystickBase.style.cssText = [
-            "width:120px",
-            "height:120px",
-            "border-radius:50%",
-            "background:rgba(255,255,255,0.15)",
-            "border:2px solid rgba(255,255,255,0.4)",
-            "position:relative"
-        ].join(";");
-        const joystickKnob = document.createElement("div");
-        joystickKnob.style.cssText = [
-            "width:50px",
-            "height:50px",
-            "border-radius:50%",
-            "background:rgba(255,255,255,0.5)",
-            "position:absolute",
-            "top:35px", // (120-50)/2
-            "left:35px",
-            "transition:none",
-            "pointer-events:none"
-        ].join(";");
-        joystickBase.appendChild(joystickKnob);
-        joystickWrap.appendChild(joystickBase);
-        document.body.appendChild(joystickWrap);
-        this.joystickContainer = joystickWrap;
-        this.joystickKnobEl = joystickKnob;
-        const KNOB_CLAMP = 35; // px from center
-        const resetKnob = () => {
-            joystickKnob.style.left = "35px";
-            joystickKnob.style.top = "35px";
-            this.joystickVector = { x: 0, y: 0 };
-            this.joystickTouchId = null;
-        };
-        this.domTouchStart = (e) => {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const t = e.changedTouches[i];
-                const el = document.elementFromPoint(t.clientX, t.clientY);
-                if (this.joystickTouchId === null && joystickBase.contains(el)) {
-                    e.preventDefault();
-                    this.joystickTouchId = t.identifier;
-                    const rect = joystickBase.getBoundingClientRect();
-                    this.joystickBaseCenter = {
-                        x: rect.left + rect.width / 2,
-                        y: rect.top + rect.height / 2
-                    };
-                    break;
-                }
-            }
-        };
-        this.domTouchMove = (e) => {
-            if (this.joystickTouchId === null)
-                return;
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const t = e.changedTouches[i];
-                if (t.identifier === this.joystickTouchId) {
-                    e.preventDefault();
-                    const dx = t.clientX - this.joystickBaseCenter.x;
-                    const dy = t.clientY - this.joystickBaseCenter.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    const clamped = Math.min(dist, KNOB_CLAMP);
-                    const nx = dist > 0 ? (dx / dist) * clamped : 0;
-                    const ny = dist > 0 ? (dy / dist) * clamped : 0;
-                    joystickKnob.style.left = `${35 + nx}px`;
-                    joystickKnob.style.top = `${35 + ny}px`;
-                    // Normalize to 0-1 range then apply mobile speed scale
-                    const mag = Math.min(1.0, dist / KNOB_CLAMP);
-                    this.joystickVector = {
-                        x: dist > 0 ? (dx / dist) * mag * GameScene.MOBILE_SPEED_SCALE : 0,
-                        y: dist > 0 ? (dy / dist) * mag * GameScene.MOBILE_SPEED_SCALE : 0
-                    };
-                    break;
-                }
-            }
-        };
-        this.domTouchEnd = (e) => {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                if (e.changedTouches[i].identifier === this.joystickTouchId) {
-                    resetKnob();
-                    break;
-                }
-            }
-        };
-        document.addEventListener("touchstart", this.domTouchStart, { passive: false });
-        document.addEventListener("touchmove", this.domTouchMove, { passive: false });
-        document.addEventListener("touchend", this.domTouchEnd, { passive: false });
-        document.addEventListener("touchcancel", this.domTouchEnd, { passive: false });
-        // ── ACTION BUTTONS (pure DOM, right side) ────────────────────────────────
-        const overlay = document.createElement("div");
-        overlay.id = "mobile-action-overlay";
-        overlay.style.cssText = [
-            "position:fixed",
-            "right:16px",
-            "bottom:16px",
-            "display:grid",
-            "grid-template-columns:repeat(2,70px)",
-            "gap:8px",
-            "z-index:3000",
-            "user-select:none",
-            "-webkit-user-select:none"
-        ].join(";");
-        // Expose game actions on window so DOM buttons can reach them
-        window.__gameActions = {
-            attack: () => this.handleAttack(),
-            skill: () => this.handleSkill(),
-            pickup: () => this.handleInteract()
-        };
-        const buttons = [
-            { label: "攻", color: "#ef4444", action: "attack" },
-            { label: "技", color: "#38bdf8", action: "skill" },
-            { label: "捡", color: "#4ade80", action: "pickup" },
-        ];
-        buttons.forEach(btn => {
-            const el = document.createElement("div");
-            el.style.cssText = [
-                "width:70px",
-                "height:70px",
-                "border-radius:50%",
-                "background:rgba(15,23,42,0.85)",
-                `border:3px solid ${btn.color}`,
-                "display:flex",
-                "align-items:center",
-                "justify-content:center",
-                `color:${btn.color}`,
-                "font-weight:bold",
-                "font-size:22px",
-                "font-family:monospace"
-            ].join(";");
-            el.textContent = btn.label;
-            el.addEventListener("touchstart", (e) => {
-                e.preventDefault();
-                el.style.opacity = "0.7";
-                window.__gameActions?.[btn.action]?.();
-            }, { passive: false });
-            el.addEventListener("touchend", () => { el.style.opacity = "1"; });
-            el.addEventListener("touchcancel", () => { el.style.opacity = "1"; });
-            overlay.appendChild(el);
+        this.mobileControls?.destroy();
+        this.mobileControls = createMobileControls({
+            root: document.body,
+            speedScale: GameScene.MOBILE_SPEED_SCALE,
+            onMove: (vector) => {
+                this.joystickVector = vector;
+            },
+            onAttack: () => this.handleAttack(),
+            onSkill: () => this.handleSkill(),
+            onPickup: () => this.handleInteract(),
+            onInventory: () => this.handleToggleInventory()
         });
-        document.body.appendChild(overlay);
-        this.mobileOverlay = overlay;
     }
     handleAttack() {
         this.onAttack?.();
@@ -899,29 +745,11 @@ export class GameScene extends Phaser.Scene {
         this.chestUnsubscribes = [];
         this.extractPulseTween?.stop();
         this.extractPulseTween = undefined;
-        // Remove DOM mobile controls and listeners
-        if (this.joystickContainer) {
-            this.joystickContainer.remove();
-            this.joystickContainer = undefined;
-            this.joystickKnobEl = undefined;
-        }
-        if (this.mobileOverlay) {
-            this.mobileOverlay.remove();
-            this.mobileOverlay = undefined;
-        }
-        if (this.domTouchStart) {
-            document.removeEventListener("touchstart", this.domTouchStart);
-            this.domTouchStart = undefined;
-        }
-        if (this.domTouchMove) {
-            document.removeEventListener("touchmove", this.domTouchMove);
-            this.domTouchMove = undefined;
-        }
-        if (this.domTouchEnd) {
-            document.removeEventListener("touchend", this.domTouchEnd);
-            document.removeEventListener("touchcancel", this.domTouchEnd);
-            this.domTouchEnd = undefined;
-        }
+        this.keyboardControls?.destroy();
+        this.keyboardControls = undefined;
+        this.mobileControls?.destroy();
+        this.mobileControls = undefined;
+        this.joystickVector = { x: 0, y: 0 };
         // Clean up exposed window actions
         delete window.__gameActions;
         for (const marker of this.playerMarkers.values())
@@ -959,19 +787,28 @@ export class GameScene extends Phaser.Scene {
             return;
         let horizontal = 0;
         let vertical = 0;
-        if (this.moveKeys) {
-            horizontal = Number(this.moveKeys.right.isDown) - Number(this.moveKeys.left.isDown);
-            vertical = Number(this.moveKeys.down.isDown) - Number(this.moveKeys.up.isDown);
+        const keyboardVector = this.keyboardControls?.getVector();
+        if (keyboardVector) {
+            horizontal = keyboardVector.x;
+            vertical = keyboardVector.y;
         }
         // Combine with joystick input (already scaled by MOBILE_SPEED_SCALE in the DOM handler)
         if (this.joystickVector.x !== 0 || this.joystickVector.y !== 0) {
             horizontal = this.joystickVector.x;
             vertical = this.joystickVector.y;
         }
-        const nextDirection = { x: horizontal, y: vertical };
-        if (horizontal !== 0 || vertical !== 0) {
-            const mag = Math.sqrt(horizontal * horizontal + vertical * vertical);
-            this.lastFacingDirection = { x: horizontal / mag, y: vertical / mag };
+        let nextDirection = { x: horizontal, y: vertical };
+        const isJoystickActive = this.joystickVector.x !== 0 || this.joystickVector.y !== 0;
+        if (isJoystickActive) {
+            // Keep joystick magnitude and direction 1:1 with the stick.
+            // Smoothing the direction vector changes the effective length and
+            // caused visible speed spikes while turning.
+            nextDirection = { x: this.joystickVector.x, y: this.joystickVector.y };
+        }
+        this.currentMoveDirection = nextDirection;
+        if (nextDirection.x !== 0 || nextDirection.y !== 0) {
+            const mag = Math.sqrt(nextDirection.x * nextDirection.x + nextDirection.y * nextDirection.y);
+            this.lastFacingDirection = { x: nextDirection.x / mag, y: nextDirection.y / mag };
         }
         const changed = Math.abs(nextDirection.x - this.lastMoveDirection.x) > 0.01 ||
             Math.abs(nextDirection.y - this.lastMoveDirection.y) > 0.01;
@@ -982,15 +819,13 @@ export class GameScene extends Phaser.Scene {
         this.onMoveInput(nextDirection);
     }
     emitActionInput() {
-        if (this.attackKey && Phaser.Input.Keyboard.JustDown(this.attackKey)) {
-            this.handleAttack();
-        }
-        if (this.skillKey && Phaser.Input.Keyboard.JustDown(this.skillKey)) {
-            this.handleSkill();
-        }
-        if (this.pickupKey && Phaser.Input.Keyboard.JustDown(this.pickupKey)) {
-            this.handleInteract();
-        }
+        this.keyboardControls?.consumeActions({
+            onAttack: () => this.handleAttack(),
+            onSkill: () => this.handleSkill(),
+            onPickup: () => this.handleInteract(),
+            onExtract: () => this.onStartExtract?.(),
+            onInventory: () => this.handleToggleInventory()
+        });
     }
     handleInteract() {
         if (this.interactionPrompt?.visible) {
@@ -1001,6 +836,9 @@ export class GameScene extends Phaser.Scene {
         else {
             this.onPickup?.();
         }
+    }
+    handleToggleInventory() {
+        this.onToggleInventory?.();
     }
     createSkillVfx(x, y, color) {
         const ring = this.add.graphics();
@@ -1160,7 +998,9 @@ export class GameScene extends Phaser.Scene {
         }
     }
     syncMonsters(state) {
+        const currentIds = new Set();
         for (const monster of state.monsters) {
+            currentIds.add(monster.id);
             const existing = this.monsterMarkers.get(monster.id);
             if (existing) {
                 const wasAlive = existing.isAlive;
@@ -1170,6 +1010,12 @@ export class GameScene extends Phaser.Scene {
             }
             else
                 this.monsterMarkers.set(monster.id, new MonsterMarker(this, monster));
+        }
+        for (const [id, marker] of this.monsterMarkers.entries()) {
+            if (!currentIds.has(id)) {
+                marker.destroy();
+                this.monsterMarkers.delete(id);
+            }
         }
     }
     syncDrops(state) {

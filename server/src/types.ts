@@ -237,6 +237,7 @@ export interface RuntimePlayer extends LobbyPlayer {
   combat?: RuntimeCombatState;
   extract?: RuntimePlayerExtractState;
   inventory?: InventoryState;
+  moveInput?: Vector2;
   deathLootDropped?: boolean;
   attackCooldownEndsAt?: number;
 }

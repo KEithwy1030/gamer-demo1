@@ -112,20 +112,24 @@ export class MonsterMarker {
             this.root.scene.applyHitStop?.(40);
             this.root.scene.shakeCamera?.(0.005, 100);
         }
-        if (this.isAlive && !monster.isAlive) {
-            this.root.scene.tweens.add({
-                targets: this.root,
-                alpha: 0,
-                duration: 450,
-                ease: "Power2"
-            });
-        }
         this.isAlive = monster.isAlive;
         this.lastHp = monster.hp;
         this.hpFill.width = Math.max(0, 36 * hpRatio);
         this.label.setText(monster.type === "elite" ? "精英" : "游荡者");
         if (monster.isAlive) {
             this.root.setAlpha(1);
+            this.sprite.setVisible(true);
+            this.sprite.clearTint();
+            this.label.setVisible(true);
+            this.hpTrack.setVisible(true);
+            this.hpFill.setVisible(true);
+        }
+        else {
+            this.sprite.setVisible(true);
+            this.sprite.setTint(0x666666);
+            this.label.setVisible(false);
+            this.hpTrack.setVisible(false);
+            this.hpFill.setVisible(false);
         }
     }
 }

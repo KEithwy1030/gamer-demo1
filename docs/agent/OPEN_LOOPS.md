@@ -1,82 +1,92 @@
 # Open Loops
 
-## 1. Frontend Return-To-Lobby Still Needs Explicit Revalidation
+## 1. Client Runtime Still Has TS-vs-JS Drift Risk
 
 - Symptom:
-  The backend gameplay loop is now covered by an automated Socket.IO test, but the frontend/manual return-to-lobby behavior after settlement has not yet been explicitly rechecked in the current build.
+  The client entry is `main.ts`, but many extensionless imports can still resolve into checked-in `.js` siblings.
 - Confirmed facts:
-  - `scripts/test-loop.mjs` passes locally through create -> join -> start -> combat -> pickup -> extract -> settlement
-  - create/join/start works on LAN
-  - both clients enter the same 2D scene
+  - `client/src/` currently contains 24 `.ts` files and 24 same-basename `.js` files
+  - `main.ts` imports `./app`, `./network`, `./results`, and `./scenes` without extensions
+  - `client/vite.config.ts` currently only sets host/port and does not pin `.ts/.tsx` ahead of `.js/.jsx`
 - Next step:
-  Run a frontend-visible dual-client/manual check to confirm the user-facing post-settlement flow and lobby recovery.
+  Decide whether to remove the sibling JS layer, explicitly configure resolution, or make the JS mirror an intentional generated artifact.
 - Blocking reason:
-  The new script validates protocol and backend state flow, but not the full browser UI transition.
+  Until this is settled, "TS changed but runtime did not" remains a credible failure mode.
 
-## 2. Obstacles Are Visual Only
+## 2. Shared Consumption Is Split Between Client And Server
 
 - Symptom:
-  The scene now has crates, rocks, barricades, and brush, but they do not yet meaningfully block movement in gameplay logic.
+  `shared/` is supposed to be the common contract layer, but client and server consume different surfaces.
 - Confirmed facts:
-  - obstacle rendering exists in `GameScene.ts`
-  - worker explicitly flagged them as visual layout only
+  - server source imports `../../shared/dist/**` and `../../../shared/dist/**`
+  - client source imports both `../../../shared/src/**` and `@gamer/shared`
+  - `@gamer/shared` itself exports `dist/index.js`
 - Next step:
-  Decide whether to implement local collision, server-authoritative collision, or both. Then integrate with movement validation.
+  Normalize both sides onto one contract-consumption path before further gameplay changes.
 - Blocking reason:
-  Requires coordination with gameplay logic and should not break the current frontend baseline casually.
+  Contract edits can appear correct in one runtime and stale in the other.
 
-## 3. Combat and Interaction Feedback Are Still Weak
+## 3. Mobile Joystick Needs Real-Device Revalidation After Server Tick Fix
 
 - Symptom:
-  The game scene now reads better, but attacks and interactions still lack enough animation and feedback to feel playable.
+  The strongest evidence-backed acceleration root cause has been fixed at the server authority layer, but live phone validation is still needed before this can be treated as closed.
 - Confirmed facts:
-  - entities are now more readable
-  - no strong hit flashes, impact timing, pickup feedback, or extract dramatization yet
+  - `server/src/index.ts` no longer applies player movement directly inside `PlayerInputMove`
+  - `server/src/room-store.ts` now stores the latest normalized input vector and applies movement on the fixed player sync tick
+  - a direct `RoomStore` verification produced equal cumulative movement for steady input and noisy multi-update-per-tick input over `20` ticks at `50ms`
 - Next step:
-  Add a feedback pass for attacks, damage, pickups, and extract progress.
+  Revalidate on a real mobile device that turning while holding the joystick no longer increases effective move speed.
 - Blocking reason:
-  This overlaps with frontend polish work and should be coordinated carefully if another model is assigned to presentation.
+  The authority-layer bug is closed by measurement, but touch-path feel still needs browser/device proof.
 
-## 4. Coordination With External Frontend Optimizer
+## 4. Frontend Return-To-Lobby Still Needs Explicit Revalidation
 
 - Symptom:
-  Another model may be used for frontend/animation optimization. Uncontrolled backend or protocol changes would disrupt its testing.
+  The backend gameplay loop is covered by automation, but the user-visible browser flow after settlement is not fully revalidated.
 - Confirmed facts:
-  - the user explicitly raised this concern
-  - the agreed safe approach is to freeze the gameplay/protocol baseline while frontend polish is underway
+  - `scripts/test-loop.mjs` passes the backend main loop through settlement
+  - prior notes still report incomplete manual verification for the post-settlement lobby recovery path
 - Next step:
-  Prepare a stable handoff note for the frontend optimizer and avoid protocol-breaking changes on the active baseline.
+  Run a browser-visible dual-client/manual check for settlement -> return to lobby -> next match readiness.
 - Blocking reason:
-  Depends on the timing of the external frontend pass.
+  Automation covers backend flow, not the full UI transition.
 
-## 5. Gameplay Sanity Pass For Equipment System
+## 5. Frontend Multi-Platform Acceptance Still Needs Real Browser Proof
 
 - Symptom:
-  The equipment/affix/stat refactor is now compile-verified, but live gameplay behavior still needs a real-room sanity pass.
+  The active frontend path has been cleaned up for inventory entry, backpack grid rendering, and mobile tap targets, but those changes are only build-verified so far.
 - Confirmed facts:
-  - `npx tsc --noEmit -p client/tsconfig.json` passes
-  - `npx tsc --noEmit -p server/tsconfig.json` passes
-  - equip/drop/unequip payloads are wired on `itemInstanceId`
-  - loot slot mapping and rarity-based affix generation are aligned with the current item model
-  - player weapon ranges are now sword `232`, blade `256`, spear `360`
-  - all implemented skill cooldowns are now `3s`
-  - implemented sword/blade/spear skill damage bonuses are increased to the latest requested values
-  - monster attack damage/range are reduced to the latest requested values
+  - `client/src/ui/InventoryPanel.{js,ts}` now renders backpack cells from `inventory.width * inventory.height`
+  - backpack items are now positioned by `x/y` instead of raw array order
+  - `.inventory-mobile-toggle` now avoids the combat button area and uses a top-center mobile position instead of competing with the lower-right action cluster
+  - desktop tooltip hover now keeps the tooltip alive while moving from slot to tooltip and prefers side-by-side placement near the hovered slot
+  - mobile backpack layout now keeps true column count with horizontal scrolling rather than compressing `10` columns into sub-44px cells
 - Next step:
-  Run a live sanity pass for equip, unequip, drop, pickup, movement speed changes, basic attack reach, combat damage changes, and the new sword/blade/spear skill effects in an active room.
+  Revalidate on desktop and phone that inventory open/close, slot tapping, tooltip visibility, launcher placement, and slot placement all match the real server inventory state.
 - Blocking reason:
-  Type safety is green, but runtime behavior still needs explicit gameplay validation.
+  Build success does not confirm touch usability or visual correctness.
 
-## 6. Procedural Monster Spawn And Respawn Feel Still Needs Live Validation
+## 6. Obstacles Are Still Visual-Only
 
 - Symptom:
-  Monster placement is now procedural and corpses persist before delayed respawn, but the actual in-room pacing and readability have not been manually judged yet.
+  The scene has obstacle presentation, but obstacle authority is still not part of movement validation.
 - Confirmed facts:
-  - each new match now generates `40` normal monster spawn points with exclusion zones around center extract and the player-side spawn area
-  - elites now spawn as `3` monsters placed in different quadrants
-  - monster corpses remain for `10s`
-  - respawns occur `60s` after death from the original spawn definition
+  - current project memory still treats obstacles as readability aids rather than collision truth
 - Next step:
-  Run a live room and judge whether procedural spread, elite pressure, corpse readability, and 60-second respawn pacing feel correct.
+  Decide the collision authority model and implement it without breaking current room flow.
 - Blocking reason:
-  This needs runtime gameplay judgment, not just compile verification.
+  This touches gameplay correctness, not just presentation.
+
+## 7. Live Feel Validation Is Still Missing In Key Areas
+
+- Symptom:
+  Several gameplay values exist in code, but their real in-room feel is not yet closed.
+- Confirmed facts:
+  - weapon reach is currently sword `116`, blade `128`, spear `180`
+  - extract opens at `180s` and channels for `5s`
+  - monsters currently spawn as `40` normals plus `3` elites, leave corpses for `10s`, and respawn after `60s`
+  - inventory is currently `10 x 6`, not a larger grid experiment from historical notes
+- Next step:
+  Revalidate pacing, readability, and usability in a live room before treating these values as accepted design.
+- Blocking reason:
+  Compile/build success does not answer whether the current numbers feel correct.

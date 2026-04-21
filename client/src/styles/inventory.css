@@ -114,22 +114,28 @@
     grid-template-columns: repeat(5, 1fr);
   }
 
+  .inventory-section--backpack {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .inventory-grid--backpack {
-    grid-template-columns: repeat(10, 1fr);
-    gap: 2px;
+    grid-template-columns: repeat(var(--inventory-columns, 10), 44px);
+    width: max-content;
+    gap: 4px;
   }
 
   .inventory-slot {
-    min-width: 20px;
-    min-height: 20px;
-    border-width: 1px;
-    font-size: 10px;
-    padding: 1px;
-    font-size: 12px;
+    min-width: 44px;
+    min-height: 44px;
+    border-width: 2px;
+    padding: 2px;
+    font-size: 14px;
   }
 
   .inventory-item-icon {
-    font-size: 14px;
+    font-size: 18px;
   }
 
   .inventory-tooltip {
@@ -150,31 +156,53 @@
     min-height: 50px;
     font-size: 16px;
   }
+
+  .inventory-mobile-toggle {
+    top: 16px;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    transform: translateX(-50%);
+  }
 }
 
 .inventory-mobile-toggle {
   position: fixed;
   top: 20px;
   right: 20px;
-  width: 54px;
-  height: 54px;
+  min-width: 64px;
+  height: 48px;
+  padding: 0 14px;
   background: #238636;
-  border: 3px solid #ffffff;
-  border-radius: 12px;
+  border: 2px solid #ffffff;
+  border-radius: 8px;
   color: white;
   font-weight: bold;
-  font-size: 14px;
+  font-size: 13px;
   z-index: 4000;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
   cursor: pointer;
+  transition: transform 0.1s active;
 }
 
-@media (max-width: 767px) {
+.inventory-mobile-toggle:active {
+  opacity: 0.9;
+}
+
+@media (min-width: 768px) {
   .inventory-mobile-toggle {
-    display: flex;
+    top: 20px;
+    right: 20px;
+    height: 40px;
+    background: #161b22;
+    border-color: #30363d;
+  }
+  .inventory-mobile-toggle:hover {
+    background: #21262d;
+    border-color: #8b949e;
   }
 }
 
@@ -208,8 +236,8 @@
 }
 
 .inventory-grid--backpack {
-  grid-template-columns: repeat(10, 1fr);
-  gap: 1px;
+  grid-template-columns: repeat(var(--inventory-columns, 10), minmax(0, 1fr));
+  gap: 2px;
 }
 
 .inventory-slot {
@@ -268,10 +296,10 @@
 
 .inventory-tooltip {
   display: none;
-  position: absolute;
-  bottom: 120%;
-  left: 50%;
-  transform: translateX(-50%);
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform: translate(0, 0);
   background: #0d1117;
   border: 2px solid #30363d;
   padding: 12px;

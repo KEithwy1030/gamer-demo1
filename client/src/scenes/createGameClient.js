@@ -54,6 +54,9 @@ export function createGameClientController(options) {
             options.onExtractStateChange?.(extractState);
             getScene()?.setExtractState(extractState);
         },
+        toggleInventory() {
+            options.onToggleInventory?.();
+        },
         getSelfPlayerId() {
             return runtime.getState().selfPlayerId;
         },
@@ -158,6 +161,7 @@ export function createGameClientController(options) {
             },
             onStartExtract: () => network.sendStartExtract(),
             onOpenChest: (chestId) => network.sendOpenChest(chestId),
+            onToggleInventory: () => controller.toggleInventory(),
             subscribeChestsInit: (cb) => network.onChestsInit(cb),
             subscribeChestOpened: (cb) => network.onChestOpened(cb)
         });

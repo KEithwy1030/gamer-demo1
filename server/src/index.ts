@@ -207,9 +207,10 @@ function stopMonsterSyncLoop(roomCode: string): void {
 }
 
 function startPlayerSyncLoop(roomCode: string): void {
+  const tickMs = Math.max(50, Math.floor(1000 / Math.max(serverConfig.playerSyncHz, 1)));
   const interval = setInterval(() => {
     try {
-      const context = roomStore.getRoomByCodeSnapshot(roomCode);
+      const context = roomStore.advancePlayerMovement(roomCode, tickMs);
       if (context.room.status !== "started") {
         return;
       }
@@ -229,7 +230,7 @@ function startPlayerSyncLoop(roomCode: string): void {
     } catch {
       stopPlayerSyncLoop(roomCode);
     }
-  }, Math.max(50, Math.floor(1000 / Math.max(serverConfig.playerSyncHz, 1))));
+  }, tickMs);
 
   roomStore.setPlayerSyncInterval(roomCode, interval);
 }
@@ -425,18 +426,7 @@ function attachRoomHandlers(socket: GameSocket): void {
   socket.on(SocketEvent.PlayerInputMove, (payload: PlayerInputMovePayload) => {
     try {
       const session = buildSession(socket);
-      const context = roomStore.movePlayer(session, payload.direction);
-      const shouldCloseRoom = applyExtractUpdate(context.room.code);
-      io.to(context.room.code).emit(
-        SocketEvent.StatePlayers,
-        roomStore.listPlayerStates(context.room)
-      );
-
-      if (shouldCloseRoom) {
-        stopPlayerSyncLoop(context.room.code);
-        stopMatchTimerLoop(context.room.code);
-        stopMonsterSyncLoop(context.room.code);
-      }
+      roomStore.setPlayerMoveInput(session, payload.direction);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to move player.");
     }

@@ -3,6 +3,14 @@ import Phaser from "phaser";
 import { DropMarker } from "../game/entities/DropMarker";
 import { MonsterMarker } from "../game/entities/MonsterMarker";
 import { PlayerMarker } from "../game/entities/PlayerMarker";
+import {
+  createKeyboardControls,
+  type KeyboardControlsApi
+} from "../input/keyboardControls";
+import {
+  createMobileControls,
+  type MobileControlsApi
+} from "../input/mobileControls";
 import { MatchRuntimeStore, type MatchViewState } from "../game";
 import type { ChestOpenedPayload, ChestState } from "../network/socketClient";
 import type { ExtractUiState } from "./createGameClient";
@@ -80,16 +88,7 @@ export class GameScene extends Phaser.Scene {
     message: "撤离点将在后期开启。",
     didSucceed: false
   };
-  private moveKeys?: {
-    up: Phaser.Input.Keyboard.Key;
-    down: Phaser.Input.Keyboard.Key;
-    left: Phaser.Input.Keyboard.Key;
-    right: Phaser.Input.Keyboard.Key;
-  };
-  private attackKey?: Phaser.Input.Keyboard.Key;
-  private skillKey?: Phaser.Input.Keyboard.Key;
-  private pickupKey?: Phaser.Input.Keyboard.Key;
-  private extractKey?: Phaser.Input.Keyboard.Key;
+  private keyboardControls?: KeyboardControlsApi | null;
   private onMoveInput?: (direction: Vector2) => void;
   private onAttack?: () => void;
   private onSkill?: (skillId: SkillId) => void;
@@ -108,22 +107,17 @@ export class GameScene extends Phaser.Scene {
   private lastMoveSentAt = 0;
   private extractAutoStarted = false;
 
-  private static readonly MOBILE_SPEED_SCALE = 0.8;
+  private static readonly MOBILE_SPEED_SCALE = 0.5;
 
-  // Smoothed input state for keyboard to match joystick feel
-  private smoothedKeyboardInput: Vector2 = { x: 0, y: 0 };
   private currentMoveDirection: Vector2 = { x: 0, y: 0 };
-  private targetMoveDirection: Vector2 = { x: 0, y: 0 };
 
-  // DOM-based joystick state
+  private mobileControls?: MobileControlsApi | null;
+  private joystickVector: Vector2 = { x: 0, y: 0 };
   private joystickContainer?: HTMLElement;
   private joystickKnobEl?: HTMLElement;
-  private joystickVector: Vector2 = { x: 0, y: 0 };
-  private smoothedJoystickVector: Vector2 = { x: 0, y: 0 };
   private joystickTouchId: number | null = null;
   private joystickBaseCenter: { x: number; y: number } = { x: 0, y: 0 };
   private mobileOverlay?: HTMLElement;
-  // DOM touch listeners stored for cleanup
   private domTouchStart?: (e: TouchEvent) => void;
   private domTouchMove?: (e: TouchEvent) => void;
   private domTouchEnd?: (e: TouchEvent) => void;
@@ -300,9 +294,7 @@ export class GameScene extends Phaser.Scene {
 
     const keyboard = this.input.keyboard;
     if (keyboard) {
-      const keys = keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,Q,E,F") as any;
-      this.moveKeys = { up: keys.W, down: keys.S, left: keys.A, right: keys.D };
-      this.attackKey = keys.SPACE; this.skillKey = keys.Q; this.pickupKey = keys.E; this.extractKey = keys.F;
+      this.keyboardControls = createKeyboardControls(keyboard);
     }
 
     this.initHud();
@@ -332,55 +324,18 @@ export class GameScene extends Phaser.Scene {
 
   private initTouchControls(): void {
     if (navigator.maxTouchPoints <= 0) return;
-    const joystickWrap = document.createElement("div");
-    joystickWrap.style.cssText = "position:fixed;left:16px;bottom:16px;width:120px;height:120px;z-index:3000;touch-action:none;";
-    const joystickBase = document.createElement("div");
-    joystickBase.style.cssText = "width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.4);position:relative;";
-    const joystickKnob = document.createElement("div");
-    joystickKnob.style.cssText = "width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,0.5);position:absolute;top:35px;left:35px;pointer-events:none;";
-    joystickBase.appendChild(joystickKnob); joystickWrap.appendChild(joystickBase); document.body.appendChild(joystickWrap);
-    this.joystickContainer = joystickWrap; this.joystickKnobEl = joystickKnob;
-
-    this.domTouchStart = (e) => {
-      const t = e.changedTouches[0];
-      if (this.joystickTouchId === null && joystickBase.contains(document.elementFromPoint(t.clientX, t.clientY))) {
-        this.joystickTouchId = t.identifier;
-        const rect = joystickBase.getBoundingClientRect();
-        this.joystickBaseCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      }
-    };
-    this.domTouchMove = (e) => {
-      if (this.joystickTouchId === null) return;
-      const t = Array.from(e.changedTouches).find(tt => tt.identifier === this.joystickTouchId);
-      if (t) {
-        const dx = t.clientX - this.joystickBaseCenter.x; const dy = t.clientY - this.joystickBaseCenter.y;
-        const dist = Math.sqrt(dx * dx + dy * dy); const clamped = Math.min(dist, 35);
-        const nx = dist > 0 ? (dx / dist) * clamped : 0; const ny = dist > 0 ? (dy / dist) * clamped : 0;
-        joystickKnob.style.left = `${35 + nx}px`; joystickKnob.style.top = `${35 + ny}px`;
-        const mag = Math.min(1.0, dist / 35);
-        this.joystickVector = { x: dist > 0 ? (dx / dist) * mag * GameScene.MOBILE_SPEED_SCALE : 0, y: dist > 0 ? (dy / dist) * mag * GameScene.MOBILE_SPEED_SCALE : 0 };
-      }
-    };
-    this.domTouchEnd = (e) => { if (Array.from(e.changedTouches).some(t => t.identifier === this.joystickTouchId)) { joystickKnob.style.left = joystickKnob.style.top = "35px"; this.joystickVector = { x: 0, y: 0 }; this.joystickTouchId = null; } };
-    document.addEventListener("touchstart", this.domTouchStart, { passive: false });
-    document.addEventListener("touchmove", this.domTouchMove, { passive: false });
-    document.addEventListener("touchend", this.domTouchEnd); document.addEventListener("touchcancel", this.domTouchEnd);
-
-    const overlay = document.createElement("div");
-    overlay.style.cssText = "position:fixed;right:16px;bottom:16px;display:grid;grid-template-columns:repeat(2,70px);gap:6px;z-index:3000;";
-    const actions = [
-      { label: "攻", color: "#ef4444", fn: () => this.handleAttack() },
-      { label: "技", color: "#38bdf8", fn: () => this.handleSkill() },
-      { label: "捡", color: "#4ade80", fn: () => this.handleInteract() },
-      { label: "包", color: "#fbbf24", fn: () => this.handleToggleInventory() }
-    ];
-    actions.forEach(a => {
-      const btn = document.createElement("div");
-      btn.style.cssText = `width:70px;height:70px;border-radius:50%;background:rgba(15,23,42,0.85);border:3px solid ${a.color};display:flex;align-items:center;justify-content:center;color:${a.color};font-weight:bold;font-size:22px;`;
-      btn.textContent = a.label; btn.ontouchstart = (e) => { e.preventDefault(); a.fn(); };
-      overlay.appendChild(btn);
+    this.mobileControls?.destroy();
+    this.mobileControls = createMobileControls({
+      root: document.body,
+      speedScale: GameScene.MOBILE_SPEED_SCALE,
+      onMove: (vector) => {
+        this.joystickVector = vector;
+      },
+      onAttack: () => this.handleAttack(),
+      onSkill: () => this.handleSkill(),
+      onPickup: () => this.handleInteract(),
+      onInventory: () => this.handleToggleInventory()
     });
-    document.body.appendChild(overlay); this.mobileOverlay = overlay;
   }
 
   private handleAttack(): void { this.onAttack?.(); }
@@ -415,23 +370,6 @@ export class GameScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     const alpha = Phaser.Math.Clamp(delta / 120, 0.08, 0.22);
-    this.smoothedJoystickVector.x += (this.joystickVector.x - this.smoothedJoystickVector.x) * 0.4;
-    this.smoothedJoystickVector.y += (this.joystickVector.y - this.smoothedJoystickVector.y) * 0.4;
-    if (Math.abs(this.smoothedJoystickVector.x) < 0.001) this.smoothedJoystickVector.x = 0;
-    if (Math.abs(this.smoothedJoystickVector.y) < 0.001) this.smoothedJoystickVector.y = 0;
-
-    // Smooth keyboard input to match joystick feel
-    let targetKbX = 0, targetKbY = 0;
-    if (this.moveKeys) {
-      targetKbX = Number(this.moveKeys.right.isDown) - Number(this.moveKeys.left.isDown);
-      targetKbY = Number(this.moveKeys.down.isDown) - Number(this.moveKeys.up.isDown);
-    }
-    const kbSmooth = 0.2;
-    this.smoothedKeyboardInput.x += (targetKbX - this.smoothedKeyboardInput.x) * kbSmooth;
-    this.smoothedKeyboardInput.y += (targetKbY - this.smoothedKeyboardInput.y) * kbSmooth;
-    if (Math.abs(this.smoothedKeyboardInput.x) < 0.01) this.smoothedKeyboardInput.x = 0;
-    if (Math.abs(this.smoothedKeyboardInput.y) < 0.01) this.smoothedKeyboardInput.y = 0;
-
     for (const m of this.playerMarkers.values()) { m.step(alpha); m.root.setDepth(m.root.y); }
     for (const m of this.monsterMarkers.values()) { m.step(alpha); m.root.setDepth(m.root.y); }
     for (const m of this.dropMarkers.values()) { m.root.setDepth(m.root.y); }
@@ -471,68 +409,63 @@ export class GameScene extends Phaser.Scene {
 
   shutdown(): void {
     this.unsubscribeRuntime?.(); this.chestUnsubscribes.forEach(u => u());
-    if (this.joystickContainer) this.joystickContainer.remove();
-    if (this.mobileOverlay) this.mobileOverlay.remove();
-    document.removeEventListener("touchstart", this.domTouchStart!);
-    document.removeEventListener("touchmove", this.domTouchMove!);
+    this.keyboardControls?.destroy();
+    this.keyboardControls = undefined;
+    this.mobileControls?.destroy();
+    this.mobileControls = undefined;
+    this.joystickVector = { x: 0, y: 0 };
   }
 
   private emitMoveInput(time: number): void {
     if (!this.onMoveInput) return;
 
-    // Use smoothed keyboard input by default
-    let h = this.smoothedKeyboardInput.x;
-    let v = this.smoothedKeyboardInput.y;
-
-    // Override with joystick input if active
-    if (this.smoothedJoystickVector.x !== 0 || this.smoothedJoystickVector.y !== 0) {
-      h = this.smoothedJoystickVector.x;
-      v = this.smoothedJoystickVector.y;
+    let h = 0;
+    let v = 0;
+    const keyboardVector = this.keyboardControls?.getVector();
+    if (keyboardVector) {
+      h = keyboardVector.x;
+      v = keyboardVector.y;
     }
 
-    // Calculate target direction
-    this.targetMoveDirection = { x: h, y: v };
+    if (this.joystickVector.x !== 0 || this.joystickVector.y !== 0) {
+      h = this.joystickVector.x;
+      v = this.joystickVector.y;
+    }
 
-    // Smooth direction changes to prevent snap turns
-    // For mobile: use faster response since joystick already has smoothing
-    // For keyboard: use slower smoothing for natural feel
-    const isJoystickActive = this.smoothedJoystickVector.x !== 0 || this.smoothedJoystickVector.y !== 0;
-    const dirSmooth = isJoystickActive ? 0.6 : 0.25;
-    this.currentMoveDirection.x += (this.targetMoveDirection.x - this.currentMoveDirection.x) * dirSmooth;
-    this.currentMoveDirection.y += (this.targetMoveDirection.y - this.currentMoveDirection.y) * dirSmooth;
+    let dir: Vector2 = { x: h, y: v };
+    const isJoystickActive = this.joystickVector.x !== 0 || this.joystickVector.y !== 0;
+    if (isJoystickActive) {
+      // Keep joystick magnitude 1:1 with the stick to avoid turn-time speed spikes.
+      dir = { x: this.joystickVector.x, y: this.joystickVector.y };
+    }
 
-    // Clean up near-zero values
-    if (Math.abs(this.currentMoveDirection.x) < 0.01) this.currentMoveDirection.x = 0;
-    if (Math.abs(this.currentMoveDirection.y) < 0.01) this.currentMoveDirection.y = 0;
-
-    const dir = { x: this.currentMoveDirection.x, y: this.currentMoveDirection.y };
-
-    // Update facing direction only when there's significant movement
+    this.currentMoveDirection = dir;
     const mag = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
-    if (mag > 0.1) {
-      // Smooth facing direction updates
-      const targetFacingX = dir.x / mag;
-      const targetFacingY = dir.y / mag;
-      const facingSmooth = 0.3;
-      this.lastFacingDirection.x += (targetFacingX - this.lastFacingDirection.x) * facingSmooth;
-      this.lastFacingDirection.y += (targetFacingY - this.lastFacingDirection.y) * facingSmooth;
-
-      // Re-normalize to ensure we keep a unit vector
-      const facingMag = Math.sqrt(this.lastFacingDirection.x * this.lastFacingDirection.x + this.lastFacingDirection.y * this.lastFacingDirection.y);
-      if (facingMag > 0) {
-        this.lastFacingDirection.x /= facingMag;
-        this.lastFacingDirection.y /= facingMag;
-      }
+    if (mag > 0) {
+      this.lastFacingDirection = { x: dir.x / mag, y: dir.y / mag };
     }
 
-    if (Math.abs(dir.x - this.lastMoveDirection.x) < 0.01 && Math.abs(dir.y - this.lastMoveDirection.y) < 0.01 && time - this.lastMoveSentAt < 60) return;
-    this.lastMoveDirection = dir; this.lastMoveSentAt = time; this.onMoveInput?.(dir);
+    if (
+      Math.abs(dir.x - this.lastMoveDirection.x) < 0.01
+      && Math.abs(dir.y - this.lastMoveDirection.y) < 0.01
+      && time - this.lastMoveSentAt < 60
+    ) {
+      return;
+    }
+
+    this.lastMoveDirection = dir;
+    this.lastMoveSentAt = time;
+    this.onMoveInput?.(dir);
   }
 
   private emitActionInput(): void {
-    if (this.attackKey && Phaser.Input.Keyboard.JustDown(this.attackKey)) this.handleAttack();
-    if (this.skillKey && Phaser.Input.Keyboard.JustDown(this.skillKey)) this.handleSkill();
-    if (this.pickupKey && Phaser.Input.Keyboard.JustDown(this.pickupKey)) this.handleInteract();
+    this.keyboardControls?.consumeActions({
+      onAttack: () => this.handleAttack(),
+      onSkill: () => this.handleSkill(),
+      onPickup: () => this.handleInteract(),
+      onExtract: () => this.onStartExtract?.(),
+      onInventory: () => this.handleToggleInventory()
+    });
   }
 
   private syncWorld(state: MatchViewState): void {

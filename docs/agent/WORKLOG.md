@@ -1,6 +1,41 @@
 # Worklog
 
+## 2026-04-21
+
+- Goal:
+  Freeze one canonical documentation/bootstrap surface from the actual current repo/runtime state without touching gameplay code.
+- Actions:
+  - Audited the root workspace, client/server/shared topology, and current documentation references using UTF-8 reads
+  - Created `docs/agent/CANONICAL_BASELINE.md` and `docs/agent/DELTA_MATRIX.md`
+  - Archived superseded planning/reference docs under `docs/archive/`
+  - Corrected repo-memory docs to match current reality, including `.git` presence, root canonical docs, client TS/JS sibling drift risk, and split `shared` consumption
+- Verification:
+  - Confirmed `.git/` exists at repo root
+  - Confirmed `client/src/` contains 24 `.ts` plus 24 `.js` same-basename files
+  - Confirmed server imports `shared/dist/**` while client imports both `shared/src/**` and `@gamer/shared`
+- Follow-up:
+  - Use the new baseline/delta docs before any gameplay or shared-contract changes
+  - Resolve runtime-consumption drift before trusting new gameplay edits
+
 ## 2026-04-20
+
+- Goal:
+  Fix the repeatedly regressing mobile joystick turning, corpse cleanup, and missing inventory button issues from the current feedback list.
+- Actions:
+  - Found the real root cause: Vite was resolving `client/src` imports to stale checked-in `.js` siblings instead of the updated `.ts` sources
+  - Configured Vite to prefer `.ts/.tsx` first
+  - Patched the active JS runtime path as well so current dev sessions pick up the fixes immediately
+  - Restored the mobile inventory toggle callback chain in `main.js -> createGameClient.js -> GameScene.js`
+  - Added the missing mobile inventory action button back to the right-side touch overlay
+  - Changed joystick turning logic to preserve stick magnitude while rotating, preventing speed shifts during reorientation
+  - Fixed client monster cleanup so markers are removed when the backend stops emitting dead monsters, and stopped immediately fading corpse sprites out
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+  - Browser verification on the mobile viewport confirmed visible `背囊` and `包` inventory buttons in the running client
+- Follow-up:
+  - Revalidate on a real phone that joystick turning speed feels uniform
+  - Recheck in live gameplay that corpses disappear at roughly 10 seconds, matching backend timing
 
 - Goal:
   Fix ROOT CAUSES of mobile joystick lag and inventory button not working (user demanded: "彻底检查清楚然后进行根源上的修复 不要浪费我的时间！").
@@ -186,3 +221,99 @@
   - `cd E:/CursorData/gamer && npx tsc --build` passed
 - Follow-up:
   - Run a live room to judge the feel of procedural spawns, corpse readability, respawn pacing, and healing-potion usefulness
+
+- Goal:
+  Recheck the current runtime path for joystick turning, corpse cleanup, and backpack entry behavior, then close the gap between visible UI and actual usable inventory toggling.
+- Actions:
+  - Reconfirmed the active client path is still the JS scene/entity implementation even though `main.ts` is the entry module
+  - Verified the joystick movement fix is present in the active runtime path and preserves raw stick magnitude while turning
+  - Reconfirmed monster removal cleanup exists in the active `syncMonsters()` path and server corpses are still configured to expire after `10s`
+  - Fixed a real inventory regression by routing scene inventory toggles through the same launcher UI instead of flipping only `element.hidden`
+  - Hid the top-right inventory launcher outside matches and re-enabled it only after entering a match
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+  - Browser check confirmed the login page no longer shows the launcher while the launcher node is hidden with `display: none`
+- Follow-up:
+  - Investigate why the browser lobby remained `OFFLINE` during manual create-room attempts before claiming live in-match verification
+
+- Goal:
+  Start paying down the mobile/web input architecture debt instead of continuing to patch joystick behavior directly inside the scene.
+- Actions:
+  - Added a new reusable mobile input module at `client/src/input/mobileControls.{js,ts}`
+  - Implemented a dynamic-base virtual joystick model inspired by the feedback references instead of the old fixed joystick anchored to the corner
+  - Moved mobile action buttons into the same module so `GameScene` no longer needs `window.__gameActions` to bridge DOM controls back into gameplay actions
+  - Switched the active `GameScene.js` runtime path and the tracked `GameScene.ts` path to consume the new mobile controls module
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Extract keyboard input behind the same style of adapter so scene code stops caring which platform is driving movement
+
+- Goal:
+  Continue the multi-platform input cleanup by giving Web keyboard controls the same kind of boundary as mobile touch controls and make the inventory entry discoverable on desktop.
+- Actions:
+  - Added `client/src/input/keyboardControls.{js,ts}` to own keyboard movement/action shortcuts instead of reading Phaser keys directly inside `GameScene`
+  - Switched both `GameScene.js` and `GameScene.ts` to consume keyboard/touch adapters rather than storing raw key fields in the scene
+  - Added inventory toggle shortcuts on Web (`I`, `B`, `Tab`) through the new keyboard adapter
+  - Updated the inventory launcher copy so desktop shows a visible `Inventory (I)` entry instead of looking mobile-only
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Revalidate the new shared input boundary in a real match, especially desktop inventory discovery and mobile horizontal layout spacing
+
+- Goal:
+  Address the next real-device regression batch on top of the new input layer: mobile inventory interaction, desktop tooltip clipping, and turn-time joystick speed inconsistency.
+- Actions:
+  - Updated `client/src/input/mobileControls.{js,ts}` so touches on inventory/UI surfaces no longer get hijacked by the joystick listeners
+  - Changed mobile joystick output to a fixed active move magnitude with a small dead zone so turning changes direction only instead of changing speed
+  - Updated `client/src/ui/InventoryPanel.{js,ts}` and `client/src/styles/inventory.css` so desktop item detail tooltips are positioned as fixed overlays rather than being clipped inside the backpack panel
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Revalidate these three behaviors in a live browser/mobile session before moving on to broader screen-ratio polishing
+
+- Goal:
+  Close the strongest evidence-backed root cause for joystick turn-time acceleration without guessing at more client-side stick heuristics.
+- Actions:
+  - Changed `server/src/index.ts` so `PlayerInputMove` only stores the latest player intent instead of moving immediately per packet
+  - Changed `server/src/room-store.ts` so player movement is advanced on the fixed player sync tick using the stored input vector and time-based distance from `moveSpeed`
+  - Added runtime player `moveInput` state in `server/src/types.ts` and preserved last non-zero facing when a stop vector is received
+  - Verified with a direct `RoomStore` script that steady input and noisy multi-update-per-tick input both produce `300` units of cumulative travel over `20` ticks at `50ms`
+- Verification:
+  - `npm.cmd run typecheck --workspace server` passed
+  - `npm.cmd run build --workspace server` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Revalidate on a real mobile device that joystick turning no longer changes effective move speed
+
+- Goal:
+  Use Gemini for a focused frontend adaptation pass now that its headless execution path is understood in this environment.
+- Actions:
+  - Verified Gemini CLI headless behavior on this machine and found that `CI=1` is required for reliable stdout output inside the current Codex session
+  - Used Gemini for a frontend-only audit and edit pass on the active runtime path
+  - Cleaned up `client/src/scenes/GameScene.{js,ts}` touch-control dead code so the active path relies on `mobileControls`
+  - Reworked `client/src/ui/InventoryPanel.{js,ts}` so backpack slots render from real `inventory.width x inventory.height` and place items by `x/y`
+  - Fixed visible inventory labels/actions to readable Chinese on the active frontend path
+  - Updated `client/src/styles/inventory.css` so the mobile inventory launcher no longer overlaps the top-right HUD and mobile backpack uses horizontal scrolling instead of collapsing true column count into tiny cells
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Revalidate on desktop and phone that inventory slot placement, tapping, tooltip behavior, and lower-right launcher placement feel correct in a real match
+
+- Goal:
+  Resolve the next Web-first acceptance issues without opening a new gameplay branch: tooltip hover continuity on desktop and mobile inventory launcher placement away from the combat action cluster.
+- Actions:
+  - Reworked `client/src/ui/InventoryPanel.{js,ts}` desktop tooltip behavior so hover can move from slot to tooltip without immediately collapsing
+  - Changed desktop tooltip placement to prefer side-by-side attachment near the hovered slot instead of detached floating behavior
+  - Moved the mobile inventory launcher out of the lower-right combat interaction zone to a top-center mobile position
+  - Kept the real inventory grid rendering and `x/y` slot placement logic intact while updating these interaction details
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Revalidate on Web that tooltip hover feels continuous and visually attached
+  - Revalidate on mobile that the top-center launcher is discoverable and no longer competes with attack/skill/pickup buttons
