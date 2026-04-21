@@ -60,9 +60,10 @@
   - backpack items are now positioned by `x/y` instead of raw array order
   - `.inventory-mobile-toggle` now avoids the combat button area and uses a top-center mobile position instead of competing with the lower-right action cluster
   - desktop tooltip hover now keeps the tooltip alive while moving from slot to tooltip and prefers side-by-side placement near the hovered slot
+  - desktop tooltip DOM now mounts to `document.body` instead of staying under the transformed `.inventory-panel`, which was the root cause of the apparent lower-right drift
   - mobile backpack layout now keeps true column count with horizontal scrolling rather than compressing `10` columns into sub-44px cells
 - Next step:
-  Revalidate on desktop and phone that inventory open/close, slot tapping, tooltip visibility, launcher placement, and slot placement all match the real server inventory state.
+  Revalidate on desktop and phone that inventory open/close, slot tapping, tooltip anchoring/visibility, launcher placement, and slot placement all match the real server inventory state.
 - Blocking reason:
   Build success does not confirm touch usability or visual correctness.
 

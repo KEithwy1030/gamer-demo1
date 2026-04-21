@@ -317,3 +317,16 @@
 - Follow-up:
   - Revalidate on Web that tooltip hover feels continuous and visually attached
   - Revalidate on mobile that the top-center launcher is discoverable and no longer competes with attack/skill/pickup buttons
+
+- Goal:
+  Close the specific Web tooltip regression where equipment/item details still appeared detached in the lower-right despite the side-placement code.
+- Actions:
+  - Inspected the live browser DOM and confirmed the root cause was not the math but the containing layer: `.inventory-tooltip` used `position: fixed` while still mounted inside `.inventory-panel`, and `.inventory-panel` itself uses `transform: translate(-50%, -50%)`
+  - Updated `client/src/ui/InventoryPanel.{js,ts}` so all per-item tooltips mount to `document.body` instead of living under the transformed panel
+  - Added owned-tooltip cleanup before each inventory re-render so body-level overlay nodes do not accumulate stale DOM between renders
+- Verification:
+  - Browser inspection showed the old lower-right drift was caused by fixed-position containment under the transformed panel
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Revalidate on Web that hovering an equipment or backpack slot now keeps the detail card visually attached to that slot instead of drifting to the lower-right

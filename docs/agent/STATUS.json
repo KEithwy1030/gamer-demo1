@@ -1,9 +1,9 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-21",
-  "latest_session_work": "Completed the movement-authority root fix for joystick turn-time acceleration, then closed the next Web-first frontend acceptance loop: real inventory grid rendering, desktop tooltip hover continuity, and mobile inventory launcher placement outside the combat button zone.",
+  "latest_session_work": "Completed the movement-authority root fix for joystick turn-time acceleration, then continued the Web-first frontend acceptance loop by moving the desktop inventory tooltip onto a true body-level overlay so transformed panel positioning no longer throws it into the lower-right.",
   "current_phase": "phase-b-p0-runtime-stabilization",
-  "current_priority": "Revalidate the Web-first inventory/tooltip behavior and the mobile launcher placement on real devices, then continue with shared contract normalization and client runtime drift cleanup.",
+  "current_priority": "Revalidate the Web-first inventory tooltip anchor and hover behavior in a real browser session, then continue with shared contract normalization and client runtime drift cleanup.",
   "repo_bootstrap": [
     "MASTER_SPEC.md",
     "WORK_QUEUE.md",
@@ -35,7 +35,8 @@
     "Aligned active frontend inventory rendering to real width/height and x/y slot placement",
     "Improved mobile backpack tap targets and preserved true inventory column count with horizontal scrolling",
     "Made desktop inventory tooltip hover continuous and attached it closer to the hovered slot",
-    "Moved the mobile inventory launcher out of the combat button zone"
+    "Moved the mobile inventory launcher out of the combat button zone",
+    "Detached desktop inventory tooltips from the transformed inventory panel by mounting them to document.body"
   ],
   "unfinished_high_priority": [
     "Normalize client/server consumption of shared contracts",
@@ -49,7 +50,7 @@
   "integration_status": {
     "backend_e2e_test_loop": "documented",
     "server_movement_authority": "tick-based using stored input intent",
-    "frontend_inventory_layout": "active path aligned to dynamic grid and lower-right mobile launcher",
+    "frontend_inventory_layout": "active path aligned to dynamic grid, top-center mobile launcher, and body-level desktop tooltip overlay",
     "manual_frontend_acceptance": "still incomplete",
     "canonical_docs": "aligned to current baseline",
     "client_runtime_resolution": "drift risk remains",

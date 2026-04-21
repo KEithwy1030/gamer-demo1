@@ -63,6 +63,7 @@ const TOOLTIP_GAP = 10;
 export function createInventoryPanel(options: InventoryPanelOptions): InventoryPanelApi {
   let hideTimeout: number | undefined;
   let activeTooltip: HTMLElement | null = null;
+  const ownedTooltips = new Set<HTMLElement>();
 
   const clearHideTimeout = () => {
     if (hideTimeout) {
@@ -79,6 +80,15 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
         activeTooltip = null;
       }
     }, 220);
+  };
+
+  const removeOwnedTooltips = () => {
+    clearHideTimeout();
+    activeTooltip = null;
+    for (const tooltip of ownedTooltips) {
+      tooltip.remove();
+    }
+    ownedTooltips.clear();
   };
 
   const element = document.createElement("aside");
@@ -194,6 +204,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   return {
     element,
     render(inventory) {
+      removeOwnedTooltips();
       if (!inventory) {
         summary.textContent = "正在获取背包信息...";
         equipmentGrid.replaceChildren();
@@ -247,7 +258,9 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     icon.textContent = (item.name || "?")[0]?.toUpperCase() ?? "?";
 
     const tooltip = createTooltip(item, type !== "item");
-    slot.append(icon, tooltip);
+    ownedTooltips.add(tooltip);
+    document.body.append(tooltip);
+    slot.append(icon);
 
     const positionTooltip = () => {
       if (!window.matchMedia("(min-width: 768px)").matches) {
