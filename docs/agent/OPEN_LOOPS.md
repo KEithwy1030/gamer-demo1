@@ -68,7 +68,20 @@
 - Blocking reason:
   Build success does not confirm touch usability or visual correctness.
 
-## 6. Obstacles Are Still Visual-Only
+## 6. Web Minimap Needs Real Browser Revalidation
+
+- Symptom:
+  The new minimap implementation is build-verified, but it still needs a real browser pass to confirm left-top placement, fog readability, and player marker behavior during exploration.
+- Confirmed facts:
+  - `client/src/ui/Minimap.{js,ts}` now owns a low-resolution discovery grid and only paints explored cells plus the local player dot
+  - `client/src/scenes/GameScene.{js,ts}` now instantiates that minimap only for non-touch sessions and feeds it world bounds plus the smoothed self-marker position
+  - the minimap intentionally does not render monsters, drops, or full terrain detail
+- Next step:
+  Revalidate on Web that the minimap sits cleanly in the top-left HUD region, the explored area expands as the player moves, and no full-map information leaks.
+- Blocking reason:
+  Build success does not confirm final readability or viewport fit.
+
+## 7. Obstacles Are Still Visual-Only
 
 - Symptom:
   The scene has obstacle presentation, but obstacle authority is still not part of movement validation.
@@ -79,7 +92,7 @@
 - Blocking reason:
   This touches gameplay correctness, not just presentation.
 
-## 7. Live Feel Validation Is Still Missing In Key Areas
+## 8. Live Feel Validation Is Still Missing In Key Areas
 
 - Symptom:
   Several gameplay values exist in code, but their real in-room feel is not yet closed.

@@ -1,9 +1,9 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-21",
-  "latest_session_work": "Completed the movement-authority root fix for joystick turn-time acceleration, then continued the Web-first frontend acceptance loop by moving the desktop inventory tooltip onto a true body-level overlay and adding hover-intent forgiveness so crossing adjacent slots no longer steals the active detail card instantly.",
+  "latest_session_work": "Completed the movement-authority root fix for joystick turn-time acceleration, stabilized the Web-first inventory tooltip flow, and added a Web-only top-left minimap that reveals only explored area plus the player marker without exposing full map information.",
   "current_phase": "phase-b-p0-runtime-stabilization",
-  "current_priority": "Revalidate the Web-first inventory tooltip anchor and hover-intent behavior in a real browser session, then continue with shared contract normalization and client runtime drift cleanup.",
+  "current_priority": "Revalidate the new Web-only minimap in a real browser session, then continue with item presentation, translation cleanup, and shared/client runtime drift reduction.",
   "repo_bootstrap": [
     "MASTER_SPEC.md",
     "WORK_QUEUE.md",
@@ -37,7 +37,8 @@
     "Made desktop inventory tooltip hover continuous and attached it closer to the hovered slot",
     "Moved the mobile inventory launcher out of the combat button zone",
     "Detached desktop inventory tooltips from the transformed inventory panel by mounting them to document.body",
-    "Added delayed desktop tooltip switching so crossing adjacent slots does not immediately steal focus from the current detail card"
+    "Added delayed desktop tooltip switching so crossing adjacent slots does not immediately steal focus from the current detail card",
+    "Added a Web-only HUD minimap that reveals only explored area and the local player position without showing full-map information"
   ],
   "unfinished_high_priority": [
     "Normalize client/server consumption of shared contracts",

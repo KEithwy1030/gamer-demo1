@@ -4,6 +4,7 @@ import { MonsterMarker } from "../game/entities/MonsterMarker";
 import { PlayerMarker } from "../game/entities/PlayerMarker";
 import { createKeyboardControls } from "../input/keyboardControls";
 import { createMobileControls } from "../input/mobileControls";
+import { Minimap } from "../ui/Minimap";
 export class GameScene extends Phaser.Scene {
     static KEY = "GameScene";
     runtime;
@@ -23,6 +24,7 @@ export class GameScene extends Phaser.Scene {
     extractLabel;
     extractPulseTween;
     hudContainer;
+    minimap;
     hpBar;
     timerText;
     roomCodeText;
@@ -694,6 +696,8 @@ export class GameScene extends Phaser.Scene {
         }
         if (selfMarker) {
             this.cameras.main.startFollow(selfMarker.root, true, 0.12, 0.12);
+            this.minimap?.revealAt(selfMarker.root.x, selfMarker.root.y);
+            this.minimap?.updatePlayer(selfMarker.root.x, selfMarker.root.y);
         }
     }
     updateChests() {
@@ -749,6 +753,8 @@ export class GameScene extends Phaser.Scene {
         this.keyboardControls = undefined;
         this.mobileControls?.destroy();
         this.mobileControls = undefined;
+        this.minimap?.destroy();
+        this.minimap = undefined;
         this.joystickVector = { x: 0, y: 0 };
         // Clean up exposed window actions
         delete window.__gameActions;
@@ -865,6 +871,7 @@ export class GameScene extends Phaser.Scene {
         });
     }
     syncWorld(state) {
+        this.minimap?.syncWorldBounds(state.width, state.height);
         const nextSignature = `${state.width}x${state.height}`;
         if (this.worldSignature !== nextSignature) {
             this.buildWorldBackdrop(state);
@@ -1136,6 +1143,14 @@ export class GameScene extends Phaser.Scene {
             padding: { x: 8, y: 4 }
         }).setOrigin(1, 1);
         this.hudContainer.add(this.controlsHint);
+        if (navigator.maxTouchPoints <= 0) {
+            this.minimap = new Minimap({
+                scene: this,
+                parent: this.hudContainer,
+                x: 20,
+                y: 58
+            });
+        }
     }
     showTutorial() {
         const panelWidth = 280;

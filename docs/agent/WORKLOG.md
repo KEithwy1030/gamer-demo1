@@ -342,3 +342,15 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Revalidate on Web that you can move from a slot into its detail card without briefly crossing a sibling slot and losing the current card
+
+- Goal:
+  Add the smallest safe Web-only minimap so desktop testing gets positional awareness without leaking full-map information or touching server/shared contracts.
+- Actions:
+  - Added `client/src/ui/Minimap.{js,ts}` as a dedicated HUD helper with a low-resolution explored-cell grid, dark unexplored background, and a local player marker
+  - Wired `client/src/scenes/GameScene.{js,ts}` to instantiate the minimap only on non-touch sessions, sync world bounds from match state, and reveal/update from the smoothed self player marker in `update()`
+  - Kept the implementation intentionally narrow: no monsters, drops, loot, or terrain thumbnail, only explored area plus player position
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Revalidate on Web that the minimap sits cleanly in the top-left HUD and that exploration/fog behavior reads well during movement

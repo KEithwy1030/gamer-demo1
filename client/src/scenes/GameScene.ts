@@ -14,6 +14,7 @@ import {
 import { MatchRuntimeStore, type MatchViewState } from "../game";
 import type { ChestOpenedPayload, ChestState } from "../network/socketClient";
 import type { ExtractUiState } from "./createGameClient";
+import { Minimap } from "../ui/Minimap";
 
 export interface GameSceneInitData {
   runtime: MatchRuntimeStore;
@@ -71,6 +72,7 @@ export class GameScene extends Phaser.Scene {
   private extractLabel?: Phaser.GameObjects.Text;
   private extractPulseTween?: Phaser.Tweens.Tween;
   private hudContainer?: Phaser.GameObjects.Container;
+  private minimap?: Minimap;
   private hpBar?: { track: Phaser.GameObjects.Graphics; fill: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text };
   private timerText?: Phaser.GameObjects.Text;
   private roomCodeText?: Phaser.GameObjects.Text;
@@ -381,6 +383,8 @@ export class GameScene extends Phaser.Scene {
       const sm = this.playerMarkers.get(sid);
       if (sm) {
         this.cameras.main.startFollow(sm.root, true, 0.12, 0.12);
+        this.minimap?.revealAt(sm.root.x, sm.root.y);
+        this.minimap?.updatePlayer(sm.root.x, sm.root.y);
         if (this.extractState.isOpen) {
           const dist = Phaser.Math.Distance.Between(sm.root.x, sm.root.y, this.extractState.x ?? 0, this.extractState.y ?? 0);
           if (dist <= (this.extractState.radius ?? 96) && !this.extractAutoStarted && !this.extractState.isExtracting) {
@@ -413,6 +417,8 @@ export class GameScene extends Phaser.Scene {
     this.keyboardControls = undefined;
     this.mobileControls?.destroy();
     this.mobileControls = undefined;
+    this.minimap?.destroy();
+    this.minimap = undefined;
     this.joystickVector = { x: 0, y: 0 };
   }
 
@@ -469,6 +475,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private syncWorld(state: MatchViewState): void {
+    this.minimap?.syncWorldBounds(state.width, state.height);
     const centerX = state.width / 2; const centerY = state.height / 2;
     if (!this.terrainLayer) {
       this.terrainLayer = this.add.tileSprite(centerX, centerY, state.width, state.height, "ground_pixel").setDepth(-40);
@@ -533,6 +540,14 @@ export class GameScene extends Phaser.Scene {
     this.combatText = this.add.text(width / 2, height - 80, "", { fontFamily: "monospace", fontSize: "18px", color: "#fef3c7" }).setOrigin(0.5, 1);
     this.controlsHint = this.add.text(width - 20, height - 20, navigator.maxTouchPoints > 0 ? "虚拟摇杆 移动 | 攻 攻击 | 技 技能 | 捡 拾取" : "WASD 移动 | 空格 攻击 | Q 技能 | E 拾取", { fontFamily: "monospace", fontSize: "12px", color: "#64748b" }).setOrigin(1, 1);
     this.hudContainer.add([hpLabel, this.timerText, this.roomCodeText, this.combatText, this.controlsHint]);
+    if (navigator.maxTouchPoints <= 0) {
+      this.minimap = new Minimap({
+        scene: this,
+        parent: this.hudContainer,
+        x: 20,
+        y: 58
+      });
+    }
   }
 
   private showTutorial(): void {
