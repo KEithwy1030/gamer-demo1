@@ -65,6 +65,16 @@ button { font-family: inherit; cursor: pointer; }
   mix-blend-mode: overlay;
 }
 
+.lobby-background {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  display: block;
+}
+
 /* ----- typography utilities ----- */
 .disp { font-family: var(--disp); text-transform: uppercase; letter-spacing: 0.04em; }
 .mono { font-family: var(--mono); }

@@ -66,6 +66,12 @@ See [docs/agent/CANONICAL_BASELINE.md](/E:/CursorData/gamer/docs/agent/CANONICAL
 - A direct `RoomStore` verification script measured equal cumulative travel (`300`) for steady input and noisy multi-update-per-tick input over `20` ticks at `50ms`, which closes the packet-cadence root cause for turn-time acceleration at the authority layer.
 - The active frontend inventory path now renders backpack slots from the real `inventory.width x inventory.height` model and places items by `x/y`, instead of hardcoding `16` sequential slots.
 - The active Web lobby shell now follows the imported Claude Design hall structure: topbar, left squad panel, center deploy hero, right summary stack, and footer ticker, while only the real room actions remain wired and undeveloped hall modules stay disabled.
+- The active Web lobby now also restores key Claude Design identity details instead of only the coarse shell:
+  - room-code example/format is `南岭·42`
+  - the room-code label is `蜡印编号`
+  - the join-code placeholder is `南岭·42`
+  - the hall font stack now loads Oswald, JetBrains Mono, Inter Tight, Noto Sans SC, and Noto Serif SC from `client/index.html`
+- Both the mock lobby controller and the real server room store now generate place-name plus middot room codes, so the live room flow no longer falls back to random six-character alphanumeric IDs.
 - The active frontend inventory path now also uses a shared item presentation layer for names and static icon-plus-badge rendering, so filled slots no longer degrade to a single first-letter placeholder.
 - Player-visible item/weapon naming has been tightened across the current front-end presentation helper plus the active `server/src/inventory/catalog.ts` and `shared/src/data/items.ts` / `shared/src/data/weapons.ts` definitions.
 - Mobile inventory entry has been moved away from the top-right HUD, and mobile backpack layout now preserves true column count with horizontal scrolling instead of shrinking `10` columns into tiny tap targets.

@@ -275,8 +275,8 @@ class LobbyView {
     );
     const codeInputRow = createElement("div", "code-input-row");
     this.roomCodeInput = createElement("input", "code-input");
-    this.roomCodeInput.placeholder = "\u4F8B\u5982 A1B2C3";
-    this.roomCodeInput.maxLength = 6;
+    this.roomCodeInput.placeholder = "\u4F8B\u5982 \u5357\u5cad\u00b742";
+    this.roomCodeInput.maxLength = 8;
     this.roomCodeInput.addEventListener("input", () => {
       this.callbacks.onRoomCodeInputChange(this.roomCodeInput.value);
     });

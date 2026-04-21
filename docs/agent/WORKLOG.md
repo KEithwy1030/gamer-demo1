@@ -381,3 +381,17 @@
   - `npm.cmd run build --workspace server` passed
 - Follow-up:
   - Revalidate in the browser that the imported hall now reads as the same Claude Design family and no longer looks like a separate GPT-authored redesign
+
+- Goal:
+  Tighten the active Claude-led lobby toward the imported source-of-truth details instead of only preserving the broad shell.
+- Actions:
+  - Restored the original lobby font stack in `client/index.html` using the Claude source Google Fonts import
+  - Switched both `client/src/app/mockLobbyController.ts` and `server/src/room-store.ts` to generate place-name plus middot room codes such as `南岭·42`
+  - Normalized join-room input handling across lobby app, mock controller, and server room lookup so separator variants collapse to the Claude middot format
+  - Updated the active room-code input placeholder in `client/src/ui/lobbyView.{js,ts}` to the Claude source example `南岭·42`
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+  - `npm.cmd run build --workspace server` passed
+- Follow-up:
+  - Revalidate in the browser that the hall now feels materially closer to the imported Claude Design source in room-code flavor, typography, and first-screen composition

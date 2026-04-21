@@ -1,9 +1,9 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-22",
-  "latest_session_work": "Replaced the Web lobby shell with a Claude-Design-led tactical hall layout, using the imported gamer.zip structure as the visual source while preserving only the real room callbacks for create/join/leave/capacity/start and keeping undeveloped hall modules disabled.",
+  "latest_session_work": "Aligned the active Claude-led Web lobby more tightly to the imported source by restoring the exact room-code style (`南岭·42`), adding the original font stack to `client/index.html`, and switching both mock and real room-code generation/normalization to the place-name plus middot format.",
   "current_phase": "phase-b-p0-runtime-stabilization",
-  "current_priority": "Browser-verify the new Claude-style lobby against the imported design language, then sync docs and push the lobby replacement batch to GitHub.",
+  "current_priority": "Browser-verify the tightened Claude-style lobby against the imported design language, especially room-code flavor, fonts, and above-the-fold composition, then sync and push.",
   "repo_bootstrap": [
     "MASTER_SPEC.md",
     "WORK_QUEUE.md",
@@ -41,7 +41,8 @@
     "Added a Web-only HUD minimap that reveals only explored area and the local player position without showing full-map information",
     "Added a front-end item presentation helper and replaced first-letter inventory tiles with icon-plus-badge item visuals",
     "Normalized player-visible item naming across inventory, settlement, lobby copy, shared item data, server inventory templates, and front-end translation fallback",
-    "Rebased the active Web lobby shell onto the imported Claude Design hall structure, restored the topbar plus left-squad/center-hero/right-summary plus footer-ticker composition, and kept only the existing real room actions wired while leaving undeveloped hall modules disabled"
+    "Rebased the active Web lobby shell onto the imported Claude Design hall structure, restored the topbar plus left-squad/center-hero/right-summary plus footer-ticker composition, and kept only the existing real room actions wired while leaving undeveloped hall modules disabled",
+    "Aligned lobby room-code flavor and typography to the imported Claude Design source by using `南岭·42`-style codes on both mock and real room creation paths and loading the original hall font stack from `client/index.html`"
   ],
   "unfinished_high_priority": [
     "Normalize client/server consumption of shared contracts",
@@ -59,7 +60,8 @@
     "manual_frontend_acceptance": "still incomplete",
     "canonical_docs": "aligned to current baseline",
     "client_runtime_resolution": "drift risk remains",
-    "shared_contract_surface": "split between runtimes"
+    "shared_contract_surface": "split between runtimes",
+    "lobby_room_code_flavor": "place-name plus middot format on mock and real room creation"
   },
   "runtime_defaults": {
     "client_dev_host_port": "0.0.0.0:5173",

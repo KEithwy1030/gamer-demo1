@@ -2,7 +2,12 @@ import "../styles/lobby.css";
 import { MockLobbyController } from "./mockLobbyController";
 import { LobbyView } from "../ui/lobbyView";
 const normalizeName = (value) => value.trim().slice(0, 18);
-const normalizeRoomCode = (value) => value.trim().replace(/\s+/g, "").slice(0, 6).toUpperCase();
+const normalizeRoomCode = (value) => value
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[.\uFF0E\u3002\u30FB路]/g, "·")
+    .slice(0, 8)
+    .toUpperCase();
 const createInitialState = (initialState) => ({
     screen: "lobby",
     playerName: "",

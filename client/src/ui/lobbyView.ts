@@ -323,8 +323,8 @@ export class LobbyView {
     );
     const codeInputRow = createElement("div", "code-input-row");
     this.roomCodeInput = createElement("input", "code-input") as HTMLInputElement;
-    this.roomCodeInput.placeholder = "例如 A1B2C3";
-    this.roomCodeInput.maxLength = 6;
+    this.roomCodeInput.placeholder = "例如 南岭·42";
+    this.roomCodeInput.maxLength = 8;
     this.roomCodeInput.addEventListener("input", () => {
       this.callbacks.onRoomCodeInputChange(this.roomCodeInput.value);
     });

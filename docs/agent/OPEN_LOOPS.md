@@ -129,7 +129,8 @@
   - `client/src/ui/lobbyView.{js,ts}` now renders a topbar, left squad panel, center deploy hero, right summary stack, and footer ticker that map to the imported `gamer.zip` hall structure
   - only `create/join/leave/capacity/start` remain wired to the real lobby runtime; undeveloped hall modules stay disabled
   - `client/src/styles/lobby.css` now uses the imported Claude Design CSS as the visual base with small project-specific additions for disabled states and banners
+  - `client/index.html` now loads the original hall font stack, and both mock/real room creation now emit Claude-style place-name room codes such as `南岭·42`
 - Next step:
-  Revalidate in the browser that the current lobby is now visually much closer to the Claude Design hall and does not regress the real room flow.
+  Revalidate in the browser that the current lobby now preserves the imported room-code flavor, font character, and above-the-fold composition instead of only the broad layout.
 - Blocking reason:
   Build success does not answer the user's fidelity concern about whether the hall still looks like the imported design.

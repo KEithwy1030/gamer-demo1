@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import type {
   CreateRoomPayload,
   JoinRoomPayload,
@@ -19,7 +18,6 @@ import {
   MATCH_MAP_WIDTH,
   PLAYER_BASE_HP,
   PLAYER_BASE_MOVE_SPEED,
-  ROOM_CODE_LENGTH,
   SPAWN_RING_RADIUS
 } from "./internal-constants.js";
 import { setPlayerBaseStats, syncPlayerCombatState } from "./combat/player-effects.js";
@@ -35,6 +33,23 @@ import type {
 function sanitizePlayerName(playerName: string): string {
   const trimmed = playerName.trim();
   return trimmed === "" ? "Player" : trimmed.slice(0, 24);
+}
+
+const PLACE_WORDS = [
+  "南岭",
+  "北坞",
+  "西浮",
+  "灰湾",
+  "旧港",
+  "朔桥",
+  "荒岗",
+  "雾泽",
+  "石堡",
+  "长汀"
+] as const;
+
+function normalizeRoomCode(code: string): string {
+  return code.trim().replace(/\s+/g, "").replace(/[.\uFF0E\u3002\u30FB路]/g, "·").toUpperCase();
 }
 
 function cloneDirection(direction?: Vector2): Vector2 {
@@ -402,7 +417,7 @@ export class RoomStore {
   }
 
   private getRoomByCode(code: string): RuntimeRoom {
-    const room = this.rooms.get(code.trim().toUpperCase());
+    const room = this.rooms.get(normalizeRoomCode(code));
     if (!room) {
       throw new Error("Room not found.");
     }
@@ -431,12 +446,10 @@ export class RoomStore {
     let code = "";
 
     do {
-      code = crypto.randomBytes(ROOM_CODE_LENGTH)
-        .toString("base64url")
-        .replace(/[^A-Z0-9]/gi, "")
-        .slice(0, ROOM_CODE_LENGTH)
-        .toUpperCase();
-    } while (code.length < ROOM_CODE_LENGTH || this.rooms.has(code));
+      const place = PLACE_WORDS[Math.floor(Math.random() * PLACE_WORDS.length)];
+      const number = String(Math.floor(Math.random() * 100)).padStart(2, "0");
+      code = `${place}·${number}`;
+    } while (this.rooms.has(code));
 
     return code;
   }

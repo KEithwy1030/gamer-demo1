@@ -13,7 +13,12 @@ import { LobbyView } from "../ui/lobbyView";
 
 const normalizeName = (value: string) => value.trim().slice(0, 18);
 const normalizeRoomCode = (value: string) =>
-  value.trim().replace(/\s+/g, "").slice(0, 6).toUpperCase();
+  value
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[.\uFF0E\u3002\u30FB路]/g, "·")
+    .slice(0, 8)
+    .toUpperCase();
 
 const createInitialState = (initialState?: Partial<LobbyState>): LobbyState => ({
   screen: "lobby",
