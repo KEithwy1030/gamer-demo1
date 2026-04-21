@@ -3,21 +3,21 @@ import type { WeaponDefinition } from "../types/combat";
 export const WEAPON_DEFINITIONS: Record<string, WeaponDefinition> = {
   sword: {
     type: "sword",
-    name: "Sword",
+    name: "长剑",
     attackPower: 10,
     attacksPerSecond: 1.5,
     range: 116
   },
   blade: {
     type: "blade",
-    name: "Blade",
+    name: "弯刃",
     attackPower: 15,
     attacksPerSecond: 1,
     range: 128
   },
   spear: {
     type: "spear",
-    name: "Spear",
+    name: "长矛",
     attackPower: 20,
     attacksPerSecond: 0.5,
     range: 180

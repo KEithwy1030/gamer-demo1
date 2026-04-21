@@ -14,6 +14,7 @@ import type { InventoryUpdateEvent, SettlementEnvelope } from "../network";
 import { GameSocketClient, type ExtractProgressPayload, type GameSocketClientOptions, type Unsubscribe } from "../network";
 import { MatchRuntimeStore, type MatchInventoryState } from "../game";
 import type { MatchInventoryItem } from "../game/matchRuntime";
+import { translateItemName } from "../ui/itemPresentation";
 import { GameScene } from "./GameScene";
 
 export interface GameClientControllerOptions extends GameSocketClientOptions {
@@ -339,11 +340,15 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
       return [{
         instanceId: asString(item.instanceId, cryptoId()),
         definitionId: asString(item.templateId, asString(item.definitionId, "unknown")),
-        name: translateItemName(asString(item.name, asString(item.templateId, "未知物品"))),
+        name: translateItemName(
+          asString(item.name, asString(item.templateId, "未知物品")),
+          asString(item.templateId, asString(item.definitionId, "unknown"))
+        ),
         kind: asOptionalStringValue(item.kind),
         rarity: asOptionalStringValue(item.rarity),
         x: asOptionalNumber(entry.x),
         y: asOptionalNumber(entry.y),
+        slot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot),
         healAmount: asOptionalNumber(item.healAmount),
         modifiers: normalizeItemModifiers(item.modifiers),
         affixes: normalizeAffixes(item.affixes)
@@ -355,10 +360,13 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
         return [[slot, {
           instanceId: asString(item.instanceId, cryptoId()),
           definitionId: asString(item.templateId, asString(item.definitionId, "unknown")),
-          name: translateItemName(asString(item.name, slot)),
+          name: translateItemName(
+            asString(item.name, slot),
+            asString(item.templateId, asString(item.definitionId, "unknown"))
+          ),
           kind: asOptionalStringValue(item.kind),
           rarity: asOptionalStringValue(item.rarity),
-          slot,
+          slot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot) ?? slot,
           healAmount: asOptionalNumber(item.healAmount),
           modifiers: normalizeItemModifiers(item.modifiers),
           affixes: normalizeAffixes(item.affixes)
@@ -366,25 +374,6 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
       })
     )
   };
-}
-
-function translateItemName(name: string): string {
-  const map: Record<string, string> = {
-    "Sword": "制式长剑",
-    "Blade": "突击者之刃",
-    "Spear": "猎人长矛",
-    "Starter Sword": "制式长剑",
-    "gold pouch": "金币袋",
-    "jade idol": "古玉像",
-    "trail greaves": "径行腿甲",
-    "scavenger coat": "拾荒者大衣",
-    "raider blade": "突击者之刃",
-    "hunter spear": "猎人长矛",
-    "leather hood": "皮质兜帽"
-  };
-  // Case insensitive check
-  const entry = Object.entries(map).find(([k]) => k.toLowerCase() === name.toLowerCase());
-  return entry ? entry[1] : name;
 }
 
 function translateSlot(slot: string): string {
@@ -458,7 +447,7 @@ function normalizeSettlementPayload(payload: SettlementEnvelope | unknown): Sett
     monsterKills: asNumber(settlement.monsterKills, 0),
     extractedGold: asNumber(settlement.extractedGold, 0),
     extractedTreasureValue: asNumber(settlement.extractedTreasureValue, 0),
-    extractedItems: Array.isArray(settlement.extractedItems) ? settlement.extractedItems.map((item) => String(item)) : []
+    extractedItems: Array.isArray(settlement.extractedItems) ? settlement.extractedItems.map((item) => translateItemName(String(item))) : []
   };
 }
 

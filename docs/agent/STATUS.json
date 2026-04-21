@@ -1,9 +1,9 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-21",
-  "latest_session_work": "Completed the movement-authority root fix for joystick turn-time acceleration, stabilized the Web-first inventory tooltip flow, and added a Web-only top-left minimap that reveals only explored area plus the player marker without exposing full map information.",
+  "latest_session_work": "Added a shared item presentation layer for Web inventory/results/lobby surfaces, replaced first-letter inventory placeholders with icon-plus-badge item visuals, and tightened Chinese naming across client/shared/server item definitions without changing the current 1-slot inventory logic.",
   "current_phase": "phase-b-p0-runtime-stabilization",
-  "current_priority": "Revalidate the new Web-only minimap in a real browser session, then continue with item presentation, translation cleanup, and shared/client runtime drift reduction.",
+  "current_priority": "Revalidate the new Web item presentation and translation cleanup in a real browser session, then continue with minimap acceptance and shared/client runtime drift reduction.",
   "repo_bootstrap": [
     "MASTER_SPEC.md",
     "WORK_QUEUE.md",
@@ -38,7 +38,9 @@
     "Moved the mobile inventory launcher out of the combat button zone",
     "Detached desktop inventory tooltips from the transformed inventory panel by mounting them to document.body",
     "Added delayed desktop tooltip switching so crossing adjacent slots does not immediately steal focus from the current detail card",
-    "Added a Web-only HUD minimap that reveals only explored area and the local player position without showing full-map information"
+    "Added a Web-only HUD minimap that reveals only explored area and the local player position without showing full-map information",
+    "Added a front-end item presentation helper and replaced first-letter inventory tiles with icon-plus-badge item visuals",
+    "Normalized player-visible item naming across inventory, settlement, lobby copy, shared item data, server inventory templates, and front-end translation fallback"
   ],
   "unfinished_high_priority": [
     "Normalize client/server consumption of shared contracts",

@@ -1,22 +1,10 @@
 import "../styles/inventory.css";
+import { getItemPresentation, getSlotLabel } from "./itemPresentation";
 const SLOT_ORDER = ["weapon", "head", "chest", "hands", "shoes"];
-const SLOT_LABELS = {
-    weapon: "武器",
-    head: "头部",
-    chest: "胸甲",
-    hands: "手部",
-    shoes: "鞋子"
-};
-const RARITY_LABELS = {
-    common: "普通",
-    uncommon: "精良",
-    rare: "稀有",
-    epic: "史诗"
-};
 const STAT_LABELS = {
     attackPower: "攻击",
     attackSpeed: "攻速",
-    maxHp: "最大生命",
+    maxHp: "生命上限",
     moveSpeed: "移速",
     damageReduction: "减伤",
     critRate: "暴击率",
@@ -102,8 +90,8 @@ export function createInventoryPanel(options) {
             toggle.textContent = isCollapsed ? "展开" : "收起";
             return;
         }
-        mobileToggle.textContent = isCollapsed ? "Inventory (I)" : "Close Inventory";
-        toggle.textContent = isCollapsed ? "Open" : "Close";
+        mobileToggle.textContent = isCollapsed ? "背包（I）" : "收起背包";
+        toggle.textContent = isCollapsed ? "打开" : "关闭";
     };
     const closeInventory = () => {
         element.classList.add("inventory-panel--collapsed");
@@ -177,10 +165,12 @@ export function createInventoryPanel(options) {
                 return;
             }
             const itemCount = inventory.items.length;
-            const weapon = inventory.equipment.weapon;
+            const weapon = inventory.equipment.weapon
+                ? getItemPresentation(inventory.equipment.weapon).displayName
+                : "空手入场";
             const invW = inventory.width || 10;
             const invH = inventory.height || 6;
-            summary.textContent = `${weapon?.name ?? "赤手空拳"} | ${itemCount} 件物品 (${invW}x${invH})`;
+            summary.textContent = `${weapon} | ${itemCount} 件物品 (${invW}x${invH})`;
             backpackTitle.textContent = `背包 (${invW}x${invH})`;
             backpackGrid.style.setProperty("--inventory-columns", String(invW));
             equipmentGrid.replaceChildren();
@@ -198,25 +188,30 @@ export function createInventoryPanel(options) {
         const slot = document.createElement("div");
         slot.className = "inventory-slot";
         if (type !== "item") {
-            slot.dataset.label = SLOT_LABELS[type] ?? type;
+            slot.dataset.label = getSlotLabel(type);
             const label = document.createElement("span");
             label.className = "inventory-slot-label";
-            label.textContent = SLOT_LABELS[type] ?? type;
+            label.textContent = getSlotLabel(type);
             slot.append(label);
         }
         if (!item) {
             slot.classList.add("inventory-slot--empty");
             return slot;
         }
+        const presentation = getItemPresentation(item);
         const rarity = (item.rarity ?? "common").toLowerCase();
         slot.classList.add(`quality-${rarity}`, "inventory-slot--filled");
+        slot.title = `${presentation.displayName} · ${presentation.detailLabel}`;
         const icon = document.createElement("div");
-        icon.className = "inventory-item-icon";
-        icon.textContent = (item.name || "?")[0]?.toUpperCase() ?? "?";
+        icon.className = `inventory-item-icon inventory-item-icon--${presentation.iconKey}`;
+        icon.innerHTML = presentation.iconSvg;
+        const badge = document.createElement("span");
+        badge.className = "inventory-item-badge";
+        badge.textContent = presentation.shortLabel;
         const tooltip = createTooltip(item, type !== "item");
         ownedTooltips.add(tooltip);
         document.body.append(tooltip);
-        slot.append(icon);
+        slot.append(icon, badge);
         const positionTooltip = () => {
             if (!window.matchMedia("(min-width: 768px)").matches) {
                 return;
@@ -281,7 +276,9 @@ export function createInventoryPanel(options) {
             }
         });
         slot.addEventListener("mouseleave", (event) => {
-            if (window.matchMedia("(min-width: 768px)").matches && !shouldKeepVisible(event.relatedTarget) && !isInventorySlotTarget(event.relatedTarget)) {
+            if (window.matchMedia("(min-width: 768px)").matches &&
+                !shouldKeepVisible(event.relatedTarget) &&
+                !isInventorySlotTarget(event.relatedTarget)) {
                 startHideTimeout();
             }
         });
@@ -315,18 +312,22 @@ export function createInventoryPanel(options) {
         const tooltip = document.createElement("div");
         tooltip.className = "inventory-tooltip";
         const rarity = (item.rarity ?? "common").toLowerCase();
+        const presentation = getItemPresentation(item);
         const header = document.createElement("div");
         header.className = "tooltip-header";
+        const titleGroup = document.createElement("div");
+        titleGroup.className = "tooltip-title-group";
         const name = document.createElement("span");
         name.className = `tooltip-name quality-${rarity}`;
-        name.textContent = item.name;
+        name.textContent = presentation.displayName;
+        const meta = document.createElement("span");
+        meta.className = "tooltip-meta";
+        meta.textContent = presentation.detailLabel;
+        titleGroup.append(name, meta);
         const badge = document.createElement("span");
         badge.className = `tooltip-rarity quality-${rarity}`;
-        badge.textContent = RARITY_LABELS[rarity] ?? rarity;
-        header.append(name, badge);
-        const slotInfo = document.createElement("div");
-        slotInfo.className = "tooltip-slot";
-        slotInfo.textContent = item.slot ? (SLOT_LABELS[item.slot] ?? item.slot) : "物品";
+        badge.textContent = presentation.rarityLabel;
+        header.append(titleGroup, badge);
         const statsContainer = document.createElement("div");
         statsContainer.className = "tooltip-stats";
         for (const [key, value] of Object.entries(item.modifiers ?? {})) {
@@ -342,6 +343,12 @@ export function createInventoryPanel(options) {
             line.className = "stat-line stat-line--positive";
             line.textContent = `治疗 +${item.healAmount} 生命值`;
             statsContainer.append(line);
+        }
+        if (!statsContainer.childElementCount) {
+            const emptyStats = document.createElement("div");
+            emptyStats.className = "stat-line";
+            emptyStats.textContent = "无额外词条";
+            statsContainer.append(emptyStats);
         }
         const actions = document.createElement("div");
         actions.className = "tooltip-actions";
@@ -382,7 +389,7 @@ export function createInventoryPanel(options) {
             };
             actions.append(dropBtn);
         }
-        tooltip.append(header, slotInfo, statsContainer, actions);
+        tooltip.append(header, statsContainer, actions);
         return tooltip;
     }
     function createStatLine(key, value) {

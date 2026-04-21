@@ -354,3 +354,16 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Revalidate on Web that the minimap sits cleanly in the top-left HUD and that exploration/fog behavior reads well during movement
+
+- Goal:
+  Improve Web inventory readability without touching the current 1-slot storage model or expanding the work into GameScene/minimap changes.
+- Actions:
+  - Added `client/src/ui/itemPresentation.{js,ts}` as the shared front-end source for item names, category labels, rarity labels, and static icon-plus-badge presentation
+  - Reworked `client/src/ui/InventoryPanel.{js,ts}` so filled slots no longer render only the first character of the item name; they now show a stable glyph/badge presentation and use the shared presentation helper for tooltip headers and labels
+  - Updated `client/src/scenes/createGameClient.{js,ts}`, `client/src/results/ResultsOverlay.{js,ts}`, `client/src/ui/lobbyView.{js,ts}`, `client/src/styles/inventory.css`, `shared/src/data/items.ts`, `shared/src/data/weapons.ts`, and `server/src/inventory/catalog.ts` to tighten Chinese-facing naming and reduce obvious player-visible English leftovers
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+  - `npm.cmd run build --workspace server` passed
+- Follow-up:
+  - Revalidate on Web that the new inventory glyph/badge system reads clearly in the dense backpack grid and that settlement/lobby copy no longer leaks obvious English placeholders

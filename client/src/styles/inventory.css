@@ -47,6 +47,10 @@
   color: #8b949e;
 }
 
+.inventory-panel__title-wrap {
+  min-width: 0;
+}
+
 .inventory-panel__toggle {
   background: #238636;
   border: 2px solid #2ea043;
@@ -134,11 +138,7 @@
     font-size: 14px;
   }
 
-  .inventory-item-icon {
-    font-size: 18px;
-  }
-
-  .inventory-tooltip {
+.inventory-tooltip {
     position: fixed;
     top: 50%;
     left: 50%;
@@ -237,12 +237,12 @@
 
 .inventory-grid--backpack {
   grid-template-columns: repeat(var(--inventory-columns, 10), minmax(0, 1fr));
-  gap: 2px;
+  gap: 4px;
 }
 
 .inventory-slot {
   aspect-ratio: 1;
-  background: #0d1117;
+  background: linear-gradient(180deg, #111827 0%, #0d1117 100%);
   border: 2px solid #30363d;
   position: relative;
   display: flex;
@@ -252,7 +252,8 @@
   min-width: 24px;
   min-height: 24px;
   font-size: 12px;
-  padding: 2px;
+  padding: 4px;
+  overflow: hidden;
 }
 
 .inventory-slot:hover {
@@ -274,14 +275,51 @@
 .quality-rare { color: #60a5fa; border-color: #60a5fa; }
 .quality-epic { color: #c084fc; border-color: #c084fc; }
 
-.inventory-slot.quality-common { background: rgba(204, 204, 204, 0.1); }
-.inventory-slot.quality-uncommon { background: rgba(74, 222, 128, 0.1); }
-.inventory-slot.quality-rare { background: rgba(96, 165, 250, 0.1); }
-.inventory-slot.quality-epic { background: rgba(192, 132, 252, 0.1); }
+.inventory-slot.quality-common { background: linear-gradient(180deg, rgba(204, 204, 204, 0.12), rgba(13, 17, 23, 0.96)); }
+.inventory-slot.quality-uncommon { background: linear-gradient(180deg, rgba(74, 222, 128, 0.14), rgba(13, 17, 23, 0.96)); }
+.inventory-slot.quality-rare { background: linear-gradient(180deg, rgba(96, 165, 250, 0.14), rgba(13, 17, 23, 0.96)); }
+.inventory-slot.quality-epic { background: linear-gradient(180deg, rgba(192, 132, 252, 0.16), rgba(13, 17, 23, 0.96)); }
 
 .inventory-item-icon {
-  font-size: 16px;
-  font-weight: bold;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+
+.inventory-item-icon svg {
+  width: 70%;
+  height: 70%;
+}
+
+.inventory-item-icon__glyph {
+  font-size: 24px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inventory-item-badge {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(13, 17, 23, 0.92);
+  border: 1px solid currentColor;
+  color: inherit;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .inventory-slot-label {
@@ -321,11 +359,24 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 8px;
 }
 
 .tooltip-name {
   font-weight: bold;
   font-size: 14px;
+}
+
+.tooltip-title-group {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tooltip-meta {
+  color: #8b949e;
+  font-size: 11px;
 }
 
 .tooltip-rarity {

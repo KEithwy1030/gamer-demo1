@@ -24,7 +24,7 @@ interface ItemTemplate {
 const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   starter_sword: {
     templateId: "starter_sword",
-    name: "Starter Sword",
+    name: "制式长剑",
     kind: "weapon",
     rarity: "common",
     width: 2,
@@ -36,7 +36,7 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   },
   raider_blade: {
     templateId: "raider_blade",
-    name: "Raider Blade",
+    name: "突袭弯刃",
     kind: "weapon",
     rarity: "common",
     width: 2,
@@ -48,7 +48,7 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   },
   hunter_spear: {
     templateId: "hunter_spear",
-    name: "Hunter Spear",
+    name: "猎人长矛",
     kind: "weapon",
     rarity: "common",
     width: 1,
@@ -60,7 +60,7 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   },
   leather_hood: {
     templateId: "leather_hood",
-    name: "Leather Hood",
+    name: "皮质兜帽",
     kind: "equipment",
     rarity: "common",
     width: 2,
@@ -72,7 +72,7 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   },
   scavenger_coat: {
     templateId: "scavenger_coat",
-    name: "Scavenger Coat",
+    name: "拾荒者外衣",
     kind: "equipment",
     rarity: "uncommon",
     width: 2,
@@ -84,7 +84,7 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   },
   trail_greaves: {
     templateId: "trail_greaves",
-    name: "Trail Greaves",
+    name: "径行胫甲",
     kind: "equipment",
     rarity: "common",
     width: 2,
@@ -96,7 +96,7 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   },
   jade_idol: {
     templateId: "jade_idol",
-    name: "Jade Idol",
+    name: "古玉偶像",
     kind: "treasure",
     rarity: "rare",
     width: 1,
@@ -106,7 +106,7 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   },
   gold_pouch: {
     templateId: "gold_pouch",
-    name: "Gold Pouch",
+    name: "金币袋",
     kind: "currency",
     rarity: "common",
     width: 1,
@@ -116,7 +116,7 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   },
   health_potion: {
     templateId: "health_potion",
-    name: "回血药",
+    name: "回血药剂",
     kind: "consumable",
     rarity: "common",
     width: 1,

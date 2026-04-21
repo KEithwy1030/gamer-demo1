@@ -1,4 +1,5 @@
 import "../styles/results.css";
+import { translateItemName } from "../ui/itemPresentation";
 export function createResultsOverlay(options = {}) {
     const element = document.createElement("section");
     element.className = "results-overlay";
@@ -7,7 +8,7 @@ export function createResultsOverlay(options = {}) {
     card.className = "results-card";
     const eyebrow = document.createElement("p");
     eyebrow.className = "results-eyebrow";
-    eyebrow.textContent = "Match Settlement";
+    eyebrow.textContent = "行动结算";
     const title = document.createElement("h2");
     title.className = "results-title";
     const subtitle = document.createElement("p");
@@ -18,7 +19,7 @@ export function createResultsOverlay(options = {}) {
     itemsSection.className = "results-items";
     const itemsLabel = document.createElement("p");
     itemsLabel.className = "results-items-label";
-    itemsLabel.textContent = "Extracted Items";
+    itemsLabel.textContent = "带出物品";
     const itemsList = document.createElement("ul");
     itemsList.className = "results-items-list";
     const actions = document.createElement("div");
@@ -26,7 +27,7 @@ export function createResultsOverlay(options = {}) {
     const returnButton = document.createElement("button");
     returnButton.type = "button";
     returnButton.className = "results-dismiss";
-    returnButton.textContent = "Return to Lobby";
+    returnButton.textContent = "返回大厅";
     returnButton.addEventListener("click", async () => {
         if (returnButton.disabled) {
             return;
@@ -43,7 +44,7 @@ export function createResultsOverlay(options = {}) {
     const dismissButton = document.createElement("button");
     dismissButton.type = "button";
     dismissButton.className = "results-dismiss results-dismiss--secondary";
-    dismissButton.textContent = "Close";
+    dismissButton.textContent = "关闭";
     dismissButton.addEventListener("click", () => {
         api.hide();
     });
@@ -85,11 +86,11 @@ export function createResultsOverlay(options = {}) {
     }
 }
 function buildSubtitle(settlement) {
-    const reason = settlement.reason ?? (settlement.result === "success" ? "成功撤离" : "未知");
-    return `原因: ${reason}`;
+    const reason = settlement.reason ?? (settlement.result === "success" ? "成功撤离" : "未知原因");
+    return `原因：${reason}`;
 }
 function replaceStats(container, settlement) {
-    container.replaceChildren(createStatRow("存活时间", formatDuration(settlement.survivedSeconds)), createStatRow("击杀玩家", `${settlement.playerKills}`), createStatRow("击杀怪物", `${settlement.monsterKills}`), createStatRow("获取金币", `${settlement.extractedGold}`), createStatRow("寻宝价值", `${settlement.extractedTreasureValue}`));
+    container.replaceChildren(createStatRow("存活时间", formatDuration(settlement.survivedSeconds)), createStatRow("击杀玩家", `${settlement.playerKills}`), createStatRow("击杀怪物", `${settlement.monsterKills}`), createStatRow("带出金币", `${settlement.extractedGold}`), createStatRow("宝物价值", `${settlement.extractedTreasureValue}`));
 }
 function replaceItems(container, items) {
     if (items.length === 0) {
@@ -100,7 +101,7 @@ function replaceItems(container, items) {
     }
     container.replaceChildren(...items.map((item) => {
         const entry = document.createElement("li");
-        entry.textContent = item;
+        entry.textContent = translateItemName(item);
         return entry;
     }));
 }

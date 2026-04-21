@@ -1,6 +1,7 @@
 import type { SettlementPayload } from "../../../shared/src/index";
 import "../styles/results.css";
 import type { ResultOverlayState } from "./types";
+import { translateItemName } from "../ui/itemPresentation";
 
 export interface ResultsOverlayApi {
   readonly element: HTMLElement;
@@ -23,7 +24,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
 
   const eyebrow = document.createElement("p");
   eyebrow.className = "results-eyebrow";
-  eyebrow.textContent = "Match Settlement";
+  eyebrow.textContent = "行动结算";
 
   const title = document.createElement("h2");
   title.className = "results-title";
@@ -39,7 +40,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
 
   const itemsLabel = document.createElement("p");
   itemsLabel.className = "results-items-label";
-  itemsLabel.textContent = "Extracted Items";
+  itemsLabel.textContent = "带出物品";
 
   const itemsList = document.createElement("ul");
   itemsList.className = "results-items-list";
@@ -50,7 +51,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
   const returnButton = document.createElement("button");
   returnButton.type = "button";
   returnButton.className = "results-dismiss";
-  returnButton.textContent = "Return to Lobby";
+  returnButton.textContent = "返回大厅";
   returnButton.addEventListener("click", async () => {
     if (returnButton.disabled) {
       return;
@@ -68,7 +69,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
   const dismissButton = document.createElement("button");
   dismissButton.type = "button";
   dismissButton.className = "results-dismiss results-dismiss--secondary";
-  dismissButton.textContent = "Close";
+  dismissButton.textContent = "关闭";
   dismissButton.addEventListener("click", () => {
     api.hide();
   });
@@ -117,8 +118,8 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
 }
 
 function buildSubtitle(settlement: SettlementPayload): string {
-  const reason = settlement.reason ?? (settlement.result === "success" ? "成功撤离" : "未知");
-  return `原因: ${reason}`;
+  const reason = settlement.reason ?? (settlement.result === "success" ? "成功撤离" : "未知原因");
+  return `原因：${reason}`;
 }
 
 function replaceStats(container: HTMLElement, settlement: SettlementPayload): void {
@@ -126,8 +127,8 @@ function replaceStats(container: HTMLElement, settlement: SettlementPayload): vo
     createStatRow("存活时间", formatDuration(settlement.survivedSeconds)),
     createStatRow("击杀玩家", `${settlement.playerKills}`),
     createStatRow("击杀怪物", `${settlement.monsterKills}`),
-    createStatRow("获取金币", `${settlement.extractedGold}`),
-    createStatRow("寻宝价值", `${settlement.extractedTreasureValue}`)
+    createStatRow("带出金币", `${settlement.extractedGold}`),
+    createStatRow("宝物价值", `${settlement.extractedTreasureValue}`)
   );
 }
 
@@ -142,7 +143,7 @@ function replaceItems(container: HTMLElement, items: string[]): void {
   container.replaceChildren(
     ...items.map((item) => {
       const entry = document.createElement("li");
-      entry.textContent = item;
+      entry.textContent = translateItemName(item);
       return entry;
     })
   );

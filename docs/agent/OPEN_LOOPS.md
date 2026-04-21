@@ -105,3 +105,18 @@
   Revalidate pacing, readability, and usability in a live room before treating these values as accepted design.
 - Blocking reason:
   Compile/build success does not answer whether the current numbers feel correct.
+
+## 9. Web Item Presentation Still Needs Real Browser Acceptance
+
+- Symptom:
+  Inventory item readability and translation cleanup are now code-complete, but the result still needs a browser pass to confirm the new icon-plus-badge visual language is clear in dense grids.
+- Confirmed facts:
+  - `client/src/ui/itemPresentation.{js,ts}` now centralizes item naming, badge/category lookup, and static icon glyph selection
+  - `client/src/ui/InventoryPanel.{js,ts}` no longer falls back to the first character of `item.name`; each filled slot now renders an icon layer plus a category badge
+  - `client/src/results/ResultsOverlay.{js,ts}` now displays Chinese settlement labels and translates extracted item names before rendering
+  - `client/src/ui/lobbyView.{js,ts}` cleared the remaining obvious English control labels in the current lobby shell
+  - `server/src/inventory/catalog.ts`, `shared/src/data/items.ts`, and `shared/src/data/weapons.ts` now use aligned Chinese-facing item/weapon names for the active data sets
+- Next step:
+  Revalidate on Web that inventory slots are readable at a glance, category distinction is obvious, settlement item names are fully localized, and the current lobby copy no longer leaks obvious English placeholders.
+- Blocking reason:
+  Build success confirms integration, not final readability.
