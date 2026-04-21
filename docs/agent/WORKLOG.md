@@ -407,3 +407,15 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Treat this as the last hall polish pass unless a true blocking usability bug appears; move back to actual game progression work
+
+- Goal:
+  Start unifying the in-match experience with the Claude-led hall so entering gameplay no longer feels like switching to a different product.
+- Actions:
+  - Restyled `client/src/scenes/GameScene.{ts,js}` HUD clusters into framed warm panels for HP, timer/channel, combat line, and controls hint while keeping existing anchors and gameplay behavior intact
+  - Restyled `client/src/ui/Minimap.{ts,js}` away from the cold prototype blue-gray treatment and toward the hall palette with a tactical label and warmer frame/exploration colors
+  - Reworked `client/src/results/ResultsOverlay.{ts,js}` and `client/src/styles/results.css` to match the hall typography hierarchy, panel borders, and recovery-report tone
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Browser-check that the first in-game frame, minimap, and settlement screen now feel like the same game as the hall before moving on to deeper gameplay work

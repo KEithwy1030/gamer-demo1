@@ -42,14 +42,15 @@ export class Minimap {
     this.discovered = new Array(this.cols * this.rows).fill(false);
 
     this.container = this.scene.add.container(options.x, options.y).setScrollFactor(0).setDepth(220);
-    this.background = this.scene.add.rectangle(0, 0, this.mapWidth, this.mapHeight, 0x020617, 0.88).setOrigin(0, 0);
+    this.background = this.scene.add.rectangle(0, 0, this.mapWidth, this.mapHeight, 0x120e0b, 0.92).setOrigin(0, 0);
     this.exploredLayer = this.scene.add.graphics();
     this.frame = this.scene.add.graphics();
-    this.playerDot = this.scene.add.circle(0, 0, 4, 0xf8fafc, 1).setVisible(false);
-    this.label = this.scene.add.text(10, 8, "MAP", {
-      fontFamily: "monospace",
-      fontSize: "11px",
-      color: "#cbd5e1"
+    this.playerDot = this.scene.add.circle(0, 0, 4, 0xe8602c, 1).setVisible(false);
+    this.label = this.scene.add.text(10, 8, "侦察图 / 局部", {
+      fontFamily: "\"JetBrains Mono\", \"Noto Sans SC\", monospace",
+      fontSize: "10px",
+      color: "#b8ae96",
+      letterSpacing: 2
     });
 
     this.drawFrame();
@@ -105,7 +106,7 @@ export class Minimap {
         }
 
         this.discovered[index] = true;
-        this.exploredLayer.fillStyle(0x334155, 0.92);
+        this.exploredLayer.fillStyle(0x56462f, 0.92);
         this.exploredLayer.fillRect(
           col * (this.mapWidth / this.cols),
           row * (this.mapHeight / this.rows),
@@ -132,9 +133,11 @@ export class Minimap {
 
   private drawFrame(): void {
     this.frame.clear();
-    this.frame.lineStyle(2, 0x475569, 1);
+    this.frame.lineStyle(2, 0x4d4330, 1);
     this.frame.strokeRoundedRect(0, 0, this.mapWidth, this.mapHeight, 10);
-    this.frame.lineStyle(1, 0x1e293b, 0.9);
+    this.frame.lineStyle(1, 0x2b2519, 1);
     this.frame.strokeRoundedRect(4, 4, this.mapWidth - 8, this.mapHeight - 8, 8);
+    this.frame.lineStyle(1, 0xe8602c, 0.22);
+    this.frame.strokeRoundedRect(8, 8, this.mapWidth - 16, this.mapHeight - 16, 6);
   }
 }

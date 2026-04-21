@@ -1,9 +1,9 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-22",
-  "latest_session_work": "Ran one final Web-lobby polish pass focused on Chinese typography hierarchy instead of more structural redesign: restored the Claude font stack, kept the `南岭·42` room-code flavor, and retuned title/body/label/button sizing so the hall reads closer to the intended extraction-game atmosphere.",
+  "latest_session_work": "Started the first in-game UI bridge pass so the playable match no longer feels like a different product from the Claude-led lobby: the results overlay now uses the same warm tactical panel language, the minimap is restyled toward the lobby palette, and the active gameplay HUD now uses framed panels plus Claude-aligned typography and labels instead of plain prototype text.",
   "current_phase": "phase-b-p0-runtime-stabilization",
-  "current_priority": "Close the lobby branch with browser validation of the final typography pass, then move back to real gameplay progression instead of further hall iteration.",
+  "current_priority": "Browser-verify the first in-game UI bridge pass, then continue real gameplay progression instead of further lobby iteration.",
   "repo_bootstrap": [
     "MASTER_SPEC.md",
     "WORK_QUEUE.md",

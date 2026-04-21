@@ -524,28 +524,93 @@ export class GameScene extends Phaser.Scene {
 
   private syncHud(state: MatchViewState): void {
     const p = state.players.find(pp => pp.id === state.selfPlayerId);
-    if (this.hpBar && p) this.hpBar.label.setText(`生命值: ${p.hp} / ${p.maxHp}`);
+    if (this.hpBar && p) {
+      const hpRatio = Phaser.Math.Clamp(p.maxHp > 0 ? p.hp / p.maxHp : 0, 0, 1);
+      this.hpBar.track.clear();
+      this.hpBar.track.fillStyle(0x120e0b, 0.84);
+      this.hpBar.track.fillRoundedRect(20, 18, 272, 44, 10);
+      this.hpBar.track.lineStyle(2, 0x4d4330, 1);
+      this.hpBar.track.strokeRoundedRect(20, 18, 272, 44, 10);
+      this.hpBar.track.lineStyle(1, 0xe8602c, 0.16);
+      this.hpBar.track.strokeRoundedRect(26, 24, 260, 32, 8);
+
+      this.hpBar.fill.clear();
+      this.hpBar.fill.fillStyle(0x2b2519, 1);
+      this.hpBar.fill.fillRoundedRect(30, 34, 208, 10, 5);
+
+      let color = 0x7fa14a;
+      if (hpRatio < 0.3) color = 0xb8371f;
+      else if (hpRatio < 0.6) color = 0xd4b24c;
+
+      this.hpBar.fill.fillStyle(color, 1);
+      this.hpBar.fill.fillRoundedRect(30, 34, 208 * hpRatio, 10, 5);
+      this.hpBar.label.setText(`生命值 ${p.hp} / ${p.maxHp}`);
+    }
     if (this.timerText) this.timerText.setText(state.secondsRemaining == null ? "--:--" : formatSeconds(state.secondsRemaining));
-    if (this.roomCodeText) this.roomCodeText.setText(`终端ID: ${state.code || "------"}`);
-    if (this.combatText) this.combatText.setText(state.lastCombatText || "向中心广场推进，搜刮战利品，然后撤离。");
+    if (this.roomCodeText) this.roomCodeText.setText(`频道 ${state.code || "------"}`);
+    if (this.combatText) this.combatText.setText(state.lastCombatText || "向中心废土推进，搜刮战利品，然后撤离。");
   }
 
   private initHud(): void {
     const { width, height } = this.scale;
     this.hudContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(200);
-    const hpLabel = this.add.text(20, 20, "生命值: -- / --", { fontFamily: "monospace", fontSize: "14px", color: "#f8fafc", stroke: "#000", strokeThickness: 2 });
+    const hpLabel = this.add.text(34, 24, "生命值 -- / --", {
+      fontFamily: '"JetBrains Mono", "Noto Sans SC", monospace',
+      fontSize: "11px",
+      color: "#e8dfc8",
+      letterSpacing: 1
+    });
     this.hpBar = { track: this.add.graphics(), fill: this.add.graphics(), label: hpLabel };
-    this.timerText = this.add.text(width - 20, 20, "00:00", { fontFamily: "monospace", fontSize: "24px", color: "#fbbf24" }).setOrigin(1, 0);
-    this.roomCodeText = this.add.text(width - 20, 50, "终端ID: ------", { fontFamily: "monospace", fontSize: "12px", color: "#94a3b8" }).setOrigin(1, 0);
-    this.combatText = this.add.text(width / 2, height - 80, "", { fontFamily: "monospace", fontSize: "18px", color: "#fef3c7" }).setOrigin(0.5, 1);
-    this.controlsHint = this.add.text(width - 20, height - 20, navigator.maxTouchPoints > 0 ? "虚拟摇杆 移动 | 攻 攻击 | 技 技能 | 捡 拾取" : "WASD 移动 | 空格 攻击 | Q 技能 | E 拾取", { fontFamily: "monospace", fontSize: "12px", color: "#64748b" }).setOrigin(1, 1);
-    this.hudContainer.add([hpLabel, this.timerText, this.roomCodeText, this.combatText, this.controlsHint]);
+
+    const rightPlate = this.add.graphics();
+    rightPlate.fillStyle(0x120e0b, 0.84);
+    rightPlate.fillRoundedRect(width - 220, 18, 200, 52, 10);
+    rightPlate.lineStyle(2, 0x4d4330, 1);
+    rightPlate.strokeRoundedRect(width - 220, 18, 200, 52, 10);
+    rightPlate.lineStyle(1, 0xe8602c, 0.16);
+    rightPlate.strokeRoundedRect(width - 214, 24, 188, 40, 8);
+
+    this.timerText = this.add.text(width - 32, 22, "00:00", {
+      fontFamily: '"Noto Serif SC", "Noto Sans SC", serif',
+      fontSize: "24px",
+      color: "#d4b24c"
+    }).setOrigin(1, 0);
+    this.roomCodeText = this.add.text(width - 32, 49, "频道 ------", {
+      fontFamily: '"JetBrains Mono", "Noto Sans SC", monospace',
+      fontSize: "10px",
+      color: "#b8ae96",
+      letterSpacing: 1
+    }).setOrigin(1, 0);
+
+    const combatPlate = this.add.graphics();
+    combatPlate.fillStyle(0x120e0b, 0.84);
+    combatPlate.fillRoundedRect(width / 2 - 260, height - 86, 520, 42, 10);
+    combatPlate.lineStyle(1, 0x4d4330, 1);
+    combatPlate.strokeRoundedRect(width / 2 - 260, height - 86, 520, 42, 10);
+    this.combatText = this.add.text(width / 2, height - 55, "", {
+      fontFamily: '"Noto Sans SC", "Inter Tight", sans-serif',
+      fontSize: "15px",
+      color: "#e8dfc8",
+      align: "center"
+    }).setOrigin(0.5, 1);
+
+    const hintText = navigator.maxTouchPoints > 0
+      ? "摇杆移动 | 攻 进攻 | 技 技能 | 包 背囊"
+      : "WASD 移动 | 空格 进攻 | Q 技能 | E 交互 | I 背囊";
+    this.controlsHint = this.add.text(width - 20, height - 20, hintText, {
+      fontFamily: '"JetBrains Mono", "Noto Sans SC", monospace',
+      fontSize: "10px",
+      color: "#7d745e",
+      backgroundColor: "rgba(18, 14, 11, 0.82)",
+      padding: { x: 10, y: 6 }
+    }).setOrigin(1, 1);
+    this.hudContainer.add([this.hpBar.track, this.hpBar.fill, hpLabel, rightPlate, this.timerText, this.roomCodeText, combatPlate, this.combatText, this.controlsHint]);
     if (navigator.maxTouchPoints <= 0) {
       this.minimap = new Minimap({
         scene: this,
         parent: this.hudContainer,
         x: 20,
-        y: 58
+        y: 76
       });
     }
   }

@@ -24,7 +24,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
 
   const eyebrow = document.createElement("p");
   eyebrow.className = "results-eyebrow";
-  eyebrow.textContent = "行动结算";
+  eyebrow.textContent = "结算回收";
 
   const title = document.createElement("h2");
   title.className = "results-title";
@@ -40,7 +40,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
 
   const itemsLabel = document.createElement("p");
   itemsLabel.className = "results-items-label";
-  itemsLabel.textContent = "带出物品";
+  itemsLabel.textContent = "回收物资";
 
   const itemsList = document.createElement("ul");
   itemsList.className = "results-items-list";
@@ -69,7 +69,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
   const dismissButton = document.createElement("button");
   dismissButton.type = "button";
   dismissButton.className = "results-dismiss results-dismiss--secondary";
-  dismissButton.textContent = "关闭";
+  dismissButton.textContent = "关闭报告";
   dismissButton.addEventListener("click", () => {
     api.hide();
   });
@@ -119,23 +119,23 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
 
 function buildSubtitle(settlement: SettlementPayload): string {
   const reason = settlement.reason ?? (settlement.result === "success" ? "成功撤离" : "未知原因");
-  return `原因：${reason}`;
+  return `结算说明：${reason}`;
 }
 
 function replaceStats(container: HTMLElement, settlement: SettlementPayload): void {
   container.replaceChildren(
-    createStatRow("存活时间", formatDuration(settlement.survivedSeconds)),
+    createStatRow("生存时间", formatDuration(settlement.survivedSeconds)),
     createStatRow("击杀玩家", `${settlement.playerKills}`),
     createStatRow("击杀怪物", `${settlement.monsterKills}`),
-    createStatRow("带出金币", `${settlement.extractedGold}`),
-    createStatRow("宝物价值", `${settlement.extractedTreasureValue}`)
+    createStatRow("回收金币", `${settlement.extractedGold}`),
+    createStatRow("战利品估值", `${settlement.extractedTreasureValue}`)
   );
 }
 
 function replaceItems(container: HTMLElement, items: string[]): void {
   if (items.length === 0) {
     const empty = document.createElement("li");
-    empty.textContent = "未带出任何物品";
+    empty.textContent = "未回收任何物资";
     container.replaceChildren(empty);
     return;
   }
