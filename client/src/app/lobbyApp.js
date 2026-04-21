@@ -9,7 +9,7 @@ const createInitialState = (initialState) => ({
     roomCodeInput: "",
     currentRoom: null,
     errorMessage: null,
-    infoMessage: "你可以先用本地 mock 控制器试玩 UI，后续主会话只需接入网络层。",
+    infoMessage: "大厅壳层已切到新版设计，已开发流程继续使用真实房间逻辑。",
     isBusy: false,
     ...initialState,
 });
@@ -100,14 +100,14 @@ export class LobbyApp {
     requirePlayerName() {
         const playerName = normalizeName(this.state.playerName);
         if (!playerName) {
-            throw new Error("请输入玩家名后再继续。");
+            throw new Error("请先输入玩家代号。");
         }
         return playerName;
     }
     requireRoomState() {
         const roomState = this.state.currentRoom;
         if (!roomState) {
-            throw new Error("当前不在房间中。");
+            throw new Error("当前不在任何频道中。");
         }
         return roomState;
     }
@@ -134,7 +134,7 @@ export class LobbyApp {
         await this.runTask(async () => {
             const playerName = this.requirePlayerName();
             const roomState = await this.controller.createRoom(playerName);
-            this.consumeRoomState(roomState, "房间已创建，等待其他玩家加入。");
+            this.consumeRoomState(roomState, "频道已创建，等待其他玩家加入。");
         });
     }
     async handleJoinRoom() {
@@ -142,10 +142,10 @@ export class LobbyApp {
             const playerName = this.requirePlayerName();
             const roomCode = normalizeRoomCode(this.state.roomCodeInput);
             if (!roomCode) {
-                throw new Error("请输入 6 位房间号。");
+                throw new Error("请输入 6 位频道代码。");
             }
             const roomState = await this.controller.joinRoom(playerName, roomCode);
-            this.consumeRoomState(roomState, `已加入房间 ${roomState.roomCode}。`);
+            this.consumeRoomState(roomState, `已加入频道 ${roomState.roomCode}。`);
         });
     }
     async handleLeaveRoom() {
@@ -156,7 +156,7 @@ export class LobbyApp {
                 currentRoom: null,
                 screen: "lobby",
                 roomCodeInput: "",
-                infoMessage: "你已离开房间。",
+                infoMessage: "你已离开频道。",
             });
         });
     }

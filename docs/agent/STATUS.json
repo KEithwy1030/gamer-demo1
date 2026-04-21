@@ -1,9 +1,9 @@
 {
   "project": "gamer-demo1",
-  "updated_at": "2026-04-21",
-  "latest_session_work": "Added a shared item presentation layer for Web inventory/results/lobby surfaces, replaced first-letter inventory placeholders with icon-plus-badge item visuals, and tightened Chinese naming across client/shared/server item definitions without changing the current 1-slot inventory logic.",
+  "updated_at": "2026-04-22",
+  "latest_session_work": "Replaced the Web lobby shell with a Claude-Design-led tactical hall layout, using the imported gamer.zip structure as the visual source while preserving only the real room callbacks for create/join/leave/capacity/start and keeping undeveloped hall modules disabled.",
   "current_phase": "phase-b-p0-runtime-stabilization",
-  "current_priority": "Revalidate the new Web item presentation and translation cleanup in a real browser session, then continue with minimap acceptance and shared/client runtime drift reduction.",
+  "current_priority": "Browser-verify the new Claude-style lobby against the imported design language, then sync docs and push the lobby replacement batch to GitHub.",
   "repo_bootstrap": [
     "MASTER_SPEC.md",
     "WORK_QUEUE.md",
@@ -40,7 +40,8 @@
     "Added delayed desktop tooltip switching so crossing adjacent slots does not immediately steal focus from the current detail card",
     "Added a Web-only HUD minimap that reveals only explored area and the local player position without showing full-map information",
     "Added a front-end item presentation helper and replaced first-letter inventory tiles with icon-plus-badge item visuals",
-    "Normalized player-visible item naming across inventory, settlement, lobby copy, shared item data, server inventory templates, and front-end translation fallback"
+    "Normalized player-visible item naming across inventory, settlement, lobby copy, shared item data, server inventory templates, and front-end translation fallback",
+    "Rebased the active Web lobby shell onto the imported Claude Design hall structure, restored the topbar plus left-squad/center-hero/right-summary plus footer-ticker composition, and kept only the existing real room actions wired while leaving undeveloped hall modules disabled"
   ],
   "unfinished_high_priority": [
     "Normalize client/server consumption of shared contracts",

@@ -25,7 +25,7 @@ export function createNetworkLobbyController(socket, onMatchStarted) {
             socket.onMatchStarted((payload) => {
                 runtimeApi?.setState({
                     screen: "transitioning",
-                    infoMessage: "Match starting. Entering the arena...",
+                    infoMessage: "匹配已开始，正在进入作战地图...",
                     errorMessage: null
                 });
                 onMatchStarted?.(payload);

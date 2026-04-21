@@ -120,3 +120,16 @@
   Revalidate on Web that inventory slots are readable at a glance, category distinction is obvious, settlement item names are fully localized, and the current lobby copy no longer leaks obvious English placeholders.
 - Blocking reason:
   Build success confirms integration, not final readability.
+
+## 10. Claude Design Lobby Replacement Still Needs Browser Acceptance
+
+- Symptom:
+  The lobby shell has been reworked to follow the imported Claude Design layout, but it still needs a browser pass to judge fidelity against the provided design language instead of only compile/build proof.
+- Confirmed facts:
+  - `client/src/ui/lobbyView.{js,ts}` now renders a topbar, left squad panel, center deploy hero, right summary stack, and footer ticker that map to the imported `gamer.zip` hall structure
+  - only `create/join/leave/capacity/start` remain wired to the real lobby runtime; undeveloped hall modules stay disabled
+  - `client/src/styles/lobby.css` now uses the imported Claude Design CSS as the visual base with small project-specific additions for disabled states and banners
+- Next step:
+  Revalidate in the browser that the current lobby is now visually much closer to the Claude Design hall and does not regress the real room flow.
+- Blocking reason:
+  Build success does not answer the user's fidelity concern about whether the hall still looks like the imported design.

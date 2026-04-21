@@ -367,3 +367,17 @@
   - `npm.cmd run build --workspace server` passed
 - Follow-up:
   - Revalidate on Web that the new inventory glyph/badge system reads clearly in the dense backpack grid and that settlement/lobby copy no longer leaks obvious English placeholders
+
+- Goal:
+  Rebase the active Web lobby onto the imported Claude Design hall instead of continuing a loosely inspired rewrite.
+- Actions:
+  - Replaced `client/src/ui/lobbyView.{js,ts}` with a Claude-Design-led hall structure that restores the topbar, left squad panel, center deploy hero, right summary stack, and footer ticker composition
+  - Switched `client/src/styles/lobby.css` back to the imported hall CSS as the visual base and only added minimal project-specific disabled/banner rules
+  - Kept only the existing real room actions wired (`create/join/leave/capacity/start`) and left undeveloped hall modules in disabled presentation state
+  - Updated `client/src/app/lobbyApp.{js,ts}` and `client/src/network/createLobbyController.{js,ts}` copy so the hall status text matches the new shell
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+  - `npm.cmd run build --workspace server` passed
+- Follow-up:
+  - Revalidate in the browser that the imported hall now reads as the same Claude Design family and no longer looks like a separate GPT-authored redesign
