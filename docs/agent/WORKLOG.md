@@ -395,3 +395,15 @@
   - `npm.cmd run build --workspace server` passed
 - Follow-up:
   - Revalidate in the browser that the hall now feels materially closer to the imported Claude Design source in room-code flavor, typography, and first-screen composition
+
+- Goal:
+  Spend one last controlled pass on the Web lobby's visual soul without reopening structural churn.
+- Actions:
+  - Rebalanced `client/src/styles/lobby.css` around a Chinese-first hierarchy: `Noto Serif SC` for major hall titles and verdict numbers, `Noto Sans SC` for navigation/body/buttons, and `JetBrains Mono` for stamped system labels
+  - Increased the weight and scale of the brand, squad, deploy, room-code, CTA, and result typography so the page reads less like a generic web dashboard and more like a game hall
+  - Kept the existing Claude-led layout, room-code flavor, and minimal real-action wiring unchanged while only adjusting type roles and proportions
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Treat this as the last hall polish pass unless a true blocking usability bug appears; move back to actual game progression work

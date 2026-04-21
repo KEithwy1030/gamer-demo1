@@ -25,9 +25,10 @@
   --stamp: 1px solid rgba(232, 223, 200, 0.08);
   --stamp-hot: 1px solid rgba(232, 96, 44, 0.35);
 
-  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --mono: 'JetBrains Mono', 'Noto Sans SC', ui-monospace, monospace;
   --disp: 'Oswald', 'Arial Narrow', sans-serif;
-  --ui: 'Inter Tight', system-ui, sans-serif;
+  --display-cn: 'Noto Serif SC', 'Noto Sans SC', serif;
+  --ui: 'Noto Sans SC', 'Inter Tight', system-ui, sans-serif;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -36,7 +37,7 @@ html, body {
   background: var(--void);
   color: var(--bone);
   font-family: var(--ui);
-  font-size: 14px;
+  font-size: 15px;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
   overflow-x: hidden;
@@ -82,7 +83,7 @@ button { font-family: inherit; cursor: pointer; }
 .stamp-label {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--bone-low);
 }
@@ -117,18 +118,19 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--signal);
 }
 .brand-name {
-  font-family: var(--disp);
-  font-weight: 600;
-  font-size: 20px;
-  letter-spacing: 0.12em;
-  line-height: 1;
+  font-family: var(--display-cn);
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: 0.08em;
+  line-height: 1.02;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.35);
 }
 .brand-sub {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.24em;
+  font-family: var(--ui);
+  font-size: 11px;
+  letter-spacing: 0.16em;
   color: var(--bone-low);
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .nav {
@@ -136,10 +138,10 @@ button { font-family: inherit; cursor: pointer; }
 }
 .nav-item {
   padding: 10px 18px;
-  font-family: var(--disp);
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
+  font-family: var(--ui);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--bone-dim);
   background: transparent;
@@ -160,7 +162,7 @@ button { font-family: inherit; cursor: pointer; }
 .status-dot {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--mono); font-size: 10px;
-  letter-spacing: 0.18em; text-transform: uppercase;
+  letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--bone-low);
 }
 .status-dot::before {
@@ -189,8 +191,8 @@ button { font-family: inherit; cursor: pointer; }
   border: 1px solid rgba(232, 96, 44, 0.4);
 }
 .account-info { display: flex; flex-direction: column; gap: 2px; line-height: 1; }
-.account-name { font-family: var(--disp); font-weight: 600; letter-spacing: 0.1em; font-size: 13px; }
-.account-meta { font-family: var(--mono); font-size: 10px; color: var(--bone-low); letter-spacing: 0.1em; }
+.account-name { font-family: var(--ui); font-weight: 700; letter-spacing: 0.08em; font-size: 14px; }
+.account-meta { font-family: var(--mono); font-size: 10px; color: var(--bone-low); letter-spacing: 0.08em; }
 
 /* ----- main grid ----- */
 .grid {
@@ -235,7 +237,7 @@ button { font-family: inherit; cursor: pointer; }
   border-bottom: 1px solid var(--iron-600);
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--bone-low);
 }
@@ -250,16 +252,16 @@ button { font-family: inherit; cursor: pointer; }
   padding: 14px 16px 12px;
 }
 .squad-title {
-  font-family: var(--disp);
-  font-weight: 600;
-  font-size: 20px;
-  letter-spacing: 0.1em;
-  line-height: 1;
+  font-family: var(--display-cn);
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: 0.08em;
+  line-height: 1.04;
 }
 .squad-count {
   font-family: var(--mono); font-size: 11px;
   color: var(--signal);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
 }
 
 .room-code {
@@ -271,23 +273,24 @@ button { font-family: inherit; cursor: pointer; }
 }
 .room-code-label {
   font-family: var(--mono); font-size: 9px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.16em;
   color: var(--bone-low);
   text-transform: uppercase;
 }
 .room-code-value {
-  font-family: var(--mono);
+  font-family: var(--display-cn);
   font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.18em;
+  font-size: 18px;
+  letter-spacing: 0.12em;
   color: var(--bone);
+  font-variant-numeric: tabular-nums;
 }
 .room-code-copy {
   background: transparent;
   border: 1px solid var(--iron-500);
   color: var(--bone-dim);
   font-family: var(--mono); font-size: 9px;
-  letter-spacing: 0.16em; text-transform: uppercase;
+  letter-spacing: 0.12em; text-transform: uppercase;
   padding: 4px 8px;
   transition: all 0.12s;
 }
@@ -321,10 +324,10 @@ button { font-family: inherit; cursor: pointer; }
 }
 .slot-info { flex: 1; min-width: 0; line-height: 1.2; }
 .slot-name {
-  font-family: var(--disp);
-  font-weight: 600;
+  font-family: var(--ui);
+  font-weight: 700;
   font-size: 14px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--bone);
 }
 .slot-name.empty { color: var(--bone-low); font-style: italic; font-weight: 400; }
@@ -429,24 +432,23 @@ button { font-family: inherit; cursor: pointer; }
 .deploy-stamps span.hot { color: var(--signal); }
 
 .deploy-title {
-  font-family: var(--disp);
-  font-size: 72px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 0.9;
+  font-family: var(--display-cn);
+  font-size: 88px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 0.96;
   margin: 0;
   color: var(--bone);
   text-shadow: 0 2px 24px rgba(14, 11, 8, 0.8);
 }
 .deploy-sub {
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.16em;
+  font-family: var(--ui);
+  font-size: 14px;
+  letter-spacing: 0.06em;
   color: var(--bone-dim);
   margin-top: 10px;
-  text-transform: uppercase;
   max-width: 520px;
-  line-height: 1.5;
+  line-height: 1.7;
 }
 
 .deploy-meta-strip {
@@ -469,14 +471,14 @@ button { font-family: inherit; cursor: pointer; }
 .dm-cell:last-child { border-right: none; }
 .dm-label {
   font-family: var(--mono); font-size: 9px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--bone-low);
 }
 .dm-value {
-  font-family: var(--disp); font-weight: 600;
-  font-size: 18px;
-  letter-spacing: 0.06em;
+  font-family: var(--display-cn); font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.04em;
   color: var(--bone);
 }
 .dm-value.hot { color: var(--signal); }
@@ -496,10 +498,10 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--signal);
   color: var(--void);
   border: none;
-  font-family: var(--disp);
+  font-family: var(--display-cn);
   font-weight: 700;
-  font-size: 26px;
-  letter-spacing: 0.1em;
+  font-size: 28px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   text-align: left;
   display: grid;
@@ -523,7 +525,7 @@ button { font-family: inherit; cursor: pointer; }
   font-family: var(--mono);
   font-weight: 400;
   font-size: 10px;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.14em;
   margin-top: 4px;
   opacity: 0.7;
 }
@@ -551,9 +553,9 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--bone);
   border: none;
   border-left: 1px solid var(--iron-600);
-  font-family: var(--disp);
-  font-weight: 600;
-  font-size: 16px;
+  font-family: var(--ui);
+  font-weight: 700;
+  font-size: 15px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   text-align: left;
@@ -569,7 +571,7 @@ button { font-family: inherit; cursor: pointer; }
   font-family: var(--mono);
   font-weight: 400;
   font-size: 10px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.12em;
   color: var(--bone-low);
   margin-top: 4px;
 }
@@ -589,10 +591,10 @@ button { font-family: inherit; cursor: pointer; }
   gap: 10px;
 }
 .join-card-title {
-  font-family: var(--disp);
-  font-weight: 500;
+  font-family: var(--ui);
+  font-weight: 700;
   font-size: 13px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--bone-dim);
   display: flex; align-items: center; justify-content: space-between;
@@ -600,7 +602,7 @@ button { font-family: inherit; cursor: pointer; }
 .join-card-title .kicker {
   font-family: var(--mono); font-size: 9px;
   color: var(--bone-low);
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
 }
 
 .code-input-row {
@@ -612,10 +614,10 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--void);
   border: 1px solid var(--iron-600);
   color: var(--bone);
-  font-family: var(--mono);
+  font-family: var(--display-cn);
   font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.18em;
+  font-size: 16px;
+  letter-spacing: 0.12em;
   padding: 10px 12px;
   text-transform: uppercase;
   outline: none;
@@ -628,10 +630,10 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--iron-700);
   border: 1px solid var(--iron-500);
   color: var(--bone);
-  font-family: var(--disp);
+  font-family: var(--ui);
   font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   transition: all 0.12s;
 }
@@ -646,10 +648,10 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--iron-700);
   border: 1px solid var(--iron-600);
   color: var(--bone);
-  font-family: var(--disp);
+  font-family: var(--ui);
   font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   transition: all 0.12s;
 }
@@ -699,10 +701,10 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--bone-low);
 }
 .loadout-name {
-  font-family: var(--disp);
-  font-weight: 600;
+  font-family: var(--ui);
+  font-weight: 700;
   font-size: 14px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   line-height: 1.1;
   color: var(--bone);
 }
@@ -735,9 +737,9 @@ button { font-family: inherit; cursor: pointer; }
   display: flex; flex-direction: column; gap: 2px;
 }
 .stash-v {
-  font-family: var(--disp); font-weight: 600;
-  font-size: 18px;
-  letter-spacing: 0.06em;
+  font-family: var(--display-cn); font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.04em;
 }
 .stash-v.hot { color: var(--signal); }
 .stash-v.warn { color: var(--caution); }
@@ -763,10 +765,10 @@ button { font-family: inherit; cursor: pointer; }
   border-bottom: 1px solid var(--iron-600);
 }
 .run-verdict-text {
-  font-family: var(--disp);
-  font-weight: 600;
-  font-size: 20px;
-  letter-spacing: 0.1em;
+  font-family: var(--display-cn);
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: 0.08em;
   line-height: 1;
 }
 .run-verdict-text.extracted { color: var(--confirm); }
@@ -792,11 +794,11 @@ button { font-family: inherit; cursor: pointer; }
   padding: 6px 0;
 }
 .run-stat-v {
-  font-family: var(--disp);
-  font-weight: 600;
-  font-size: 18px;
+  font-family: var(--display-cn);
+  font-weight: 700;
+  font-size: 20px;
   color: var(--bone);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
 }
 .run-stat-l {
   font-family: var(--mono);

@@ -1,9 +1,9 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-22",
-  "latest_session_work": "Aligned the active Claude-led Web lobby more tightly to the imported source by restoring the exact room-code style (`南岭·42`), adding the original font stack to `client/index.html`, and switching both mock and real room-code generation/normalization to the place-name plus middot format.",
+  "latest_session_work": "Ran one final Web-lobby polish pass focused on Chinese typography hierarchy instead of more structural redesign: restored the Claude font stack, kept the `南岭·42` room-code flavor, and retuned title/body/label/button sizing so the hall reads closer to the intended extraction-game atmosphere.",
   "current_phase": "phase-b-p0-runtime-stabilization",
-  "current_priority": "Browser-verify the tightened Claude-style lobby against the imported design language, especially room-code flavor, fonts, and above-the-fold composition, then sync and push.",
+  "current_priority": "Close the lobby branch with browser validation of the final typography pass, then move back to real gameplay progression instead of further hall iteration.",
   "repo_bootstrap": [
     "MASTER_SPEC.md",
     "WORK_QUEUE.md",
