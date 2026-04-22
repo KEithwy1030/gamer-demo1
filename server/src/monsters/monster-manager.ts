@@ -250,7 +250,7 @@ export function handlePlayerSkill(
 
   switch (payload.skillId) {
     case "sword_dashSlash": {
-      const target = findAttackableMonster(room, player.state, 150, 60);
+      const target = findDashSlashMonster(room, player.state, 150);
       movePlayerByDirection(player.state, 150);
       return applySkillDamageToMonsters(
         room,
@@ -262,7 +262,7 @@ export function handlePlayerSkill(
     }
     case "blade_sweep":
       {
-        const targets = findAttackableMonsters(room, player.state, 110, 110);
+        const targets = findBladeSweepMonsters(room, player.state);
         movePlayerByDirection(player.state, -110);
         return applySkillDamageToMonsters(room, player, targets, scaleOutgoingDamage(player, 220 + player.state.attackPower, now), now);
       }
@@ -410,6 +410,34 @@ function findAttackableMonsters(
     ))
     .sort((a, b) => a.distance - b.distance)
     .map(({ monster }) => monster);
+}
+
+function findDashSlashMonster(
+  room: RuntimeRoom,
+  playerState: CombatPlayerState,
+  dashDistance: number
+): RuntimeMonster | undefined {
+  const facing = getFacingOrFallback(playerState.direction);
+  const start = { x: playerState.x, y: playerState.y };
+  const end = {
+    x: playerState.x + facing.x * dashDistance,
+    y: playerState.y + facing.y * dashDistance
+  };
+
+  return [...ensureMonsterState(room).values()]
+    .filter((monster) => monster.isAlive)
+    .map((monster) => {
+      const distance = distancePointToSegment(monster.x, monster.y, start.x, start.y, end.x, end.y);
+      const directDistance = Math.hypot(monster.x - start.x, monster.y - start.y);
+      return { monster, distance, directDistance };
+    })
+    .filter(({ distance, directDistance }) => distance <= 64 || directDistance <= 92)
+    .sort((a, b) => a.directDistance - b.directDistance)
+    .map(({ monster }) => monster)[0];
+}
+
+function findBladeSweepMonsters(room: RuntimeRoom, playerState: CombatPlayerState): RuntimeMonster[] {
+  return findAttackableMonsters(room, playerState, 148, 150);
 }
 
 function applySkillDamageToMonsters(
@@ -623,6 +651,29 @@ function normalizeDirection(direction: { x: number; y: number }): { x: number; y
     x: direction.x / length,
     y: direction.y / length
   };
+}
+
+function getFacingOrFallback(direction: { x: number; y: number }): { x: number; y: number } {
+  const normalized = normalizeDirection(direction);
+  return normalized.x === 0 && normalized.y === 0 ? { x: 0, y: 1 } : normalized;
+}
+
+function distancePointToSegment(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number
+): number {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const abLengthSq = (abx * abx) + (aby * aby);
+  if (abLengthSq === 0) return Math.hypot(px - ax, py - ay);
+  const t = clamp((((px - ax) * abx) + ((py - ay) * aby)) / abLengthSq, 0, 1);
+  const closestX = ax + abx * t;
+  const closestY = ay + aby * t;
+  return Math.hypot(px - closestX, py - closestY);
 }
 
 function movePlayerByDirection(

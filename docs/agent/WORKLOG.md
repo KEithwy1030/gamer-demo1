@@ -497,3 +497,15 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Real-browser verify whether the remaining weapon-skill feel issue is now down to tuning rather than obvious logic/range mismatch
+
+- Goal:
+  Remove the remaining sword/blade Q miss-feel caused by player movement, so forward dash and simultaneous backstep no longer invalidate obvious close-range hits.
+- Actions:
+  - Replaced sword Q target acquisition in `server/src/combat/combat-service.ts` with a dash-path segment check instead of a plain front-cone pick
+  - Replaced blade Q target acquisition in `server/src/combat/combat-service.ts` with a more forgiving sweep selection tuned for a simultaneous backstep
+  - Mirrored the same logic in `server/src/monsters/monster-manager.ts` so monster hits and player-vs-player hits stay aligned
+- Verification:
+  - `npm.cmd run build --workspace server` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Real-browser verify that sword Q and blade Q now feel reliably connectable at close range instead of sliding past obvious targets during self-movement
