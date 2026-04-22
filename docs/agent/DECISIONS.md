@@ -87,3 +87,21 @@
   The strongest evidence-backed root cause for joystick turn-time acceleration was packet-count-sensitive movement: turning generated more accepted input packets, which previously meant more movement steps per second.
 - Consequence:
   Client input cadence can no longer change effective move speed by itself. Future movement tuning should happen through tick rate and move-speed values, not packet throttling heuristics.
+
+## 2026-04-22: Web Is The Primary Acceptance Baseline For Demo 1
+
+- Decision:
+  Treat Web as the main acceptance surface for the current demo, while mobile remains an important regression surface rather than the main day-to-day validation baseline.
+- Why:
+  The user explicitly shifted current testing to Web only, and the project needs a stable, observable surface to close the main gameplay loop before further multi-platform polish.
+- Consequence:
+  Immediate priorities should center on browser-visible Web loop acceptance, return-to-lobby recovery, and Web gameplay readability before resuming deeper mobile-specific tuning.
+
+## 2026-04-22: Vite Must Prefer Authored TS Over Checked-In JS Siblings
+
+- Decision:
+  Pin Vite resolution so `.ts/.tsx` are resolved before `.js/.jsx`.
+- Why:
+  The repo still carries same-basename TS/JS siblings, and the drift risk remained a documented high-priority failure mode.
+- Consequence:
+  Authored TS should now win during normal Vite dev/build resolution, but the duplicate JS layer still needs later cleanup or formal artifact governance.

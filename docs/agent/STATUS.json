@@ -1,9 +1,9 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-22",
-  "latest_session_work": "Recovered the regressed in-match world backdrop so the map no longer collapses into a flat green sheet, added a minimal shared gameplay UI theme entry for HUD/minimap, and restored combat hit feedback after the feedback flash and hit-stop helpers were reimplemented in the active GameScene runtime path.",
-  "current_phase": "phase-b-p0-runtime-stabilization",
-  "current_priority": "Browser-verify the restored gameplay terrain/detail layer plus the shared HUD/minimap theme pass, then continue real gameplay progression instead of further lobby iteration.",
+  "latest_session_work": "Completed a Web-first weapon-skill stabilization pass, proved the backend full loop with scripts/test-loop.mjs, browser-verified lobby create/start flow on Web, and pinned Vite to resolve authored TS before checked-in JS siblings.",
+  "current_phase": "phase-c-p0-web-core-loop-alignment",
+  "current_priority": "Finish Web-first main-loop acceptance and keep docs/runtime truth aligned while reducing the remaining TS-vs-JS maintenance risk before any further polish work.",
   "repo_bootstrap": [
     "MASTER_SPEC.md",
     "WORK_QUEUE.md",
@@ -18,7 +18,7 @@
   "active_tracks": [
     "baseline-driven execution",
     "shared contract stability",
-    "LAN room flow stability",
+    "web-first main-loop acceptance",
     "manual full-loop validation",
     "mobile runtime correctness",
     "2D readability and gameplay feel"
@@ -31,41 +31,35 @@
     "Corrected stale documentation claims including the old 'not a git repository' statement",
     "Changed player movement authority to fixed server-tick movement using latest stored input intent",
     "Measured equal cumulative travel for steady input vs noisy multi-update-per-tick input in direct RoomStore verification",
-    "Verified Gemini CLI headless execution in this Codex session by forcing CI=1",
     "Aligned active frontend inventory rendering to real width/height and x/y slot placement",
-    "Improved mobile backpack tap targets and preserved true inventory column count with horizontal scrolling",
-    "Made desktop inventory tooltip hover continuous and attached it closer to the hovered slot",
-    "Moved the mobile inventory launcher out of the combat button zone",
-    "Detached desktop inventory tooltips from the transformed inventory panel by mounting them to document.body",
-    "Added delayed desktop tooltip switching so crossing adjacent slots does not immediately steal focus from the current detail card",
-    "Added a Web-only HUD minimap that reveals only explored area and the local player position without showing full-map information",
-    "Added a front-end item presentation helper and replaced first-letter inventory tiles with icon-plus-badge item visuals",
-    "Normalized player-visible item naming across inventory, settlement, lobby copy, shared item data, server inventory templates, and front-end translation fallback",
-    "Rebased the active Web lobby shell onto the imported Claude Design hall structure, restored the topbar plus left-squad/center-hero/right-summary plus footer-ticker composition, and kept only the existing real room actions wired while leaving undeveloped hall modules disabled",
-    "Aligned lobby room-code flavor and typography to the imported Claude Design source by using `南岭·42`-style codes on both mock and real room creation paths and loading the original hall font stack from `client/index.html`",
-    "Restored the richer in-match world backdrop chain in `GameScene` so the active map once again includes plaza/path/obstacle/region layers instead of only a flat `ground_pixel` fill",
-    "Added a minimal `client/src/ui/gameplayTheme.{ts,js}` entry and rewired the active gameplay HUD/minimap to share the same panel palette and font stacks"
+    "Rebased the active Web lobby shell onto the imported Claude Design hall structure and preserved the live room actions",
+    "Aligned lobby room-code flavor and typography to the imported Claude Design source",
+    "Restored the richer in-match world backdrop chain in GameScene and added a minimal gameplay theme entry for HUD/minimap",
+    "Stabilized sword/blade/spear Q behavior, hit models, and PvE damage bands so only spear keeps the guaranteed critical-skill identity",
+    "Ran node scripts/test-loop.mjs successfully through create room, join, match start, kill, loot, extract open, extract channel, and settlement",
+    "Browser-verified the active Web path through lobby load, room creation, and entering an in-match scene on http://localhost:5173/",
+    "Pinned client/vite.config.ts to resolve .ts/.tsx before .js/.jsx so authored TS wins during Vite module resolution"
   ],
   "unfinished_high_priority": [
     "Normalize client/server consumption of shared contracts",
-    "Eliminate or intentionally manage the client TS/JS sibling runtime drift",
+    "Finish browser-visible Web loop validation for settlement -> return to lobby -> next match readiness",
+    "Decide whether to delete, generate, or formally retain the checked-in client JS siblings after Vite resolution pinning",
     "Revalidate mobile joystick turning behavior on a real device after the server-tick fix",
-    "Revalidate frontend inventory slot placement and mobile launcher behavior in a real browser session",
-    "Revalidate frontend return-to-lobby flow after settlement",
     "Judge live feel for extract pacing, monster density, corpse timing, and current inventory size",
     "Decide obstacle collision authority"
   ],
   "integration_status": {
-    "backend_e2e_test_loop": "documented",
+    "backend_e2e_test_loop": "passed via scripts/test-loop.mjs on 2026-04-22",
     "server_movement_authority": "tick-based using stored input intent",
     "frontend_inventory_layout": "active path aligned to dynamic grid, top-center mobile launcher, and body-level desktop tooltip overlay",
-    "manual_frontend_acceptance": "still incomplete",
-    "canonical_docs": "aligned to current baseline",
-    "client_runtime_resolution": "drift risk remains",
+    "manual_frontend_acceptance": "Web partial pass complete for lobby create/start; full browser-visible settlement return still incomplete",
+    "canonical_docs": "being realigned to current Web-first acceptance truth",
+    "client_runtime_resolution": "Vite now prefers TS over JS siblings, but duplicate files still exist and remain a maintenance risk",
     "shared_contract_surface": "split between runtimes",
     "lobby_room_code_flavor": "place-name plus middot format on mock and real room creation",
     "gameplay_ui_theme": "HUD and minimap now share a minimal gameplay theme entry",
-    "world_backdrop_chain": "active path restored with backdrop/plaza/path-patch/obstacle/region layers"
+    "world_backdrop_chain": "active path restored with backdrop/plaza/path-patch/obstacle/region layers",
+    "weapon_skill_balance": "sword and blade avoid crit identity while spear remains the deliberate crit skill"
   },
   "runtime_defaults": {
     "client_dev_host_port": "0.0.0.0:5173",

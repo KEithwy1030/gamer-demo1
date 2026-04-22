@@ -546,3 +546,20 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Real-browser verify that sword/blade no longer flatten normal monsters by raw skill burst and that spear still feels like the deliberate high-payoff skill without deleting elites
+
+- Goal:
+  Re-align docs/agent to the real project stage, prove the current Web-first loop state, and reduce the documented TS-vs-JS runtime drift risk before further polish work.
+- Actions:
+  - Updated `docs/agent/STATUS.json` from stale phase-B language to the current Web-first phase-C loop-alignment reality
+  - Updated `docs/agent/PROJECT_STATE.md`, `docs/agent/OPEN_LOOPS.md`, and `docs/agent/DECISIONS.md` to reflect the current acceptance baseline, backend loop proof, and reduced-but-not-eliminated TS/JS duplicate-file risk
+  - Ran `node scripts/test-loop.mjs` successfully through create room, join, match start, kill, loot, extract open, extract channel, and settlement
+  - Revalidated browser-side Web flow on `http://localhost:5173/` for lobby load, room creation, and entering an in-match scene
+  - Pinned `client/vite.config.ts` to resolve `.ts/.tsx` before `.js/.jsx`
+- Verification:
+  - `node scripts/test-loop.mjs` passed
+  - `npm.cmd run build --workspace client` passed
+  - `npm.cmd run build --workspace server` passed
+  - Playwright browser verification passed for lobby load -> create room -> start match scene
+- Follow-up:
+  - Browser-visible settlement -> return-to-lobby -> next-match readiness still needs explicit proof
+  - TS/JS duplicate-file governance is reduced from runtime-resolution risk to a remaining repo-maintenance decision

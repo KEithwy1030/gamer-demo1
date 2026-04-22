@@ -62,6 +62,7 @@ See [docs/agent/CANONICAL_BASELINE.md](/E:/CursorData/gamer/docs/agent/CANONICAL
 ## Validation State
 
 - `scripts/test-loop.mjs` exists for backend main-loop validation.
+- `node scripts/test-loop.mjs` now passes the backend full loop through room creation, join, match start, kill, loot, extract open, extract channel, and settlement.
 - Server-side player movement is now applied on the fixed player sync tick using the latest stored input vector, not directly on each move packet.
 - A direct `RoomStore` verification script measured equal cumulative travel (`300`) for steady input and noisy multi-update-per-tick input over `20` ticks at `50ms`, which closes the packet-cadence root cause for turn-time acceleration at the authority layer.
 - The active frontend inventory path now renders backpack slots from the real `inventory.width x inventory.height` model and places items by `x/y`, instead of hardcoding `16` sequential slots.
@@ -75,11 +76,24 @@ See [docs/agent/CANONICAL_BASELINE.md](/E:/CursorData/gamer/docs/agent/CANONICAL
 - The active frontend inventory path now also uses a shared item presentation layer for names and static icon-plus-badge rendering, so filled slots no longer degrade to a single first-letter placeholder.
 - Player-visible item/weapon naming has been tightened across the current front-end presentation helper plus the active `server/src/inventory/catalog.ts` and `shared/src/data/items.ts` / `shared/src/data/weapons.ts` definitions.
 - Mobile inventory entry has been moved away from the top-right HUD, and mobile backpack layout now preserves true column count with horizontal scrolling instead of shrinking `10` columns into tiny tap targets.
-- Manual frontend acceptance remains incomplete for lobby recovery, real-device controls, and final feel tuning.
+- Browser-backed Web acceptance has now been revalidated for:
+  - lobby load
+  - room creation
+  - entering an in-match scene from the live lobby
+- Manual frontend acceptance still remains incomplete for:
+  - settlement overlay visibility in the real browser path
+  - return-to-lobby after settlement
+  - next-match replay readiness from the same browser session
+  - real-device controls and final feel tuning
 - Obstacles are still visually informative but not authoritative collision blockers.
 - The most important implementation drift today is not feature count. It is source-of-truth drift between:
   - client TS vs checked-in JS siblings
   - client `shared/src` consumption vs server `shared/dist` consumption
+- `client/vite.config.ts` now pins resolution order so Vite prefers `.ts/.tsx` over `.js/.jsx`, which reduces but does not fully remove the duplicate-file maintenance risk.
 
 - The active `GameScene` world path once again rebuilds a richer backdrop with center plaza, dirt/path patches, obstacle markers, region labels, extract beacon rings, and world framing instead of only a flat green `ground_pixel` fill.
 - `client/src/ui/gameplayTheme.{ts,js}` now exists as the minimum shared in-match UI token/helper entry for Phaser-rendered HUD and minimap surfaces.
+- The current Web combat baseline now has weapon-differentiated Q skills:
+  - sword: dash-path hit model, mobility-first, no crit identity
+  - blade: trigger-time fan sweep plus simultaneous retreat, no crit identity
+  - spear: deliberate windup plus guaranteed crit identity

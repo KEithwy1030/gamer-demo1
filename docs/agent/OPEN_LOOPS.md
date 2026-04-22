@@ -1,17 +1,17 @@
 # Open Loops
 
-## 1. Client Runtime Still Has TS-vs-JS Drift Risk
+## 1. Client Runtime Still Has TS-vs-JS Drift Risk, But It Is Now Reduced
 
 - Symptom:
   The client entry is `main.ts`, but many extensionless imports can still resolve into checked-in `.js` siblings.
 - Confirmed facts:
   - `client/src/` currently contains 24 `.ts` files and 24 same-basename `.js` files
   - `main.ts` imports `./app`, `./network`, `./results`, and `./scenes` without extensions
-  - `client/vite.config.ts` currently only sets host/port and does not pin `.ts/.tsx` ahead of `.js/.jsx`
+  - `client/vite.config.ts` now pins resolution to `.ts/.tsx` before `.js/.jsx`, which lowers the chance of authored TS being silently bypassed during Vite dev/build resolution
 - Next step:
-  Decide whether to remove the sibling JS layer, explicitly configure resolution, or make the JS mirror an intentional generated artifact.
+  Decide whether to remove the sibling JS layer, explicitly generate it, or formally keep it as an intentional artifact with one documented rebuild path.
 - Blocking reason:
-  Until this is settled, "TS changed but runtime did not" remains a credible failure mode.
+  Runtime drift is less likely than before, but duplicate files still create maintenance and review ambiguity.
 
 ## 2. Shared Consumption Is Split Between Client And Server
 
@@ -39,17 +39,18 @@
 - Blocking reason:
   The authority-layer bug is closed by measurement, but touch-path feel still needs browser/device proof.
 
-## 4. Frontend Return-To-Lobby Still Needs Explicit Revalidation
+## 4. Frontend Return-To-Lobby Still Needs Explicit Browser Revalidation
 
 - Symptom:
-  The backend gameplay loop is covered by automation, but the user-visible browser flow after settlement is not fully revalidated.
+  The backend gameplay loop is now proven by automation, but the user-visible browser flow after settlement is not fully revalidated.
 - Confirmed facts:
-  - `scripts/test-loop.mjs` passes the backend main loop through settlement
-  - prior notes still report incomplete manual verification for the post-settlement lobby recovery path
+  - `node scripts/test-loop.mjs` passed on `2026-04-22` through create room, join, match start, kill, loot, extract open, extract channel, and settlement
+  - browser verification has been repeated for lobby load, room creation, and entering an in-match scene from the active Web client
+  - the missing browser proof is still the settlement overlay -> return to lobby -> next-match readiness path
 - Next step:
-  Run a browser-visible dual-client/manual check for settlement -> return to lobby -> next match readiness.
+  Run a browser-visible Web check for settlement -> return to lobby -> next match readiness.
 - Blocking reason:
-  Automation covers backend flow, not the full UI transition.
+  Backend flow is closed, but the final browser-visible transition still lacks explicit proof.
 
 ## 5. Frontend Multi-Platform Acceptance Still Needs Real Browser Proof
 
@@ -98,6 +99,10 @@
   Several gameplay values exist in code, but their real in-room feel is not yet closed.
 - Confirmed facts:
   - weapon reach is currently sword `116`, blade `128`, spear `180`
+  - weapon Q skills have been reworked and need fresh feel validation against the current balance:
+    - sword uses a dash-path hit model
+    - blade uses a trigger-time fan sweep
+    - spear keeps the only guaranteed critical payoff
   - extract opens at `180s` and channels for `5s`
   - monsters currently spawn as `40` normals plus `3` elites, leave corpses for `10s`, and respawn after `60s`
   - inventory is currently `10 x 6`, not a larger grid experiment from historical notes
