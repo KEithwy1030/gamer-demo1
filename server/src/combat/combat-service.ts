@@ -131,7 +131,7 @@ export function resolvePlayerSkillCast(
     }
     case "blade_sweep": {
       requireSkillCooldown(combatState, payload.skillId, now, 4000);
-      const targets = selectTargetsInRadius(room, caster, caster.state!.x, caster.state!.y, 124);
+      const targets = selectAttackTargets(room, caster, "blade", 148, 170);
       movePlayerByDirection(caster.state!, -110);
       return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, 55 + attackPowerBonus, now), now);
     }
@@ -352,23 +352,6 @@ function selectDashSlashTargets(
     .map(({ target }) => target);
 }
 
-function selectTargetsInRadius(
-  room: RuntimeRoom,
-  attacker: RuntimePlayer,
-  centerX: number,
-  centerY: number,
-  radius: number
-): RuntimePlayer[] {
-  return [...room.players.values()]
-    .filter((target) => target.id !== attacker.id && target.state?.isAlive)
-    .map((target) => ({
-      target,
-      distance: Math.hypot(target.state!.x - centerX, target.state!.y - centerY)
-    }))
-    .filter(({ distance }) => distance <= radius + PLAYER_HIT_RADIUS)
-    .sort((a, b) => a.distance - b.distance)
-    .map(({ target }) => target);
-}
 
 function movePlayerByDirection(
   state: {

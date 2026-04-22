@@ -592,8 +592,15 @@ function attachRoomHandlers(socket: GameSocket): void {
       }
 
       const context = roomStore.getRoomByCodeSnapshot(roomCode);
+      const skillOriginState = context.room.players.get(session.playerId)?.state
+        ? {
+          x: context.room.players.get(session.playerId)!.state!.x,
+          y: context.room.players.get(session.playerId)!.state!.y,
+          direction: { ...context.room.players.get(session.playerId)!.state!.direction }
+        }
+        : undefined;
       const resolution = resolvePlayerSkillCast(context.room, session.playerId, payload);
-      const monsterOutcome = handleMonsterPlayerSkill(context, session.playerId, payload);
+      const monsterOutcome = handleMonsterPlayerSkill(context, session.playerId, payload, skillOriginState);
 
       for (const event of resolution.combatEvents) {
         const interruption = interruptPlayerExtract(context.room, event.targetId, "damaged");

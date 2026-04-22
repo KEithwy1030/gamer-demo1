@@ -237,7 +237,8 @@ export function handlePlayerAttack(
 export function handlePlayerSkill(
   context: RuntimeContext,
   playerId: string,
-  payload: SkillCastPayload
+  payload: SkillCastPayload,
+  originState?: CombatPlayerState
 ): PlayerSkillOutcome | undefined {
   const room = context.room;
   const player = room.players.get(playerId);
@@ -247,10 +248,15 @@ export function handlePlayerSkill(
 
   const now = Date.now();
   syncPlayerCombatState(player, now);
+  const skillSourceState: CombatPlayerState = originState ?? {
+    x: player.state.x,
+    y: player.state.y,
+    direction: { ...player.state.direction }
+  };
 
   switch (payload.skillId) {
     case "sword_dashSlash": {
-      const targets = findDashSlashMonsters(room, player.state, 150);
+      const targets = findDashSlashMonsters(room, skillSourceState, 150);
       movePlayerByDirection(player.state, 150);
       return applySkillDamageToMonsters(
         room,
@@ -262,12 +268,12 @@ export function handlePlayerSkill(
     }
     case "blade_sweep":
       {
-        const targets = findMonstersInRadius(room, player.state.x, player.state.y, 124);
+        const targets = findAttackableMonsters(room, skillSourceState, 148, 170);
         movePlayerByDirection(player.state, -110);
         return applySkillDamageToMonsters(room, player, targets, scaleOutgoingDamage(player, 220 + player.state.attackPower, now), now);
       }
     case "spear_heavyThrust": {
-      const target = findAttackableMonster(room, player.state, 160, 50);
+      const target = findAttackableMonster(room, skillSourceState, 160, 50);
       return applySkillDamageToMonsters(
         room,
         player,
@@ -433,18 +439,6 @@ function findDashSlashMonsters(
     })
     .filter(({ distance, directDistance }) => distance <= 72 || directDistance <= 96)
     .sort((a, b) => a.directDistance - b.directDistance)
-    .map(({ monster }) => monster);
-}
-
-function findMonstersInRadius(room: RuntimeRoom, centerX: number, centerY: number, radius: number): RuntimeMonster[] {
-  return [...ensureMonsterState(room).values()]
-    .filter((monster) => monster.isAlive)
-    .map((monster) => ({
-      monster,
-      distance: Math.hypot(monster.x - centerX, monster.y - centerY)
-    }))
-    .filter(({ distance }) => distance <= radius + MONSTER_CONTACT_RADIUS)
-    .sort((a, b) => a.distance - b.distance)
     .map(({ monster }) => monster);
 }
 

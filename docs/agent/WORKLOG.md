@@ -521,3 +521,15 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Real-browser verify that the remaining sword/blade feel issue is now only fine tuning rather than a mismatch between intended and actual hit model
+
+- Goal:
+  Fix the last blade-Q inconsistency where monster hits were being resolved from the post-movement player position instead of the trigger-time sweep center, making obvious close-range casts feel randomly empty.
+- Actions:
+  - Captured a pre-cast player-state snapshot in `server/src/index.ts` before mutating skill movement
+  - Updated `server/src/monsters/monster-manager.ts` so blade-Q monster targeting now uses the trigger-time state snapshot and a fan-shaped hit selection instead of a drifting center/radius approximation
+  - Updated `server/src/combat/combat-service.ts` so player-vs-player blade-Q logic stays aligned with the same fan model
+- Verification:
+  - `npm.cmd run build --workspace server` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Real-browser verify that blade Q now consistently connects on monsters already standing in melee range when cast from a stationary position
