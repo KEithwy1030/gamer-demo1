@@ -12,6 +12,7 @@ import {
   createMobileControls
 } from "../input/mobileControls";
 import { Minimap } from "../ui/Minimap";
+import { drawPanelFrame, GAMEPLAY_THEME } from "../ui/gameplayTheme";
 const _GameScene = class _GameScene extends Phaser.Scene {
   constructor() {
     super(_GameScene.KEY);
@@ -154,6 +155,10 @@ const _GameScene = class _GameScene extends Phaser.Scene {
     const gCtx = gCanvas.getContext("2d");
     gCtx.fillStyle = "#4a7c3f";
     gCtx.fillRect(0, 0, 64, 64);
+    for (let i = 0; i < 64; i += 1) {
+      gCtx.fillStyle = Math.random() > 0.5 ? "#3d6b34" : "#5a9e50";
+      gCtx.fillRect(Math.floor(Math.random() * 64), Math.floor(Math.random() * 64), 2, 2);
+    }
     this.textures.addCanvas("ground_pixel", gCanvas);
     const crateCanvas = document.createElement("canvas");
     crateCanvas.width = 48;
@@ -477,7 +482,7 @@ const _GameScene = class _GameScene extends Phaser.Scene {
       onInventory: () => this.handleToggleInventory()
     });
   }
-  syncWorld(state) {
+  syncWorldLegacy(state) {
     this.minimap?.syncWorldBounds(state.width, state.height);
     const centerX = state.width / 2;
     const centerY = state.height / 2;
@@ -489,6 +494,124 @@ const _GameScene = class _GameScene extends Phaser.Scene {
       this.extractLabel = this.add.text(centerX, centerY + 140, "", { fontFamily: "monospace", fontSize: "16px", color: "#2dd4bf" }).setOrigin(0.5).setDepth(-4);
     }
     this.extractLabel.setText(this.extractState.isOpen ? "\u64A4\u79BB\u70B9\u5DF2\u5F00\u542F" : "\u64A4\u79BB\u70B9\u672A\u5F00\u542F");
+  }
+  syncWorld(state) {
+    this.minimap?.syncWorldBounds(state.width, state.height);
+    const nextSignature = `${state.width}x${state.height}`;
+    if (this.worldSignature !== nextSignature) {
+      this.buildWorldBackdrop(state);
+      this.worldSignature = nextSignature;
+    }
+    const centerX = state.width / 2;
+    const centerY = state.height / 2;
+    if (this.extractOuterRing) {
+      this.extractOuterRing.setPosition(centerX, centerY);
+    } else {
+      this.extractOuterRing = this.add.circle(centerX, centerY, 126, GAMEPLAY_THEME.colors.signal, 0.1);
+      this.extractOuterRing.setStrokeStyle(10, GAMEPLAY_THEME.colors.accent, 0.32).setDepth(-6);
+    }
+    if (this.extractInnerRing) {
+      this.extractInnerRing.setPosition(centerX, centerY);
+    } else {
+      this.extractInnerRing = this.add.circle(centerX, centerY, 82, GAMEPLAY_THEME.colors.signal, 0.08);
+      this.extractInnerRing.setStrokeStyle(4, GAMEPLAY_THEME.colors.bone, 0.2).setDepth(-5);
+    }
+    if (!this.extractBeacon) {
+      this.extractBeacon = this.createExtractBeacon(centerX, centerY);
+    } else {
+      this.extractBeacon.setPosition(centerX, centerY - 8);
+    }
+    if (!this.extractLabel) {
+      this.extractLabel = this.add.text(centerX, centerY + 112, "\u64A4\u79BB\u70B9", {
+        fontFamily: GAMEPLAY_THEME.fonts.display,
+        fontSize: "20px",
+        color: "#e8dfc8",
+        stroke: "#16130f",
+        strokeThickness: 6
+      });
+      this.extractLabel.setOrigin(0.5).setDepth(-4);
+    }
+    this.extractLabel.setText(this.extractState.isOpen ? "\u64A4\u79BB\u70B9\u5DF2\u5F00\u542F" : "\u64A4\u79BB\u70B9\u672A\u5F00\u542F");
+  }
+  buildWorldBackdrop(state) {
+    this.terrainLayer?.destroy();
+    this.detailLayer?.destroy();
+    this.obstacleLayer?.destroy(true);
+    this.worldFrame?.destroy();
+    this.extractOuterRing?.destroy();
+    this.extractInnerRing?.destroy();
+    this.extractBeacon?.destroy(true);
+    this.extractLabel?.destroy();
+    this.regionLabels.forEach((label) => label.destroy());
+    this.regionLabels = [];
+    const width = state.width;
+    const height = state.height;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    this.terrainLayer = this.add.tileSprite(centerX, centerY, width, height, "ground_pixel");
+    this.terrainLayer.setDepth(-40);
+    this.detailLayer = this.add.graphics();
+    this.detailLayer.setDepth(-35);
+    this.detailLayer.fillStyle(4937059, 0.28);
+    this.detailLayer.fillCircle(centerX, centerY, 160);
+    this.detailLayer.lineStyle(6, 2042167, 0.72);
+    this.detailLayer.strokeCircle(centerX, centerY, 160);
+    for (let i = 0; i < 26; i += 1) {
+      const px = Math.random() * width;
+      const py = Math.random() * height;
+      const patchWidth = Phaser.Math.Between(72, 132);
+      const patchHeight = Phaser.Math.Between(42, 84);
+      this.detailLayer.fillStyle(12886874, 0.12);
+      this.detailLayer.fillEllipse(px, py, patchWidth, patchHeight);
+    }
+    this.obstacleLayer = this.add.container(0, 0);
+    this.obstacleLayer.setDepth(-12);
+    for (const obstacle of getObstacleLayouts(width, height)) {
+      this.obstacleLayer.add(this.createObstacle(obstacle));
+    }
+    const worldFrame = this.add.graphics();
+    worldFrame.setDepth(-15);
+    worldFrame.lineStyle(16, 1120295, 1);
+    worldFrame.strokeRect(0, 0, width, height);
+    worldFrame.lineStyle(4, 3621201, 1);
+    worldFrame.strokeRect(8, 8, width - 16, height - 16);
+    this.worldFrame = worldFrame;
+    this.regionLabels = [
+      this.createRegionLabel(width * 0.18, height * 0.16, "\u62FE\u8352\u8005\u5C71\u810A"),
+      this.createRegionLabel(width * 0.82, height * 0.15, "\u6DF9\u6CA1\u4E4B\u5730"),
+      this.createRegionLabel(centerX, centerY - 182, "\u4E2D\u592E\u4E2D\u7EE7\u7AD9"),
+      this.createRegionLabel(width * 0.18, height * 0.84, "\u8D27\u8FD0\u5806\u573A"),
+      this.createRegionLabel(width * 0.84, height * 0.84, "\u7834\u788E\u4F4E\u5730")
+    ];
+  }
+  createObstacle(layout) {
+    const container = this.add.container(layout.x, layout.y);
+    container.setRotation(layout.rotation ?? 0);
+    const assetKey = layout.kind === "barricade" ? "crate" : layout.kind;
+    const img = this.add.image(0, 0, assetKey);
+    img.setDisplaySize(layout.width, layout.height);
+    container.add(img);
+    return container;
+  }
+  createRegionLabel(x, y, text) {
+    const label = this.add.text(x, y, text, {
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: "22px",
+      color: "#e8dfc8",
+      stroke: "#16130f",
+      strokeThickness: 8
+    });
+    label.setOrigin(0.5).setAlpha(0.34).setDepth(-11);
+    return label;
+  }
+  createExtractBeacon(x, y) {
+    const beacon = this.add.container(x, y - 8);
+    beacon.setDepth(-4);
+    const glow = this.add.circle(0, -12, 32, GAMEPLAY_THEME.colors.accent, 0.12);
+    const img = this.add.image(0, 0, "beacon");
+    img.setDisplaySize(64, 64);
+    beacon.add([glow, img]);
+    return beacon;
   }
   syncPlayers(state) {
     state.players.forEach((p) => {
@@ -525,7 +648,7 @@ const _GameScene = class _GameScene extends Phaser.Scene {
       this.dropMarkers.delete(id);
     }
   }
-  syncHud(state) {
+  syncHudLegacy(state) {
     const p = state.players.find((pp) => pp.id === state.selfPlayerId);
     if (this.hpBar && p) {
       const hpRatio = Phaser.Math.Clamp(p.maxHp > 0 ? p.hp / p.maxHp : 0, 0, 1);
@@ -550,7 +673,7 @@ const _GameScene = class _GameScene extends Phaser.Scene {
     if (this.roomCodeText) this.roomCodeText.setText(`\u9891\u9053 ${state.code || "------"}`);
     if (this.combatText) this.combatText.setText(state.lastCombatText || "\u5411\u4E2D\u5FC3\u5E9F\u571F\u63A8\u8FDB\uFF0C\u641C\u522E\u6218\u5229\u54C1\uFF0C\u7136\u540E\u64A4\u79BB\u3002");
   }
-  initHud() {
+  initHudLegacy() {
     const { width, height } = this.scale;
     this.hudContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(200);
     const hpLabel = this.add.text(34, 24, "\u751F\u547D\u503C -- / --", {
@@ -607,6 +730,90 @@ const _GameScene = class _GameScene extends Phaser.Scene {
       });
     }
   }
+  syncHud(state) {
+    const player = state.players.find((candidate) => candidate.id === state.selfPlayerId);
+    if (this.hpBar && player) {
+      const hpRatio = Phaser.Math.Clamp(player.maxHp > 0 ? player.hp / player.maxHp : 0, 0, 1);
+      drawPanelFrame(this.hpBar.track, 20, 18, 272, 44, 10);
+      this.hpBar.fill.clear();
+      this.hpBar.fill.fillStyle(GAMEPLAY_THEME.colors.iron600, 1);
+      this.hpBar.fill.fillRoundedRect(30, 34, 208, 10, 5);
+      let color = GAMEPLAY_THEME.colors.confirm;
+      if (hpRatio < 0.3) color = GAMEPLAY_THEME.colors.danger;
+      else if (hpRatio < 0.6) color = GAMEPLAY_THEME.colors.caution;
+      this.hpBar.fill.fillStyle(color, 1);
+      this.hpBar.fill.fillRoundedRect(30, 34, 208 * hpRatio, 10, 5);
+      this.hpBar.label.setText(`\u751F\u547D\u503C ${player.hp} / ${player.maxHp}`);
+    }
+    if (this.timerText) {
+      this.timerText.setText(state.secondsRemaining == null ? "--:--" : formatSeconds(state.secondsRemaining));
+    }
+    if (this.roomCodeText) {
+      this.roomCodeText.setText(`\u9891\u9053 ${state.code || "------"}`);
+    }
+    if (this.combatText) {
+      this.combatText.setText(state.lastCombatText || "\u5411\u4E2D\u5FC3\u5E9F\u571F\u63A8\u8FDB\uFF0C\u641C\u522E\u6218\u5229\u54C1\uFF0C\u7136\u540E\u64A4\u79BB\u3002");
+    }
+  }
+  initHud() {
+    const { width, height } = this.scale;
+    this.hudContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(200);
+    const hpLabel = this.add.text(34, 24, "\u751F\u547D\u503C -- / --", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "11px",
+      color: "#e8dfc8",
+      letterSpacing: 1
+    });
+    this.hpBar = { track: this.add.graphics(), fill: this.add.graphics(), label: hpLabel };
+    const rightPlate = this.add.graphics();
+    drawPanelFrame(rightPlate, width - 220, 18, 200, 52, 10);
+    this.timerText = this.add.text(width - 32, 22, "00:00", {
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: "24px",
+      color: "#d4b24c"
+    }).setOrigin(1, 0);
+    this.roomCodeText = this.add.text(width - 32, 49, "\u9891\u9053 ------", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#b8ae96",
+      letterSpacing: 1
+    }).setOrigin(1, 0);
+    const combatPlate = this.add.graphics();
+    drawPanelFrame(combatPlate, width / 2 - 260, height - 86, 520, 42, 10);
+    this.combatText = this.add.text(width / 2, height - 55, "", {
+      fontFamily: GAMEPLAY_THEME.fonts.body,
+      fontSize: "15px",
+      color: "#e8dfc8",
+      align: "center"
+    }).setOrigin(0.5, 1);
+    const hintText = navigator.maxTouchPoints > 0 ? "\u6447\u6746\u79FB\u52A8 | \u653B \u653B\u51FB | \u6280 \u6280\u80FD | \u5305 \u80CC\u5305" : "WASD \u79FB\u52A8 | \u7A7A\u683C \u653B\u51FB | Q \u6280\u80FD | E \u4EA4\u4E92 | I \u80CC\u5305";
+    this.controlsHint = this.add.text(width - 20, height - 20, hintText, {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#7d745e",
+      backgroundColor: "rgba(18, 14, 11, 0.82)",
+      padding: { x: 10, y: 6 }
+    }).setOrigin(1, 1);
+    this.hudContainer.add([
+      this.hpBar.track,
+      this.hpBar.fill,
+      hpLabel,
+      rightPlate,
+      this.timerText,
+      this.roomCodeText,
+      combatPlate,
+      this.combatText,
+      this.controlsHint
+    ]);
+    if (navigator.maxTouchPoints <= 0) {
+      this.minimap = new Minimap({
+        scene: this,
+        parent: this.hudContainer,
+        x: 20,
+        y: 76
+      });
+    }
+  }
   showTutorial() {
     const { width, height } = this.scale;
     const panel = this.add.container(width / 2, height / 2).setScrollFactor(0).setDepth(1e3);
@@ -625,6 +832,9 @@ const _GameScene = class _GameScene extends Phaser.Scene {
     this.input.once("pointerdown", close);
   }
   tickExtractBeacon(time) {
+    if (!this.extractBeacon) return;
+    const glow = this.extractBeacon.list[0];
+    glow?.setScale(1 + Math.sin(time / 360) * 0.05);
   }
   flashEffect(target) {
   }

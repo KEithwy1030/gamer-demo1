@@ -1,9 +1,9 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-22",
-  "latest_session_work": "Started the first in-game UI bridge pass so the playable match no longer feels like a different product from the Claude-led lobby: the results overlay now uses the same warm tactical panel language, the minimap is restyled toward the lobby palette, and the active gameplay HUD now uses framed panels plus Claude-aligned typography and labels instead of plain prototype text.",
+  "latest_session_work": "Recovered the regressed in-match world backdrop so the map no longer collapses into a flat green sheet, and added a minimal shared gameplay UI theme entry that now drives the active HUD/minimap panel language instead of hardcoding those values independently.",
   "current_phase": "phase-b-p0-runtime-stabilization",
-  "current_priority": "Browser-verify the first in-game UI bridge pass, then continue real gameplay progression instead of further lobby iteration.",
+  "current_priority": "Browser-verify the restored gameplay terrain/detail layer plus the shared HUD/minimap theme pass, then continue real gameplay progression instead of further lobby iteration.",
   "repo_bootstrap": [
     "MASTER_SPEC.md",
     "WORK_QUEUE.md",
@@ -42,7 +42,9 @@
     "Added a front-end item presentation helper and replaced first-letter inventory tiles with icon-plus-badge item visuals",
     "Normalized player-visible item naming across inventory, settlement, lobby copy, shared item data, server inventory templates, and front-end translation fallback",
     "Rebased the active Web lobby shell onto the imported Claude Design hall structure, restored the topbar plus left-squad/center-hero/right-summary plus footer-ticker composition, and kept only the existing real room actions wired while leaving undeveloped hall modules disabled",
-    "Aligned lobby room-code flavor and typography to the imported Claude Design source by using `南岭·42`-style codes on both mock and real room creation paths and loading the original hall font stack from `client/index.html`"
+    "Aligned lobby room-code flavor and typography to the imported Claude Design source by using `南岭·42`-style codes on both mock and real room creation paths and loading the original hall font stack from `client/index.html`",
+    "Restored the richer in-match world backdrop chain in `GameScene` so the active map once again includes plaza/path/obstacle/region layers instead of only a flat `ground_pixel` fill",
+    "Added a minimal `client/src/ui/gameplayTheme.{ts,js}` entry and rewired the active gameplay HUD/minimap to share the same panel palette and font stacks"
   ],
   "unfinished_high_priority": [
     "Normalize client/server consumption of shared contracts",
@@ -61,7 +63,9 @@
     "canonical_docs": "aligned to current baseline",
     "client_runtime_resolution": "drift risk remains",
     "shared_contract_surface": "split between runtimes",
-    "lobby_room_code_flavor": "place-name plus middot format on mock and real room creation"
+    "lobby_room_code_flavor": "place-name plus middot format on mock and real room creation",
+    "gameplay_ui_theme": "HUD and minimap now share a minimal gameplay theme entry",
+    "world_backdrop_chain": "active path restored with backdrop/plaza/path-patch/obstacle/region layers"
   },
   "runtime_defaults": {
     "client_dev_host_port": "0.0.0.0:5173",

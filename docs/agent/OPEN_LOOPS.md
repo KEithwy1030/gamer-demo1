@@ -134,3 +134,17 @@
   Revalidate in the browser that the current lobby now preserves the imported room-code flavor, font character, and above-the-fold composition instead of only the broad layout.
 - Blocking reason:
   Build success does not answer the user's fidelity concern about whether the hall still looks like the imported design.
+
+
+## 11. Restored World Backdrop Needs Real Browser Acceptance
+
+- Symptom:
+  The map no longer compiles down to a flat green sheet, but the restored backdrop/detail density still needs a real in-match browser check to confirm it now feels materially better than the regressed version.
+- Confirmed facts:
+  - `client/src/scenes/GameScene.{ts,js}` once again rebuilds a backdrop chain with plaza, dirt/path patches, obstacle props, region labels, beacon visuals, and frame lines
+  - `ground_pixel` texture generation now includes noise speckles instead of a single flat fill
+  - `client/src/ui/gameplayTheme.{ts,js}` now centralizes the active HUD/minimap panel palette and font stacks
+- Next step:
+  Enter a real Web match and judge whether the terrain/detail layer is back above the previous baseline and whether the HUD/minimap now feel like the same family as the lobby.
+- Blocking reason:
+  Build success confirms integration, not the final subjective gameplay feel.

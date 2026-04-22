@@ -419,3 +419,16 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Browser-check that the first in-game frame, minimap, and settlement screen now feel like the same game as the hall before moving on to deeper gameplay work
+
+
+- Goal:
+  Recover the regressed in-match terrain/detail presentation while putting the first minimal shared theme hook under the active gameplay HUD and minimap.
+- Actions:
+  - Restored the active `GameScene` world backdrop chain with plaza/path patches/obstacle props/region labels/extract beacon visuals instead of the flat fallback `syncWorld()`
+  - Added `client/src/ui/gameplayTheme.{ts,js}` and rewired the active `GameScene` HUD plus `Minimap` frame/palette to read from shared gameplay tokens/helpers
+  - Rebuilt the active JS siblings from TS using local `esbuild.exe` so the checked-in runtime path stays aligned
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Browser-verify that the map no longer reads as a flat green field and that the in-match HUD/minimap now feel consistently tied to the lobby language

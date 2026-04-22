@@ -80,3 +80,6 @@ See [docs/agent/CANONICAL_BASELINE.md](/E:/CursorData/gamer/docs/agent/CANONICAL
 - The most important implementation drift today is not feature count. It is source-of-truth drift between:
   - client TS vs checked-in JS siblings
   - client `shared/src` consumption vs server `shared/dist` consumption
+
+- The active `GameScene` world path once again rebuilds a richer backdrop with center plaza, dirt/path patches, obstacle markers, region labels, extract beacon rings, and world framing instead of only a flat green `ground_pixel` fill.
+- `client/src/ui/gameplayTheme.{ts,js}` now exists as the minimum shared in-match UI token/helper entry for Phaser-rendered HUD and minimap surfaces.

@@ -2,6 +2,7 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import Phaser from "phaser";
+import { drawPanelFrame, GAMEPLAY_THEME } from "./gameplayTheme";
 class Minimap {
   constructor(options) {
     __publicField(this, "scene");
@@ -30,16 +31,18 @@ class Minimap {
     this.revealRadius = options.revealRadius ?? 260;
     this.discovered = new Array(this.cols * this.rows).fill(false);
     this.container = this.scene.add.container(options.x, options.y).setScrollFactor(0).setDepth(220);
-    this.background = this.scene.add.rectangle(0, 0, this.mapWidth, this.mapHeight, 1183243, 0.92).setOrigin(0, 0);
+    this.background = this.scene.add.rectangle(0, 0, this.mapWidth, this.mapHeight, GAMEPLAY_THEME.colors.void, 0.92).setOrigin(0, 0);
     this.exploredLayer = this.scene.add.graphics();
     this.frame = this.scene.add.graphics();
-    this.playerDot = this.scene.add.circle(0, 0, 4, 15228972, 1).setVisible(false);
+    this.playerDot = this.scene.add.circle(0, 0, 4, GAMEPLAY_THEME.colors.signal, 1).setVisible(false);
     this.label = this.scene.add.text(10, 8, "\u4FA6\u5BDF\u56FE / \u5C40\u90E8", {
       fontFamily: '"JetBrains Mono", "Noto Sans SC", monospace',
       fontSize: "10px",
       color: "#b8ae96",
       letterSpacing: 2
     });
+    this.label.setText("\u4FA6\u5BDF\u56FE / \u5C40\u90E8");
+    this.label.setFontFamily(GAMEPLAY_THEME.fonts.mono);
     this.drawFrame();
     this.container.add([this.background, this.exploredLayer, this.frame, this.playerDot, this.label]);
     options.parent.add(this.container);
@@ -107,13 +110,7 @@ class Minimap {
     this.container.destroy(true);
   }
   drawFrame() {
-    this.frame.clear();
-    this.frame.lineStyle(2, 5063472, 1);
-    this.frame.strokeRoundedRect(0, 0, this.mapWidth, this.mapHeight, 10);
-    this.frame.lineStyle(1, 2827545, 1);
-    this.frame.strokeRoundedRect(4, 4, this.mapWidth - 8, this.mapHeight - 8, 8);
-    this.frame.lineStyle(1, 15228972, 0.22);
-    this.frame.strokeRoundedRect(8, 8, this.mapWidth - 16, this.mapHeight - 16, 6);
+    drawPanelFrame(this.frame, 0, 0, this.mapWidth, this.mapHeight, 10);
   }
 }
 export {

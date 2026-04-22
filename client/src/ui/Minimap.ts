@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { drawPanelFrame, GAMEPLAY_THEME } from "./gameplayTheme";
 
 type MinimapOptions = {
   scene: Phaser.Scene;
@@ -42,10 +43,10 @@ export class Minimap {
     this.discovered = new Array(this.cols * this.rows).fill(false);
 
     this.container = this.scene.add.container(options.x, options.y).setScrollFactor(0).setDepth(220);
-    this.background = this.scene.add.rectangle(0, 0, this.mapWidth, this.mapHeight, 0x120e0b, 0.92).setOrigin(0, 0);
+    this.background = this.scene.add.rectangle(0, 0, this.mapWidth, this.mapHeight, GAMEPLAY_THEME.colors.void, 0.92).setOrigin(0, 0);
     this.exploredLayer = this.scene.add.graphics();
     this.frame = this.scene.add.graphics();
-    this.playerDot = this.scene.add.circle(0, 0, 4, 0xe8602c, 1).setVisible(false);
+    this.playerDot = this.scene.add.circle(0, 0, 4, GAMEPLAY_THEME.colors.signal, 1).setVisible(false);
     this.label = this.scene.add.text(10, 8, "侦察图 / 局部", {
       fontFamily: "\"JetBrains Mono\", \"Noto Sans SC\", monospace",
       fontSize: "10px",
@@ -53,6 +54,8 @@ export class Minimap {
       letterSpacing: 2
     });
 
+    this.label.setText("侦察图 / 局部");
+    this.label.setFontFamily(GAMEPLAY_THEME.fonts.mono);
     this.drawFrame();
     this.container.add([this.background, this.exploredLayer, this.frame, this.playerDot, this.label]);
     options.parent.add(this.container);
@@ -132,12 +135,6 @@ export class Minimap {
   }
 
   private drawFrame(): void {
-    this.frame.clear();
-    this.frame.lineStyle(2, 0x4d4330, 1);
-    this.frame.strokeRoundedRect(0, 0, this.mapWidth, this.mapHeight, 10);
-    this.frame.lineStyle(1, 0x2b2519, 1);
-    this.frame.strokeRoundedRect(4, 4, this.mapWidth - 8, this.mapHeight - 8, 8);
-    this.frame.lineStyle(1, 0xe8602c, 0.22);
-    this.frame.strokeRoundedRect(8, 8, this.mapWidth - 16, this.mapHeight - 16, 6);
+    drawPanelFrame(this.frame, 0, 0, this.mapWidth, this.mapHeight, 10);
   }
 }
