@@ -472,3 +472,16 @@
   - `npm.cmd run build --workspace server` passed
 - Follow-up:
   - Real-browser verify that blade Q sweeps while retreating, spear Q now visibly charges for ~0.5s before a critical hit, and the new HUD text makes cooldown state obvious
+
+- Goal:
+  Fix weapon-skill damage mismatches where sword/blade Q could visibly overlap targets but fail to deal damage, and lower spear crit payoff to the requested ceiling.
+- Actions:
+  - Updated `server/src/combat/combat-service.ts` so `sword_dashSlash` and `blade_sweep` now select targets before movement/backstep instead of after repositioning
+  - Added missing `sword_dashSlash` monster-hit handling in `server/src/monsters/monster-manager.ts`
+  - Updated monster-side `blade_sweep` to snapshot targets before the retreat movement so visuals and hit registration stay aligned
+  - Reduced `spear_heavyThrust` guaranteed critical damage from `1.8x` to `1.5x` on both player-hit and monster-hit paths
+- Verification:
+  - `npm.cmd run build --workspace server` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Real-browser verify that sword Q and blade Q now consistently damage monsters/targets inside the displayed swing area, and that spear Q burst now tops out at the intended 1.5x feel

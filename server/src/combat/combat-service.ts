@@ -119,16 +119,16 @@ export function resolvePlayerSkillCast(
     }
     case "sword_dashSlash": {
       requireSkillCooldown(combatState, payload.skillId, now, 4000);
-      movePlayerByDirection(caster.state!, 150);
       const target = selectAttackTarget(room, caster, "sword", 150);
+      movePlayerByDirection(caster.state!, 150);
       return target
         ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 45 + attackPowerBonus, now), now)
         : emptyResolution();
     }
     case "blade_sweep": {
       requireSkillCooldown(combatState, payload.skillId, now, 4000);
-      movePlayerByDirection(caster.state!, -110);
       const targets = selectAttackTargets(room, caster, "blade", 110, 110);
+      movePlayerByDirection(caster.state!, -110);
       return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, 55 + attackPowerBonus, now), now);
     }
     case "blade_guard": {
@@ -157,7 +157,7 @@ export function resolvePlayerSkillCast(
           room,
           caster,
           target,
-          Math.max(1, Math.round(scaleOutgoingDamage(caster, 75 + attackPowerBonus, now) * 1.8)),
+          Math.max(1, Math.round(scaleOutgoingDamage(caster, 75 + attackPowerBonus, now) * 1.5)),
           now,
           undefined,
           true

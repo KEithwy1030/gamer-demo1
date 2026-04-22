@@ -249,16 +249,30 @@ export function handlePlayerSkill(
   syncPlayerCombatState(player, now);
 
   switch (payload.skillId) {
+    case "sword_dashSlash": {
+      const target = findAttackableMonster(room, player.state, 150, 60);
+      movePlayerByDirection(player.state, 150);
+      return applySkillDamageToMonsters(
+        room,
+        player,
+        target ? [target] : [],
+        scaleOutgoingDamage(player, 260 + player.state.attackPower, now),
+        now
+      );
+    }
     case "blade_sweep":
-      movePlayerByDirection(player.state, -110);
-      return applySkillDamageToMonsters(room, player, findAttackableMonsters(room, player.state, 110, 110), scaleOutgoingDamage(player, 220 + player.state.attackPower, now), now);
+      {
+        const targets = findAttackableMonsters(room, player.state, 110, 110);
+        movePlayerByDirection(player.state, -110);
+        return applySkillDamageToMonsters(room, player, targets, scaleOutgoingDamage(player, 220 + player.state.attackPower, now), now);
+      }
     case "spear_heavyThrust": {
       const target = findAttackableMonster(room, player.state, 160, 50);
       return applySkillDamageToMonsters(
         room,
         player,
         target ? [target] : [],
-        Math.max(1, Math.round(scaleOutgoingDamage(player, 300 + player.state.attackPower, now) * 1.8)),
+        Math.max(1, Math.round(scaleOutgoingDamage(player, 300 + player.state.attackPower, now) * 1.5)),
         now,
         true
       );
