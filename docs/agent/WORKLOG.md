@@ -432,3 +432,15 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Browser-verify that the map no longer reads as a flat green field and that the in-match HUD/minimap now feel consistently tied to the lobby language
+
+- Goal:
+  Restore missing combat hit feedback after the in-match UI/theme pass accidentally left the active flash and hit-stop helpers empty.
+- Actions:
+  - Reimplemented `flashEffect()` in `client/src/scenes/GameScene.{ts,js}` so hit targets visibly flash again
+  - Reimplemented `applyHitStop()` in `client/src/scenes/GameScene.{ts,js}` so local hits briefly pause animation/tween/physics motion instead of feeling weightless
+  - Rebuilt the checked-in `GameScene.js` sibling from TS to keep the active runtime path aligned
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Real-browser verify that player and monster hits now visibly flash and that melee impacts no longer feel completely weightless

@@ -837,8 +837,32 @@ const _GameScene = class _GameScene extends Phaser.Scene {
     glow?.setScale(1 + Math.sin(time / 360) * 0.05);
   }
   flashEffect(target) {
+    if (!target) return;
+    if (typeof target.setTintFill === "function" && typeof target.clearTint === "function") {
+      target.setTintFill(16777215);
+      this.time.delayedCall(70, () => {
+        if (target.scene) target.clearTint();
+      });
+      return;
+    }
+    const originalAlpha = typeof target.alpha === "number" ? target.alpha : 1;
+    if (typeof target.setAlpha === "function") {
+      target.setAlpha(1);
+      this.time.delayedCall(70, () => {
+        if (target.scene && typeof target.setAlpha === "function") target.setAlpha(originalAlpha);
+      });
+    }
   }
   applyHitStop(ms) {
+    const physicsWorld = this.physics?.world;
+    this.anims.pauseAll();
+    this.tweens.pauseAll();
+    if (physicsWorld) physicsWorld.pause();
+    this.time.delayedCall(ms, () => {
+      this.anims.resumeAll();
+      this.tweens.resumeAll();
+      if (physicsWorld) physicsWorld.resume();
+    });
   }
   shakeCamera(intensity, duration) {
     this.cameras.main.shake(duration, intensity);

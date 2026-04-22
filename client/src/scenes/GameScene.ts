@@ -873,8 +873,38 @@ export class GameScene extends Phaser.Scene {
     const glow = this.extractBeacon.list[0] as Phaser.GameObjects.Arc | undefined;
     glow?.setScale(1 + Math.sin(time / 360) * 0.05);
   }
-  private flashEffect(target: any): void { }
-  private applyHitStop(ms: number): void { }
+  private flashEffect(target: any): void {
+    if (!target) return;
+
+    if (typeof target.setTintFill === "function" && typeof target.clearTint === "function") {
+      target.setTintFill(0xffffff);
+      this.time.delayedCall(70, () => {
+        if (target.scene) target.clearTint();
+      });
+      return;
+    }
+
+    const originalAlpha = typeof target.alpha === "number" ? target.alpha : 1;
+    if (typeof target.setAlpha === "function") {
+      target.setAlpha(1);
+      this.time.delayedCall(70, () => {
+        if (target.scene && typeof target.setAlpha === "function") target.setAlpha(originalAlpha);
+      });
+    }
+  }
+
+  private applyHitStop(ms: number): void {
+    const physicsWorld = (this.physics as Phaser.Physics.Arcade.ArcadePhysics | undefined)?.world;
+    this.anims.pauseAll();
+    this.tweens.pauseAll();
+    if (physicsWorld) physicsWorld.pause();
+
+    this.time.delayedCall(ms, () => {
+      this.anims.resumeAll();
+      this.tweens.resumeAll();
+      if (physicsWorld) physicsWorld.resume();
+    });
+  }
   private shakeCamera(intensity: number, duration: number): void { this.cameras.main.shake(duration, intensity); }
 }
 

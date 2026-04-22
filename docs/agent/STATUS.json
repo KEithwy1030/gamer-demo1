@@ -1,7 +1,7 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-22",
-  "latest_session_work": "Recovered the regressed in-match world backdrop so the map no longer collapses into a flat green sheet, and added a minimal shared gameplay UI theme entry that now drives the active HUD/minimap panel language instead of hardcoding those values independently.",
+  "latest_session_work": "Recovered the regressed in-match world backdrop so the map no longer collapses into a flat green sheet, added a minimal shared gameplay UI theme entry for HUD/minimap, and restored combat hit feedback after the feedback flash and hit-stop helpers were reimplemented in the active GameScene runtime path.",
   "current_phase": "phase-b-p0-runtime-stabilization",
   "current_priority": "Browser-verify the restored gameplay terrain/detail layer plus the shared HUD/minimap theme pass, then continue real gameplay progression instead of further lobby iteration.",
   "repo_bootstrap": [
