@@ -119,15 +119,19 @@ export function resolvePlayerSkillCast(
     }
     case "sword_dashSlash": {
       requireSkillCooldown(combatState, payload.skillId, now, 4000);
-      const target = selectDashSlashTarget(room, caster, 150);
+      const targets = selectDashSlashTargets(room, caster, 150);
       movePlayerByDirection(caster.state!, 150);
-      return target
-        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 45 + attackPowerBonus, now), now)
-        : emptyResolution();
+      return applyDamageToTargets(
+        room,
+        caster,
+        targets,
+        scaleOutgoingDamage(caster, 45 + attackPowerBonus, now),
+        now
+      );
     }
     case "blade_sweep": {
       requireSkillCooldown(combatState, payload.skillId, now, 4000);
-      const targets = selectBladeSweepTargets(room, caster);
+      const targets = selectTargetsInRadius(room, caster, caster.state!.x, caster.state!.y, 124);
       movePlayerByDirection(caster.state!, -110);
       return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, 55 + attackPowerBonus, now), now);
     }
@@ -323,12 +327,12 @@ function selectAttackTargets(
     .map(({ target }) => target);
 }
 
-function selectDashSlashTarget(
+function selectDashSlashTargets(
   room: RuntimeRoom,
   attacker: RuntimePlayer,
   dashDistance: number
-): RuntimePlayer | undefined {
-  if (!attacker.state) return undefined;
+): RuntimePlayer[] {
+  if (!attacker.state) return [];
   const facing = getFacingOrFallback(attacker.state.direction);
   const start = { x: attacker.state.x, y: attacker.state.y };
   const end = {
@@ -343,13 +347,27 @@ function selectDashSlashTarget(
       const directDistance = Math.hypot(target.state!.x - start.x, target.state!.y - start.y);
       return { target, distance, directDistance };
     })
-    .filter(({ distance, directDistance }) => distance <= 64 || directDistance <= 92)
+    .filter(({ distance, directDistance }) => distance <= 72 || directDistance <= 96)
     .sort((a, b) => a.directDistance - b.directDistance)
-    .map(({ target }) => target)[0];
+    .map(({ target }) => target);
 }
 
-function selectBladeSweepTargets(room: RuntimeRoom, attacker: RuntimePlayer): RuntimePlayer[] {
-  return selectAttackTargets(room, attacker, "blade", 148, 150);
+function selectTargetsInRadius(
+  room: RuntimeRoom,
+  attacker: RuntimePlayer,
+  centerX: number,
+  centerY: number,
+  radius: number
+): RuntimePlayer[] {
+  return [...room.players.values()]
+    .filter((target) => target.id !== attacker.id && target.state?.isAlive)
+    .map((target) => ({
+      target,
+      distance: Math.hypot(target.state!.x - centerX, target.state!.y - centerY)
+    }))
+    .filter(({ distance }) => distance <= radius + PLAYER_HIT_RADIUS)
+    .sort((a, b) => a.distance - b.distance)
+    .map(({ target }) => target);
 }
 
 function movePlayerByDirection(

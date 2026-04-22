@@ -509,3 +509,15 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Real-browser verify that sword Q and blade Q now feel reliably connectable at close range instead of sliding past obvious targets during self-movement
+
+- Goal:
+  Match the actual hit model to the intended weapon design: sword Q should hit along its full dash path, while blade Q should resolve from the sweep center at trigger time rather than from a drifting cone.
+- Actions:
+  - Updated `server/src/combat/combat-service.ts` so sword Q now damages all valid targets intersecting the dash segment instead of selecting a single point-like target
+  - Updated `server/src/combat/combat-service.ts` so blade Q now resolves from a stable radius around the trigger center before the simultaneous backstep
+  - Mirrored the same path/radius logic in `server/src/monsters/monster-manager.ts` for monster hits
+- Verification:
+  - `npm.cmd run build --workspace server` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Real-browser verify that the remaining sword/blade feel issue is now only fine tuning rather than a mismatch between intended and actual hit model

@@ -250,19 +250,19 @@ export function handlePlayerSkill(
 
   switch (payload.skillId) {
     case "sword_dashSlash": {
-      const target = findDashSlashMonster(room, player.state, 150);
+      const targets = findDashSlashMonsters(room, player.state, 150);
       movePlayerByDirection(player.state, 150);
       return applySkillDamageToMonsters(
         room,
         player,
-        target ? [target] : [],
+        targets,
         scaleOutgoingDamage(player, 260 + player.state.attackPower, now),
         now
       );
     }
     case "blade_sweep":
       {
-        const targets = findBladeSweepMonsters(room, player.state);
+        const targets = findMonstersInRadius(room, player.state.x, player.state.y, 124);
         movePlayerByDirection(player.state, -110);
         return applySkillDamageToMonsters(room, player, targets, scaleOutgoingDamage(player, 220 + player.state.attackPower, now), now);
       }
@@ -412,11 +412,11 @@ function findAttackableMonsters(
     .map(({ monster }) => monster);
 }
 
-function findDashSlashMonster(
+function findDashSlashMonsters(
   room: RuntimeRoom,
   playerState: CombatPlayerState,
   dashDistance: number
-): RuntimeMonster | undefined {
+): RuntimeMonster[] {
   const facing = getFacingOrFallback(playerState.direction);
   const start = { x: playerState.x, y: playerState.y };
   const end = {
@@ -431,13 +431,21 @@ function findDashSlashMonster(
       const directDistance = Math.hypot(monster.x - start.x, monster.y - start.y);
       return { monster, distance, directDistance };
     })
-    .filter(({ distance, directDistance }) => distance <= 64 || directDistance <= 92)
+    .filter(({ distance, directDistance }) => distance <= 72 || directDistance <= 96)
     .sort((a, b) => a.directDistance - b.directDistance)
-    .map(({ monster }) => monster)[0];
+    .map(({ monster }) => monster);
 }
 
-function findBladeSweepMonsters(room: RuntimeRoom, playerState: CombatPlayerState): RuntimeMonster[] {
-  return findAttackableMonsters(room, playerState, 148, 150);
+function findMonstersInRadius(room: RuntimeRoom, centerX: number, centerY: number, radius: number): RuntimeMonster[] {
+  return [...ensureMonsterState(room).values()]
+    .filter((monster) => monster.isAlive)
+    .map((monster) => ({
+      monster,
+      distance: Math.hypot(monster.x - centerX, monster.y - centerY)
+    }))
+    .filter(({ distance }) => distance <= radius + MONSTER_CONTACT_RADIUS)
+    .sort((a, b) => a.distance - b.distance)
+    .map(({ monster }) => monster);
 }
 
 function applySkillDamageToMonsters(
