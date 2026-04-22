@@ -417,11 +417,11 @@ const _GameScene = class _GameScene extends Phaser.Scene {
       const sweep = this.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 110);
       sweep.lineStyle(6, 16347926, 0.95);
       sweep.beginPath();
-      sweep.arc(0, 0, 56, angle2 - 1.2, angle2 + 1.2);
+      sweep.arc(0, 0, 104, angle2 - 1.2, angle2 + 1.2);
       sweep.strokePath();
       const skid = this.add.graphics().setPosition(
-        self.x - this.lastFacingDirection.x * 26,
-        self.y - this.lastFacingDirection.y * 26
+        self.x - this.lastFacingDirection.x * 34,
+        self.y - this.lastFacingDirection.y * 34
       ).setDepth(self.y + 105);
       skid.fillStyle(16096779, 0.3).fillEllipse(0, 0, 34, 12);
       this.tweens.add({ targets: sweep, alpha: 0, scale: 1.18, duration: 220, onComplete: () => sweep.destroy() });
@@ -434,11 +434,11 @@ const _GameScene = class _GameScene extends Phaser.Scene {
       const thrust = this.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 115);
       thrust.lineStyle(6, 16498468, 1).beginPath();
       thrust.moveTo(0, 0);
-      thrust.lineTo(Math.cos(angle2) * 128, Math.sin(angle2) * 128);
+      thrust.lineTo(Math.cos(angle2) * 160, Math.sin(angle2) * 160);
       thrust.strokePath();
       const burst = this.add.graphics().setPosition(
-        self.x + this.lastFacingDirection.x * 88,
-        self.y + this.lastFacingDirection.y * 88
+        self.x + this.lastFacingDirection.x * 126,
+        self.y + this.lastFacingDirection.y * 126
       ).setDepth(self.y + 116);
       burst.lineStyle(4, 15680580, 1).strokeCircle(0, 0, 18);
       burst.lineStyle(2, 16498468, 1);
@@ -459,7 +459,7 @@ const _GameScene = class _GameScene extends Phaser.Scene {
     const dash = this.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 110);
     dash.lineStyle(5, 3718648, 0.95).beginPath();
     dash.moveTo(-Math.cos(angle) * 18, -Math.sin(angle) * 18);
-    dash.lineTo(Math.cos(angle) * 92, Math.sin(angle) * 92);
+    dash.lineTo(Math.cos(angle) * 150, Math.sin(angle) * 150);
     dash.strokePath();
     this.tweens.add({ targets: dash, alpha: 0, duration: 180, onComplete: () => dash.destroy() });
     this.createSkillVfx(self.x, self.y, 3718648);

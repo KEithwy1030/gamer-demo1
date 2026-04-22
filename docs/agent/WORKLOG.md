@@ -485,3 +485,15 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Real-browser verify that sword Q and blade Q now consistently damage monsters/targets inside the displayed swing area, and that spear Q burst now tops out at the intended 1.5x feel
+
+- Goal:
+  Reduce the last obvious mismatch between weapon-skill visuals and actual reach so players no longer have to guess whether the displayed swing/thrust length matches the hit zone.
+- Actions:
+  - Expanded local `blade_sweep` VFX radius in `client/src/scenes/GameScene.{ts,js}` to better match the active sweep hit range
+  - Extended local `spear_heavyThrust` thrust line and burst anchor so the impact read better matches the server-side heavy-thrust reach
+  - Extended local `sword_dashSlash` dash trail length so the displayed strike line no longer undersells the active skill reach
+  - Rebuilt the checked-in `GameScene.js` runtime sibling from TS
+- Verification:
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Real-browser verify whether the remaining weapon-skill feel issue is now down to tuning rather than obvious logic/range mismatch
