@@ -239,6 +239,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleServerPlayerAttack(payload: { playerId: string; attackId: string }): void {
+    if (payload.playerId === this.latestState?.selfPlayerId) return;
     const player = this.latestState?.players.find(p => p.id === payload.playerId);
     if (!player) return;
     const weaponType = player.weaponType || "sword";
@@ -345,14 +346,14 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private handleAttack(): void { this.onAttack?.(); }
+  private handleAttack(): void {
+    this.playLocalAttackVfx();
+    this.onAttack?.();
+  }
   private handleSkill(): void {
     const sid = resolvePrimarySkill(this.latestState);
-    if (sid) {
-      this.onSkill?.(sid); this.shakeCamera(0.008, 150);
-      const p = this.latestState?.players.find(pp => pp.id === this.latestState?.selfPlayerId);
-      if (p) this.createSkillVfx(p.x, p.y, 0x38bdf8);
-    }
+    this.playLocalSkillVfx();
+    if (sid) this.onSkill?.(sid);
   }
   private handleInteract(): void { if (this.interactionPrompt?.visible) { const id = this.interactionPrompt.getData("chestId"); if (id) this.onOpenChest?.(id); } else this.onPickup?.(); }
 
@@ -373,6 +374,31 @@ export class GameScene extends Phaser.Scene {
   private createSkillVfx(x: number, y: number, color: number): void {
     const r = this.add.graphics().lineStyle(4, color).strokeCircle(0, 0, 30).setPosition(x, y).setDepth(y + 100);
     this.tweens.add({ targets: r, alpha: 0, scale: 2, duration: 350, onComplete: () => r.destroy() });
+  }
+
+  private playLocalAttackVfx(): void {
+    const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
+    if (!self) return;
+    this.createWeaponVfx(self.x, self.y, self.weaponType || "sword", this.lastFacingDirection);
+    this.shakeCamera(0.005, 100);
+  }
+
+  private playLocalSkillVfx(): void {
+    const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
+    if (!self) return;
+    this.shakeCamera(0.008, 150);
+    if (self.weaponType === "blade") {
+      this.createWeaponVfx(self.x, self.y, "blade", this.lastFacingDirection);
+      this.createSkillVfx(self.x, self.y, 0xf97316);
+      return;
+    }
+    if (self.weaponType === "spear") {
+      this.createWeaponVfx(self.x, self.y, "spear", this.lastFacingDirection);
+      this.createSkillVfx(self.x, self.y, 0xef4444);
+      return;
+    }
+    this.createWeaponVfx(self.x, self.y, "sword", this.lastFacingDirection);
+    this.createSkillVfx(self.x, self.y, 0x38bdf8);
   }
 
   update(time: number, delta: number): void {

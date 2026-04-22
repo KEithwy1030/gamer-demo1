@@ -224,6 +224,7 @@ const _GameScene = class _GameScene extends Phaser.Scene {
     this.time.delayedCall(500, () => this.showTutorial());
   }
   handleServerPlayerAttack(payload) {
+    if (payload.playerId === this.latestState?.selfPlayerId) return;
     const player = this.latestState?.players.find((p) => p.id === payload.playerId);
     if (!player) return;
     const weaponType = player.weaponType || "sword";
@@ -333,16 +334,13 @@ const _GameScene = class _GameScene extends Phaser.Scene {
     });
   }
   handleAttack() {
+    this.playLocalAttackVfx();
     this.onAttack?.();
   }
   handleSkill() {
     const sid = resolvePrimarySkill(this.latestState);
-    if (sid) {
-      this.onSkill?.(sid);
-      this.shakeCamera(8e-3, 150);
-      const p = this.latestState?.players.find((pp) => pp.id === this.latestState?.selfPlayerId);
-      if (p) this.createSkillVfx(p.x, p.y, 3718648);
-    }
+    this.playLocalSkillVfx();
+    if (sid) this.onSkill?.(sid);
   }
   handleInteract() {
     if (this.interactionPrompt?.visible) {
@@ -370,6 +368,29 @@ const _GameScene = class _GameScene extends Phaser.Scene {
   createSkillVfx(x, y, color) {
     const r = this.add.graphics().lineStyle(4, color).strokeCircle(0, 0, 30).setPosition(x, y).setDepth(y + 100);
     this.tweens.add({ targets: r, alpha: 0, scale: 2, duration: 350, onComplete: () => r.destroy() });
+  }
+  playLocalAttackVfx() {
+    const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
+    if (!self) return;
+    this.createWeaponVfx(self.x, self.y, self.weaponType || "sword", this.lastFacingDirection);
+    this.shakeCamera(5e-3, 100);
+  }
+  playLocalSkillVfx() {
+    const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
+    if (!self) return;
+    this.shakeCamera(8e-3, 150);
+    if (self.weaponType === "blade") {
+      this.createWeaponVfx(self.x, self.y, "blade", this.lastFacingDirection);
+      this.createSkillVfx(self.x, self.y, 16347926);
+      return;
+    }
+    if (self.weaponType === "spear") {
+      this.createWeaponVfx(self.x, self.y, "spear", this.lastFacingDirection);
+      this.createSkillVfx(self.x, self.y, 15680580);
+      return;
+    }
+    this.createWeaponVfx(self.x, self.y, "sword", this.lastFacingDirection);
+    this.createSkillVfx(self.x, self.y, 3718648);
   }
   update(time, delta) {
     const alpha = Phaser.Math.Clamp(delta / 120, 0.08, 0.22);
