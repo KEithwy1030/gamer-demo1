@@ -38,6 +38,7 @@ const _GameScene = class _GameScene extends Phaser.Scene {
     __publicField(this, "timerText");
     __publicField(this, "roomCodeText");
     __publicField(this, "weaponNameText");
+    __publicField(this, "skillStatusText");
     __publicField(this, "combatText");
     __publicField(this, "controlsHint");
     __publicField(this, "regionLabels", []);
@@ -68,6 +69,9 @@ const _GameScene = class _GameScene extends Phaser.Scene {
     __publicField(this, "lastMoveDirection", { x: 0, y: 0 });
     __publicField(this, "lastFacingDirection", { x: 0, y: 1 });
     __publicField(this, "lastMoveSentAt", 0);
+    __publicField(this, "localSkillCooldownEndsAt", 0);
+    __publicField(this, "localSkillWindupEndsAt", 0);
+    __publicField(this, "pendingSkillCast");
     __publicField(this, "extractAutoStarted", false);
     __publicField(this, "currentMoveDirection", { x: 0, y: 0 });
     __publicField(this, "mobileControls");
@@ -339,8 +343,23 @@ const _GameScene = class _GameScene extends Phaser.Scene {
   }
   handleSkill() {
     const sid = resolvePrimarySkill(this.latestState);
-    this.playLocalSkillVfx();
-    if (sid) this.onSkill?.(sid);
+    if (!sid) return;
+    const now = Date.now();
+    if (now < this.localSkillWindupEndsAt || now < this.localSkillCooldownEndsAt) return;
+    const windupMs = getPrimarySkillWindupMs(sid);
+    this.localSkillWindupEndsAt = now + windupMs;
+    this.localSkillCooldownEndsAt = now + windupMs + getPrimarySkillCooldownMs(sid);
+    this.pendingSkillCast?.remove(false);
+    this.playLocalSkillVfx(sid, windupMs > 0 ? "windup" : "cast");
+    if (windupMs > 0) {
+      this.pendingSkillCast = this.time.delayedCall(windupMs, () => {
+        this.playLocalSkillVfx(sid, "cast");
+        this.onSkill?.(sid);
+        this.pendingSkillCast = void 0;
+      });
+      return;
+    }
+    this.onSkill?.(sid);
   }
   handleInteract() {
     if (this.interactionPrompt?.visible) {
@@ -375,21 +394,74 @@ const _GameScene = class _GameScene extends Phaser.Scene {
     this.createWeaponVfx(self.x, self.y, self.weaponType || "sword", this.lastFacingDirection);
     this.shakeCamera(5e-3, 100);
   }
-  playLocalSkillVfx() {
+  playLocalSkillVfx(skillId, phase) {
     const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
     if (!self) return;
-    this.shakeCamera(8e-3, 150);
-    if (self.weaponType === "blade") {
+    if (skillId === "spear_heavyThrust" && phase === "windup") {
+      const charge = this.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 110);
+      charge.lineStyle(3, 16498468, 0.95).strokeCircle(0, 0, 20);
+      charge.lineStyle(2, 15680580, 0.75).strokeCircle(0, 0, 34);
+      this.tweens.add({
+        targets: charge,
+        alpha: 0,
+        scale: 1.45,
+        duration: getPrimarySkillWindupMs(skillId),
+        onComplete: () => charge.destroy()
+      });
+      return;
+    }
+    this.shakeCamera(skillId === "spear_heavyThrust" ? 0.012 : 8e-3, skillId === "spear_heavyThrust" ? 180 : 150);
+    if (skillId === "blade_sweep") {
       this.createWeaponVfx(self.x, self.y, "blade", this.lastFacingDirection);
+      const angle2 = Math.atan2(this.lastFacingDirection.y, this.lastFacingDirection.x);
+      const sweep = this.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 110);
+      sweep.lineStyle(6, 16347926, 0.95);
+      sweep.beginPath();
+      sweep.arc(0, 0, 56, angle2 - 1.2, angle2 + 1.2);
+      sweep.strokePath();
+      const skid = this.add.graphics().setPosition(
+        self.x - this.lastFacingDirection.x * 26,
+        self.y - this.lastFacingDirection.y * 26
+      ).setDepth(self.y + 105);
+      skid.fillStyle(16096779, 0.3).fillEllipse(0, 0, 34, 12);
+      this.tweens.add({ targets: sweep, alpha: 0, scale: 1.18, duration: 220, onComplete: () => sweep.destroy() });
+      this.tweens.add({ targets: skid, alpha: 0, scaleX: 1.5, duration: 180, onComplete: () => skid.destroy() });
       this.createSkillVfx(self.x, self.y, 16347926);
       return;
     }
-    if (self.weaponType === "spear") {
-      this.createWeaponVfx(self.x, self.y, "spear", this.lastFacingDirection);
-      this.createSkillVfx(self.x, self.y, 15680580);
+    if (skillId === "spear_heavyThrust") {
+      const angle2 = Math.atan2(this.lastFacingDirection.y, this.lastFacingDirection.x);
+      const thrust = this.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 115);
+      thrust.lineStyle(6, 16498468, 1).beginPath();
+      thrust.moveTo(0, 0);
+      thrust.lineTo(Math.cos(angle2) * 128, Math.sin(angle2) * 128);
+      thrust.strokePath();
+      const burst = this.add.graphics().setPosition(
+        self.x + this.lastFacingDirection.x * 88,
+        self.y + this.lastFacingDirection.y * 88
+      ).setDepth(self.y + 116);
+      burst.lineStyle(4, 15680580, 1).strokeCircle(0, 0, 18);
+      burst.lineStyle(2, 16498468, 1);
+      for (let i = 0; i < 6; i += 1) {
+        const ray = angle2 + (i - 2.5) * 0.35;
+        burst.beginPath();
+        burst.moveTo(0, 0);
+        burst.lineTo(Math.cos(ray) * 28, Math.sin(ray) * 28);
+        burst.strokePath();
+      }
+      this.tweens.add({ targets: thrust, alpha: 0, duration: 200, onComplete: () => thrust.destroy() });
+      this.tweens.add({ targets: burst, alpha: 0, scale: 1.5, duration: 240, onComplete: () => burst.destroy() });
+      this.createSkillVfx(self.x, self.y, 16498468);
       return;
     }
     this.createWeaponVfx(self.x, self.y, "sword", this.lastFacingDirection);
+    const angle = Math.atan2(this.lastFacingDirection.y, this.lastFacingDirection.x);
+    const dash = this.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 110);
+    dash.lineStyle(5, 3718648, 0.95).beginPath();
+    dash.moveTo(-Math.cos(angle) * 18, -Math.sin(angle) * 18);
+    dash.lineTo(Math.cos(angle) * 92, Math.sin(angle) * 92);
+    dash.strokePath();
+    this.tweens.add({ targets: dash, alpha: 0, duration: 180, onComplete: () => dash.destroy() });
     this.createSkillVfx(self.x, self.y, 3718648);
   }
   update(time, delta) {
@@ -772,6 +844,14 @@ const _GameScene = class _GameScene extends Phaser.Scene {
     if (this.roomCodeText) {
       this.roomCodeText.setText(`\u9891\u9053 ${state.code || "------"}`);
     }
+    if (this.skillStatusText) {
+      const skillId = resolvePrimarySkill(state);
+      const now = Date.now();
+      if (!skillId) this.skillStatusText.setText("Q \u6280\u80FD \u672A\u914D\u7F6E");
+      else if (now < this.localSkillWindupEndsAt) this.skillStatusText.setText(`Q ${getPrimarySkillLabel(skillId)} \u84C4\u529B ${formatTenths((this.localSkillWindupEndsAt - now) / 1e3)}s`);
+      else if (now < this.localSkillCooldownEndsAt) this.skillStatusText.setText(`Q ${getPrimarySkillLabel(skillId)} \u51B7\u5374 ${formatTenths((this.localSkillCooldownEndsAt - now) / 1e3)}s`);
+      else this.skillStatusText.setText(`Q ${getPrimarySkillLabel(skillId)} \u5C31\u7EEA`);
+    }
     if (this.combatText) {
       this.combatText.setText(state.lastCombatText || "\u5411\u4E2D\u5FC3\u5E9F\u571F\u63A8\u8FDB\uFF0C\u641C\u522E\u6218\u5229\u54C1\uFF0C\u7136\u540E\u64A4\u79BB\u3002");
     }
@@ -799,6 +879,12 @@ const _GameScene = class _GameScene extends Phaser.Scene {
       color: "#b8ae96",
       letterSpacing: 1
     }).setOrigin(1, 0);
+    this.skillStatusText = this.add.text(width - 32, 64, "Q \u6280\u80FD \u5C31\u7EEA", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#d9c68f",
+      letterSpacing: 1
+    }).setOrigin(1, 0);
     const combatPlate = this.add.graphics();
     drawPanelFrame(combatPlate, width / 2 - 260, height - 86, 520, 42, 10);
     this.combatText = this.add.text(width / 2, height - 55, "", {
@@ -822,6 +908,7 @@ const _GameScene = class _GameScene extends Phaser.Scene {
       rightPlate,
       this.timerText,
       this.roomCodeText,
+      this.skillStatusText,
       combatPlate,
       this.combatText,
       this.controlsHint
@@ -895,12 +982,43 @@ let GameScene = _GameScene;
 function resolvePrimarySkill(state) {
   const self = state?.players.find((p) => p.id === state.selfPlayerId);
   if (self?.weaponType === "sword") return "sword_dashSlash";
+  if (self?.weaponType === "blade") return "blade_sweep";
+  if (self?.weaponType === "spear") return "spear_heavyThrust";
   return null;
+}
+function getPrimarySkillCooldownMs(skillId) {
+  switch (skillId) {
+    case "sword_dashSlash":
+    case "blade_sweep":
+      return 4e3;
+    case "spear_heavyThrust":
+      return 5e3;
+    default:
+      return 3e3;
+  }
+}
+function getPrimarySkillWindupMs(skillId) {
+  return skillId === "spear_heavyThrust" ? 500 : 0;
+}
+function getPrimarySkillLabel(skillId) {
+  switch (skillId) {
+    case "sword_dashSlash":
+      return "\u7A81\u8FDB\u65A9";
+    case "blade_sweep":
+      return "\u6A2A\u626B";
+    case "spear_heavyThrust":
+      return "\u91CD\u51FB";
+    default:
+      return "\u6280\u80FD";
+  }
 }
 function formatSeconds(s) {
   const m = Math.floor(s / 60);
   const rs = s % 60;
   return `${m.toString().padStart(2, "0")}:${rs.toString().padStart(2, "0")}`;
+}
+function formatTenths(seconds) {
+  return Math.max(0, seconds).toFixed(1);
 }
 function getObstacleLayouts(w, h) {
   return [{ x: w * 0.18, y: h * 0.16, width: 64, height: 64, kind: "brush" }, { x: w * 0.82, y: h * 0.15, width: 96, height: 96, kind: "rock" }, { x: w * 0.18, y: h * 0.84, width: 64, height: 64, kind: "crate" }, { x: w * 0.84, y: h * 0.84, width: 64, height: 64, kind: "barricade" }];

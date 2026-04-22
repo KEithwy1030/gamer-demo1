@@ -444,3 +444,31 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Real-browser verify that player and monster hits now visibly flash and that melee impacts no longer feel completely weightless
+
+- Goal:
+  Restore missing self-owned attack and skill VFX so local combat no longer waits on remote echoes or narrow weapon-specific branches.
+- Actions:
+  - Changed `GameScene` so local attack input immediately plays the player attack VFX and camera kick
+  - Changed `GameScene` so local skill input immediately plays a weapon-appropriate skill VFX for sword/blade/spear paths
+  - Prevented the server-echoed `player:attack` event from double-playing the local player basic-attack VFX
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Real-browser verify that both basic attacks and skills now visibly animate for the local player on Web
+
+- Goal:
+  Make `Q` weapon skills readable and intentional instead of "sometimes moves, sometimes not" by aligning each weapon with its own primary skill behavior and UI state.
+- Actions:
+  - Mapped `Q` by weapon in `client/src/scenes/GameScene.{ts,js}`: sword=`突进斩`, blade=`横扫`, spear=`重击`
+  - Added local skill state text in the in-match HUD so Web players can now see `就绪 / 蓄力 / 冷却`
+  - Implemented weapon-specific local skill VFX: sword dash trail, blade sweep arc with skid, spear windup ring plus critical thrust burst
+  - Updated `server/src/combat/combat-service.ts` so `blade_sweep` now backsteps while sweeping and `spear_heavyThrust` now lands as a guaranteed critical hit
+  - Updated `server/src/monsters/monster-manager.ts` to keep monster-hit resolution aligned with the new blade/spear skill behavior
+  - Rebuilt the checked-in `client/src/scenes/GameScene.js` runtime sibling from TS
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - `npm.cmd run build --workspace client` passed
+  - `npm.cmd run build --workspace server` passed
+- Follow-up:
+  - Real-browser verify that blade Q sweeps while retreating, spear Q now visibly charges for ~0.5s before a critical hit, and the new HUD text makes cooldown state obvious

@@ -127,7 +127,8 @@ export function resolvePlayerSkillCast(
     }
     case "blade_sweep": {
       requireSkillCooldown(combatState, payload.skillId, now, 4000);
-      const targets = selectAttackTargets(room, caster, "blade", 100, 90);
+      movePlayerByDirection(caster.state!, -110);
+      const targets = selectAttackTargets(room, caster, "blade", 110, 110);
       return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, 55 + attackPowerBonus, now), now);
     }
     case "blade_guard": {
@@ -152,7 +153,15 @@ export function resolvePlayerSkillCast(
       requireSkillCooldown(combatState, payload.skillId, now, 5000);
       const target = selectAttackTarget(room, caster, "spear", 180, 50);
       return target
-        ? applyDamage(room, caster, target, scaleOutgoingDamage(caster, 75 + attackPowerBonus, now), now)
+        ? applyDamage(
+          room,
+          caster,
+          target,
+          Math.max(1, Math.round(scaleOutgoingDamage(caster, 75 + attackPowerBonus, now) * 1.8)),
+          now,
+          undefined,
+          true
+        )
         : emptyResolution();
     }
     case "spear_warCry": {
@@ -189,9 +198,10 @@ function applyDamage(
   target: RuntimePlayer,
   amount: number,
   timestamp: number,
-  onHitEffect?: PlayerHitEffect
+  onHitEffect?: PlayerHitEffect,
+  isCritical = false
 ): CombatResolution {
-  return applyDamageToTargets(room, attacker, [target], amount, timestamp, onHitEffect);
+  return applyDamageToTargets(room, attacker, [target], amount, timestamp, onHitEffect, isCritical);
 }
 
 function applyDamageToTargets(
@@ -200,7 +210,8 @@ function applyDamageToTargets(
   targets: RuntimePlayer[],
   amount: number,
   timestamp: number,
-  onHitEffect?: PlayerHitEffect
+  onHitEffect?: PlayerHitEffect,
+  isCritical = false
 ): CombatResolution {
   if (!attacker.state) {
     throw new Error("Attacker must have active state.");
@@ -230,6 +241,7 @@ function applyDamageToTargets(
       attackerId: attacker.id,
       targetId: target.id,
       amount: mitigatedAmount,
+      isCritical,
       statusApplied,
       targetHp: target.state.hp,
       targetAlive

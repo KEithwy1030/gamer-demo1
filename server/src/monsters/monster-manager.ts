@@ -250,10 +250,18 @@ export function handlePlayerSkill(
 
   switch (payload.skillId) {
     case "blade_sweep":
-      return applySkillDamageToMonsters(room, player, findAttackableMonsters(room, player.state, 80, 90), scaleOutgoingDamage(player, 220 + player.state.attackPower, now), now);
+      movePlayerByDirection(player.state, -110);
+      return applySkillDamageToMonsters(room, player, findAttackableMonsters(room, player.state, 110, 110), scaleOutgoingDamage(player, 220 + player.state.attackPower, now), now);
     case "spear_heavyThrust": {
       const target = findAttackableMonster(room, player.state, 160, 50);
-      return applySkillDamageToMonsters(room, player, target ? [target] : [], scaleOutgoingDamage(player, 300 + player.state.attackPower, now), now);
+      return applySkillDamageToMonsters(
+        room,
+        player,
+        target ? [target] : [],
+        Math.max(1, Math.round(scaleOutgoingDamage(player, 300 + player.state.attackPower, now) * 1.8)),
+        now,
+        true
+      );
     }
     default:
       return undefined;
@@ -395,7 +403,8 @@ function applySkillDamageToMonsters(
   player: RuntimePlayer,
   targets: RuntimeMonster[],
   damage: number,
-  now: number
+  now: number,
+  isCritical = false
 ): PlayerSkillOutcome {
   const combatEvents: CombatEventPayload[] = [];
   const spawnedDrops: DropState[] = [];
@@ -418,6 +427,7 @@ function applySkillDamageToMonsters(
       attackerId: player.id,
       targetId: monster.id,
       amount: damage,
+      isCritical,
       targetHp: monster.hp,
       targetAlive: !monsterDied
     });
@@ -599,6 +609,23 @@ function normalizeDirection(direction: { x: number; y: number }): { x: number; y
     x: direction.x / length,
     y: direction.y / length
   };
+}
+
+function movePlayerByDirection(
+  state: {
+    x: number;
+    y: number;
+    direction: { x: number; y: number };
+  },
+  distance: number
+): void {
+  const facing = normalizeDirection(state.direction);
+  const fallbackFacing = facing.x === 0 && facing.y === 0
+    ? { x: 0, y: 1 }
+    : facing;
+
+  state.x = clamp(state.x + fallbackFacing.x * distance, PLAYER_HIT_RADIUS, MATCH_MAP_WIDTH - PLAYER_HIT_RADIUS);
+  state.y = clamp(state.y + fallbackFacing.y * distance, PLAYER_HIT_RADIUS, MATCH_MAP_HEIGHT - PLAYER_HIT_RADIUS);
 }
 
 function getAngleBetween(a: { x: number; y: number }, b: { x: number; y: number }): number {
