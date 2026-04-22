@@ -47,6 +47,11 @@ const MONSTER_RESPAWN_DELAY_MS = 60_000;
 const MAP_MARGIN_PX = 96;
 const PLAYER_SPAWN_X = MATCH_MAP_WIDTH * 0.1;
 const PLAYER_SPAWN_Y = MATCH_MAP_HEIGHT * 0.1;
+const SKILL_DAMAGE = {
+  swordDashSlash: 24,
+  bladeSweep: 22,
+  spearHeavyThrust: 24
+} as const;
 
 export interface PlayerAttackOutcome {
   monsters: MonsterState[];
@@ -262,7 +267,7 @@ export function handlePlayerSkill(
         room,
         player,
         targets,
-        scaleOutgoingDamage(player, 260 + player.state.attackPower, now),
+        scaleOutgoingDamage(player, SKILL_DAMAGE.swordDashSlash + player.state.attackPower, now),
         now
       );
     }
@@ -270,7 +275,7 @@ export function handlePlayerSkill(
       {
         const targets = findAttackableMonsters(room, skillSourceState, 148, 170);
         movePlayerByDirection(player.state, -110);
-        return applySkillDamageToMonsters(room, player, targets, scaleOutgoingDamage(player, 220 + player.state.attackPower, now), now);
+        return applySkillDamageToMonsters(room, player, targets, scaleOutgoingDamage(player, SKILL_DAMAGE.bladeSweep + player.state.attackPower, now), now);
       }
     case "spear_heavyThrust": {
       const target = findAttackableMonster(room, skillSourceState, 160, 50);
@@ -278,7 +283,7 @@ export function handlePlayerSkill(
         room,
         player,
         target ? [target] : [],
-        Math.max(1, Math.round(scaleOutgoingDamage(player, 300 + player.state.attackPower, now) * 1.5)),
+        Math.max(1, Math.round(scaleOutgoingDamage(player, SKILL_DAMAGE.spearHeavyThrust + player.state.attackPower, now) * 1.5)),
         now,
         true
       );

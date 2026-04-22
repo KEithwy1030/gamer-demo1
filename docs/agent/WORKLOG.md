@@ -533,3 +533,16 @@
   - `npm.cmd run build --workspace client` passed
 - Follow-up:
   - Real-browser verify that blade Q now consistently connects on monsters already standing in melee range when cast from a stationary position
+
+- Goal:
+  Rebalance weapon-skill damage so only spear keeps guaranteed critical payoff, while sword/blade stop overkilling PvE targets through inflated base skill damage.
+- Actions:
+  - Audited the live combat numbers against current monster HP and weapon baselines
+  - Confirmed that the real imbalance was not "all three skills critting" but the oversized PvE base skill damage values on the monster-hit path
+  - Introduced aligned `SKILL_DAMAGE` baselines in `server/src/combat/combat-service.ts` and `server/src/monsters/monster-manager.ts`
+  - Set sword Q to a mobility-first damage band, blade Q to a wider-but-lower AoE band, and spear Q to the highest single-target skill while preserving its `1.5x` guaranteed crit identity
+- Verification:
+  - `npm.cmd run build --workspace server` passed
+  - `npm.cmd run build --workspace client` passed
+- Follow-up:
+  - Real-browser verify that sword/blade no longer flatten normal monsters by raw skill burst and that spear still feels like the deliberate high-payoff skill without deleting elites

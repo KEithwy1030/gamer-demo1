@@ -43,6 +43,11 @@ export interface PlayerDeathPayload {
 }
 
 const SKILL_COOLDOWN_MS = 3000;
+const SKILL_DAMAGE = {
+  swordDashSlash: 24,
+  bladeSweep: 22,
+  spearHeavyThrust: 24
+} as const;
 
 export function resolvePlayerAttack(
   room: RuntimeRoom,
@@ -125,7 +130,7 @@ export function resolvePlayerSkillCast(
         room,
         caster,
         targets,
-        scaleOutgoingDamage(caster, 45 + attackPowerBonus, now),
+        scaleOutgoingDamage(caster, SKILL_DAMAGE.swordDashSlash + attackPowerBonus, now),
         now
       );
     }
@@ -133,7 +138,7 @@ export function resolvePlayerSkillCast(
       requireSkillCooldown(combatState, payload.skillId, now, 4000);
       const targets = selectAttackTargets(room, caster, "blade", 148, 170);
       movePlayerByDirection(caster.state!, -110);
-      return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, 55 + attackPowerBonus, now), now);
+      return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, SKILL_DAMAGE.bladeSweep + attackPowerBonus, now), now);
     }
     case "blade_guard": {
       requireSkillCooldown(combatState, payload.skillId, now, 5000);
@@ -161,7 +166,7 @@ export function resolvePlayerSkillCast(
           room,
           caster,
           target,
-          Math.max(1, Math.round(scaleOutgoingDamage(caster, 75 + attackPowerBonus, now) * 1.5)),
+          Math.max(1, Math.round(scaleOutgoingDamage(caster, SKILL_DAMAGE.spearHeavyThrust + attackPowerBonus, now) * 1.5)),
           now,
           undefined,
           true
