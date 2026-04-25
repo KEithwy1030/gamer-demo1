@@ -171,3 +171,16 @@
   Enter a real Web match and judge whether the terrain/detail layer is back above the previous baseline and whether the HUD/minimap now feel like the same family as the lobby.
 - Blocking reason:
   Build success confirms integration, not the final subjective gameplay feel.
+
+## 12. In-Match HUD Proportion Needs Final Design Acceptance
+
+- Symptom:
+  The active HUD is now on local `master` and pinned to the viewport correctly, but its final scale/readability still needs design review against the user's latest direction.
+- Confirmed facts:
+  - `master` now contains the in-game visual/HUD branch commits and is ahead of `origin/master`
+  - `client/src/scenes/GameScene.ts` now compensates for camera zoom so the Phaser HUD stays at the screen edges
+  - desktop-wide browser verification no longer shows the mobile action button cluster
+- Next step:
+  Continue tuning the left status card, right match-state card, and bottom action-order panel directly on `master`, using browser screenshots as the acceptance surface.
+- Blocking reason:
+  The branch/source confusion is closed, but final HUD proportions are still a visual-design decision.

@@ -1,9 +1,9 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-25",
-  "latest_session_work": "Continued the codex/in-game-visual-hud-pass branch in the main E:/CursorData/gamer worktree, stopped using the misleading Image 2 ground texture as the active battlefield floor, added a structured in-match HUD framework and touch-control styling pass, and browser-verified lobby create -> start match -> gameplay view on http://127.0.0.1:5173/ against the local server on port 3002.",
+  "latest_session_work": "Promoted the in-game visual/HUD work from codex/in-game-visual-hud-pass onto local master, removed the active branch confusion, fixed HUD camera-zoom pinning so the HUD stays at screen edges in gameplay, and tightened touch-control gating so desktop-wide views no longer show the mobile action cluster.",
   "current_phase": "phase-c-p0-in-game-visual-hud-pass",
-  "current_priority": "Review and tune the in-match visual direction on the clean Codex branch while keeping master and the lobby shell out of scope.",
+  "current_priority": "Continue in-match HUD proportion/readability tuning directly on local master, with browser-visible gameplay screenshots as the acceptance surface.",
   "repo_bootstrap": [
     "MASTER_SPEC.md",
     "WORK_QUEUE.md",
@@ -61,7 +61,7 @@
     "shared_contract_surface": "split between runtimes",
     "lobby_room_code_flavor": "place-name plus middot format on mock and real room creation",
     "gameplay_ui_theme": "HUD, minimap, entity markers, combat feedback, touch controls, and inventory panel now share the in-match tactical wasteland palette on the Codex visual branch",
-    "in_game_visual_hud_pass": "browser-verified on 2026-04-25 for lobby create/start, first gameplay frame, HUD readability, and the refreshed desktop gameplay viewport using client 5173 plus server 3002",
+    "in_game_visual_hud_pass": "local master is now ahead of origin/master with the in-game visual/HUD pass; browser-verified on 2026-04-25 for lobby create/start, fixed HUD screen-edge pinning, and desktop-wide view without the mobile action cluster",
     "image2_asset_source": "client/public/assets/wasteland-ground.png remains checked in from the earlier art test but is no longer loaded by GameScene because it implied terrain/collision that the current demo does not enforce",
     "world_backdrop_chain": "active path restored with backdrop/plaza/path-patch/obstacle/region layers",
     "weapon_skill_balance": "sword and blade avoid crit identity while spear remains the deliberate crit skill"

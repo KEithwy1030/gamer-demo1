@@ -601,3 +601,21 @@
 - Follow-up:
   - User design acceptance is still needed before deeper character/monster asset work
   - Real-device mobile touch viewport still needs final proof
+
+## 2026-04-25 - Master HUD branch consolidation
+
+- Goal:
+  Remove the branch/source confusion around the active in-match HUD work and make local `master` the source of truth again.
+- Actions:
+  - Fast-forwarded local `master` to the `codex/in-game-visual-hud-pass` HUD work
+  - Reverted the uncommitted experimental `InMatchHud` refactor from the active `GameScene` path
+  - Added camera-zoom compensation for the Phaser HUD container so fixed HUD panels stay anchored to the screen edges
+  - Tightened touch-layout gating so desktop-wide sessions no longer show the mobile action buttons only because the host reports touch support
+  - Updated `docs/agent` to reflect that HUD tuning now continues on local `master`
+- Verification:
+  - `npm.cmd run typecheck --workspace client` passed
+  - Browser verification on `http://127.0.0.1:5173/` passed for lobby create -> start match -> desktop gameplay screenshot
+  - Screenshot saved to `artifacts/master-hud-pinfix-check.png`
+- Follow-up:
+  - Final HUD proportion/readability tuning remains open
+  - Untracked experimental screenshots and the unused `client/src/ui/InMatchHud.ts` should be deleted after explicit cleanup confirmation

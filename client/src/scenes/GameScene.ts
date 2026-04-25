@@ -400,7 +400,8 @@ export class GameScene extends Phaser.Scene {
 
   private shouldUseTouchLayout(): boolean {
     const coarsePointer = window.matchMedia?.("(pointer: coarse)").matches ?? false;
-    return navigator.maxTouchPoints > 0 && (coarsePointer || this.scale.width < 900);
+    const narrowViewport = window.innerWidth < 900 || this.scale.width < 900;
+    return narrowViewport && (navigator.maxTouchPoints > 0 || coarsePointer);
   }
 
   private handleAttack(): void {
@@ -541,7 +542,7 @@ export class GameScene extends Phaser.Scene {
     for (const m of this.monsterMarkers.values()) { m.step(alpha); m.root.setDepth(m.root.y); }
     for (const m of this.dropMarkers.values()) { m.root.setDepth(m.root.y); }
 
-    this.emitMoveInput(time); this.emitActionInput(); this.updateChests(); this.tickExtractBeacon(time);
+    this.emitMoveInput(time); this.emitActionInput(); this.updateChests(); this.tickExtractBeacon(time); this.pinHudToCamera();
 
     const sid = this.latestState?.selfPlayerId;
     if (sid) {
@@ -1035,6 +1036,16 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.syncExtractProgress();
+  }
+
+  private pinHudToCamera(): void {
+    if (!this.hudContainer) return;
+    const camera = this.cameras.main;
+    const zoom = camera.zoom || 1;
+    const offsetX = (camera.width * (1 - zoom)) / 2;
+    const offsetY = (camera.height * (1 - zoom)) / 2;
+    this.hudContainer.setPosition(-offsetX / zoom, -offsetY / zoom);
+    this.hudContainer.setScale(1 / zoom);
   }
 
   private initHud(): void {
