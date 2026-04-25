@@ -3,15 +3,18 @@
 ## 0. Codex In-Game Visual Pass Needs Design Review And Second-Viewport Proof
 
 - Symptom:
-  The first clean visual/HUD pass is implemented and browser-visible, but it is still a branch candidate rather than an accepted final art direction.
+  The clean visual/HUD branch now has a second HUD framework pass and browser proof, but it is still a branch candidate rather than an accepted final art direction.
 - Confirmed facts:
   - branch `codex/in-game-visual-hud-pass` was created from `master` to keep the stable old frontend untouched
   - the pass is limited to in-match presentation and does not continue the lobby overhaul
-  - `client/public/assets/wasteland-ground.png` is an Image 2 generated wasteland battlefield ground texture
-  - browser verification passed for lobby create -> start match -> gameplay view -> backpack open state on `2026-04-25`
+  - `client/public/assets/wasteland-ground.png` remains checked in from the Image 2 art test, but `GameScene` no longer uses it as the active ground texture
+  - the active ground returned to procedural `ground_pixel` so visual terrain does not imply missing collision authority
+  - the active HUD now uses left player status, right match status, bottom action-order, first-state-safe sync order, and restyled touch controls
+  - browser verification passed for lobby create -> start match -> gameplay view on `2026-04-25`
   - screenshots are saved at `artifacts/visual-hud-pass-gameplay-final.png` and `artifacts/visual-hud-pass-inventory-final.png`
+  - refreshed desktop HUD screenshot is saved at `artifacts/hud-framework-pass-gameplay-desktop.png`
 - Next step:
-  Get user design acceptance on the current tactical-wasteland direction, then tune desktop minimap/large viewport and real mobile touch viewport separately.
+  Get user design acceptance on the current tactical-wasteland HUD direction, then validate real-device mobile touch viewport separately.
 - Blocking reason:
   The branch is technically integrated, but final visual quality depends on user taste plus viewport-specific readability.
 

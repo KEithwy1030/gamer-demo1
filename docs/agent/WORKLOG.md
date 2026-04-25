@@ -582,3 +582,22 @@
 - Follow-up:
   - User design review is needed before deeper asset production
   - Desktop minimap and real-device mobile touch view still need separate viewport passes
+
+## 2026-04-25 - Codex HUD framework follow-up
+
+- Goal:
+  Keep the branch focused on in-match presentation while correcting the misleading generated ground texture and making the HUD read more like a game surface than a utility panel.
+- Actions:
+  - Stopped loading the Image 2 `wasteland-ground.png` as the active `GameScene` floor and returned the battlefield to the procedural `ground_pixel` layer with muted ambient terrain details
+  - Rebuilt the active HUD around a left player-status card, right match-state card, bottom action-order panel, low-HP wash, and stronger shared panel frame styling
+  - Moved HUD initialization before the immediate runtime subscription callback so first-state data can populate the HUD on the opening frame
+  - Restyled touch action controls and added safe-area-aware placement for the right-bottom mobile action cluster
+  - Updated `docs/agent` to mark the Image 2 ground asset as retained but inactive
+- Verification:
+  - `npm.cmd run typecheck` passed
+  - `npm.cmd run build` passed with only the existing Vite chunk-size warning
+  - Browser verification passed on `http://127.0.0.1:5173/` with server `3002` for lobby create, start match, and the refreshed desktop gameplay HUD screenshot
+  - Screenshot saved to `artifacts/hud-framework-pass-gameplay-desktop.png`
+- Follow-up:
+  - User design acceptance is still needed before deeper character/monster asset work
+  - Real-device mobile touch viewport still needs final proof

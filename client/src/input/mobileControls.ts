@@ -80,14 +80,15 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
 
   const updateLayout = () => {
     const portrait = isPortraitViewport();
-    const buttonSize = portrait ? 64 : 70;
-    const gap = portrait ? 10 : 8;
+    const buttonSize = portrait ? 62 : 66;
+    const gap = portrait ? 8 : 8;
 
     setStyles(actionOverlay, {
-      right: `${EDGE_PADDING}px`,
-      bottom: `${EDGE_PADDING}px`,
+      right: `max(${EDGE_PADDING}px, env(safe-area-inset-right))`,
+      bottom: `max(${EDGE_PADDING}px, env(safe-area-inset-bottom))`,
       gap: `${gap}px`,
-      gridTemplateColumns: `repeat(2, ${buttonSize}px)`
+      gridTemplateColumns: `repeat(2, ${buttonSize}px)`,
+      padding: "8px"
     });
 
     for (const button of Array.from(actionOverlay.children)) {
@@ -208,28 +209,33 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     button.textContent = label;
 
     setStyles(button, {
-      borderRadius: "999px",
-      background: "rgba(15,23,42,0.88)",
-      border: `3px solid ${color}`,
+      borderRadius: "8px",
+      background: "linear-gradient(180deg, rgba(43,37,25,0.96), rgba(14,11,8,0.94))",
+      border: `2px solid ${color}`,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       color,
       fontWeight: "700",
-      fontFamily: "monospace",
+      fontFamily: "\"Noto Serif SC\", \"Noto Sans SC\", serif",
       userSelect: "none",
       webkitUserSelect: "none",
-      touchAction: "manipulation"
+      touchAction: "manipulation",
+      boxShadow: `inset 0 0 0 1px rgba(232,223,200,0.1), 0 10px 20px rgba(0,0,0,0.34), 0 0 18px ${color}33`,
+      textShadow: `0 0 10px ${color}`,
+      letterSpacing: "0.08em"
     });
 
     const pressStart = (event: Event) => {
       event.preventDefault();
-      button.style.opacity = "0.72";
+      button.style.opacity = "0.78";
+      button.style.transform = "translateY(1px) scale(0.98)";
       onPress();
     };
 
     const pressEnd = () => {
       button.style.opacity = "1";
+      button.style.transform = "translateY(0) scale(1)";
     };
 
     button.addEventListener("touchstart", pressStart, { passive: false });
@@ -262,9 +268,9 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     width: `${BASE_SIZE}px`,
     height: `${BASE_SIZE}px`,
     borderRadius: "50%",
-    background: "rgba(255,255,255,0.15)",
-    border: "2px solid rgba(255,255,255,0.4)",
-    boxShadow: "0 0 0 1px rgba(15,23,42,0.25) inset"
+    background: "radial-gradient(circle, rgba(232,96,44,0.16), rgba(14,11,8,0.44) 58%, rgba(14,11,8,0.1))",
+    border: "2px solid rgba(232,96,44,0.38)",
+    boxShadow: "0 0 0 1px rgba(232,223,200,0.1) inset, 0 12px 34px rgba(0,0,0,0.32)"
   });
 
   setStyles(joystickKnob, {
@@ -274,14 +280,19 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     width: `${KNOB_SIZE}px`,
     height: `${KNOB_SIZE}px`,
     borderRadius: "50%",
-    background: "rgba(255,255,255,0.55)",
+    background: "rgba(232,223,200,0.68)",
+    boxShadow: "0 0 18px rgba(232,96,44,0.45)",
     pointerEvents: "none"
   });
 
   setStyles(actionOverlay, {
     position: "fixed",
     display: "grid",
-    pointerEvents: "auto"
+    pointerEvents: "auto",
+    background: "linear-gradient(180deg, rgba(22,19,15,0.78), rgba(14,11,8,0.9))",
+    border: "1px solid rgba(232,96,44,0.34)",
+    borderRadius: "8px",
+    boxShadow: "0 18px 42px rgba(0,0,0,0.42)"
   });
 
   joystick.append(joystickBase, joystickKnob);

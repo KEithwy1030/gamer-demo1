@@ -100,11 +100,14 @@ See [docs/agent/CANONICAL_BASELINE.md](/E:/CursorData/gamer/docs/agent/CANONICAL
 
 ## Current Visual Branch Truth
 
-- Clean in-game visual work is now isolated on `codex/in-game-visual-hud-pass` in the worktree `E:/CursorData/gamer-codex-in-game-visual-hud-pass`; `master` remains the stable old frontend baseline.
+- Clean in-game visual work is now continuing on `codex/in-game-visual-hud-pass` in the main worktree `E:/CursorData/gamer`; `master` remains the stable old frontend baseline and the older external duplicate worktree should not be treated as the active source.
 - This branch deliberately targets only the in-match surface: `GameScene`, Phaser HUD, player/monster/drop markers, minimap theme, pickup feedback, and the in-match inventory panel. Lobby optimization is out of scope for this pass.
-- The demo now includes `client/public/assets/wasteland-ground.png`, an Image 2 generated wasteland ground texture used by `GameScene` for the active battlefield floor.
+- `client/public/assets/wasteland-ground.png` remains checked in from the Image 2 art test, but `GameScene` no longer loads it for the active battlefield floor because it made non-colliding terrain look authoritative.
+- The active battlefield floor is back to the procedural `ground_pixel` texture plus muted ambient river/detail layers, so visual terrain no longer claims collision rules that the server does not enforce.
+- The active in-match HUD now uses a structured layout: player status card, match-state card, bottom action-order panel, low-HP wash, safer first-state synchronization, and restyled touch controls.
 - The in-match opening view no longer shows the central tutorial card or the separate top-center backpack launcher; the battlefield starts unobstructed and the lower-right `包` action remains the backpack entry.
-- Browser verification on `2026-04-25` passed for `http://127.0.0.1:5173/` against an isolated local server on port `3002`: lobby load, create room, start match, gameplay view, and backpack open state.
+- Browser verification on `2026-04-25` passed for `http://127.0.0.1:5173/` against the local server on port `3002`: lobby load, create room, start match, gameplay view, and refreshed desktop HUD screenshot.
 - Verification screenshots live under `artifacts/` in the clean worktree:
   - `visual-hud-pass-gameplay-final.png`
   - `visual-hud-pass-inventory-final.png`
+  - `hud-framework-pass-gameplay-desktop.png`

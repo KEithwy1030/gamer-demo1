@@ -1,7 +1,7 @@
 {
   "project": "gamer-demo1",
   "updated_at": "2026-04-25",
-  "latest_session_work": "Created the clean codex/in-game-visual-hud-pass branch for in-match presentation only, added an Image 2 wasteland ground asset, rethemed the active GameScene/HUD/entity markers/inventory surface, and browser-verified lobby create -> start match -> gameplay view -> backpack open on http://127.0.0.1:5173/ against an isolated server on port 3002.",
+  "latest_session_work": "Continued the codex/in-game-visual-hud-pass branch in the main E:/CursorData/gamer worktree, stopped using the misleading Image 2 ground texture as the active battlefield floor, added a structured in-match HUD framework and touch-control styling pass, and browser-verified lobby create -> start match -> gameplay view on http://127.0.0.1:5173/ against the local server on port 3002.",
   "current_phase": "phase-c-p0-in-game-visual-hud-pass",
   "current_priority": "Review and tune the in-match visual direction on the clean Codex branch while keeping master and the lobby shell out of scope.",
   "repo_bootstrap": [
@@ -40,7 +40,8 @@
     "Ran node scripts/test-loop.mjs successfully through create room, join, match start, kill, loot, extract open, extract channel, and settlement",
     "Browser-verified the active Web path through lobby load, room creation, and entering an in-match scene on http://localhost:5173/",
     "Pinned client/vite.config.ts to resolve .ts/.tsx before .js/.jsx so authored TS wins during Vite module resolution",
-    "Added the first clean Codex in-game visual/HUD pass on branch codex/in-game-visual-hud-pass with Image 2 wasteland ground art and browser screenshots for gameplay plus inventory open state"
+    "Added the first clean Codex in-game visual/HUD pass on branch codex/in-game-visual-hud-pass with Image 2 wasteland ground art and browser screenshots for gameplay plus inventory open state",
+    "Reworked the active in-match HUD into left status, right match state, bottom action-order, and safer touch-control surfaces while reverting the active battlefield floor to the procedural ground texture"
   ],
   "unfinished_high_priority": [
     "Normalize client/server consumption of shared contracts",
@@ -59,9 +60,9 @@
     "client_runtime_resolution": "Vite now prefers TS over JS siblings, but duplicate files still exist and remain a maintenance risk",
     "shared_contract_surface": "split between runtimes",
     "lobby_room_code_flavor": "place-name plus middot format on mock and real room creation",
-    "gameplay_ui_theme": "HUD, minimap, entity markers, combat feedback, and inventory panel now share the in-match tactical wasteland palette on the Codex visual branch",
-    "in_game_visual_hud_pass": "browser-verified on 2026-04-25 for lobby create/start, first gameplay frame, HUD readability, and backpack open/close entry using client 5173 plus server 3002",
-    "image2_asset_source": "client/public/assets/wasteland-ground.png is an Image 2 generated wasteland ground texture for the current demo branch",
+    "gameplay_ui_theme": "HUD, minimap, entity markers, combat feedback, touch controls, and inventory panel now share the in-match tactical wasteland palette on the Codex visual branch",
+    "in_game_visual_hud_pass": "browser-verified on 2026-04-25 for lobby create/start, first gameplay frame, HUD readability, and the refreshed desktop gameplay viewport using client 5173 plus server 3002",
+    "image2_asset_source": "client/public/assets/wasteland-ground.png remains checked in from the earlier art test but is no longer loaded by GameScene because it implied terrain/collision that the current demo does not enforce",
     "world_backdrop_chain": "active path restored with backdrop/plaza/path-patch/obstacle/region layers",
     "weapon_skill_balance": "sword and blade avoid crit identity while spear remains the deliberate crit skill"
   },

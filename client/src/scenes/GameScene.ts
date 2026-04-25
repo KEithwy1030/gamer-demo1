@@ -53,6 +53,19 @@ type ObstacleLayout = {
   rotation?: number;
 };
 
+type HudLayout = {
+  leftX: number;
+  leftY: number;
+  leftW: number;
+  leftH: number;
+  hpBarX: number;
+  hpBarY: number;
+  hpBarW: number;
+  objectiveX: number;
+  objectiveY: number;
+  objectiveW: number;
+};
+
 export class GameScene extends Phaser.Scene {
   static readonly KEY = "GameScene";
 
@@ -74,6 +87,7 @@ export class GameScene extends Phaser.Scene {
   private extractLabel?: Phaser.GameObjects.Text;
   private extractPulseTween?: Phaser.Tweens.Tween;
   private hudContainer?: Phaser.GameObjects.Container;
+  private hudLayout?: HudLayout;
   private minimap?: Minimap;
   private hpBar?: { track: Phaser.GameObjects.Graphics; fill: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text };
   private timerText?: Phaser.GameObjects.Text;
@@ -142,8 +156,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image("wasteland_ground", "/assets/wasteland-ground.png");
-
     // Spitesheets and textures generation...
     const pCanvas = document.createElement("canvas");
     pCanvas.width = 192; pCanvas.height = 192;
@@ -330,6 +342,8 @@ export class GameScene extends Phaser.Scene {
     this.anims.create({ key: "player-walk-up", frames: this.anims.generateFrameNumbers("player", { start: 12, end: 15 }), frameRate: 12, repeat: -1 });
     this.anims.create({ key: "monster-sway", frames: this.anims.generateFrameNumbers("monster", { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
 
+    this.initHud();
+
     this.unsubscribeRuntime = this.runtime.subscribe((state) => {
       this.latestState = state;
       this.syncWorld(state);
@@ -344,7 +358,6 @@ export class GameScene extends Phaser.Scene {
       this.keyboardControls = createKeyboardControls(keyboard);
     }
 
-    this.initHud();
     this.initChests();
     this.initTouchControls();
   }
@@ -370,7 +383,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private initTouchControls(): void {
-    if (navigator.maxTouchPoints <= 0) return;
+    if (!this.shouldUseTouchLayout()) return;
     this.mobileControls?.destroy();
     this.mobileControls = createMobileControls({
       root: document.body,
@@ -383,6 +396,11 @@ export class GameScene extends Phaser.Scene {
       onPickup: () => this.handleInteract(),
       onInventory: () => this.handleToggleInventory()
     });
+  }
+
+  private shouldUseTouchLayout(): boolean {
+    const coarsePointer = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+    return navigator.maxTouchPoints > 0 && (coarsePointer || this.scale.width < 900);
   }
 
   private handleAttack(): void {
@@ -701,7 +719,7 @@ export class GameScene extends Phaser.Scene {
     const centerX = width / 2;
     const centerY = height / 2;
 
-    this.terrainLayer = this.add.tileSprite(centerX, centerY, width, height, "wasteland_ground");
+    this.terrainLayer = this.add.tileSprite(centerX, centerY, width, height, "ground_pixel");
     this.terrainLayer.setDepth(-40);
 
     this.detailLayer = this.add.graphics();
@@ -759,7 +777,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.detailLayer) return;
 
     const river = this.detailLayer;
-    river.lineStyle(94, 0x243c2a, 0.62);
+    river.lineStyle(74, 0x243c2a, 0.24);
     river.beginPath();
     river.moveTo(width * 0.04, height * 0.31);
     river.lineTo(width * 0.2, height * 0.38);
@@ -769,9 +787,9 @@ export class GameScene extends Phaser.Scene {
     river.lineTo(width * 0.96, height * 0.58);
     river.strokePath();
 
-    river.lineStyle(42, 0x5d6a36, 0.34);
+    river.lineStyle(30, 0x5d6a36, 0.14);
     river.strokePath();
-    river.lineStyle(4, GAMEPLAY_THEME.colors.caution, 0.16);
+    river.lineStyle(3, GAMEPLAY_THEME.colors.caution, 0.08);
     river.strokePath();
   }
 
@@ -969,19 +987,21 @@ export class GameScene extends Phaser.Scene {
     const player = state.players.find((candidate) => candidate.id === state.selfPlayerId);
     if (this.hpBar && player) {
       const hpRatio = Phaser.Math.Clamp(player.maxHp > 0 ? player.hp / player.maxHp : 0, 0, 1);
-      drawPanelFrame(this.hpBar.track, 20, 18, 272, 44, 10);
+      const layout = this.hudLayout;
 
       this.hpBar.fill.clear();
       this.hpBar.fill.fillStyle(GAMEPLAY_THEME.colors.iron600, 1);
-      this.hpBar.fill.fillRoundedRect(30, 34, 208, 10, 5);
+      this.hpBar.fill.fillRoundedRect(layout?.hpBarX ?? 30, layout?.hpBarY ?? 34, layout?.hpBarW ?? 208, 10, 5);
 
       let color: number = GAMEPLAY_THEME.colors.confirm;
       if (hpRatio < 0.3) color = GAMEPLAY_THEME.colors.danger;
       else if (hpRatio < 0.6) color = GAMEPLAY_THEME.colors.caution;
 
       this.hpBar.fill.fillStyle(color, 1);
-      this.hpBar.fill.fillRoundedRect(30, 34, 208 * hpRatio, 10, 5);
-      this.hpBar.label.setText(`生命值 ${player.hp} / ${player.maxHp}`);
+      this.hpBar.fill.fillRoundedRect(layout?.hpBarX ?? 30, layout?.hpBarY ?? 34, (layout?.hpBarW ?? 208) * hpRatio, 10, 5);
+      this.hpBar.fill.lineStyle(1, GAMEPLAY_THEME.colors.bone, 0.14);
+      this.hpBar.fill.strokeRoundedRect(layout?.hpBarX ?? 30, layout?.hpBarY ?? 34, layout?.hpBarW ?? 208, 10, 5);
+      this.hpBar.label.setText(`生命 ${player.hp} / ${player.maxHp}`);
       this.syncLowHpOverlay(hpRatio);
     } else {
       this.syncLowHpOverlay(1);
@@ -1018,6 +1038,188 @@ export class GameScene extends Phaser.Scene {
   }
 
   private initHud(): void {
+    const { width, height } = this.scale;
+    const isTouchDevice = this.shouldUseTouchLayout();
+    const leftW = isTouchDevice ? Math.min(292, Math.max(244, width - 32)) : 318;
+    const leftH = 78;
+    const leftX = 16;
+    const leftY = 14;
+    const rightW = isTouchDevice ? Math.min(220, Math.max(184, width - 32)) : 248;
+    const rightH = 82;
+    const stackRightBelow = isTouchDevice && width < leftX + leftW + 16 + rightW + 16;
+    const rightX = stackRightBelow ? leftX : width - rightW - 16;
+    const rightY = stackRightBelow ? leftY + leftH + 10 : 14;
+    const reservedRight = isTouchDevice ? 176 : 40;
+    const objectiveW = isTouchDevice
+      ? Math.max(220, Math.min(390, width - 36))
+      : Math.min(560, Math.max(320, width - reservedRight - 48));
+    const objectiveX = isTouchDevice
+      ? 18
+      : Math.floor(width / 2 - objectiveW / 2);
+    const objectiveY = isTouchDevice ? height - 220 : height - 90;
+
+    this.hudLayout = {
+      leftX,
+      leftY,
+      leftW,
+      leftH,
+      hpBarX: leftX + 82,
+      hpBarY: leftY + 38,
+      hpBarW: leftW - 112,
+      objectiveX,
+      objectiveY,
+      objectiveW
+    };
+
+    this.hudContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(200);
+
+    const leftPlate = this.add.graphics();
+    drawPanelFrame(leftPlate, leftX, leftY, leftW, leftH, 8);
+
+    const avatarPlate = this.add.graphics();
+    avatarPlate.fillStyle(GAMEPLAY_THEME.colors.iron900, 0.9);
+    avatarPlate.fillRoundedRect(leftX + 14, leftY + 14, 48, 48, 6);
+    avatarPlate.lineStyle(2, GAMEPLAY_THEME.colors.signal, 0.65);
+    avatarPlate.strokeRoundedRect(leftX + 14, leftY + 14, 48, 48, 6);
+    avatarPlate.fillStyle(GAMEPLAY_THEME.colors.signal, 0.92);
+    avatarPlate.fillRect(leftX + 34, leftY + 24, 8, 28);
+    avatarPlate.fillStyle(GAMEPLAY_THEME.colors.bone, 0.92);
+    avatarPlate.fillRect(leftX + 28, leftY + 30, 20, 10);
+
+    const callsignText = this.add.text(leftX + 82, leftY + 14, "流亡者 / FIELD UNIT", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#b8ae96",
+      letterSpacing: 1
+    });
+
+    const hpLabel = this.add.text(leftX + 82, leftY + 24, "生命 -- / --", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "12px",
+      color: "#e8dfc8",
+      letterSpacing: 1
+    });
+    this.hpBar = { track: this.add.graphics(), fill: this.add.graphics(), label: hpLabel };
+
+    this.weaponNameText = this.add.text(leftX + 82, leftY + 54, "武器 ----", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#e8602c",
+      letterSpacing: 1
+    });
+
+    const rightPlate = this.add.graphics();
+    drawPanelFrame(rightPlate, rightX, rightY, rightW, rightH, 8);
+
+    const timerCaption = this.add.text(rightX + 14, rightY + 13, "封锁倒计时", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#b8ae96",
+      letterSpacing: 1
+    });
+    this.timerText = this.add.text(rightX + rightW - 14, rightY + 14, "00:00", {
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: "28px",
+      color: "#d4b24c"
+    }).setOrigin(1, 0);
+    this.roomCodeText = this.add.text(rightX + 14, rightY + 44, "频道 ------", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#e8dfc8",
+      letterSpacing: 1
+    });
+    this.skillStatusText = this.add.text(rightX + rightW - 14, rightY + 44, "Q 技能 就绪", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#d9c68f",
+      letterSpacing: 1
+    }).setOrigin(1, 0);
+
+    this.killsText = this.add.text(rightX + 14, rightY + 62, "压制 0/0", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#e8602c",
+      letterSpacing: 1
+    });
+
+    const combatPlate = this.add.graphics();
+    drawPanelFrame(combatPlate, objectiveX, objectiveY, objectiveW, 54, 8);
+    const objectiveLabel = this.add.text(objectiveX + 18, objectiveY + 10, "行动指令", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#e8602c",
+      letterSpacing: 2
+    });
+    this.combatText = this.add.text(objectiveX + objectiveW / 2, objectiveY + 36, "", {
+      fontFamily: GAMEPLAY_THEME.fonts.body,
+      fontSize: "15px",
+      color: "#e8dfc8",
+      align: "center"
+    }).setOrigin(0.5, 0.5);
+
+    this.extractProgressTrack = this.add.graphics();
+    drawPanelFrame(this.extractProgressTrack, width / 2 - 164, 96, 328, 30, 8);
+    this.extractProgressFill = this.add.graphics();
+    this.extractProgressLabel = this.add.text(width / 2, 91, "撤离读条", {
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: "14px",
+      color: "#e8dfc8",
+      stroke: "#16130f",
+      strokeThickness: 4
+    }).setOrigin(0.5, 1);
+    this.extractProgressTrack.setVisible(false);
+    this.extractProgressFill.setVisible(false);
+    this.extractProgressLabel.setVisible(false);
+
+    this.lowHpOverlay = this.add.rectangle(0, 0, width, height, GAMEPLAY_THEME.colors.danger, 0)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(160);
+
+    this.controlsHint = this.add.text(width - 20, height - 20, "WASD 移动 | 空格 攻击 | Q 技能 | E 交互 | I 背包", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#7d745e",
+      backgroundColor: "rgba(18, 14, 11, 0.82)",
+      padding: { x: 10, y: 6 }
+    }).setOrigin(1, 1);
+    this.controlsHint.setVisible(!isTouchDevice);
+
+    this.hudContainer.add([
+      leftPlate,
+      avatarPlate,
+      callsignText,
+      this.hpBar.track,
+      this.hpBar.fill,
+      hpLabel,
+      this.weaponNameText,
+      rightPlate,
+      timerCaption,
+      this.timerText,
+      this.roomCodeText,
+      this.skillStatusText,
+      this.killsText,
+      combatPlate,
+      objectiveLabel,
+      this.combatText,
+      this.controlsHint,
+      this.extractProgressTrack,
+      this.extractProgressFill,
+      this.extractProgressLabel,
+      this.lowHpOverlay
+    ]);
+
+    if (!isTouchDevice) {
+      this.minimap = new Minimap({
+        scene: this,
+        parent: this.hudContainer,
+        x: 20,
+        y: 104
+      });
+    }
+  }
+
+  private initHudUnusedPrevious(): void {
     const { width, height } = this.scale;
     this.hudContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(200);
 
@@ -1156,7 +1358,7 @@ export class GameScene extends Phaser.Scene {
     const progress = Phaser.Math.Clamp(this.extractState.progress ?? 0, 0, 1);
     this.extractProgressFill.clear();
     this.extractProgressFill.fillStyle(GAMEPLAY_THEME.colors.signal, 1);
-    this.extractProgressFill.fillRoundedRect(width / 2 - 150, 88, 300 * progress, 8, 4);
+    this.extractProgressFill.fillRoundedRect(width / 2 - 150, 107, 300 * progress, 8, 4);
     const seconds = this.extractState.secondsRemaining == null ? "" : ` ${Math.ceil(this.extractState.secondsRemaining)}s`;
     this.extractProgressLabel.setText(`撤离读条${seconds}`);
   }
