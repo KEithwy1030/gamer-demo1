@@ -26,29 +26,29 @@ export class PlayerMarker {
     // Pixel-style Foot Glow & Shadow
     this.shadow = scene.add.graphics();
     if (isSelf) {
-      this.shadow.fillStyle(0xfef08a, 0.3); // Yellow glow for self
+      this.shadow.fillStyle(0xe8602c, 0.28);
       this.shadow.fillEllipse(0, 24, 52, 20);
     } else {
-      this.shadow.fillStyle(0x38bdf8, 0.2); // Blue glow for others
+      this.shadow.fillStyle(0x7fb4c2, 0.2);
       this.shadow.fillEllipse(0, 24, 48, 18);
     }
-    this.shadow.fillStyle(0x020617, 0.3);
+    this.shadow.fillStyle(0x0e0b08, 0.36);
     this.shadow.fillEllipse(0, 24, 30, 10);
     
     this.sprite = scene.add.sprite(0, 0, "player");
     this.sprite.setDisplaySize(64, 64);
 
     // HP Bar: Sharper Pixel Look
-    this.hpTrack = scene.add.rectangle(0, -36, 40, 8, 0x000000, 0.9);
-    this.hpFill = scene.add.rectangle(-20, -36, 40, 8, 0x4ade80, 1);
+    this.hpTrack = scene.add.rectangle(0, -36, 40, 8, 0x16130f, 0.92);
+    this.hpFill = scene.add.rectangle(-20, -36, 40, 8, 0x7fa14a, 1);
     this.hpFill.setOrigin(0, 0.5);
 
     this.nameplate = scene.add.text(0, -48, player.name, {
       fontFamily: "monospace",
       fontSize: "13px",
       fontStyle: "bold",
-      color: "#f8fafc",
-      backgroundColor: "rgba(15,23,42,0.8)",
+      color: "#e8dfc8",
+      backgroundColor: "rgba(22,19,15,0.84)",
       padding: { x: 6, y: 3 }
     });
     this.nameplate.setOrigin(0.5, 1);
@@ -148,7 +148,7 @@ export class PlayerMarker {
     ghost.setRotation(this.sprite.rotation);
     ghost.setDepth(this.root.depth - 1);
     ghost.setAlpha(0.5);
-    ghost.setTint(0x38bdf8);
+    ghost.setTint(0xe8602c);
 
     scene.tweens.add({
       targets: ghost,
@@ -161,12 +161,12 @@ export class PlayerMarker {
 
 function resolveHpColor(hpRatio: number): number {
   if (hpRatio > 0.6) {
-    return 0x4ade80;
+    return 0x7fa14a;
   }
 
   if (hpRatio > 0.3) {
-    return 0xfacc15;
+    return 0xd4b24c;
   }
 
-  return 0xf87171;
+  return 0xb8371f;
 }

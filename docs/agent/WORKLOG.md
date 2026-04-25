@@ -563,3 +563,22 @@
 - Follow-up:
   - Browser-visible settlement -> return-to-lobby -> next-match readiness still needs explicit proof
   - TS/JS duplicate-file governance is reduced from runtime-resolution risk to a remaining repo-maintenance decision
+
+## 2026-04-25 - Codex in-game visual/HUD branch first pass
+
+- Goal:
+  Keep `master` as the stable old frontend while proving a clean, separate in-match visual direction using Image 2 assets and a tighter HUD pass.
+- Actions:
+  - Created the clean `codex/in-game-visual-hud-pass` worktree from `master` instead of continuing the polluted `feature/visual-overhaul` branch
+  - Added `client/public/assets/wasteland-ground.png` as an Image 2 generated wasteland battlefield ground texture
+  - Updated `GameScene` to use the new ground asset, darker wasteland backdrop layers, extraction-zone visual treatment, richer combat feedback, pickup toast feedback, low-HP wash, and a less obstructive opening view
+  - Rethemed player, monster, drop, minimap, HUD frame, and in-match inventory surfaces around the same tactical-wasteland palette
+  - Removed the visible top-center backpack launcher from the combat view; the lower-right `包` action now remains the in-game inventory entry
+- Verification:
+  - `npm.cmd run typecheck` passed
+  - `npm.cmd run build` passed
+  - Browser verification passed on `http://127.0.0.1:5173/` with server `3002` for lobby create, start match, gameplay view, and backpack open state
+  - Screenshots saved to `artifacts/visual-hud-pass-gameplay-final.png` and `artifacts/visual-hud-pass-inventory-final.png`
+- Follow-up:
+  - User design review is needed before deeper asset production
+  - Desktop minimap and real-device mobile touch view still need separate viewport passes

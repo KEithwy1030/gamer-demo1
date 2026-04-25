@@ -43,7 +43,7 @@ export class Minimap {
     this.discovered = new Array(this.cols * this.rows).fill(false);
 
     this.container = this.scene.add.container(options.x, options.y).setScrollFactor(0).setDepth(220);
-    this.background = this.scene.add.rectangle(0, 0, this.mapWidth, this.mapHeight, GAMEPLAY_THEME.colors.void, 0.92).setOrigin(0, 0);
+    this.background = this.scene.add.rectangle(0, 0, this.mapWidth, this.mapHeight, GAMEPLAY_THEME.colors.void, 0.9).setOrigin(0, 0);
     this.exploredLayer = this.scene.add.graphics();
     this.frame = this.scene.add.graphics();
     this.playerDot = this.scene.add.circle(0, 0, 4, GAMEPLAY_THEME.colors.signal, 1).setVisible(false);
@@ -109,7 +109,7 @@ export class Minimap {
         }
 
         this.discovered[index] = true;
-        this.exploredLayer.fillStyle(0x56462f, 0.92);
+        this.exploredLayer.fillStyle(0x6b5f48, 0.92);
         this.exploredLayer.fillRect(
           col * (this.mapWidth / this.cols),
           row * (this.mapHeight / this.rows),
@@ -128,6 +128,19 @@ export class Minimap {
       (clampedY / this.worldHeight) * this.mapHeight
     );
     this.playerDot.setVisible(true);
+
+    if (!this.playerDot.getData("pulse")) {
+      this.playerDot.setData("pulse", true);
+      this.scene.tweens.add({
+        targets: this.playerDot,
+        alpha: 0.62,
+        scale: 1.55,
+        duration: 720,
+        ease: "Sine.InOut",
+        yoyo: true,
+        repeat: -1
+      });
+    }
   }
 
   destroy(): void {

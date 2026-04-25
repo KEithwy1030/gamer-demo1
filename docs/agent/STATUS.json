@@ -1,9 +1,9 @@
 {
   "project": "gamer-demo1",
-  "updated_at": "2026-04-22",
-  "latest_session_work": "Completed a Web-first weapon-skill stabilization pass, proved the backend full loop with scripts/test-loop.mjs, browser-verified lobby create/start flow on Web, and pinned Vite to resolve authored TS before checked-in JS siblings.",
-  "current_phase": "phase-c-p0-web-core-loop-alignment",
-  "current_priority": "Finish Web-first main-loop acceptance and keep docs/runtime truth aligned while reducing the remaining TS-vs-JS maintenance risk before any further polish work.",
+  "updated_at": "2026-04-25",
+  "latest_session_work": "Created the clean codex/in-game-visual-hud-pass branch for in-match presentation only, added an Image 2 wasteland ground asset, rethemed the active GameScene/HUD/entity markers/inventory surface, and browser-verified lobby create -> start match -> gameplay view -> backpack open on http://127.0.0.1:5173/ against an isolated server on port 3002.",
+  "current_phase": "phase-c-p0-in-game-visual-hud-pass",
+  "current_priority": "Review and tune the in-match visual direction on the clean Codex branch while keeping master and the lobby shell out of scope.",
   "repo_bootstrap": [
     "MASTER_SPEC.md",
     "WORK_QUEUE.md",
@@ -21,7 +21,8 @@
     "web-first main-loop acceptance",
     "manual full-loop validation",
     "mobile runtime correctness",
-    "2D readability and gameplay feel"
+    "2D readability and gameplay feel",
+    "in-game visual direction and HUD readability"
   ],
   "recently_completed": [
     "Created docs/agent/CANONICAL_BASELINE.md from current code/runtime audit",
@@ -38,7 +39,8 @@
     "Stabilized sword/blade/spear Q behavior, hit models, and PvE damage bands so only spear keeps the guaranteed critical-skill identity",
     "Ran node scripts/test-loop.mjs successfully through create room, join, match start, kill, loot, extract open, extract channel, and settlement",
     "Browser-verified the active Web path through lobby load, room creation, and entering an in-match scene on http://localhost:5173/",
-    "Pinned client/vite.config.ts to resolve .ts/.tsx before .js/.jsx so authored TS wins during Vite module resolution"
+    "Pinned client/vite.config.ts to resolve .ts/.tsx before .js/.jsx so authored TS wins during Vite module resolution",
+    "Added the first clean Codex in-game visual/HUD pass on branch codex/in-game-visual-hud-pass with Image 2 wasteland ground art and browser screenshots for gameplay plus inventory open state"
   ],
   "unfinished_high_priority": [
     "Normalize client/server consumption of shared contracts",
@@ -57,7 +59,9 @@
     "client_runtime_resolution": "Vite now prefers TS over JS siblings, but duplicate files still exist and remain a maintenance risk",
     "shared_contract_surface": "split between runtimes",
     "lobby_room_code_flavor": "place-name plus middot format on mock and real room creation",
-    "gameplay_ui_theme": "HUD and minimap now share a minimal gameplay theme entry",
+    "gameplay_ui_theme": "HUD, minimap, entity markers, combat feedback, and inventory panel now share the in-match tactical wasteland palette on the Codex visual branch",
+    "in_game_visual_hud_pass": "browser-verified on 2026-04-25 for lobby create/start, first gameplay frame, HUD readability, and backpack open/close entry using client 5173 plus server 3002",
+    "image2_asset_source": "client/public/assets/wasteland-ground.png is an Image 2 generated wasteland ground texture for the current demo branch",
     "world_backdrop_chain": "active path restored with backdrop/plaza/path-patch/obstacle/region layers",
     "weapon_skill_balance": "sword and blade avoid crit identity while spear remains the deliberate crit skill"
   },

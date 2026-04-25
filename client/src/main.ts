@@ -95,8 +95,8 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
 
       const launcher = document.querySelector(".inventory-mobile-toggle");
       if (launcher instanceof HTMLElement) {
-        launcher.hidden = !available;
-        launcher.style.display = available ? "flex" : "none";
+        launcher.hidden = true;
+        launcher.style.display = "none";
       }
     };
 

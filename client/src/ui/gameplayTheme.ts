@@ -40,4 +40,21 @@ export function drawPanelFrame(
   graphics.strokeRoundedRect(x, y, width, height, radius);
   graphics.lineStyle(1, GAMEPLAY_THEME.colors.signal, 0.16);
   graphics.strokeRoundedRect(x + 6, y + 6, width - 12, height - 12, Math.max(4, radius - 2));
+
+  const corner = Math.min(18, Math.max(10, Math.floor(Math.min(width, height) * 0.32)));
+  graphics.lineStyle(2, GAMEPLAY_THEME.colors.signal, 0.72);
+  graphics.beginPath();
+  graphics.moveTo(x, y + corner);
+  graphics.lineTo(x, y);
+  graphics.lineTo(x + corner, y);
+  graphics.moveTo(x + width - corner, y);
+  graphics.lineTo(x + width, y);
+  graphics.lineTo(x + width, y + corner);
+  graphics.moveTo(x, y + height - corner);
+  graphics.lineTo(x, y + height);
+  graphics.lineTo(x + corner, y + height);
+  graphics.moveTo(x + width - corner, y + height);
+  graphics.lineTo(x + width, y + height);
+  graphics.lineTo(x + width, y + height - corner);
+  graphics.strokePath();
 }

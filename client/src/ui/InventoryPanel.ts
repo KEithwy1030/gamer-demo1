@@ -157,8 +157,8 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   mobileClose.className = "inventory-panel__toggle";
   mobileClose.style.display = "none";
   mobileClose.textContent = "收起";
-  mobileClose.style.backgroundColor = "#f85149";
-  mobileClose.style.borderColor = "#f85149";
+  mobileClose.style.backgroundColor = "#3a1d12";
+  mobileClose.style.borderColor = "#e8602c";
 
   const mq = window.matchMedia("(max-width: 767px)");
   const handleMq = (media: MediaQueryList | MediaQueryListEvent) => {

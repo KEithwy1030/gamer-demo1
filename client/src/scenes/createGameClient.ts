@@ -94,7 +94,15 @@ export function createGameClientController(
       runtime.updateDrops(normalizeDropsState(drops));
     },
     setInventory(payload) {
+      const previousInventory = runtime.getState().inventory;
       const normalized = normalizeInventoryEvent(payload);
+      if (previousInventory && normalized) {
+        const previousIds = new Set(previousInventory.items.map((item) => item.instanceId));
+        const gainedItem = normalized.items.find((item) => !previousIds.has(item.instanceId));
+        if (gainedItem) {
+          getScene()?.showPickupFeedback(gainedItem.name);
+        }
+      }
       runtime.setInventory(normalized);
       options.onInventoryChange?.(normalized);
     },

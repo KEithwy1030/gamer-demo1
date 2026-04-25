@@ -21,7 +21,7 @@ export class MonsterMarker {
     this.targetY = monster.y;
     this.isAlive = monster.isAlive;
 
-    this.shadow = scene.add.ellipse(0, 16, 28, 10, 0x020617, 0.3);
+    this.shadow = scene.add.ellipse(0, 16, 28, 10, 0x0e0b08, 0.42);
     
     const assetKey = monster.type === "elite" ? "elite" : "monster";
     this.sprite = scene.add.sprite(0, 0, assetKey);
@@ -31,16 +31,16 @@ export class MonsterMarker {
       this.sprite.anims.play("monster-sway", true);
     }
 
-    this.hpTrack = scene.add.rectangle(0, -28, 36, 6, 0x000000, 0.9);
-    this.hpFill = scene.add.rectangle(-18, -28, 36, 6, 0xfb7185, 1);
+    this.hpTrack = scene.add.rectangle(0, -28, 36, 6, 0x16130f, 0.92);
+    this.hpFill = scene.add.rectangle(-18, -28, 36, 6, 0xb8371f, 1);
     this.hpFill.setOrigin(0, 0.5);
 
     this.label = scene.add.text(0, 24, monster.type === "elite" ? "精英" : "游荡者", {
       fontFamily: "monospace",
       fontSize: "12px",
       fontStyle: "bold",
-      color: "#fff7ed",
-      backgroundColor: "rgba(69,10,10,0.8)",
+      color: "#e8dfc8",
+      backgroundColor: "rgba(69,10,10,0.82)",
       padding: { x: 5, y: 2 }
     });
     this.label.setOrigin(0.5, 0);

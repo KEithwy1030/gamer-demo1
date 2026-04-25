@@ -65,6 +65,7 @@ export class GameScene extends Phaser.Scene {
   private readonly chestLabels = new Map<string, Phaser.GameObjects.Text>();
   private terrainLayer?: Phaser.GameObjects.TileSprite;
   private detailLayer?: Phaser.GameObjects.Graphics;
+  private atmosphereLayer?: Phaser.GameObjects.Graphics;
   private obstacleLayer?: Phaser.GameObjects.Container;
   private worldFrame?: Phaser.GameObjects.Graphics;
   private extractOuterRing?: Phaser.GameObjects.Arc;
@@ -78,6 +79,13 @@ export class GameScene extends Phaser.Scene {
   private timerText?: Phaser.GameObjects.Text;
   private roomCodeText?: Phaser.GameObjects.Text;
   private weaponNameText?: Phaser.GameObjects.Text;
+  private killsText?: Phaser.GameObjects.Text;
+  private extractProgressTrack?: Phaser.GameObjects.Graphics;
+  private extractProgressFill?: Phaser.GameObjects.Graphics;
+  private extractProgressLabel?: Phaser.GameObjects.Text;
+  private lowHpOverlay?: Phaser.GameObjects.Rectangle;
+  private pickupToast?: Phaser.GameObjects.Text;
+  private pickupToastTween?: Phaser.Tweens.Tween;
   private skillStatusText?: Phaser.GameObjects.Text;
   private combatText?: Phaser.GameObjects.Text;
   private controlsHint?: Phaser.GameObjects.Text;
@@ -134,6 +142,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
+    this.load.image("wasteland_ground", "/assets/wasteland-ground.png");
+
     // Spitesheets and textures generation...
     const pCanvas = document.createElement("canvas");
     pCanvas.width = 192; pCanvas.height = 192;
@@ -144,10 +154,10 @@ export class GameScene extends Phaser.Scene {
         let leftLegY = 12; let rightLegY = 12;
         if (col === 1) leftLegY += 3;
         if (col === 3) rightLegY += 3;
-        pCtx.fillStyle = "#1e293b"; pCtx.fillRect(x - 6, y + leftLegY, 4, 8); pCtx.fillRect(x + 2, y + rightLegY, 4, 8);
-        pCtx.fillStyle = "#2563eb"; pCtx.fillRect(x - 6, y - 4, 12, 16);
-        pCtx.fillStyle = "#ffdbac"; pCtx.fillRect(x - 5, y - 14, 10, 10);
-        pCtx.fillStyle = "#000000";
+        pCtx.fillStyle = "#16130f"; pCtx.fillRect(x - 6, y + leftLegY, 4, 8); pCtx.fillRect(x + 2, y + rightLegY, 4, 8);
+        pCtx.fillStyle = "#2b2519"; pCtx.fillRect(x - 6, y - 4, 12, 16);
+        pCtx.fillStyle = "#e8dfc8"; pCtx.fillRect(x - 5, y - 14, 10, 10);
+        pCtx.fillStyle = "#e8602c";
         if (row === 0) { pCtx.fillRect(x - 3, y - 10, 2, 2); pCtx.fillRect(x + 1, y - 10, 2, 2); }
         else if (row === 1) { pCtx.fillRect(x - 5, y - 10, 2, 2); }
         else if (row === 2) { pCtx.fillRect(x + 3, y - 10, 2, 2); }
@@ -160,29 +170,31 @@ export class GameScene extends Phaser.Scene {
     const mCtx = mCanvas.getContext("2d")!;
     for (let f = 0; f < 4; f++) {
       const x = f * 32 + 16; const y = 16;
-      mCtx.fillStyle = "#f43f5e"; mCtx.beginPath(); mCtx.arc(x, y, 10, 0, Math.PI * 2); mCtx.fill();
-      mCtx.fillStyle = "#000000"; mCtx.fillRect(x - 4, y - 2, 2, 2); mCtx.fillRect(x + 2, y - 2, 2, 2);
+      mCtx.fillStyle = "#6f2a1b"; mCtx.beginPath(); mCtx.arc(x, y, 10, 0, Math.PI * 2); mCtx.fill();
+      mCtx.fillStyle = "#16130f"; mCtx.fillRect(x - 4, y - 2, 2, 2); mCtx.fillRect(x + 2, y - 2, 2, 2);
     }
     this.textures.addSpriteSheet("monster", mCanvas as any, { frameWidth: 32, frameHeight: 32 });
 
     const eCanvas = document.createElement("canvas");
     eCanvas.width = 64; eCanvas.height = 64;
     const eCtx = eCanvas.getContext("2d")!;
-    eCtx.fillStyle = "#7e22ce"; eCtx.beginPath(); eCtx.moveTo(32, 8); eCtx.lineTo(56, 32); eCtx.lineTo(32, 56); eCtx.lineTo(8, 32); eCtx.closePath(); eCtx.fill();
+    eCtx.fillStyle = "#b8371f"; eCtx.beginPath(); eCtx.moveTo(32, 8); eCtx.lineTo(56, 32); eCtx.lineTo(32, 56); eCtx.lineTo(8, 32); eCtx.closePath(); eCtx.fill();
+    eCtx.strokeStyle = "#e8602c"; eCtx.lineWidth = 4; eCtx.stroke();
     this.textures.addCanvas("elite", eCanvas);
 
     const dCanvas = document.createElement("canvas");
     dCanvas.width = 16; dCanvas.height = 16;
     const dCtx = dCanvas.getContext("2d")!;
-    dCtx.fillStyle = "#facc15"; dCtx.fillRect(2, 2, 12, 12);
+    dCtx.fillStyle = "#e8602c"; dCtx.fillRect(2, 2, 12, 12);
+    dCtx.strokeStyle = "#e8dfc8"; dCtx.lineWidth = 1; dCtx.strokeRect(2.5, 2.5, 11, 11);
     this.textures.addCanvas("drop", dCanvas);
 
     const gCanvas = document.createElement("canvas");
     gCanvas.width = 64; gCanvas.height = 64;
     const gCtx = gCanvas.getContext("2d")!;
-    gCtx.fillStyle = "#4a7c3f"; gCtx.fillRect(0, 0, 64, 64);
+    gCtx.fillStyle = "#211c15"; gCtx.fillRect(0, 0, 64, 64);
     for (let i = 0; i < 64; i += 1) {
-      gCtx.fillStyle = Math.random() > 0.5 ? "#3d6b34" : "#5a9e50";
+      gCtx.fillStyle = Math.random() > 0.5 ? "#3a3223" : "#4d4330";
       gCtx.fillRect(Math.floor(Math.random() * 64), Math.floor(Math.random() * 64), 2, 2);
     }
     this.textures.addCanvas("ground_pixel", gCanvas);
@@ -190,25 +202,27 @@ export class GameScene extends Phaser.Scene {
     const crateCanvas = document.createElement("canvas");
     crateCanvas.width = 48; crateCanvas.height = 48;
     const crateCtx = crateCanvas.getContext("2d")!;
-    crateCtx.fillStyle = "#8B6914"; crateCtx.fillRect(2, 2, 44, 44);
+    crateCtx.fillStyle = "#3a3223"; crateCtx.fillRect(2, 2, 44, 44);
+    crateCtx.strokeStyle = "#7d745e"; crateCtx.lineWidth = 3; crateCtx.strokeRect(4, 4, 40, 40);
     this.textures.addCanvas("crate", crateCanvas);
 
     const rockCanvas = document.createElement("canvas");
     rockCanvas.width = 48; rockCanvas.height = 48;
     const rockCtx = rockCanvas.getContext("2d")!;
-    rockCtx.fillStyle = "#71717a"; rockCtx.beginPath(); rockCtx.arc(24, 24, 20, 0, Math.PI * 2); rockCtx.fill();
+    rockCtx.fillStyle = "#4d4330"; rockCtx.beginPath(); rockCtx.arc(24, 24, 20, 0, Math.PI * 2); rockCtx.fill();
     this.textures.addCanvas("rock", rockCanvas);
 
     const brushCanvas = document.createElement("canvas");
     brushCanvas.width = 48; brushCanvas.height = 48;
     const brushCtx = brushCanvas.getContext("2d")!;
-    brushCtx.fillStyle = "#166534"; brushCtx.beginPath(); brushCtx.arc(24, 24, 20, 0, Math.PI * 2); brushCtx.fill();
+    brushCtx.fillStyle = "#2b2519"; brushCtx.beginPath(); brushCtx.arc(24, 24, 20, 0, Math.PI * 2); brushCtx.fill();
     this.textures.addCanvas("brush", brushCanvas);
 
     const bCanvas = document.createElement("canvas");
     bCanvas.width = 64; bCanvas.height = 64;
     const bCtx = bCanvas.getContext("2d")!;
-    bCtx.fillStyle = "#2dd4bf"; bCtx.fillRect(16, 16, 32, 32);
+    bCtx.fillStyle = "#e8602c"; bCtx.fillRect(16, 16, 32, 32);
+    bCtx.fillStyle = "#e8dfc8"; bCtx.fillRect(28, 6, 8, 52);
     this.textures.addCanvas("beacon", bCanvas);
 
     const ccCanvas = document.createElement("canvas");
@@ -238,8 +252,8 @@ export class GameScene extends Phaser.Scene {
     this.subscribeChestOpened = data.subscribeChestOpened;
     this.onCombatResult = (payload) => this.handleCombatResult(payload);
     this.onPlayerAttack = (payload) => this.handleServerPlayerAttack(payload);
-    
-    this.time.delayedCall(500, () => this.showTutorial());
+
+    // The in-game HUD carries objectives now; keep the first combat view unobstructed.
   }
 
   private handleServerPlayerAttack(payload: { playerId: string; attackId: string }): void {
@@ -262,15 +276,28 @@ export class GameScene extends Phaser.Scene {
   private handleCombatResult(payload: CombatEventPayload): void {
     const target = this.playerMarkers.get(payload.targetId) || this.monsterMarkers.get(payload.targetId);
     if (!target) return;
-    const color = payload.isCritical ? "#fbbf24" : "#ef4444";
+    const color = payload.isCritical ? "#d4b24c" : "#b8371f";
     const text = this.add.text(target.root.x, target.root.y - 30, `-${payload.amount}`, {
-      fontFamily: "monospace", fontSize: payload.isCritical ? "24px" : "18px", fontStyle: "bold", color, stroke: "#000000", strokeThickness: 4
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: payload.isCritical ? "30px" : "18px",
+      fontStyle: "bold",
+      color,
+      stroke: "#16130f",
+      strokeThickness: payload.isCritical ? 6 : 4
     }).setOrigin(0.5).setDepth(3000);
-    this.tweens.add({ targets: text, y: text.y - 40, alpha: 0, duration: 800, ease: "Cubic.out", onComplete: () => text.destroy() });
+    this.tweens.add({ targets: text, y: text.y - (payload.isCritical ? 58 : 40), alpha: 0, duration: payload.isCritical ? 980 : 760, ease: "Cubic.out", onComplete: () => text.destroy() });
+
+    if (payload.isCritical) {
+      const burst = this.add.circle(target.root.x, target.root.y, 16, GAMEPLAY_THEME.colors.caution, 0.22).setDepth(2999);
+      burst.setStrokeStyle(4, GAMEPLAY_THEME.colors.bone, 0.8);
+      this.tweens.add({ targets: burst, alpha: 0, scale: 3.2, duration: 320, ease: "Cubic.out", onComplete: () => burst.destroy() });
+    }
+
     this.flashEffect(target.root);
     if (payload.targetId === this.latestState?.selfPlayerId) {
-      this.cameras.main.shake(100, 3 / this.scale.width);
+      this.cameras.main.shake(150, 4 / this.scale.width);
       this.applyHitStop(50);
+      this.showDamageWash();
     }
     const attackerMonster = this.monsterMarkers.get(payload.attackerId);
     if (attackerMonster && payload.targetId === this.latestState?.selfPlayerId) {
@@ -280,14 +307,22 @@ export class GameScene extends Phaser.Scene {
 
   private showMonsterAttackVfx(mx: number, my: number, tx: number, ty: number, depth: number): void {
     const danger = this.add.graphics();
-    danger.lineStyle(4, 0xff0000, 1); danger.strokeCircle(0, 0, 24);
-    danger.fillStyle(0xff0000, 0.25); danger.fillCircle(0, 0, 24);
+    danger.lineStyle(4, GAMEPLAY_THEME.colors.danger, 1); danger.strokeCircle(0, 0, 24);
+    danger.fillStyle(GAMEPLAY_THEME.colors.danger, 0.25); danger.fillCircle(0, 0, 24);
     danger.setPosition(mx, my).setDepth(depth + 5);
     this.tweens.add({ targets: danger, alpha: 0, scale: 1.6, duration: 280, onComplete: () => danger.destroy() });
   }
 
+  private showDamageWash(): void {
+    const wash = this.add.rectangle(0, 0, this.scale.width, this.scale.height, GAMEPLAY_THEME.colors.danger, 0.2)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(5000);
+    this.tweens.add({ targets: wash, alpha: 0, duration: 240, ease: "Cubic.out", onComplete: () => wash.destroy() });
+  }
+
   create(): void {
-    this.cameras.main.setBackgroundColor("#040814");
+    this.cameras.main.setBackgroundColor("#0e0b08");
     this.cameras.main.setZoom(0.75);
     this.anims.create({ key: "player-walk-down", frames: this.anims.generateFrameNumbers("player", { start: 0, end: 3 }), frameRate: 12, repeat: -1 });
     this.anims.create({ key: "player-walk-left", frames: this.anims.generateFrameNumbers("player", { start: 4, end: 7 }), frameRate: 12, repeat: -1 });
@@ -531,6 +566,10 @@ export class GameScene extends Phaser.Scene {
     this.mobileControls = undefined;
     this.minimap?.destroy();
     this.minimap = undefined;
+    this.pickupToastTween?.stop();
+    this.pickupToastTween = undefined;
+    this.pickupToast?.destroy();
+    this.pickupToast = undefined;
     this.joystickVector = { x: 0, y: 0 };
   }
 
@@ -647,6 +686,7 @@ export class GameScene extends Phaser.Scene {
   private buildWorldBackdrop(state: MatchViewState): void {
     this.terrainLayer?.destroy();
     this.detailLayer?.destroy();
+    this.atmosphereLayer?.destroy();
     this.obstacleLayer?.destroy(true);
     this.worldFrame?.destroy();
     this.extractOuterRing?.destroy();
@@ -661,24 +701,26 @@ export class GameScene extends Phaser.Scene {
     const centerX = width / 2;
     const centerY = height / 2;
 
-    this.terrainLayer = this.add.tileSprite(centerX, centerY, width, height, "ground_pixel");
+    this.terrainLayer = this.add.tileSprite(centerX, centerY, width, height, "wasteland_ground");
     this.terrainLayer.setDepth(-40);
 
     this.detailLayer = this.add.graphics();
     this.detailLayer.setDepth(-35);
-    this.detailLayer.fillStyle(0x4b5563, 0.28);
-    this.detailLayer.fillCircle(centerX, centerY, 160);
-    this.detailLayer.lineStyle(6, 0x1f2937, 0.72);
-    this.detailLayer.strokeCircle(centerX, centerY, 160);
+    this.detailLayer.fillStyle(0x2b2519, 0.36);
+    this.detailLayer.fillCircle(centerX, centerY, 210);
+    this.detailLayer.lineStyle(12, GAMEPLAY_THEME.colors.iron900, 0.58);
+    this.detailLayer.strokeCircle(centerX, centerY, 212);
+    this.detailLayer.lineStyle(4, GAMEPLAY_THEME.colors.signal, 0.24);
+    this.detailLayer.strokeCircle(centerX, centerY, 132);
 
-    for (let i = 0; i < 26; i += 1) {
-      const px = Math.random() * width;
-      const py = Math.random() * height;
-      const patchWidth = Phaser.Math.Between(72, 132);
-      const patchHeight = Phaser.Math.Between(42, 84);
-      this.detailLayer.fillStyle(0xc4a35a, 0.12);
-      this.detailLayer.fillEllipse(px, py, patchWidth, patchHeight);
-    }
+    this.drawToxicRiver(width, height);
+    this.drawCorpseMires(width, height);
+    this.drawWastelandScars(width, height);
+
+    this.atmosphereLayer = this.add.graphics();
+    this.atmosphereLayer.setDepth(-10);
+    this.atmosphereLayer.fillGradientStyle(0x0e0b08, 0x0e0b08, 0x0e0b08, 0x0e0b08, 0.08, 0.02, 0.22, 0.3);
+    this.atmosphereLayer.fillRect(0, 0, width, height);
 
     this.obstacleLayer = this.add.container(0, 0);
     this.obstacleLayer.setDepth(-12);
@@ -711,6 +753,66 @@ export class GameScene extends Phaser.Scene {
     img.setDisplaySize(layout.width, layout.height);
     container.add(img);
     return container;
+  }
+
+  private drawToxicRiver(width: number, height: number): void {
+    if (!this.detailLayer) return;
+
+    const river = this.detailLayer;
+    river.lineStyle(94, 0x243c2a, 0.62);
+    river.beginPath();
+    river.moveTo(width * 0.04, height * 0.31);
+    river.lineTo(width * 0.2, height * 0.38);
+    river.lineTo(width * 0.39, height * 0.34);
+    river.lineTo(width * 0.56, height * 0.48);
+    river.lineTo(width * 0.77, height * 0.45);
+    river.lineTo(width * 0.96, height * 0.58);
+    river.strokePath();
+
+    river.lineStyle(42, 0x5d6a36, 0.34);
+    river.strokePath();
+    river.lineStyle(4, GAMEPLAY_THEME.colors.caution, 0.16);
+    river.strokePath();
+  }
+
+  private drawCorpseMires(width: number, height: number): void {
+    if (!this.detailLayer) return;
+
+    const mires = [
+      { x: 0.2, y: 0.72, w: 420, h: 230, r: -0.2 },
+      { x: 0.72, y: 0.22, w: 360, h: 180, r: 0.18 },
+      { x: 0.8, y: 0.78, w: 520, h: 240, r: 0.08 }
+    ];
+
+    for (const mire of mires) {
+      this.detailLayer.fillStyle(0x351b14, 0.32);
+      this.detailLayer.fillEllipse(width * mire.x, height * mire.y, mire.w, mire.h);
+      this.detailLayer.lineStyle(3, GAMEPLAY_THEME.colors.danger, 0.2);
+      this.detailLayer.strokeEllipse(width * mire.x, height * mire.y, mire.w, mire.h);
+      this.detailLayer.fillStyle(0xe8dfc8, 0.12);
+      for (let i = 0; i < 7; i += 1) {
+        const bx = width * mire.x + Math.cos(i * 1.7 + mire.r) * (mire.w * 0.26);
+        const by = height * mire.y + Math.sin(i * 1.3) * (mire.h * 0.22);
+        this.detailLayer.fillRect(bx - 8, by - 2, 16, 4);
+      }
+    }
+  }
+
+  private drawWastelandScars(width: number, height: number): void {
+    if (!this.detailLayer) return;
+
+    const patches = [
+      [0.14, 0.18, 190, 74], [0.31, 0.24, 250, 90], [0.62, 0.18, 210, 86],
+      [0.17, 0.52, 280, 108], [0.44, 0.66, 240, 84], [0.7, 0.62, 310, 112],
+      [0.87, 0.36, 220, 96], [0.35, 0.84, 300, 112], [0.58, 0.86, 180, 70]
+    ] as const;
+
+    for (const [x, y, patchWidth, patchHeight] of patches) {
+      this.detailLayer.fillStyle(0xc4a35a, 0.1);
+      this.detailLayer.fillEllipse(width * x, height * y, patchWidth, patchHeight);
+      this.detailLayer.lineStyle(2, GAMEPLAY_THEME.colors.iron900, 0.18);
+      this.detailLayer.strokeEllipse(width * x, height * y, patchWidth, patchHeight);
+    }
   }
 
   private createRegionLabel(x: number, y: number, text: string): Phaser.GameObjects.Text {
@@ -880,6 +982,18 @@ export class GameScene extends Phaser.Scene {
       this.hpBar.fill.fillStyle(color, 1);
       this.hpBar.fill.fillRoundedRect(30, 34, 208 * hpRatio, 10, 5);
       this.hpBar.label.setText(`生命值 ${player.hp} / ${player.maxHp}`);
+      this.syncLowHpOverlay(hpRatio);
+    } else {
+      this.syncLowHpOverlay(1);
+    }
+
+    if (this.weaponNameText && player) {
+      this.weaponNameText.setText(`武器 ${getWeaponLabel(player.weaponType)}`);
+    }
+
+    if (this.killsText) {
+      const deadMonsters = state.monsters.filter((monster) => !monster.isAlive).length;
+      this.killsText.setText(`压制 ${deadMonsters}/${state.monsters.length}`);
     }
 
     if (this.timerText) {
@@ -899,6 +1013,8 @@ export class GameScene extends Phaser.Scene {
     if (this.combatText) {
       this.combatText.setText(state.lastCombatText || "向中心废土推进，搜刮战利品，然后撤离。");
     }
+
+    this.syncExtractProgress();
   }
 
   private initHud(): void {
@@ -912,6 +1028,13 @@ export class GameScene extends Phaser.Scene {
       letterSpacing: 1
     });
     this.hpBar = { track: this.add.graphics(), fill: this.add.graphics(), label: hpLabel };
+
+    this.weaponNameText = this.add.text(34, 48, "武器 ----", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#e8602c",
+      letterSpacing: 1
+    });
 
     const rightPlate = this.add.graphics();
     drawPanelFrame(rightPlate, width - 220, 18, 200, 52, 10);
@@ -934,6 +1057,13 @@ export class GameScene extends Phaser.Scene {
       letterSpacing: 1
     }).setOrigin(1, 0);
 
+    this.killsText = this.add.text(width - 220, 80, "压制 0/0", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#e8602c",
+      letterSpacing: 1
+    });
+
     const combatPlate = this.add.graphics();
     drawPanelFrame(combatPlate, width / 2 - 260, height - 86, 520, 42, 10);
     this.combatText = this.add.text(width / 2, height - 55, "", {
@@ -943,7 +1073,27 @@ export class GameScene extends Phaser.Scene {
       align: "center"
     }).setOrigin(0.5, 1);
 
-    const hintText = navigator.maxTouchPoints > 0
+    this.extractProgressTrack = this.add.graphics();
+    drawPanelFrame(this.extractProgressTrack, width / 2 - 164, 78, 328, 28, 10);
+    this.extractProgressFill = this.add.graphics();
+    this.extractProgressLabel = this.add.text(width / 2, 73, "撤离中", {
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: "14px",
+      color: "#e8dfc8",
+      stroke: "#16130f",
+      strokeThickness: 4
+    }).setOrigin(0.5, 1);
+    this.extractProgressTrack.setVisible(false);
+    this.extractProgressFill.setVisible(false);
+    this.extractProgressLabel.setVisible(false);
+
+    this.lowHpOverlay = this.add.rectangle(0, 0, width, height, GAMEPLAY_THEME.colors.danger, 0)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(160);
+
+    const isTouchDevice = navigator.maxTouchPoints > 0;
+    const hintText = isTouchDevice
       ? "摇杆移动 | 攻 攻击 | 技 技能 | 包 背包"
       : "WASD 移动 | 空格 攻击 | Q 技能 | E 交互 | I 背包";
     this.controlsHint = this.add.text(width - 20, height - 20, hintText, {
@@ -953,18 +1103,25 @@ export class GameScene extends Phaser.Scene {
       backgroundColor: "rgba(18, 14, 11, 0.82)",
       padding: { x: 10, y: 6 }
     }).setOrigin(1, 1);
+    this.controlsHint.setVisible(!isTouchDevice);
 
     this.hudContainer.add([
       this.hpBar.track,
       this.hpBar.fill,
       hpLabel,
+      this.weaponNameText,
       rightPlate,
       this.timerText,
       this.roomCodeText,
       this.skillStatusText,
+      this.killsText,
       combatPlate,
       this.combatText,
-      this.controlsHint
+      this.controlsHint,
+      this.extractProgressTrack,
+      this.extractProgressFill,
+      this.extractProgressLabel,
+      this.lowHpOverlay
     ]);
 
     if (navigator.maxTouchPoints <= 0) {
@@ -975,6 +1132,63 @@ export class GameScene extends Phaser.Scene {
         y: 76
       });
     }
+  }
+
+  private syncLowHpOverlay(hpRatio: number): void {
+    if (!this.lowHpOverlay) return;
+    const targetAlpha = hpRatio < 0.28 ? 0.18 : hpRatio < 0.48 ? 0.08 : 0;
+    this.lowHpOverlay.setAlpha(targetAlpha);
+  }
+
+  private syncExtractProgress(): void {
+    if (!this.extractProgressTrack || !this.extractProgressFill || !this.extractProgressLabel) return;
+
+    const active = this.extractState.isExtracting && this.extractState.progress !== null;
+    this.extractProgressTrack.setVisible(active);
+    this.extractProgressFill.setVisible(active);
+    this.extractProgressLabel.setVisible(active);
+
+    if (!active) {
+      return;
+    }
+
+    const width = this.scale.width;
+    const progress = Phaser.Math.Clamp(this.extractState.progress ?? 0, 0, 1);
+    this.extractProgressFill.clear();
+    this.extractProgressFill.fillStyle(GAMEPLAY_THEME.colors.signal, 1);
+    this.extractProgressFill.fillRoundedRect(width / 2 - 150, 88, 300 * progress, 8, 4);
+    const seconds = this.extractState.secondsRemaining == null ? "" : ` ${Math.ceil(this.extractState.secondsRemaining)}s`;
+    this.extractProgressLabel.setText(`撤离读条${seconds}`);
+  }
+
+  public showPickupFeedback(itemName: string): void {
+    const { width, height } = this.scale;
+    this.pickupToastTween?.stop();
+    this.pickupToast?.destroy();
+
+    this.pickupToast = this.add.text(width / 2, height - 132, `回收 ${itemName}`, {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "13px",
+      color: "#e8dfc8",
+      backgroundColor: "rgba(22,19,15,0.92)",
+      padding: { x: 16, y: 8 }
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(500);
+
+    this.pickupToast.setAlpha(0);
+    this.pickupToastTween = this.tweens.add({
+      targets: this.pickupToast,
+      y: height - 154,
+      alpha: { from: 0, to: 1 },
+      duration: 220,
+      ease: "Cubic.out",
+      hold: 1200,
+      yoyo: true,
+      onComplete: () => {
+        this.pickupToast?.destroy();
+        this.pickupToast = undefined;
+        this.pickupToastTween = undefined;
+      }
+    });
   }
 
   private showTutorial(): void {
@@ -1064,6 +1278,19 @@ function getPrimarySkillLabel(skillId: SkillId): string {
       return "重击";
     default:
       return "技能";
+  }
+}
+
+function getWeaponLabel(weaponType: WeaponType | undefined): string {
+  switch (weaponType) {
+    case "sword":
+      return "铁剑";
+    case "blade":
+      return "战刀";
+    case "spear":
+      return "猎矛";
+    default:
+      return "未识别";
   }
 }
 

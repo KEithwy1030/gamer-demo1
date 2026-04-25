@@ -5,11 +5,11 @@
   transform: translate(-50%, -50%);
   width: auto;
   max-width: 90vw;
-  background: #0d1117;
-  border: 2px solid #30363d;
-  color: #c9d1d9;
+  background: rgba(18, 14, 11, 0.96);
+  border: 2px solid #5f2a16;
+  color: #e8dfc8;
   font-family: 'Courier New', Courier, monospace;
-  box-shadow: 4px 4px 0px rgba(0,0,0,0.8);
+  box-shadow: 0 18px 46px rgba(0,0,0,0.58), inset 0 0 0 1px rgba(232, 96, 44, 0.16);
   z-index: 1000;
   transition: all 0.2s steps(4);
   display: flex;
@@ -25,17 +25,17 @@
 
 .inventory-panel__header {
   padding: 12px 16px;
-  border-bottom: 2px solid #30363d;
+  border-bottom: 1px solid rgba(232, 96, 44, 0.42);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #161b22;
+  background: rgba(34, 24, 16, 0.92);
 }
 
 .inventory-panel__title {
   margin: 0;
   font-size: 16px;
-  color: #58a6ff;
+  color: #e8602c;
   text-transform: uppercase;
   letter-spacing: 1px;
   font-weight: bold;
@@ -44,7 +44,7 @@
 .inventory-panel__summary {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #8b949e;
+  color: #b8ae96;
 }
 
 .inventory-panel__title-wrap {
@@ -52,9 +52,9 @@
 }
 
 .inventory-panel__toggle {
-  background: #238636;
-  border: 2px solid #2ea043;
-  color: white;
+  background: #3a1d12;
+  border: 2px solid #e8602c;
+  color: #e8dfc8;
   padding: 8px 16px;
   font-size: 14px;
   cursor: pointer;
@@ -94,7 +94,7 @@
     overflow-y: auto;
     border-radius: 8px;
     z-index: 5000;
-    background: #0d1117f2;
+    background: rgba(18, 14, 11, 0.96);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
@@ -173,10 +173,10 @@
   min-width: 64px;
   height: 48px;
   padding: 0 14px;
-  background: #238636;
-  border: 2px solid #ffffff;
+  background: #3a1d12;
+  border: 2px solid #e8602c;
   border-radius: 8px;
-  color: white;
+  color: #e8dfc8;
   font-weight: bold;
   font-size: 13px;
   z-index: 4000;
@@ -197,12 +197,12 @@
     top: 20px;
     right: 20px;
     height: 40px;
-    background: #161b22;
-    border-color: #30363d;
+    background: #211810;
+    border-color: #5f2a16;
   }
   .inventory-mobile-toggle:hover {
-    background: #21262d;
-    border-color: #8b949e;
+    background: #3a1d12;
+    border-color: #e8602c;
   }
 }
 
@@ -215,7 +215,7 @@
 }
 
 .inventory-section--backpack {
-  border-top: 2px solid #30363d;
+  border-top: 1px solid rgba(232, 96, 44, 0.3);
   padding-top: 20px;
   margin-top: 10px;
 }
@@ -223,9 +223,9 @@
 .inventory-section h4 {
   margin: 0 0 12px;
   font-size: 14px;
-  color: #f0f6fc;
+  color: #e8dfc8;
   text-transform: uppercase;
-  border-left: 4px solid #58a6ff;
+  border-left: 4px solid #e8602c;
   padding-left: 8px;
 }
 
@@ -242,8 +242,8 @@
 
 .inventory-slot {
   aspect-ratio: 1;
-  background: linear-gradient(180deg, #111827 0%, #0d1117 100%);
-  border: 2px solid #30363d;
+  background: linear-gradient(180deg, #211810 0%, #120e0b 100%);
+  border: 2px solid #3f382b;
   position: relative;
   display: flex;
   align-items: center;
@@ -257,14 +257,14 @@
 }
 
 .inventory-slot:hover {
-  background: #161b22;
-  border-color: #8b949e;
+  background: #2b1f15;
+  border-color: #e8602c;
 }
 
 .inventory-slot--empty::before {
   content: attr(data-label);
   font-size: 10px;
-  color: #30363d;
+  color: #5f5749;
   text-align: center;
   position: absolute;
 }
@@ -338,8 +338,8 @@
   top: 0;
   left: 0;
   transform: translate(0, 0);
-  background: #0d1117;
-  border: 2px solid #30363d;
+  background: rgba(18, 14, 11, 0.98);
+  border: 2px solid #5f2a16;
   padding: 12px;
   width: 220px;
   z-index: 1100;
@@ -353,7 +353,7 @@
 }
 
 .tooltip-header {
-  border-bottom: 1px solid #30363d;
+  border-bottom: 1px solid rgba(232, 96, 44, 0.32);
   margin-bottom: 8px;
   padding-bottom: 4px;
   display: flex;
@@ -375,7 +375,7 @@
 }
 
 .tooltip-meta {
-  color: #8b949e;
+  color: #b8ae96;
   font-size: 11px;
 }
 
@@ -387,7 +387,7 @@
 }
 
 .tooltip-slot {
-  color: #8b949e;
+  color: #b8ae96;
   font-size: 11px;
   margin-bottom: 8px;
 }
@@ -408,15 +408,15 @@
   display: flex;
   gap: 8px;
   margin-top: 8px;
-  border-top: 1px solid #30363d;
+  border-top: 1px solid rgba(232, 96, 44, 0.32);
   padding-top: 8px;
 }
 
 .tooltip-actions button {
   flex: 1;
-  background: #21262d;
-  border: 1px solid #30363d;
-  color: #c9d1d9;
+  background: #211810;
+  border: 1px solid #5f2a16;
+  color: #e8dfc8;
   padding: 10px 4px;
   font-size: 13px;
   cursor: pointer;
@@ -425,7 +425,7 @@
 }
 
 .tooltip-actions button:hover {
-  background: #30363d;
+  background: #3a1d12;
 }
 
 .tooltip-actions .btn-drop {

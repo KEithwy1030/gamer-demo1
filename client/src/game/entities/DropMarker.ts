@@ -8,26 +8,36 @@ export class DropMarker {
   constructor(scene: Phaser.Scene, drop: WorldDrop) {
     this.id = drop.id;
 
-    const ring = scene.add.ellipse(0, 12, 28, 10, 0x020617, 0.24);
+    const ring = scene.add.ellipse(0, 12, 28, 10, 0x0e0b08, 0.36);
+    const scan = scene.add.rectangle(0, -8, 34, 2, 0xe8602c, 0.64);
     const sprite = scene.add.sprite(0, 0, "drop");
     sprite.setDisplaySize(32, 32);
 
     const label = scene.add.text(0, 18, formatDropLabel(drop.definitionId), {
       fontFamily: "Arial",
       fontSize: "10px",
-      color: "#f8fafc",
-      backgroundColor: "rgba(15,23,42,0.64)",
+      color: "#e8dfc8",
+      backgroundColor: "rgba(22,19,15,0.72)",
       padding: { x: 5, y: 2 }
     });
     label.setOrigin(0.5, 0);
 
-    this.root = scene.add.container(drop.x, drop.y, [ring, sprite, label]);
+    this.root = scene.add.container(drop.x, drop.y, [ring, scan, sprite, label]);
     this.root.setDepth(this.root.y);
 
     scene.tweens.add({
       targets: sprite,
       y: { from: 0, to: -6 },
       duration: 900,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.InOut"
+    });
+    scene.tweens.add({
+      targets: scan,
+      alpha: { from: 0.1, to: 0.75 },
+      x: { from: -14, to: 14 },
+      duration: 780,
       yoyo: true,
       repeat: -1,
       ease: "Sine.InOut"

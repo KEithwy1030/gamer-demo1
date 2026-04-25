@@ -97,3 +97,14 @@ See [docs/agent/CANONICAL_BASELINE.md](/E:/CursorData/gamer/docs/agent/CANONICAL
   - sword: dash-path hit model, mobility-first, no crit identity
   - blade: trigger-time fan sweep plus simultaneous retreat, no crit identity
   - spear: deliberate windup plus guaranteed crit identity
+
+## Current Visual Branch Truth
+
+- Clean in-game visual work is now isolated on `codex/in-game-visual-hud-pass` in the worktree `E:/CursorData/gamer-codex-in-game-visual-hud-pass`; `master` remains the stable old frontend baseline.
+- This branch deliberately targets only the in-match surface: `GameScene`, Phaser HUD, player/monster/drop markers, minimap theme, pickup feedback, and the in-match inventory panel. Lobby optimization is out of scope for this pass.
+- The demo now includes `client/public/assets/wasteland-ground.png`, an Image 2 generated wasteland ground texture used by `GameScene` for the active battlefield floor.
+- The in-match opening view no longer shows the central tutorial card or the separate top-center backpack launcher; the battlefield starts unobstructed and the lower-right `包` action remains the backpack entry.
+- Browser verification on `2026-04-25` passed for `http://127.0.0.1:5173/` against an isolated local server on port `3002`: lobby load, create room, start match, gameplay view, and backpack open state.
+- Verification screenshots live under `artifacts/` in the clean worktree:
+  - `visual-hud-pass-gameplay-final.png`
+  - `visual-hud-pass-inventory-final.png`
