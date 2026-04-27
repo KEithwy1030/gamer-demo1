@@ -1,3 +1,6 @@
+import type { SettlementPayload } from "./game";
+import type { EquipmentState, InventoryState, PagedInventoryState, PendingReturnPayload } from "./inventory";
+
 export interface LobbyPlayer {
   id: string;
   name: string;
@@ -34,4 +37,17 @@ export interface SetCapacityPayload {
 
 export interface LeaveRoomPayload {
   code: string;
+}
+
+export interface PlayerProfilePayload {
+  profileId: string;
+  playerName: string;
+  inventory: InventoryState;
+  equipment: EquipmentState;
+  stash: PagedInventoryState;
+  pendingReturn?: PendingReturnPayload;
+  stashGold: number;
+  stashTreasureValue: number;
+  totalItemCount: number;
+  lastSettlement?: SettlementPayload;
 }

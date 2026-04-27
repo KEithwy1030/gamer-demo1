@@ -1,5 +1,6 @@
 import type {
   LobbyPlayer,
+  PlayerProfilePayload,
   RoomSummary
 } from "../../shared/dist/types/lobby.js";
 import type {
@@ -17,6 +18,7 @@ import type { Socket } from "socket.io";
 export interface SocketSession {
   socketId: string;
   playerId: string;
+  profileId: string;
   playerName: string;
   roomCode?: string;
 }
@@ -67,6 +69,12 @@ export interface InventoryState {
   equipment: Partial<Record<EquipmentSlot, InventoryItem>>;
 }
 
+export interface StashState {
+  width: number;
+  height: number;
+  pages: InventoryState[];
+}
+
 export interface DropState {
   id: string;
   item: InventoryItem;
@@ -105,6 +113,15 @@ export interface PlayerEquipItemPayload {
 
 export interface PlayerUnequipItemPayload {
   itemInstanceId: string;
+}
+
+export interface PlayerMoveInventoryItemPayload {
+  itemInstanceId: string;
+  targetArea: "grid" | "equipment" | "stash" | "discard";
+  x?: number;
+  y?: number;
+  slot?: EquipmentSlot;
+  pageIndex?: number;
 }
 
 export interface PlayerDropItemPayload {
@@ -231,15 +248,38 @@ export interface ServerPlayerState {
 
 export interface RuntimePlayer extends LobbyPlayer {
   socketId: string;
+  profileId: string;
   joinedAt: number;
   state?: ServerPlayerState;
   baseStats?: RuntimePlayerBaseStats;
   combat?: RuntimeCombatState;
   extract?: RuntimePlayerExtractState;
   inventory?: InventoryState;
+  startingLoadoutItemIds?: string[];
+  lastHazardDamageAt?: number;
   moveInput?: Vector2;
   deathLootDropped?: boolean;
   attackCooldownEndsAt?: number;
+}
+
+export interface PersistedPlayerProfile {
+  profileId: string;
+  playerName: string;
+  loadout: InventoryState;
+  stash: StashState;
+  pendingReturn: InventoryItem[];
+  lastSettlement?: SettlementPayload;
+}
+
+export interface ProfileStore {
+  ensureProfile(profileId: string, playerName: string): PersistedPlayerProfile;
+  updatePlayerName(profileId: string, playerName: string): PersistedPlayerProfile;
+  getProfile(profileId: string): PersistedPlayerProfile | undefined;
+  equipItem(profileId: string, playerName: string, itemInstanceId: string): PersistedPlayerProfile;
+  unequipItem(profileId: string, playerName: string, itemInstanceId: string): PersistedPlayerProfile;
+  moveItem(profileId: string, playerName: string, payload: PlayerMoveInventoryItemPayload): PersistedPlayerProfile;
+  saveSettlement(room: RuntimeRoom, playerId: string, settlement: SettlementPayload): PersistedPlayerProfile | undefined;
+  toPayload(profile: PersistedPlayerProfile): PlayerProfilePayload;
 }
 
 export interface RuntimeMonster extends MonsterState {

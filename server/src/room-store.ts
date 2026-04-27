@@ -10,6 +10,7 @@ import type {
   PlayerState,
   Vector2
 } from "../../shared/dist/types/game.js";
+import { findHazardZoneAtPosition } from "../../shared/dist/data/mapLayout.js";
 import {
   DEFAULT_ROOM_CAPACITY,
   DEFAULT_WEAPON_TYPE,
@@ -47,6 +48,7 @@ const PLACE_WORDS = [
   "石堡",
   "长汀"
 ] as const;
+const HAZARD_TICK_MS = 500;
 
 function normalizeRoomCode(code: string): string {
   return code.trim().replace(/\s+/g, "").replace(/[.\uFF0E\u3002\u30FB路]/g, "·").toUpperCase();
@@ -97,6 +99,7 @@ export class RoomStore {
 
     room.players.set(session.playerId, {
       id: session.playerId,
+      profileId: session.profileId,
       socketId: session.socketId,
       name: sanitizePlayerName(payload.playerName),
       isHost: true,
@@ -127,6 +130,7 @@ export class RoomStore {
 
     room.players.set(session.playerId, {
       id: session.playerId,
+      profileId: session.profileId,
       socketId: session.socketId,
       name: sanitizePlayerName(payload.playerName),
       isHost: false,
@@ -202,6 +206,11 @@ export class RoomStore {
           startedAt: room.startedAt,
           width: MATCH_MAP_WIDTH,
           height: MATCH_MAP_HEIGHT,
+          extract: room.extract ? {
+            x: room.extract.centerX,
+            y: room.extract.centerY,
+            radius: room.extract.radius
+          } : undefined,
           players: this.getPlayerStatesFromRoom(room)
         },
         selfPlayerId: player.id
@@ -252,6 +261,7 @@ export class RoomStore {
 
   advancePlayerMovement(roomCode: string, tickMs: number): RuntimeContext {
     const room = this.getRoomByCode(roomCode);
+    const now = Date.now();
 
     for (const player of room.players.values()) {
       if (!player.state?.isAlive) {
@@ -263,23 +273,36 @@ export class RoomStore {
 
       const moveInput = player.moveInput ?? { x: 0, y: 0 };
       const directionMagnitude = getDirectionMagnitude(moveInput);
-      if (directionMagnitude === 0) {
+      if (directionMagnitude !== 0) {
+        const normalizedDirection = normalizeDirection(moveInput);
+        const moveStep = (player.state.moveSpeed * tickMs / 1000) * directionMagnitude;
+        player.state.direction = normalizedDirection;
+        player.state.x = clamp(
+          player.state.x + normalizedDirection.x * moveStep,
+          24,
+          MATCH_MAP_WIDTH - 24
+        );
+        player.state.y = clamp(
+          player.state.y + normalizedDirection.y * moveStep,
+          24,
+          MATCH_MAP_HEIGHT - 24
+        );
+      }
+
+      const hazard = findHazardZoneAtPosition(MATCH_MAP_WIDTH, MATCH_MAP_HEIGHT, player.state.x, player.state.y);
+      if (!hazard) {
         continue;
       }
 
-      const normalizedDirection = normalizeDirection(moveInput);
-      const moveStep = (player.state.moveSpeed * tickMs / 1000) * directionMagnitude;
-      player.state.direction = normalizedDirection;
-      player.state.x = clamp(
-        player.state.x + normalizedDirection.x * moveStep,
-        24,
-        MATCH_MAP_WIDTH - 24
-      );
-      player.state.y = clamp(
-        player.state.y + normalizedDirection.y * moveStep,
-        24,
-        MATCH_MAP_HEIGHT - 24
-      );
+      if (!player.lastHazardDamageAt || now - player.lastHazardDamageAt >= HAZARD_TICK_MS) {
+        player.lastHazardDamageAt = now;
+        const damage = Math.max(1, Math.round((hazard.dps * HAZARD_TICK_MS) / 1000));
+        player.state.hp = Math.max(0, player.state.hp - damage);
+        player.state.isAlive = player.state.hp > 0;
+        if (!player.state.isAlive) {
+          player.moveInput = { x: 0, y: 0 };
+        }
+      }
     }
 
     return this.toRuntimeContext(room);

@@ -7,11 +7,14 @@ import type {
   InventoryState,
   InventoryUpdatePayload,
   LootPickedPayload,
+  PlayerMoveInventoryItemPayload,
   RuntimePlayer,
   RuntimeRoom
 } from "../types.js";
 import {
   DEFAULT_WEAPON_TYPE,
+  LOADOUT_INVENTORY_HEIGHT,
+  LOADOUT_INVENTORY_WIDTH,
   MATCH_MAP_HEIGHT,
   MATCH_MAP_WIDTH,
   PLAYER_BASE_HP,
@@ -20,8 +23,6 @@ import {
 import { setPlayerBaseStats } from "../combat/player-effects.js";
 import { getItemTemplate, listSeedDropTemplateIds } from "./catalog.js";
 
-const INVENTORY_WIDTH = 10;
-const INVENTORY_HEIGHT = 6;
 const PICKUP_RADIUS_PX = 140;
 const DROP_SPREAD_PX = 48;
 const DEATH_DROP_SPREAD_PX = 84;
@@ -64,15 +65,10 @@ export class InventoryService {
     });
   }
 
-  initializePlayer(player: RuntimePlayer): void {
-    if (!player.inventory) {
-      player.inventory = {
-        width: INVENTORY_WIDTH,
-        height: INVENTORY_HEIGHT,
-        items: [],
-        equipment: {}
-      };
-    }
+  initializePlayer(player: RuntimePlayer, persistedInventory?: InventoryState): void {
+    player.inventory = persistedInventory
+      ? cloneInventory(persistedInventory)
+      : createEmptyInventory();
 
     if (!player.inventory.equipment.weapon) {
       player.inventory.equipment.weapon = this.createItem("starter_sword");
@@ -223,6 +219,71 @@ export class InventoryService {
     });
     this.applyEquipmentStats(player);
 
+    return {
+      inventoryUpdate: this.buildInventoryUpdate(player),
+      drops: this.listDrops(room)
+    };
+  }
+
+  moveItem(room: RuntimeRoom, playerId: string, payload: PlayerMoveInventoryItemPayload): MutationResult {
+    const player = this.getPlayer(room, playerId);
+    const inventory = this.getInventory(player);
+    this.assertAlive(player);
+
+    const source = removeInventorySource(inventory, payload.itemInstanceId);
+    if (!source) {
+      throw new Error("Item not found in inventory.");
+    }
+
+    if (payload.targetArea === "equipment") {
+      const slot = payload.slot ?? source.item.equipmentSlot;
+      if (!slot || source.item.equipmentSlot !== slot) {
+        restoreInventorySource(inventory, source);
+        throw new Error("Item cannot be equipped in the selected slot.");
+      }
+
+      const previousEquipped = inventory.equipment[slot];
+      if (previousEquipped && source.area === "grid") {
+        const swapPlacement = findFirstFitAtOrAnywhere(
+          inventory,
+          previousEquipped,
+          source.entry?.x,
+          source.entry?.y
+        );
+        if (!swapPlacement) {
+          restoreInventorySource(inventory, source);
+          throw new Error("Need free backpack space to swap equipment.");
+        }
+
+        inventory.items.push({
+          item: cloneItem(previousEquipped),
+          x: swapPlacement.x,
+          y: swapPlacement.y
+        });
+      } else if (previousEquipped && source.area === "equipment") {
+        restoreInventorySource(inventory, source);
+        throw new Error("Target slot is occupied.");
+      }
+
+      inventory.equipment[slot] = cloneItem(source.item);
+    } else {
+      const hasExplicitTarget = Number.isInteger(payload.x) && Number.isInteger(payload.y);
+      const placement = hasExplicitTarget
+        ? findExactFit(inventory, source.item, payload.x!, payload.y!)
+        : findFirstFitAtOrAnywhere(inventory, source.item, source.entry?.x, source.entry?.y);
+      if (!placement) {
+        restoreInventorySource(inventory, source);
+        throw new Error("Target position is blocked.");
+      }
+
+      inventory.items.push({
+        item: cloneItem(source.item),
+        x: placement.x,
+        y: placement.y
+      });
+    }
+
+    this.applyEquipmentStats(player);
     return {
       inventoryUpdate: this.buildInventoryUpdate(player),
       drops: this.listDrops(room)
@@ -498,6 +559,36 @@ function findFirstFit(inventory: InventoryState, item: InventoryItem): { x: numb
   return undefined;
 }
 
+function findFirstFitAtOrAnywhere(
+  inventory: InventoryState,
+  item: InventoryItem,
+  preferredX?: number,
+  preferredY?: number
+): { x: number; y: number } | undefined {
+  if (
+    Number.isInteger(preferredX) &&
+    Number.isInteger(preferredY) &&
+    canPlaceItem(inventory, item, preferredX!, preferredY!)
+  ) {
+    return { x: preferredX!, y: preferredY! };
+  }
+
+  return findFirstFit(inventory, item);
+}
+
+function findExactFit(
+  inventory: InventoryState,
+  item: InventoryItem,
+  x: number,
+  y: number
+): { x: number; y: number } | undefined {
+  if (!canPlaceItem(inventory, item, x, y)) {
+    return undefined;
+  }
+
+  return { x, y };
+}
+
 function canPlaceItem(inventory: InventoryState, item: InventoryItem, x: number, y: number): boolean {
   if (x < 0 || y < 0 || x + item.width > inventory.width || y + item.height > inventory.height) {
     return false;
@@ -556,6 +647,85 @@ function cloneInventory(inventory: InventoryState): InventoryState {
       y: entry.y
     })),
     equipment
+  };
+}
+
+function removeInventorySource(
+  inventory: InventoryState,
+  itemInstanceId: string
+): { area: "grid" | "equipment"; item: InventoryItem; entry?: InventoryEntry } | undefined {
+  const entryIndex = inventory.items.findIndex((entry) => entry.item.instanceId === itemInstanceId);
+  if (entryIndex >= 0) {
+    const [entry] = inventory.items.splice(entryIndex, 1);
+    return {
+      area: "grid",
+      item: cloneItem(entry.item),
+      entry
+    };
+  }
+
+  for (const slot of Object.keys(inventory.equipment) as Array<keyof InventoryState["equipment"]>) {
+    const item = inventory.equipment[slot];
+    if (item?.instanceId === itemInstanceId) {
+      delete inventory.equipment[slot];
+      return {
+        area: "equipment",
+        item: cloneItem(item)
+      };
+    }
+  }
+
+  return undefined;
+}
+
+function restoreInventorySource(
+  inventory: InventoryState,
+  source: { area: "grid" | "equipment"; item: InventoryItem; entry?: InventoryEntry }
+): void {
+  if (source.area === "grid" && source.entry) {
+    inventory.items.push({
+      item: cloneItem(source.item),
+      x: source.entry.x,
+      y: source.entry.y
+    });
+    return;
+  }
+
+  if (source.item.equipmentSlot) {
+    inventory.equipment[source.item.equipmentSlot] = cloneItem(source.item);
+  }
+}
+
+export function createEmptyInventory(
+  width = LOADOUT_INVENTORY_WIDTH,
+  height = LOADOUT_INVENTORY_HEIGHT
+): InventoryState {
+  return {
+    width,
+    height,
+    items: [],
+    equipment: {}
+  };
+}
+
+export function cloneInventoryState(inventory: InventoryState): InventoryState {
+  return cloneInventory(inventory);
+}
+
+export function summarizeInventory(inventory: InventoryState): {
+  gold: number;
+  treasureValue: number;
+  totalItemCount: number;
+} {
+  const items = [
+    ...inventory.items.map((entry) => entry.item),
+    ...Object.values(inventory.equipment).filter((item): item is InventoryItem => Boolean(item))
+  ];
+
+  return {
+    gold: items.reduce((sum, item) => sum + item.goldValue, 0),
+    treasureValue: items.reduce((sum, item) => sum + item.treasureValue, 0),
+    totalItemCount: items.length
   };
 }
 

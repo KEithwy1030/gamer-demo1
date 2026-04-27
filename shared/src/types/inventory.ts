@@ -62,6 +62,12 @@ export interface InventoryItemInstance {
   kind?: ItemCategory;
   rarity?: ItemRarity;
   name?: string;
+  width?: number;
+  height?: number;
+  equipmentSlot?: EquipmentSlot;
+  weaponType?: WeaponType;
+  goldValue?: number;
+  treasureValue?: number;
   healAmount?: number;
   affixes?: Affix[];
   modifiers?: Partial<{
@@ -88,6 +94,12 @@ export interface InventoryState {
   items: InventoryPlacedItem[];
 }
 
+export interface PagedInventoryState {
+  width: number;
+  height: number;
+  pages: InventoryState[];
+}
+
 export interface EquipmentState {
   weapon?: InventoryItemInstance;
   head?: InventoryItemInstance;
@@ -108,6 +120,15 @@ export interface UnequipItemPayload {
   itemInstanceId: string;
 }
 
+export interface MoveInventoryItemPayload {
+  itemInstanceId: string;
+  targetArea: "grid" | "equipment" | "stash" | "discard";
+  x?: number;
+  y?: number;
+  slot?: EquipmentSlot;
+  pageIndex?: number;
+}
+
 export interface DropItemPayload {
   itemInstanceId: string;
 }
@@ -115,6 +136,10 @@ export interface DropItemPayload {
 export interface InventorySnapshotPayload {
   inventory: InventoryState;
   equipment: EquipmentState;
+}
+
+export interface PendingReturnPayload {
+  items: InventoryItemInstance[];
 }
 
 export interface WorldDrop {

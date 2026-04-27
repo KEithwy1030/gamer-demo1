@@ -7,3 +7,4 @@ export * from "./types/monsters";
 export * from "./data/constants";
 export * from "./data/weapons";
 export * from "./data/items";
+export * from "./data/mapLayout";

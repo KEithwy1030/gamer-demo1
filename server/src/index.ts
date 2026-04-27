@@ -104,6 +104,7 @@ function buildSession(socket: GameSocket): SocketSession {
   const session: SocketSession = {
     socketId: socket.id,
     playerId: socket.id,
+    profileId: socket.id,
     playerName: "Player"
   };
   socket.data.session = session;

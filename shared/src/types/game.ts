@@ -34,6 +34,11 @@ export interface RoomRuntimeSnapshot {
   startedAt: number;
   width: number;
   height: number;
+  extract?: {
+    x: number;
+    y: number;
+    radius: number;
+  };
   players: PlayerState[];
 }
 
