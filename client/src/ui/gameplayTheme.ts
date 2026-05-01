@@ -1,5 +1,3 @@
-import Phaser from "phaser";
-
 export const GAMEPLAY_THEME = {
   fonts: {
     display: "\"Noto Serif SC\", \"Noto Sans SC\", serif",
@@ -30,46 +28,3 @@ export const GAMEPLAY_THEME = {
     hotLine: 0.72
   }
 } as const;
-
-export function drawPanelFrame(
-  graphics: Phaser.GameObjects.Graphics,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius = 10
-): void {
-  graphics.clear();
-  graphics.fillStyle(GAMEPLAY_THEME.colors.void, 0.34);
-  graphics.fillRoundedRect(x + 4, y + 6, width, height, radius);
-  graphics.fillStyle(GAMEPLAY_THEME.colors.iron800, GAMEPLAY_THEME.alpha.panel);
-  graphics.fillRoundedRect(x, y, width, height, radius);
-  graphics.fillStyle(GAMEPLAY_THEME.colors.iron600, 0.28);
-  graphics.fillRoundedRect(x + 7, y + 7, width - 14, Math.max(10, height * 0.34), Math.max(3, radius - 3));
-  graphics.lineStyle(2, GAMEPLAY_THEME.colors.iron400, GAMEPLAY_THEME.alpha.line);
-  graphics.strokeRoundedRect(x, y, width, height, radius);
-  graphics.lineStyle(1, GAMEPLAY_THEME.colors.signal, 0.2);
-  graphics.strokeRoundedRect(x + 6, y + 6, width - 12, height - 12, Math.max(4, radius - 2));
-
-  const corner = Math.min(18, Math.max(10, Math.floor(Math.min(width, height) * 0.32)));
-  graphics.lineStyle(2, GAMEPLAY_THEME.colors.signal, GAMEPLAY_THEME.alpha.hotLine);
-  graphics.beginPath();
-  graphics.moveTo(x, y + corner);
-  graphics.lineTo(x, y);
-  graphics.lineTo(x + corner, y);
-  graphics.moveTo(x + width - corner, y);
-  graphics.lineTo(x + width, y);
-  graphics.lineTo(x + width, y + corner);
-  graphics.moveTo(x, y + height - corner);
-  graphics.lineTo(x, y + height);
-  graphics.lineTo(x + corner, y + height);
-  graphics.moveTo(x + width - corner, y + height);
-  graphics.lineTo(x + width, y + height);
-  graphics.lineTo(x + width, y + height - corner);
-  graphics.strokePath();
-
-  graphics.lineStyle(1, GAMEPLAY_THEME.colors.bone, 0.08);
-  for (let yy = y + 10; yy < y + height - 8; yy += 9) {
-    graphics.lineBetween(x + 10, yy, x + width - 10, yy);
-  }
-}

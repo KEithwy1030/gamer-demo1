@@ -1,7 +1,6 @@
-import type { SettlementPayload } from "../../../shared/src/index";
+import type { SettlementPayload } from "@gamer/shared";
 
 export interface ResultOverlayState {
   visible: boolean;
   settlement: SettlementPayload | null;
 }
-

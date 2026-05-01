@@ -14,6 +14,8 @@ export class MonsterMarker {
   private targetY: number;
   public isAlive = true;
   private lastHp = 0;
+  private lastAliveState: boolean | null = null;
+  private lastHpWidth = -1;
 
   constructor(scene: Phaser.Scene, monster: MonsterState) {
     this.id = monster.id;
@@ -119,7 +121,9 @@ export class MonsterMarker {
   step(alpha: number): void {
     this.root.x = Phaser.Math.Linear(this.root.x, this.targetX, alpha);
     this.root.y = Phaser.Math.Linear(this.root.y, this.targetY, alpha);
-    this.root.setDepth(this.root.y);
+    if (Math.abs(this.root.depth - this.root.y) > 0.5) {
+      this.root.setDepth(this.root.y);
+    }
   }
 
   destroy(): void {
@@ -131,15 +135,22 @@ export class MonsterMarker {
 
     if (monster.hp < this.lastHp && monster.isAlive) {
       (this.root.scene as any).flashEffect?.(this.sprite);
-      (this.root.scene as any).applyHitStop?.(40);
-      (this.root.scene as any).shakeCamera?.(0.005, 100);
     }
 
     this.isAlive = monster.isAlive;
     this.lastHp = monster.hp;
 
-    this.hpFill.width = Math.max(0, 36 * hpRatio);
+    const hpWidth = Math.max(0, 36 * hpRatio);
+    if (Math.abs(this.lastHpWidth - hpWidth) > 0.5) {
+      this.hpFill.width = hpWidth;
+      this.lastHpWidth = hpWidth;
+    }
     this.label.setText(monster.type === "elite" ? "精英" : "游荡者");
+
+    if (this.lastAliveState === monster.isAlive) {
+      return;
+    }
+    this.lastAliveState = monster.isAlive;
 
     if (monster.isAlive) {
       this.root.setAlpha(1);

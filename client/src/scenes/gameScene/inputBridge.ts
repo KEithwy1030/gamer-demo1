@@ -1,0 +1,141 @@
+import type { Vector2 } from "@gamer/shared";
+import Phaser from "phaser";
+import {
+  createKeyboardControls,
+  type KeyboardControlsApi
+} from "../../input/keyboardControls";
+import {
+  createMobileControls,
+  type MobileControlsApi
+} from "../../input/mobileControls";
+
+export function shouldUseTouchLayout(): boolean {
+  const finePointer = window.matchMedia?.("(pointer: fine)").matches ?? false;
+  const coarsePointer = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+  return coarsePointer || (navigator.maxTouchPoints > 0 && !finePointer);
+}
+
+export interface GameSceneInputBridgeOptions {
+  touchLayout: boolean;
+  onMoveInput?: (direction: Vector2) => void;
+  onAttack: () => void;
+  onSkill: () => void;
+  onPickup: () => void;
+  onExtract: () => void;
+  onInventory: () => void;
+}
+
+export class GameSceneInputBridge {
+  private readonly scene: Phaser.Scene;
+  private readonly options: GameSceneInputBridgeOptions;
+  private keyboardControls?: KeyboardControlsApi | null;
+  private mobileControls?: MobileControlsApi | null;
+  private joystickVector: Vector2 = { x: 0, y: 0 };
+  private lastMoveDirection: Vector2 = { x: 0, y: 0 };
+  private lastFacingDirection: Vector2 = { x: 0, y: 1 };
+  private lastMoveSentAt = 0;
+  private currentMoveDirection: Vector2 = { x: 0, y: 0 };
+
+  constructor(scene: Phaser.Scene, options: GameSceneInputBridgeOptions) {
+    this.scene = scene;
+    this.options = options;
+  }
+
+  mount(): void {
+    const keyboard = this.scene.input.keyboard;
+    if (keyboard) {
+      this.keyboardControls = createKeyboardControls(keyboard);
+    }
+
+    if (!this.options.touchLayout) {
+      this.mobileControls?.destroy();
+      this.mobileControls = undefined;
+      return;
+    }
+
+    this.mobileControls?.destroy();
+    this.mobileControls = createMobileControls({
+      root: document.body,
+      speedScale: 0.5,
+      onMove: (vector) => {
+        this.joystickVector = vector;
+      },
+      onAttack: this.options.onAttack,
+      onSkill: this.options.onSkill,
+      onPickup: this.options.onPickup,
+      onInventory: this.options.onInventory
+    });
+  }
+
+  update(time: number): void {
+    this.emitMoveInput(time);
+    this.emitActionInput();
+  }
+
+  destroy(): void {
+    this.keyboardControls?.destroy();
+    this.keyboardControls = undefined;
+    this.mobileControls?.destroy();
+    this.mobileControls = undefined;
+    this.joystickVector = { x: 0, y: 0 };
+  }
+
+  getLastFacingDirection(): Vector2 {
+    return this.lastFacingDirection;
+  }
+
+  getCurrentMoveDirection(): Vector2 {
+    return this.currentMoveDirection;
+  }
+
+  private emitMoveInput(time: number): void {
+    if (!this.options.onMoveInput) return;
+
+    let horizontal = 0;
+    let vertical = 0;
+    const keyboardVector = this.keyboardControls?.getVector();
+    if (keyboardVector) {
+      horizontal = keyboardVector.x;
+      vertical = keyboardVector.y;
+    }
+
+    if (this.joystickVector.x !== 0 || this.joystickVector.y !== 0) {
+      horizontal = this.joystickVector.x;
+      vertical = this.joystickVector.y;
+    }
+
+    let direction: Vector2 = { x: horizontal, y: vertical };
+    const isJoystickActive = this.joystickVector.x !== 0 || this.joystickVector.y !== 0;
+    if (isJoystickActive) {
+      direction = { x: this.joystickVector.x, y: this.joystickVector.y };
+    }
+
+    this.currentMoveDirection = direction;
+    const magnitude = Math.sqrt(direction.x * direction.x + direction.y * direction.y);
+    if (magnitude > 0) {
+      this.lastFacingDirection = { x: direction.x / magnitude, y: direction.y / magnitude };
+    }
+
+    if (
+      Math.abs(direction.x - this.lastMoveDirection.x) < 0.01
+      && Math.abs(direction.y - this.lastMoveDirection.y) < 0.01
+      && time - this.lastMoveSentAt < 60
+    ) {
+      return;
+    }
+
+    this.lastMoveDirection = direction;
+    this.lastMoveSentAt = time;
+    this.options.onMoveInput(direction);
+  }
+
+  private emitActionInput(): void {
+    this.keyboardControls?.consumeActions({
+      onAttack: this.options.onAttack,
+      onSkill: this.options.onSkill,
+      onPickup: this.options.onPickup,
+      onExtract: this.options.onExtract,
+      onInventory: this.options.onInventory
+    });
+  }
+}

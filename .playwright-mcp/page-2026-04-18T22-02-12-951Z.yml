@@ -1,6 +1,0 @@
-- complementary [ref=e6]:
-  - generic [ref=e7]:
-    - generic [ref=e8]:
-      - heading "Pack" [level=3] [ref=e9]
-      - paragraph [ref=e10]: Starter Sword • 0 in pack
-    - button "Open" [ref=e11] [cursor=pointer]

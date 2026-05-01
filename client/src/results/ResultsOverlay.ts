@@ -1,4 +1,4 @@
-import type { SettlementPayload } from "../../../shared/src/index";
+import type { SettlementPayload } from "@gamer/shared";
 import "../styles/results.css";
 import type { ResultOverlayState } from "./types";
 import { translateItemName } from "../ui/itemPresentation";
@@ -12,6 +12,13 @@ export interface ResultsOverlayApi {
 
 export interface ResultsOverlayOptions {
   onReturnToLobby?: () => void | Promise<void>;
+}
+
+export interface SettlementCopy {
+  title: string;
+  subtitle: string;
+  summaryReason: string;
+  lobbySummary: string;
 }
 
 export function createResultsOverlay(options: ResultsOverlayOptions = {}): ResultsOverlayApi {
@@ -110,16 +117,40 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
     }
 
     const { settlement } = state;
-    title.textContent = settlement.result === "success" ? "撤离成功" : "行动失败";
-    subtitle.textContent = buildSubtitle(settlement);
+    const copy = buildSettlementCopy(settlement);
+    title.textContent = copy.title;
+    subtitle.textContent = copy.subtitle;
     replaceStats(stats, settlement);
     replaceItems(itemsList, settlement.extractedItems);
   }
 }
 
-function buildSubtitle(settlement: SettlementPayload): string {
-  const reason = settlement.reason ?? (settlement.result === "success" ? "成功撤离" : "未知原因");
-  return `结算说明：${reason}`;
+export function buildSettlementCopy(settlement: SettlementPayload): SettlementCopy {
+  const summaryReason = formatSettlementReason(settlement);
+  const lobbySummary = settlement.result === "success"
+    ? `成功带出 ${settlement.extractedItems.length} 件物资，局外收益 ${formatSignedNumber(settlement.profileGoldDelta)}。`
+    : `本局失利，局外收益 ${formatSignedNumber(settlement.profileGoldDelta)}。`;
+  return {
+    title: settlement.result === "success" ? "撤离成功" : "行动失败",
+    subtitle: settlement.result === "success"
+      ? `你已带着物资脱离封锁区。${summaryReason}`
+      : `本局未能带出物资。${summaryReason}`,
+    summaryReason,
+    lobbySummary
+  };
+}
+
+function formatSettlementReason(settlement: SettlementPayload): string {
+  if (settlement.reason === "extracted") {
+    return "撤离通道已完成回收。";
+  }
+  if (settlement.reason === "timeout") {
+    return "封锁区关闭前未能完成撤离。";
+  }
+  if (settlement.reason === "killed") {
+    return "你在撤离前被击倒，携带物资全部遗落。";
+  }
+  return settlement.result === "success" ? "本局回收已记入营地。" : "本局损失已计入营地记录。";
 }
 
 function replaceStats(container: HTMLElement, settlement: SettlementPayload): void {
@@ -128,14 +159,15 @@ function replaceStats(container: HTMLElement, settlement: SettlementPayload): vo
     createStatRow("击杀玩家", `${settlement.playerKills}`),
     createStatRow("击杀怪物", `${settlement.monsterKills}`),
     createStatRow("回收金币", `${settlement.extractedGold}`),
-    createStatRow("战利品估值", `${settlement.extractedTreasureValue}`)
+    createStatRow("战利品估值", `${settlement.extractedTreasureValue}`),
+    createStatRow("局外收益", formatSignedNumber(settlement.profileGoldDelta))
   );
 }
 
 function replaceItems(container: HTMLElement, items: string[]): void {
   if (items.length === 0) {
     const empty = document.createElement("li");
-    empty.textContent = "未回收任何物资";
+    empty.textContent = "未带回物资";
     container.replaceChildren(empty);
     return;
   }
@@ -163,4 +195,8 @@ function formatDuration(totalSeconds: number): string {
   const minutes = Math.max(0, Math.floor(totalSeconds / 60));
   const seconds = Math.max(0, totalSeconds % 60);
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function formatSignedNumber(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toLocaleString("zh-CN")}`;
 }

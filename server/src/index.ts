@@ -1,29 +1,27 @@
-import http from "node:http";
+﻿import http from "node:http";
 import cors from "cors";
 import express from "express";
-import {
-  SocketEvent
-} from "../../shared/dist/protocol/events.js";
 import type {
   AttackRequestPayload,
-  SkillCastPayload
-} from "../../shared/dist/types/combat.js";
-import type {
   CreateRoomPayload,
   JoinRoomPayload,
+  PlayerInputMovePayload,
   RoomErrorPayload,
-  SetCapacityPayload
-} from "../../shared/dist/types/lobby.js";
-import type { PlayerInputMovePayload } from "../../shared/dist/types/game.js";
+  RoomStartPayload,
+  SetCapacityPayload,
+  SkillCastPayload
+} from "@gamer/shared";
+import {
+  SocketEvent
+} from "@gamer/shared";
 import { Server } from "socket.io";
 import {
   resolvePlayerAttack,
   resolvePlayerSkillCast
 } from "./combat/combat-service.js";
+import { tickBots, type BotTickResult } from "./bots/bot-manager.js";
 import { serverConfig } from "./config.js";
 import {
-  EXTRACT_CHANNEL_DURATION_MS,
-  EXTRACT_CENTER_RADIUS,
   SERVER_MONSTER_SYNC_HZ
 } from "./internal-constants.js";
 import {
@@ -52,7 +50,6 @@ import type {
   PlayerUnequipItemPayload,
   PlayerPickupPayload,
   PlayerUseItemPayload,
-  RoomStartPayload,
   RuntimeContext,
   SocketSession
 } from "./types.js";
@@ -125,7 +122,76 @@ function emitDrops(roomCode: string): void {
 }
 
 function emitSettlement(roomCode: string, payload: MatchSettlementEnvelope): void {
+  const context = roomStore.getRoomByCodeSnapshot(roomCode);
+  const player = context.room.players.get(payload.playerId);
+  if (player?.socketId) {
+    io.to(player.socketId).emit(SocketEvent.MatchSettlement, payload);
+    return;
+  }
+
   io.to(roomCode).emit(SocketEvent.MatchSettlement, payload);
+}
+
+function emitBotTickResult(roomCode: string, result: BotTickResult): void {
+  const context = roomStore.getRoomByCodeSnapshot(roomCode);
+
+  for (const event of result.combatEvents) {
+    const interruption = interruptPlayerExtract(context.room, event.targetId, "damaged");
+    if (interruption) {
+      io.to(roomCode).emit(SocketEvent.ExtractProgress, interruption);
+    }
+    io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
+  }
+
+  for (const death of result.playerDeaths) {
+    io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
+  }
+
+  for (const progress of result.extractProgressEvents) {
+    io.to(roomCode).emit(SocketEvent.ExtractProgress, progress);
+  }
+}
+
+function applyRiverHazardTick(roomCode: string, now = Date.now()): void {
+  const context = roomStore.getRoomByCodeSnapshot(roomCode);
+  const layout = context.room.matchLayout;
+  if (!layout) {
+    return;
+  }
+
+  for (const player of context.room.players.values()) {
+    const state = player.state;
+    if (!state?.isAlive) {
+      continue;
+    }
+
+    const inCrossing = layout.safeCrossings.some((crossing) => (
+      state.x >= crossing.x
+      && state.x <= crossing.x + crossing.width
+      && state.y >= crossing.y
+      && state.y <= crossing.y + crossing.height
+    ));
+
+    const hazard = layout.riverHazards.find((entry) => (
+      state.x >= entry.x
+      && state.x <= entry.x + entry.width
+      && state.y >= entry.y
+      && state.y <= entry.y + entry.height
+    ));
+
+    if (!hazard || inCrossing) {
+      continue;
+    }
+
+    const lastDamageAt = player.lastRiverDamageAt ?? 0;
+    if (now - lastDamageAt < hazard.tickIntervalMs) {
+      continue;
+    }
+
+    player.lastRiverDamageAt = now;
+    state.hp = Math.max(0, state.hp - hazard.damagePerTick);
+    state.isAlive = state.hp > 0;
+  }
 }
 
 function applyExtractUpdate(roomCode: string): boolean {
@@ -215,6 +281,13 @@ function startPlayerSyncLoop(roomCode: string): void {
         return;
       }
 
+      applyRiverHazardTick(roomCode);
+      const botResult = tickBots(context);
+      emitBotTickResult(roomCode, botResult);
+      if (botResult.monsterStateChanged) {
+        io.to(roomCode).emit(SocketEvent.StateMonsters, listMonsterStates(context.room));
+        io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
+      }
       flushDeathDrops(roomCode);
       const shouldCloseRoom = applyExtractUpdate(roomCode);
       io.to(roomCode).emit(
@@ -363,10 +436,10 @@ function attachRoomHandlers(socket: GameSocket): void {
     }
   });
 
-  socket.on(SocketEvent.RoomStart, (_payload?: RoomStartPayload) => {
+  socket.on(SocketEvent.RoomStart, (payload?: RoomStartPayload) => {
     try {
       const session = buildSession(socket);
-      const context = roomStore.startMatch(session);
+      const context = roomStore.startMatch(session, payload);
       inventoryService.initializeRoom(context.room);
       initializeExtractState(context.room);
       spawnInitialMonsters(context.room);
@@ -409,13 +482,18 @@ function attachRoomHandlers(socket: GameSocket): void {
         SocketEvent.ChestsInit,
         listChests(context.room)
       );
-      if (context.room.extract?.isOpen) {
+      if (context.room.extract?.zones?.length) {
         io.to(context.room.code).emit(SocketEvent.ExtractOpened, {
           roomCode: context.room.code,
-          x: context.room.extract.centerX,
-          y: context.room.extract.centerY,
-          radius: EXTRACT_CENTER_RADIUS,
-          channelDurationMs: EXTRACT_CHANNEL_DURATION_MS
+          zones: context.room.extract.zones.map((zone) => ({
+            zoneId: zone.zoneId,
+            x: zone.x,
+            y: zone.y,
+            radius: zone.radius,
+            channelDurationMs: zone.channelDurationMs,
+            openAtSec: zone.openAtSec,
+            isOpen: zone.isOpen
+          }))
         });
       }
     } catch (error) {
@@ -731,3 +809,5 @@ httpServer.listen(serverConfig.port, serverConfig.host, () => {
     `[server] listening on http://${serverConfig.host}:${serverConfig.port}`
   );
 });
+
+

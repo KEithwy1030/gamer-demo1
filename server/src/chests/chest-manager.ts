@@ -1,25 +1,6 @@
 import crypto from "node:crypto";
 import { buildInventoryItem } from "../loot/loot-manager.js";
-import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "../internal-constants.js";
 import type { Chest, InventoryItem, RuntimeRoom } from "../types.js";
-
-const CHEST_SPAWN_LAYOUTS: Array<{ xRatio: number; yRatio: number }> = [
-  { xRatio: 0.08, yRatio: 0.08 },
-  { xRatio: 0.92, yRatio: 0.08 },
-  { xRatio: 0.08, yRatio: 0.92 },
-  { xRatio: 0.92, yRatio: 0.92 },
-  { xRatio: 0.5, yRatio: 0.08 },
-  { xRatio: 0.5, yRatio: 0.92 },
-  { xRatio: 0.08, yRatio: 0.5 },
-  { xRatio: 0.92, yRatio: 0.5 },
-  { xRatio: 0.24, yRatio: 0.24 },
-  { xRatio: 0.76, yRatio: 0.76 }
-];
-
-const CHEST_SPAWN_POSITIONS: Array<{ x: number; y: number }> = CHEST_SPAWN_LAYOUTS.map((position) => ({
-  x: Math.round(MATCH_MAP_WIDTH * position.xRatio),
-  y: Math.round(MATCH_MAP_HEIGHT * position.yRatio)
-}));
 
 const CHEST_LOOT_TEMPLATES = [
   "armor_hands_common",
@@ -35,9 +16,7 @@ const MIN_LOOT = 2;
 const MAX_LOOT = 4;
 
 function pickLootItem(): InventoryItem | undefined {
-  const templateId = CHEST_LOOT_TEMPLATES[
-    Math.floor(Math.random() * CHEST_LOOT_TEMPLATES.length)
-  ];
+  const templateId = CHEST_LOOT_TEMPLATES[Math.floor(Math.random() * CHEST_LOOT_TEMPLATES.length)];
   return buildInventoryItem(templateId);
 }
 
@@ -58,11 +37,12 @@ function generateChestLoot(): InventoryItem[] {
 export function spawnChests(room: RuntimeRoom): void {
   room.chests = new Map<string, Chest>();
 
-  for (const position of CHEST_SPAWN_POSITIONS) {
+  const zones = room.matchLayout?.chestZones ?? [];
+  for (const zone of zones) {
     const chest: Chest = {
-      id: `chest_${crypto.randomUUID()}`,
-      x: position.x,
-      y: position.y,
+      id: zone.chestId || `chest_${crypto.randomUUID()}`,
+      x: zone.x,
+      y: zone.y,
       isOpen: false,
       loot: generateChestLoot()
     };

@@ -1,11 +1,11 @@
-import { WEAPON_DEFINITIONS } from "../../../shared/dist/data/weapons.js";
 import type {
   AttackRequestPayload,
   CombatEventPayload,
   SkillCastPayload,
   StatusEffectType
-} from "../../../shared/dist/types/combat.js";
-import type { WeaponType } from "../../../shared/dist/types/game.js";
+} from "@gamer/shared";
+import type { WeaponType } from "@gamer/shared";
+import { WEAPON_DEFINITIONS } from "@gamer/shared";
 import {
   ATTACK_CONE_BLADE_DEG,
   ATTACK_CONE_SPEAR_DEG,
@@ -42,7 +42,7 @@ export interface PlayerDeathPayload {
   timestamp: number;
 }
 
-const SKILL_COOLDOWN_MS = 3000;
+const SKILL_COOLDOWN_MS = 4000;
 const SKILL_DAMAGE = {
   swordDashSlash: 24,
   bladeSweep: 22,
@@ -123,7 +123,7 @@ export function resolvePlayerSkillCast(
       return emptyResolution();
     }
     case "sword_dashSlash": {
-      requireSkillCooldown(combatState, payload.skillId, now, 4000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       const targets = selectDashSlashTargets(room, caster, 150);
       movePlayerByDirection(caster.state!, 150);
       return applyDamageToTargets(
@@ -135,13 +135,13 @@ export function resolvePlayerSkillCast(
       );
     }
     case "blade_sweep": {
-      requireSkillCooldown(combatState, payload.skillId, now, 4000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       const targets = selectAttackTargets(room, caster, "blade", 148, 170);
       movePlayerByDirection(caster.state!, -110);
       return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, SKILL_DAMAGE.bladeSweep + attackPowerBonus, now), now);
     }
     case "blade_guard": {
-      requireSkillCooldown(combatState, payload.skillId, now, 5000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       addTimedModifier(caster, {
         sourceId: payload.skillId,
         expiresAt: now + 2000,
@@ -150,7 +150,7 @@ export function resolvePlayerSkillCast(
       return emptyResolution();
     }
     case "blade_overpower": {
-      requireSkillCooldown(combatState, payload.skillId, now, 4000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       addTimedModifier(caster, {
         sourceId: payload.skillId,
         expiresAt: now + 4000,
@@ -159,7 +159,7 @@ export function resolvePlayerSkillCast(
       return emptyResolution();
     }
     case "spear_heavyThrust": {
-      requireSkillCooldown(combatState, payload.skillId, now, 5000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       const target = selectAttackTarget(room, caster, "spear", 180, 50);
       return target
         ? applyDamage(
@@ -174,7 +174,7 @@ export function resolvePlayerSkillCast(
         : emptyResolution();
     }
     case "spear_warCry": {
-      requireSkillCooldown(combatState, payload.skillId, now, 6000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       addTimedModifier(caster, {
         sourceId: payload.skillId,
         expiresAt: now + 3000,
@@ -184,7 +184,7 @@ export function resolvePlayerSkillCast(
       return emptyResolution();
     }
     case "spear_draggingStrike": {
-      requireSkillCooldown(combatState, payload.skillId, now, 4000);
+      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
       setPendingBasicAttack(caster, {
         sourceId: payload.skillId,
         bonusDamage: 50,
@@ -319,7 +319,11 @@ function selectAttackTargets(
   const maxAngleDeg = (coneOverrideDeg ?? getAttackConeDegrees(weaponType)) / 2;
 
   return [...room.players.values()]
-    .filter((target) => target.id !== attacker.id && target.state?.isAlive)
+    .filter((target) => (
+      target.id !== attacker.id
+      && target.state?.isAlive
+      && target.squadId !== attacker.squadId
+    ))
     .map((target) => {
       const dx = target.state!.x - attacker.state!.x;
       const dy = target.state!.y - attacker.state!.y;
@@ -346,7 +350,11 @@ function selectDashSlashTargets(
   };
 
   return [...room.players.values()]
-    .filter((target) => target.id !== attacker.id && target.state?.isAlive)
+    .filter((target) => (
+      target.id !== attacker.id
+      && target.state?.isAlive
+      && target.squadId !== attacker.squadId
+    ))
     .map((target) => {
       const distance = distancePointToSegment(target.state!.x, target.state!.y, start.x, start.y, end.x, end.y);
       const directDistance = Math.hypot(target.state!.x - start.x, target.state!.y - start.y);

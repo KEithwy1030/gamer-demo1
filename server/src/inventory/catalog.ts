@@ -1,10 +1,10 @@
-import type {
+﻿import type {
   EquipmentSlot,
   InventoryItem,
   InventoryItemKind,
   ItemStatModifiers
 } from "../types.js";
-import type { ItemRarity } from "../../../shared/dist/types/inventory.js";
+import type { ItemRarity } from "@gamer/shared";
 
 interface ItemTemplate {
   templateId: string;
@@ -24,7 +24,7 @@ interface ItemTemplate {
 const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   starter_sword: {
     templateId: "starter_sword",
-    name: "制式长剑",
+    name: "Starter Sword",
     kind: "weapon",
     rarity: "common",
     width: 2,
@@ -34,9 +34,33 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
     goldValue: 12,
     treasureValue: 0
   },
+  "iron-sword": {
+    templateId: "iron-sword",
+    name: "Starter Sword",
+    kind: "weapon",
+    rarity: "common",
+    width: 2,
+    height: 3,
+    equipmentSlot: "weapon",
+    weaponType: "sword",
+    goldValue: 12,
+    treasureValue: 0
+  },
+  weapon_sword_basic: {
+    templateId: "weapon_sword_basic",
+    name: "Rust Sword",
+    kind: "weapon",
+    rarity: "common",
+    width: 1,
+    height: 3,
+    equipmentSlot: "weapon",
+    weaponType: "sword",
+    goldValue: 14,
+    treasureValue: 0
+  },
   raider_blade: {
     templateId: "raider_blade",
-    name: "突袭弯刃",
+    name: "Raider Blade",
     kind: "weapon",
     rarity: "common",
     width: 2,
@@ -46,9 +70,33 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
     goldValue: 18,
     treasureValue: 0
   },
+  weapon_blade_basic: {
+    templateId: "weapon_blade_basic",
+    name: "Raider Blade",
+    kind: "weapon",
+    rarity: "common",
+    width: 1,
+    height: 3,
+    equipmentSlot: "weapon",
+    weaponType: "blade",
+    goldValue: 18,
+    treasureValue: 0
+  },
   hunter_spear: {
     templateId: "hunter_spear",
-    name: "猎人长矛",
+    name: "Hunter Spear",
+    kind: "weapon",
+    rarity: "common",
+    width: 1,
+    height: 4,
+    equipmentSlot: "weapon",
+    weaponType: "spear",
+    goldValue: 20,
+    treasureValue: 0
+  },
+  weapon_spear_basic: {
+    templateId: "weapon_spear_basic",
+    name: "Old Spear",
     kind: "weapon",
     rarity: "common",
     width: 1,
@@ -60,7 +108,7 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   },
   leather_hood: {
     templateId: "leather_hood",
-    name: "皮质兜帽",
+    name: "Leather Hood",
     kind: "equipment",
     rarity: "common",
     width: 2,
@@ -70,9 +118,21 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
     treasureValue: 0,
     modifiers: { maxHp: 10 }
   },
+  armor_head_common: {
+    templateId: "armor_head_common",
+    name: "Scout Hood",
+    kind: "equipment",
+    rarity: "common",
+    width: 2,
+    height: 2,
+    equipmentSlot: "head",
+    goldValue: 10,
+    treasureValue: 0,
+    modifiers: { maxHp: 6 }
+  },
   scavenger_coat: {
     templateId: "scavenger_coat",
-    name: "拾荒者外衣",
+    name: "Scavenger Coat",
     kind: "equipment",
     rarity: "uncommon",
     width: 2,
@@ -82,9 +142,33 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
     treasureValue: 0,
     modifiers: { maxHp: 25 }
   },
+  armor_chest_common: {
+    templateId: "armor_chest_common",
+    name: "Patch Chestpiece",
+    kind: "equipment",
+    rarity: "common",
+    width: 2,
+    height: 3,
+    equipmentSlot: "chest",
+    goldValue: 18,
+    treasureValue: 0,
+    modifiers: { maxHp: 12, damageReduction: 0.04 }
+  },
+  armor_hands_common: {
+    templateId: "armor_hands_common",
+    name: "Grip Gloves",
+    kind: "equipment",
+    rarity: "common",
+    width: 2,
+    height: 2,
+    equipmentSlot: "hands",
+    goldValue: 12,
+    treasureValue: 0,
+    modifiers: { attackSpeed: 0.08 }
+  },
   trail_greaves: {
     templateId: "trail_greaves",
-    name: "径行胫甲",
+    name: "Trail Greaves",
     kind: "equipment",
     rarity: "common",
     width: 2,
@@ -94,9 +178,21 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
     treasureValue: 0,
     modifiers: { maxHp: 15, moveSpeed: 12 }
   },
+  armor_feet_common: {
+    templateId: "armor_feet_common",
+    name: "Road Boots",
+    kind: "equipment",
+    rarity: "common",
+    width: 2,
+    height: 2,
+    equipmentSlot: "shoes",
+    goldValue: 14,
+    treasureValue: 0,
+    modifiers: { moveSpeed: 18 }
+  },
   jade_idol: {
     templateId: "jade_idol",
-    name: "古玉偶像",
+    name: "Jade Idol",
     kind: "treasure",
     rarity: "rare",
     width: 1,
@@ -104,9 +200,39 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
     goldValue: 8,
     treasureValue: 80
   },
+  treasure_small_idol: {
+    templateId: "treasure_small_idol",
+    name: "Small Idol",
+    kind: "treasure",
+    rarity: "common",
+    width: 1,
+    height: 1,
+    goldValue: 0,
+    treasureValue: 40
+  },
+  treasure_medium_tablet: {
+    templateId: "treasure_medium_tablet",
+    name: "Stone Tablet",
+    kind: "treasure",
+    rarity: "rare",
+    width: 1,
+    height: 2,
+    goldValue: 0,
+    treasureValue: 100
+  },
+  treasure_large_statue: {
+    templateId: "treasure_large_statue",
+    name: "Broken Statue",
+    kind: "treasure",
+    rarity: "epic",
+    width: 2,
+    height: 2,
+    goldValue: 0,
+    treasureValue: 220
+  },
   gold_pouch: {
     templateId: "gold_pouch",
-    name: "金币袋",
+    name: "Gold Pouch",
     kind: "currency",
     rarity: "common",
     width: 1,
@@ -116,7 +242,7 @@ const ITEM_TEMPLATES: Record<string, ItemTemplate> = {
   },
   health_potion: {
     templateId: "health_potion",
-    name: "回血药剂",
+    name: "Health Potion",
     kind: "consumable",
     rarity: "common",
     width: 1,

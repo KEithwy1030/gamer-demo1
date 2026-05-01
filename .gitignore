@@ -8,3 +8,13 @@ coverage/
 .DS_Store
 .claude/worktrees/
 server/data/
+artifacts/*.log
+artifacts/*.err.log
+artifacts/history/
+artifacts/game-dev-research/
+.tmp-*.log
+.tmp-*.err
+tmp-*.log
+tmp-*.err.log
+.playwright-mcp/
+tmp/

@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { PlayerState } from "../../../../shared/src/index";
+import type { PlayerState } from "@gamer/shared";
 
 export type AnimationState = "IDLE" | "MOVE" | "ATTACK" | "HURT" | "DIE";
 
@@ -16,6 +16,12 @@ export class PlayerMarker {
   private targetY: number;
   private currentState: AnimationState = "IDLE";
   private lastHp: number = 0;
+  private lastNameplateText = "";
+  private lastNameplateColor = "";
+  private lastAliveAlpha = -1;
+  private lastRootAlpha = -1;
+  private lastHpWidth = -1;
+  private lastHpColor = -1;
 
   constructor(scene: Phaser.Scene, player: PlayerState, isSelf: boolean) {
     this.id = player.id;
@@ -28,6 +34,9 @@ export class PlayerMarker {
     if (isSelf) {
       this.shadow.fillStyle(0xe8602c, 0.28);
       this.shadow.fillEllipse(0, 24, 52, 20);
+    } else if (player.isBot) {
+      this.shadow.fillStyle(0xb8371f, 0.24);
+      this.shadow.fillEllipse(0, 24, 50, 18);
     } else {
       this.shadow.fillStyle(0x7fb4c2, 0.2);
       this.shadow.fillEllipse(0, 24, 48, 18);
@@ -37,6 +46,11 @@ export class PlayerMarker {
     
     this.sprite = scene.add.sprite(0, 0, "player");
     this.sprite.setDisplaySize(64, 64);
+    if (player.isBot) {
+      this.sprite.setTint(player.squadId === "bot_alpha" ? 0xd95a36 : player.squadId === "bot_beta" ? 0xb7c0c7 : 0x8b72d9);
+    } else if (!isSelf) {
+      this.sprite.setTint(0x7fb4c2);
+    }
 
     // HP Bar: Sharper Pixel Look
     this.hpTrack = scene.add.rectangle(0, -36, 40, 8, 0x16130f, 0.92);
@@ -45,11 +59,11 @@ export class PlayerMarker {
 
     this.nameplate = scene.add.text(0, -48, player.name, {
       fontFamily: "monospace",
-      fontSize: "13px",
+      fontSize: player.isBot ? "11px" : "13px",
       fontStyle: "bold",
       color: "#e8dfc8",
       backgroundColor: "rgba(22,19,15,0.84)",
-      padding: { x: 6, y: 3 }
+      padding: player.isBot ? { x: 4, y: 2 } : { x: 6, y: 3 }
     });
     this.nameplate.setOrigin(0.5, 1);
 
@@ -90,7 +104,9 @@ export class PlayerMarker {
     const prevY = this.root.y;
     this.root.x = Phaser.Math.Linear(this.root.x, this.targetX, alpha);
     this.root.y = Phaser.Math.Linear(this.root.y, this.targetY, alpha);
-    this.root.setDepth(this.root.y); // Non-negotiable Y-sorting
+    if (Math.abs(this.root.depth - this.root.y) > 0.5) {
+      this.root.setDepth(this.root.y);
+    }
 
     if (this.currentState !== "DIE") {
       const dx = this.root.x - prevX;
@@ -133,12 +149,42 @@ export class PlayerMarker {
       this.sprite.setAlpha(1);
     }
     
-    this.hpFill.width = Math.max(4, 36 * hpRatio);
-    this.hpFill.setFillStyle(resolveHpColor(hpRatio), player.isAlive ? 1 : 0.45);
+    const hpWidth = Math.max(4, 36 * hpRatio);
+    if (Math.abs(this.lastHpWidth - hpWidth) > 0.5) {
+      this.hpFill.width = hpWidth;
+      this.lastHpWidth = hpWidth;
+    }
 
-    this.nameplate.setText(player.name);
-    this.nameplate.setAlpha(player.isAlive ? 1 : 0.65);
-    this.root.setAlpha(player.isAlive ? 1 : 0.55);
+    const hpColor = resolveHpColor(hpRatio);
+    if (this.lastHpColor !== hpColor || this.lastAliveAlpha !== (player.isAlive ? 1 : 0.45)) {
+      this.hpFill.setFillStyle(hpColor, player.isAlive ? 1 : 0.45);
+      this.lastHpColor = hpColor;
+      this.lastAliveAlpha = player.isAlive ? 1 : 0.45;
+    }
+
+    const nextNameplateText = formatNameplate(player, isSelf);
+    if (this.lastNameplateText !== nextNameplateText) {
+      this.nameplate.setText(nextNameplateText);
+      this.lastNameplateText = nextNameplateText;
+    }
+
+    const nextNameplateColor = isSelf ? "#e8dfc8" : player.isBot ? "#ffb199" : "#bde6ef";
+    if (this.lastNameplateColor !== nextNameplateColor) {
+      this.nameplate.setColor(nextNameplateColor);
+      this.lastNameplateColor = nextNameplateColor;
+    }
+
+    this.nameplate.setScale(player.isBot ? 0.84 : 1);
+    const nextLabelAlpha = player.isAlive ? (player.isBot ? 0.82 : 1) : 0.65;
+    if (this.nameplate.alpha !== nextLabelAlpha) {
+      this.nameplate.setAlpha(nextLabelAlpha);
+    }
+
+    const nextRootAlpha = player.isAlive ? 1 : 0.55;
+    if (this.lastRootAlpha !== nextRootAlpha) {
+      this.root.setAlpha(nextRootAlpha);
+      this.lastRootAlpha = nextRootAlpha;
+    }
   }
 
   createGhost(): void {
@@ -169,4 +215,26 @@ function resolveHpColor(hpRatio: number): number {
   }
 
   return 0xb8371f;
+}
+
+function formatNameplate(player: PlayerState, isSelf: boolean): string {
+  if (isSelf) {
+    return player.name;
+  }
+
+  if (!player.isBot) {
+    return player.name;
+  }
+
+  const suffix = player.id.match(/_(\d+)$/)?.[1] ?? player.name.match(/(\d+)$/)?.[1] ?? "?";
+  switch (player.squadId) {
+    case "bot_alpha":
+      return `BOT A${suffix}`;
+    case "bot_beta":
+      return `BOT B${suffix}`;
+    case "bot_gamma":
+      return `BOT G${suffix}`;
+    default:
+      return `BOT ${suffix}`;
+  }
 }

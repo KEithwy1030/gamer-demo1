@@ -1,6 +1,15 @@
-export interface Vector2 {
+﻿export interface Vector2 {
   x: number;
   y: number;
+}
+
+export type MobileActionButtonId = "attack" | "skill" | "pickup" | "inventory";
+
+export interface MobileButtonState {
+  label?: string;
+  cooldownRatio?: number;
+  cooldownText?: string;
+  disabled?: boolean;
 }
 
 export interface MobileControlsOptions {
@@ -17,6 +26,7 @@ export interface MobileControlsOptions {
 export interface MobileControlsApi {
   destroy(): void;
   getVector(): Vector2;
+  setButtonState(buttonId: MobileActionButtonId, state: MobileButtonState): void;
 }
 
 const DEFAULT_ZONE_RATIO = 0.55;
@@ -58,6 +68,14 @@ export function supportsTouchInput(): boolean {
   return navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
 }
 
+type ButtonParts = {
+  element: HTMLButtonElement;
+  label: HTMLSpanElement;
+  timer: HTMLSpanElement;
+  accentColor: string;
+  state: MobileButtonState;
+};
+
 export function createMobileControls(options: MobileControlsOptions): MobileControlsApi | null {
   if (!supportsTouchInput()) {
     return null;
@@ -77,11 +95,12 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
 
   const zoneRatio = options.zoneRatio ?? DEFAULT_ZONE_RATIO;
   const speedScale = options.speedScale ?? 1;
+  const buttons = new Map<MobileActionButtonId, ButtonParts>();
 
   const updateLayout = () => {
     const portrait = isPortraitViewport();
     const buttonSize = portrait ? 62 : 66;
-    const gap = portrait ? 8 : 8;
+    const gap = 8;
 
     setStyles(actionOverlay, {
       right: `max(${EDGE_PADDING}px, env(safe-area-inset-right))`,
@@ -91,14 +110,17 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
       padding: "8px"
     });
 
-    for (const button of Array.from(actionOverlay.children)) {
-      if (button instanceof HTMLElement) {
-        setStyles(button, {
-          width: `${buttonSize}px`,
-          height: `${buttonSize}px`,
-          fontSize: portrait ? "20px" : "22px"
-        });
-      }
+    for (const button of buttons.values()) {
+      setStyles(button.element, {
+        width: `${buttonSize}px`,
+        height: `${buttonSize}px`
+      });
+      setStyles(button.label, {
+        fontSize: portrait ? "18px" : "20px"
+      });
+      setStyles(button.timer, {
+        fontSize: portrait ? "11px" : "12px"
+      });
     }
   };
 
@@ -203,38 +225,83 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     }
   };
 
-  const createActionButton = (label: string, color: string, onPress: () => void) => {
+  function applyButtonState(parts: ButtonParts): void {
+    const remainingRatio = clamp(parts.state.cooldownRatio ?? 0, 0, 1);
+    const disabled = parts.state.disabled === true || remainingRatio > 0;
+    const remainingAngle = Math.round(remainingRatio * 360);
+
+    parts.label.textContent = parts.state.label ?? parts.label.textContent;
+    parts.timer.textContent = parts.state.cooldownText ?? "";
+    parts.timer.style.opacity = parts.timer.textContent ? "1" : "0";
+    parts.element.disabled = disabled;
+    parts.element.style.opacity = disabled ? "0.92" : "1";
+    parts.element.style.filter = disabled ? "saturate(0.82)" : "none";
+    parts.element.style.background = [
+      `conic-gradient(from -90deg, rgba(0,0,0,0.58) 0deg ${remainingAngle}deg, rgba(255,255,255,0.04) ${remainingAngle}deg 360deg)`,
+      "linear-gradient(180deg, rgba(43,37,25,0.96), rgba(14,11,8,0.94))"
+    ].join(", ");
+  }
+
+  function createActionButton(
+    buttonId: MobileActionButtonId,
+    label: string,
+    color: string,
+    onPress: () => void
+  ): HTMLButtonElement {
     const button = document.createElement("button");
+    const labelEl = document.createElement("span");
+    const timerEl = document.createElement("span");
+
     button.type = "button";
-    button.textContent = label;
+    button.setAttribute("data-button-id", buttonId);
 
     setStyles(button, {
+      position: "relative",
+      overflow: "hidden",
       borderRadius: "8px",
-      background: "linear-gradient(180deg, rgba(43,37,25,0.96), rgba(14,11,8,0.94))",
       border: `2px solid ${color}`,
       display: "flex",
+      flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      color,
+      color: color,
       fontWeight: "700",
-      fontFamily: "\"Noto Serif SC\", \"Noto Sans SC\", serif",
+      fontFamily: '"Noto Serif SC", "Noto Sans SC", serif',
       userSelect: "none",
       webkitUserSelect: "none",
       touchAction: "manipulation",
       boxShadow: `inset 0 0 0 1px rgba(232,223,200,0.1), 0 10px 20px rgba(0,0,0,0.34), 0 0 18px ${color}33`,
       textShadow: `0 0 10px ${color}`,
-      letterSpacing: "0.08em"
+      letterSpacing: "0.08em",
+      transition: "transform 120ms ease, opacity 120ms ease, filter 120ms ease"
+    });
+
+    setStyles(labelEl, {
+      position: "relative",
+      zIndex: "1"
+    });
+    labelEl.textContent = label;
+
+    setStyles(timerEl, {
+      position: "relative",
+      zIndex: "1",
+      marginTop: "2px",
+      minHeight: "12px",
+      color: "rgba(255,255,255,0.92)",
+      opacity: "0"
     });
 
     const pressStart = (event: Event) => {
       event.preventDefault();
-      button.style.opacity = "0.78";
+      const parts = buttons.get(buttonId);
+      if (!parts || parts.element.disabled) {
+        return;
+      }
       button.style.transform = "translateY(1px) scale(0.98)";
       onPress();
     };
 
     const pressEnd = () => {
-      button.style.opacity = "1";
       button.style.transform = "translateY(0) scale(1)";
     };
 
@@ -245,8 +312,17 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     button.addEventListener("mouseup", pressEnd);
     button.addEventListener("mouseleave", pressEnd);
 
+    button.append(labelEl, timerEl);
+    buttons.set(buttonId, {
+      element: button,
+      label: labelEl,
+      timer: timerEl,
+      accentColor: color,
+      state: { label }
+    });
+    applyButtonState(buttons.get(buttonId)!);
     return button;
-  };
+  }
 
   setStyles(shell, {
     position: "fixed",
@@ -297,10 +373,10 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
 
   joystick.append(joystickBase, joystickKnob);
   actionOverlay.append(
-    createActionButton("\u653b", "#ef4444", () => options.onAttack?.()),
-    createActionButton("\u6280", "#38bdf8", () => options.onSkill?.()),
-    createActionButton("\u53d6", "#4ade80", () => options.onPickup?.()),
-    createActionButton("\u5305", "#fbbf24", () => options.onInventory?.())
+    createActionButton("attack", "攻", "#ef4444", () => options.onAttack?.()),
+    createActionButton("skill", "技", "#38bdf8", () => options.onSkill?.()),
+    createActionButton("pickup", "取", "#4ade80", () => options.onPickup?.()),
+    createActionButton("inventory", "包", "#fbbf24", () => options.onInventory?.())
   );
   shell.append(joystick, actionOverlay);
   root.appendChild(shell);
@@ -327,6 +403,14 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     },
     getVector() {
       return currentVector;
+    },
+    setButtonState(buttonId: MobileActionButtonId, state: MobileButtonState) {
+      const parts = buttons.get(buttonId);
+      if (!parts) {
+        return;
+      }
+      parts.state = { ...parts.state, ...state };
+      applyButtonState(parts);
     }
   };
 }

@@ -1,21 +1,26 @@
-import type { CombatEventPayload, SkillId, Vector2, WeaponType } from "@gamer/shared";
+﻿import type { CombatEventPayload, SkillId, Vector2, WeaponType } from "@gamer/shared";
 import Phaser from "phaser";
 import { DropMarker } from "../game/entities/DropMarker";
 import { MonsterMarker } from "../game/entities/MonsterMarker";
 import { PlayerMarker } from "../game/entities/PlayerMarker";
-import {
-  createKeyboardControls,
-  type KeyboardControlsApi
-} from "../input/keyboardControls";
-import {
-  createMobileControls,
-  type MobileControlsApi
-} from "../input/mobileControls";
 import { MatchRuntimeStore, type MatchViewState } from "../game";
 import type { ChestOpenedPayload, ChestState } from "../network/socketClient";
 import type { ExtractUiState } from "./createGameClient";
-import { Minimap } from "../ui/Minimap";
-import { drawPanelFrame, GAMEPLAY_THEME } from "../ui/gameplayTheme";
+import {
+  createWorldBackdropRefs,
+  rebuildWorldBackdrop,
+  syncExtractBackdrop,
+  type WorldBackdropRefs
+} from "./gameScene/worldBackdrop";
+import { GameHudOverlay } from "./gameScene/hudOverlay";
+import { GameSceneInputBridge, shouldUseTouchLayout } from "./gameScene/inputBridge";
+import { GameSceneInteractions } from "./gameScene/interactions";
+import { GameSceneFeedbackFx } from "./gameScene/feedbackFx";
+import {
+  getPrimarySkillCooldownMs,
+  getPrimarySkillWindupMs,
+  resolvePrimarySkill
+} from "./gameScene/skillHelpers";
 
 export interface GameSceneInitData {
   runtime: MatchRuntimeStore;
@@ -33,39 +38,6 @@ export interface GameSceneInitData {
   subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
 }
 
-type TerrainPalette = {
-  ground: number;
-  path: number;
-  pathEdge: number;
-  scrub: number;
-  wetland: number;
-  plaza: number;
-  frame: number;
-};
-
-type ObstacleKind = "crate" | "rock" | "barricade" | "brush";
-
-type ObstacleLayout = {
-  x: number;
-  y: number;
-  width: number; height: number;
-  kind: ObstacleKind;
-  rotation?: number;
-};
-
-type HudLayout = {
-  leftX: number;
-  leftY: number;
-  leftW: number;
-  leftH: number;
-  hpBarX: number;
-  hpBarY: number;
-  hpBarW: number;
-  objectiveX: number;
-  objectiveY: number;
-  objectiveW: number;
-};
-
 export class GameScene extends Phaser.Scene {
   static readonly KEY = "GameScene";
 
@@ -74,38 +46,15 @@ export class GameScene extends Phaser.Scene {
   private readonly playerMarkers = new Map<string, PlayerMarker>();
   private readonly monsterMarkers = new Map<string, MonsterMarker>();
   private readonly dropMarkers = new Map<string, DropMarker>();
-  private readonly chestSprites = new Map<string, Phaser.GameObjects.Image>();
-  private readonly chestLabels = new Map<string, Phaser.GameObjects.Text>();
-  private terrainLayer?: Phaser.GameObjects.TileSprite;
-  private detailLayer?: Phaser.GameObjects.Graphics;
-  private atmosphereLayer?: Phaser.GameObjects.Graphics;
-  private obstacleLayer?: Phaser.GameObjects.Container;
-  private worldFrame?: Phaser.GameObjects.Graphics;
-  private extractOuterRing?: Phaser.GameObjects.Arc;
-  private extractInnerRing?: Phaser.GameObjects.Arc;
-  private extractBeacon?: Phaser.GameObjects.Container;
-  private extractLabel?: Phaser.GameObjects.Text;
+  private worldBackdrop: WorldBackdropRefs = createWorldBackdropRefs();
   private extractPulseTween?: Phaser.Tweens.Tween;
-  private hudContainer?: Phaser.GameObjects.Container;
-  private hudLayout?: HudLayout;
-  private minimap?: Minimap;
-  private hpBar?: { track: Phaser.GameObjects.Graphics; fill: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text };
-  private timerText?: Phaser.GameObjects.Text;
-  private roomCodeText?: Phaser.GameObjects.Text;
-  private weaponNameText?: Phaser.GameObjects.Text;
-  private killsText?: Phaser.GameObjects.Text;
-  private extractProgressTrack?: Phaser.GameObjects.Graphics;
-  private extractProgressFill?: Phaser.GameObjects.Graphics;
-  private extractProgressLabel?: Phaser.GameObjects.Text;
-  private lowHpOverlay?: Phaser.GameObjects.Rectangle;
-  private pickupToast?: Phaser.GameObjects.Text;
-  private pickupToastTween?: Phaser.Tweens.Tween;
-  private skillStatusText?: Phaser.GameObjects.Text;
-  private combatText?: Phaser.GameObjects.Text;
-  private controlsHint?: Phaser.GameObjects.Text;
-  private regionLabels: Phaser.GameObjects.Text[] = [];
+  private hudOverlay?: GameHudOverlay;
+  private inputBridge?: GameSceneInputBridge;
+  private interactions?: GameSceneInteractions;
+  private feedbackFx?: GameSceneFeedbackFx;
   private latestState: MatchViewState | null = null;
   private worldSignature = "";
+  private followedPlayerId: string | null = null;
   private extractState: ExtractUiState = {
     isOpen: false,
     isExtracting: false,
@@ -114,7 +63,6 @@ export class GameScene extends Phaser.Scene {
     message: "撤离点将在后期开启。",
     didSucceed: false
   };
-  private keyboardControls?: KeyboardControlsApi | null;
   private onMoveInput?: (direction: Vector2) => void;
   private onAttack?: () => void;
   private onSkill?: (skillId: SkillId) => void;
@@ -126,36 +74,20 @@ export class GameScene extends Phaser.Scene {
   private onToggleInventory?: () => void;
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
-  private chestUnsubscribes: (() => void)[] = [];
-  private interactionPrompt?: Phaser.GameObjects.Text;
-  private lastMoveDirection: Vector2 = { x: 0, y: 0 };
-  private lastFacingDirection: Vector2 = { x: 0, y: 1 };
-  private lastMoveSentAt = 0;
   private localSkillCooldownEndsAt = 0;
   private localSkillWindupEndsAt = 0;
   private pendingSkillCast?: Phaser.Time.TimerEvent;
-  private extractAutoStarted = false;
-
-  private static readonly MOBILE_SPEED_SCALE = 0.5;
-
-  private currentMoveDirection: Vector2 = { x: 0, y: 0 };
-
-  private mobileControls?: MobileControlsApi | null;
-  private joystickVector: Vector2 = { x: 0, y: 0 };
-  private joystickContainer?: HTMLElement;
-  private joystickKnobEl?: HTMLElement;
-  private joystickTouchId: number | null = null;
-  private joystickBaseCenter: { x: number; y: number } = { x: 0, y: 0 };
-  private mobileOverlay?: HTMLElement;
-  private domTouchStart?: (e: TouchEvent) => void;
-  private domTouchMove?: (e: TouchEvent) => void;
-  private domTouchEnd?: (e: TouchEvent) => void;
 
   constructor() {
     super(GameScene.KEY);
   }
 
   preload(): void {
+    this.load.image("terrain_wasteland", "assets/wasteland-ground.png");
+    this.load.image("hud_status_panel", "assets/hud/runtime-hp.png");
+    this.load.image("hud_timer_panel", "assets/hud/asset-timer.png");
+    this.load.image("hud_command_panel", "assets/hud/asset-command.png");
+
     // Spitesheets and textures generation...
     const pCanvas = document.createElement("canvas");
     pCanvas.width = 192; pCanvas.height = 192;
@@ -201,35 +133,6 @@ export class GameScene extends Phaser.Scene {
     dCtx.strokeStyle = "#e8dfc8"; dCtx.lineWidth = 1; dCtx.strokeRect(2.5, 2.5, 11, 11);
     this.textures.addCanvas("drop", dCanvas);
 
-    const gCanvas = document.createElement("canvas");
-    gCanvas.width = 64; gCanvas.height = 64;
-    const gCtx = gCanvas.getContext("2d")!;
-    gCtx.fillStyle = "#211c15"; gCtx.fillRect(0, 0, 64, 64);
-    for (let i = 0; i < 64; i += 1) {
-      gCtx.fillStyle = Math.random() > 0.5 ? "#3a3223" : "#4d4330";
-      gCtx.fillRect(Math.floor(Math.random() * 64), Math.floor(Math.random() * 64), 2, 2);
-    }
-    this.textures.addCanvas("ground_pixel", gCanvas);
-
-    const crateCanvas = document.createElement("canvas");
-    crateCanvas.width = 48; crateCanvas.height = 48;
-    const crateCtx = crateCanvas.getContext("2d")!;
-    crateCtx.fillStyle = "#3a3223"; crateCtx.fillRect(2, 2, 44, 44);
-    crateCtx.strokeStyle = "#7d745e"; crateCtx.lineWidth = 3; crateCtx.strokeRect(4, 4, 40, 40);
-    this.textures.addCanvas("crate", crateCanvas);
-
-    const rockCanvas = document.createElement("canvas");
-    rockCanvas.width = 48; rockCanvas.height = 48;
-    const rockCtx = rockCanvas.getContext("2d")!;
-    rockCtx.fillStyle = "#4d4330"; rockCtx.beginPath(); rockCtx.arc(24, 24, 20, 0, Math.PI * 2); rockCtx.fill();
-    this.textures.addCanvas("rock", rockCanvas);
-
-    const brushCanvas = document.createElement("canvas");
-    brushCanvas.width = 48; brushCanvas.height = 48;
-    const brushCtx = brushCanvas.getContext("2d")!;
-    brushCtx.fillStyle = "#2b2519"; brushCtx.beginPath(); brushCtx.arc(24, 24, 20, 0, Math.PI * 2); brushCtx.fill();
-    this.textures.addCanvas("brush", brushCanvas);
-
     const bCanvas = document.createElement("canvas");
     bCanvas.width = 64; bCanvas.height = 64;
     const bCtx = bCanvas.getContext("2d")!;
@@ -269,80 +172,43 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleServerPlayerAttack(payload: { playerId: string; attackId: string }): void {
-    if (payload.playerId === this.latestState?.selfPlayerId) return;
-    const player = this.latestState?.players.find(p => p.id === payload.playerId);
-    if (!player) return;
-    const weaponType = player.weaponType || "sword";
-    let direction = player.direction;
-    if (payload.playerId === this.latestState?.selfPlayerId) {
-      direction = this.lastFacingDirection;
-    } else {
-      const mag = Math.sqrt(direction.x * direction.x + direction.y * direction.y);
-      if (mag > 0) direction = { x: direction.x / mag, y: direction.y / mag };
-      else direction = { x: 0, y: 1 };
-    }
-    this.createWeaponVfx(player.x, player.y, weaponType, direction);
-    if (payload.playerId === this.latestState?.selfPlayerId) this.shakeCamera(0.005, 100);
+    this.feedbackFx?.handleServerPlayerAttack(
+      payload,
+      this.latestState,
+      this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 },
+      this.playerMarkers
+    );
   }
 
   private handleCombatResult(payload: CombatEventPayload): void {
-    const target = this.playerMarkers.get(payload.targetId) || this.monsterMarkers.get(payload.targetId);
-    if (!target) return;
-    const color = payload.isCritical ? "#d4b24c" : "#b8371f";
-    const text = this.add.text(target.root.x, target.root.y - 30, `-${payload.amount}`, {
-      fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: payload.isCritical ? "30px" : "18px",
-      fontStyle: "bold",
-      color,
-      stroke: "#16130f",
-      strokeThickness: payload.isCritical ? 6 : 4
-    }).setOrigin(0.5).setDepth(3000);
-    this.tweens.add({ targets: text, y: text.y - (payload.isCritical ? 58 : 40), alpha: 0, duration: payload.isCritical ? 980 : 760, ease: "Cubic.out", onComplete: () => text.destroy() });
-
-    if (payload.isCritical) {
-      const burst = this.add.circle(target.root.x, target.root.y, 16, GAMEPLAY_THEME.colors.caution, 0.22).setDepth(2999);
-      burst.setStrokeStyle(4, GAMEPLAY_THEME.colors.bone, 0.8);
-      this.tweens.add({ targets: burst, alpha: 0, scale: 3.2, duration: 320, ease: "Cubic.out", onComplete: () => burst.destroy() });
-    }
-
-    this.flashEffect(target.root);
-    if (payload.targetId === this.latestState?.selfPlayerId) {
-      this.cameras.main.shake(150, 4 / this.scale.width);
-      this.applyHitStop(50);
-      this.showDamageWash();
-    }
-    const attackerMonster = this.monsterMarkers.get(payload.attackerId);
-    if (attackerMonster && payload.targetId === this.latestState?.selfPlayerId) {
-      this.showMonsterAttackVfx(attackerMonster.root.x, attackerMonster.root.y, target.root.x, target.root.y, attackerMonster.root.depth);
-    }
-  }
-
-  private showMonsterAttackVfx(mx: number, my: number, tx: number, ty: number, depth: number): void {
-    const danger = this.add.graphics();
-    danger.lineStyle(4, GAMEPLAY_THEME.colors.danger, 1); danger.strokeCircle(0, 0, 24);
-    danger.fillStyle(GAMEPLAY_THEME.colors.danger, 0.25); danger.fillCircle(0, 0, 24);
-    danger.setPosition(mx, my).setDepth(depth + 5);
-    this.tweens.add({ targets: danger, alpha: 0, scale: 1.6, duration: 280, onComplete: () => danger.destroy() });
-  }
-
-  private showDamageWash(): void {
-    const wash = this.add.rectangle(0, 0, this.scale.width, this.scale.height, GAMEPLAY_THEME.colors.danger, 0.2)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(5000);
-    this.tweens.add({ targets: wash, alpha: 0, duration: 240, ease: "Cubic.out", onComplete: () => wash.destroy() });
+    this.feedbackFx?.handleCombatResult(payload, this.latestState, this.playerMarkers, this.monsterMarkers);
   }
 
   create(): void {
     this.cameras.main.setBackgroundColor("#0e0b08");
-    this.cameras.main.setZoom(0.75);
+    const touchLayout = shouldUseTouchLayout();
+    this.cameras.main.setZoom(touchLayout ? 0.68 : 0.52);
     this.anims.create({ key: "player-walk-down", frames: this.anims.generateFrameNumbers("player", { start: 0, end: 3 }), frameRate: 12, repeat: -1 });
     this.anims.create({ key: "player-walk-left", frames: this.anims.generateFrameNumbers("player", { start: 4, end: 7 }), frameRate: 12, repeat: -1 });
     this.anims.create({ key: "player-walk-right", frames: this.anims.generateFrameNumbers("player", { start: 8, end: 11 }), frameRate: 12, repeat: -1 });
     this.anims.create({ key: "player-walk-up", frames: this.anims.generateFrameNumbers("player", { start: 12, end: 15 }), frameRate: 12, repeat: -1 });
     this.anims.create({ key: "monster-sway", frames: this.anims.generateFrameNumbers("monster", { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
 
-    this.initHud();
+    this.hudOverlay = new GameHudOverlay(this, touchLayout);
+    this.hudOverlay.mount();
+    this.feedbackFx = new GameSceneFeedbackFx(this);
+    this.interactions = new GameSceneInteractions(this);
+    this.interactions.mount(this.subscribeChestsInit, this.subscribeChestOpened);
+    this.inputBridge = new GameSceneInputBridge(this, {
+      touchLayout,
+      onMoveInput: this.onMoveInput,
+      onAttack: () => this.handleAttack(),
+      onSkill: () => this.handleSkill(),
+      onPickup: () => this.handleInteract(),
+      onExtract: () => this.onStartExtract?.(),
+      onInventory: () => this.handleToggleInventory()
+    });
+    this.inputBridge.mount();
 
     this.unsubscribeRuntime = this.runtime.subscribe((state) => {
       this.latestState = state;
@@ -350,64 +216,23 @@ export class GameScene extends Phaser.Scene {
       this.syncPlayers(state);
       this.syncMonsters(state);
       this.syncDrops(state);
-      this.syncHud(state);
-    });
-
-    const keyboard = this.input.keyboard;
-    if (keyboard) {
-      this.keyboardControls = createKeyboardControls(keyboard);
-    }
-
-    this.initChests();
-    this.initTouchControls();
-  }
-
-  private initChests(): void {
-    this.subscribeChestsInit?.((chests) => {
-      chests.forEach(chest => {
-        if (!this.chestSprites.has(chest.id)) {
-          const sprite = this.add.image(chest.x, chest.y, chest.isOpen ? "chest_open" : "chest_closed").setDepth(chest.y);
-          this.chestSprites.set(chest.id, sprite);
-          if (!chest.isOpen) {
-            const label = this.add.text(chest.x, chest.y - 30, "宝箱", { fontFamily: "monospace", fontSize: "14px", color: "#ffffff", stroke: "#000000", strokeThickness: 3 }).setOrigin(0.5).setDepth(chest.y + 1);
-            this.chestLabels.set(chest.id, label);
-          }
-        }
+      this.hudOverlay?.sync({
+        state,
+        extractState: this.extractState,
+        skillCooldownEndsAt: this.localSkillCooldownEndsAt,
+        skillWindupEndsAt: this.localSkillWindupEndsAt
       });
     });
-    this.subscribeChestOpened?.((p) => {
-      const s = this.chestSprites.get(p.chestId);
-      if (s) { s.setTexture("chest_open"); this.chestLabels.get(p.chestId)?.destroy(); this.chestLabels.delete(p.chestId); }
-    });
-    this.interactionPrompt = this.add.text(0, 0, "按 E 开箱", { fontFamily: "monospace", fontSize: "16px", color: "#facc15", stroke: "#000000", strokeThickness: 4 }).setOrigin(0.5).setDepth(4000).setVisible(false);
-  }
-
-  private initTouchControls(): void {
-    if (!this.shouldUseTouchLayout()) return;
-    this.mobileControls?.destroy();
-    this.mobileControls = createMobileControls({
-      root: document.body,
-      speedScale: GameScene.MOBILE_SPEED_SCALE,
-      onMove: (vector) => {
-        this.joystickVector = vector;
-      },
-      onAttack: () => this.handleAttack(),
-      onSkill: () => this.handleSkill(),
-      onPickup: () => this.handleInteract(),
-      onInventory: () => this.handleToggleInventory()
-    });
-  }
-
-  private shouldUseTouchLayout(): boolean {
-    const coarsePointer = window.matchMedia?.("(pointer: coarse)").matches ?? false;
-    const narrowViewport = window.innerWidth < 900 || this.scale.width < 900;
-    return narrowViewport && (navigator.maxTouchPoints > 0 || coarsePointer);
   }
 
   private handleAttack(): void {
-    this.playLocalAttackVfx();
+    this.feedbackFx?.playLocalAttack(
+      this.latestState,
+      this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 }
+    );
     this.onAttack?.();
   }
+
   private handleSkill(): void {
     const sid = resolvePrimarySkill(this.latestState);
     if (!sid) return;
@@ -419,11 +244,21 @@ export class GameScene extends Phaser.Scene {
     this.localSkillWindupEndsAt = now + windupMs;
     this.localSkillCooldownEndsAt = now + windupMs + getPrimarySkillCooldownMs(sid);
     this.pendingSkillCast?.remove(false);
-    this.playLocalSkillVfx(sid, windupMs > 0 ? "windup" : "cast");
+    this.feedbackFx?.playLocalSkill(
+      sid,
+      windupMs > 0 ? "windup" : "cast",
+      this.latestState,
+      this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 }
+    );
 
     if (windupMs > 0) {
       this.pendingSkillCast = this.time.delayedCall(windupMs, () => {
-        this.playLocalSkillVfx(sid, "cast");
+        this.feedbackFx?.playLocalSkill(
+          sid,
+          "cast",
+          this.latestState,
+          this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 }
+        );
         this.onSkill?.(sid);
         this.pendingSkillCast = undefined;
       });
@@ -432,428 +267,73 @@ export class GameScene extends Phaser.Scene {
 
     this.onSkill?.(sid);
   }
-  private handleInteract(): void { if (this.interactionPrompt?.visible) { const id = this.interactionPrompt.getData("chestId"); if (id) this.onOpenChest?.(id); } else this.onPickup?.(); }
+
+  private handleInteract(): void {
+    this.interactions?.handleInteract(this.onOpenChest, this.onPickup);
+  }
 
   private handleToggleInventory(): void {
-    // Call the controller's toggle inventory method
     this.onToggleInventory?.();
-  }
-
-  private createWeaponVfx(x: number, y: number, type: WeaponType, dir: Vector2): void {
-    const angle = Math.atan2(dir.y, dir.x);
-    const g = this.add.graphics().setPosition(x, y).setDepth(y + 100);
-    if (type === "sword") { g.lineStyle(3, 0xe2e8f0).beginPath().moveTo(0, 0).lineTo(Math.cos(angle) * 80, Math.sin(angle) * 80).strokePath(); }
-    else if (type === "blade") { [angle - 0.5, angle, angle + 0.5].forEach(a => { g.lineStyle(3, 0xf97316).beginPath().moveTo(0, 0).lineTo(Math.cos(a) * 60, Math.sin(a) * 60).strokePath(); }); }
-    else { g.lineStyle(4, 0xef4444).strokeCircle(0, 0, 40); }
-    this.tweens.add({ targets: g, alpha: 0, duration: 250, onComplete: () => g.destroy() });
-  }
-
-  private createSkillVfx(x: number, y: number, color: number): void {
-    const r = this.add.graphics().lineStyle(4, color).strokeCircle(0, 0, 30).setPosition(x, y).setDepth(y + 100);
-    this.tweens.add({ targets: r, alpha: 0, scale: 2, duration: 350, onComplete: () => r.destroy() });
-  }
-
-  private playLocalAttackVfx(): void {
-    const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
-    if (!self) return;
-    this.createWeaponVfx(self.x, self.y, self.weaponType || "sword", this.lastFacingDirection);
-    this.shakeCamera(0.005, 100);
-  }
-
-  private playLocalSkillVfx(skillId: SkillId, phase: "windup" | "cast"): void {
-    const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
-    if (!self) return;
-
-    if (skillId === "spear_heavyThrust" && phase === "windup") {
-      const charge = this.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 110);
-      charge.lineStyle(3, 0xfbbf24, 0.95).strokeCircle(0, 0, 20);
-      charge.lineStyle(2, 0xef4444, 0.75).strokeCircle(0, 0, 34);
-      this.tweens.add({
-        targets: charge,
-        alpha: 0,
-        scale: 1.45,
-        duration: getPrimarySkillWindupMs(skillId),
-        onComplete: () => charge.destroy()
-      });
-      return;
-    }
-
-    this.shakeCamera(skillId === "spear_heavyThrust" ? 0.012 : 0.008, skillId === "spear_heavyThrust" ? 180 : 150);
-
-    if (skillId === "blade_sweep") {
-      this.createWeaponVfx(self.x, self.y, "blade", this.lastFacingDirection);
-      const angle = Math.atan2(this.lastFacingDirection.y, this.lastFacingDirection.x);
-      const sweep = this.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 110);
-      sweep.lineStyle(6, 0xf97316, 0.95);
-      sweep.beginPath();
-      sweep.arc(0, 0, 104, angle - 1.2, angle + 1.2);
-      sweep.strokePath();
-      const skid = this.add.graphics().setPosition(
-        self.x - this.lastFacingDirection.x * 34,
-        self.y - this.lastFacingDirection.y * 34
-      ).setDepth(self.y + 105);
-      skid.fillStyle(0xf59e0b, 0.3).fillEllipse(0, 0, 34, 12);
-      this.tweens.add({ targets: sweep, alpha: 0, scale: 1.18, duration: 220, onComplete: () => sweep.destroy() });
-      this.tweens.add({ targets: skid, alpha: 0, scaleX: 1.5, duration: 180, onComplete: () => skid.destroy() });
-      this.createSkillVfx(self.x, self.y, 0xf97316);
-      return;
-    }
-
-    if (skillId === "spear_heavyThrust") {
-      const angle = Math.atan2(this.lastFacingDirection.y, this.lastFacingDirection.x);
-      const thrust = this.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 115);
-      thrust.lineStyle(6, 0xfbbf24, 1).beginPath();
-      thrust.moveTo(0, 0);
-      thrust.lineTo(Math.cos(angle) * 160, Math.sin(angle) * 160);
-      thrust.strokePath();
-      const burst = this.add.graphics().setPosition(
-        self.x + this.lastFacingDirection.x * 126,
-        self.y + this.lastFacingDirection.y * 126
-      ).setDepth(self.y + 116);
-      burst.lineStyle(4, 0xef4444, 1).strokeCircle(0, 0, 18);
-      burst.lineStyle(2, 0xfbbf24, 1);
-      for (let i = 0; i < 6; i += 1) {
-        const ray = angle + ((i - 2.5) * 0.35);
-        burst.beginPath();
-        burst.moveTo(0, 0);
-        burst.lineTo(Math.cos(ray) * 28, Math.sin(ray) * 28);
-        burst.strokePath();
-      }
-      this.tweens.add({ targets: thrust, alpha: 0, duration: 200, onComplete: () => thrust.destroy() });
-      this.tweens.add({ targets: burst, alpha: 0, scale: 1.5, duration: 240, onComplete: () => burst.destroy() });
-      this.createSkillVfx(self.x, self.y, 0xfbbf24);
-      return;
-    }
-
-    this.createWeaponVfx(self.x, self.y, "sword", this.lastFacingDirection);
-    const angle = Math.atan2(this.lastFacingDirection.y, this.lastFacingDirection.x);
-    const dash = this.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 110);
-    dash.lineStyle(5, 0x38bdf8, 0.95).beginPath();
-      dash.moveTo(-Math.cos(angle) * 18, -Math.sin(angle) * 18);
-    dash.lineTo(Math.cos(angle) * 150, Math.sin(angle) * 150);
-    dash.strokePath();
-    this.tweens.add({ targets: dash, alpha: 0, duration: 180, onComplete: () => dash.destroy() });
-    this.createSkillVfx(self.x, self.y, 0x38bdf8);
   }
 
   update(time: number, delta: number): void {
     const alpha = Phaser.Math.Clamp(delta / 120, 0.08, 0.22);
-    for (const m of this.playerMarkers.values()) { m.step(alpha); m.root.setDepth(m.root.y); }
-    for (const m of this.monsterMarkers.values()) { m.step(alpha); m.root.setDepth(m.root.y); }
-    for (const m of this.dropMarkers.values()) { m.root.setDepth(m.root.y); }
+    for (const m of this.playerMarkers.values()) { m.step(alpha); }
+    for (const m of this.monsterMarkers.values()) { m.step(alpha); }
+    for (const m of this.dropMarkers.values()) {
+      if (Math.abs(m.root.depth - m.root.y) > 0.5) {
+        m.root.setDepth(m.root.y);
+      }
+    }
 
-    this.emitMoveInput(time); this.emitActionInput(); this.updateChests(); this.tickExtractBeacon(time); this.pinHudToCamera();
+    this.inputBridge?.update(time);
+    this.tickExtractBeacon(time);
+    this.hudOverlay?.pinToCamera();
 
     const sid = this.latestState?.selfPlayerId;
     if (sid) {
       const sm = this.playerMarkers.get(sid);
       if (sm) {
-        this.cameras.main.startFollow(sm.root, true, 0.12, 0.12);
-        this.minimap?.revealAt(sm.root.x, sm.root.y);
-        this.minimap?.updatePlayer(sm.root.x, sm.root.y);
-        if (this.extractState.isOpen) {
-          const dist = Phaser.Math.Distance.Between(sm.root.x, sm.root.y, this.extractState.x ?? 0, this.extractState.y ?? 0);
-          if (dist <= (this.extractState.radius ?? 96) && !this.extractAutoStarted && !this.extractState.isExtracting) {
-            this.onStartExtract?.(); this.extractAutoStarted = true;
-          } else if (dist > (this.extractState.radius ?? 96)) this.extractAutoStarted = false;
+        if (this.followedPlayerId !== sid) {
+          this.cameras.main.startFollow(sm.root, true, 0.12, 0.12);
+          this.followedPlayerId = sid;
         }
+        this.interactions?.updateChestPrompt(sm);
+        this.interactions?.updateAutoExtract(sm, this.extractState, this.onStartExtract);
       }
     }
   }
 
-  private updateChests(): void {
-    const sid = this.latestState?.selfPlayerId; const sm = sid ? this.playerMarkers.get(sid) : null;
-    if (!sm || !this.interactionPrompt) return;
-    let nearest: string | null = null; let minDist = 80;
-    for (const [id, s] of this.chestSprites.entries()) {
-      if (s.texture.key === "chest_closed") {
-        const d = Phaser.Math.Distance.Between(sm.root.x, sm.root.y, s.x, s.y);
-        if (d < minDist) { minDist = d; nearest = id; }
-      }
+  setExtractState(s: ExtractUiState): void {
+    this.extractState = s;
+    if (this.latestState) {
+      this.hudOverlay?.sync({
+        state: this.latestState,
+        extractState: this.extractState,
+        skillCooldownEndsAt: this.localSkillCooldownEndsAt,
+        skillWindupEndsAt: this.localSkillWindupEndsAt
+      });
+      this.syncWorld(this.latestState);
     }
-    if (nearest) { const c = this.chestSprites.get(nearest)!; this.interactionPrompt.setPosition(c.x, c.y - 50).setVisible(true).setData("chestId", nearest); }
-    else this.interactionPrompt.setVisible(false);
   }
-
-  setExtractState(s: ExtractUiState): void { this.extractState = s; if (this.latestState) { this.syncHud(this.latestState); this.syncWorld(this.latestState); } }
 
   shutdown(): void {
-    this.unsubscribeRuntime?.(); this.chestUnsubscribes.forEach(u => u());
-    this.keyboardControls?.destroy();
-    this.keyboardControls = undefined;
-    this.mobileControls?.destroy();
-    this.mobileControls = undefined;
-    this.minimap?.destroy();
-    this.minimap = undefined;
-    this.pickupToastTween?.stop();
-    this.pickupToastTween = undefined;
-    this.pickupToast?.destroy();
-    this.pickupToast = undefined;
-    this.joystickVector = { x: 0, y: 0 };
-  }
-
-  private emitMoveInput(time: number): void {
-    if (!this.onMoveInput) return;
-
-    let h = 0;
-    let v = 0;
-    const keyboardVector = this.keyboardControls?.getVector();
-    if (keyboardVector) {
-      h = keyboardVector.x;
-      v = keyboardVector.y;
-    }
-
-    if (this.joystickVector.x !== 0 || this.joystickVector.y !== 0) {
-      h = this.joystickVector.x;
-      v = this.joystickVector.y;
-    }
-
-    let dir: Vector2 = { x: h, y: v };
-    const isJoystickActive = this.joystickVector.x !== 0 || this.joystickVector.y !== 0;
-    if (isJoystickActive) {
-      // Keep joystick magnitude 1:1 with the stick to avoid turn-time speed spikes.
-      dir = { x: this.joystickVector.x, y: this.joystickVector.y };
-    }
-
-    this.currentMoveDirection = dir;
-    const mag = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
-    if (mag > 0) {
-      this.lastFacingDirection = { x: dir.x / mag, y: dir.y / mag };
-    }
-
-    if (
-      Math.abs(dir.x - this.lastMoveDirection.x) < 0.01
-      && Math.abs(dir.y - this.lastMoveDirection.y) < 0.01
-      && time - this.lastMoveSentAt < 60
-    ) {
-      return;
-    }
-
-    this.lastMoveDirection = dir;
-    this.lastMoveSentAt = time;
-    this.onMoveInput?.(dir);
-  }
-
-  private emitActionInput(): void {
-    this.keyboardControls?.consumeActions({
-      onAttack: () => this.handleAttack(),
-      onSkill: () => this.handleSkill(),
-      onPickup: () => this.handleInteract(),
-      onExtract: () => this.onStartExtract?.(),
-      onInventory: () => this.handleToggleInventory()
-    });
-  }
-
-  private syncWorldLegacy(state: MatchViewState): void {
-    this.minimap?.syncWorldBounds(state.width, state.height);
-    const centerX = state.width / 2; const centerY = state.height / 2;
-    if (!this.terrainLayer) {
-      this.terrainLayer = this.add.tileSprite(centerX, centerY, state.width, state.height, "ground_pixel").setDepth(-40);
-      this.add.text(centerX, centerY + 112, "撤离点", { fontFamily: "monospace", fontSize: "20px", color: "#f8fafc" }).setOrigin(0.5).setDepth(-4);
-    }
-    if (!this.extractLabel) {
-       this.extractLabel = this.add.text(centerX, centerY + 140, "", { fontFamily: "monospace", fontSize: "16px", color: "#2dd4bf" }).setOrigin(0.5).setDepth(-4);
-    }
-    this.extractLabel.setText(this.extractState.isOpen ? "撤离点已开启" : "撤离点未开启");
+    this.unsubscribeRuntime?.();
+    this.interactions?.destroy();
+    this.interactions = undefined;
+    this.inputBridge?.destroy();
+    this.inputBridge = undefined;
+    this.hudOverlay?.destroy();
+    this.hudOverlay = undefined;
   }
 
   private syncWorld(state: MatchViewState): void {
-    this.minimap?.syncWorldBounds(state.width, state.height);
     const nextSignature = `${state.width}x${state.height}`;
     if (this.worldSignature !== nextSignature) {
-      this.buildWorldBackdrop(state);
+      this.worldBackdrop = rebuildWorldBackdrop(this, this.worldBackdrop, state);
       this.worldSignature = nextSignature;
     }
-
-    const centerX = state.width / 2;
-    const centerY = state.height / 2;
-
-    if (this.extractOuterRing) {
-      this.extractOuterRing.setPosition(centerX, centerY);
-    } else {
-      this.extractOuterRing = this.add.circle(centerX, centerY, 126, GAMEPLAY_THEME.colors.signal, 0.1);
-      this.extractOuterRing.setStrokeStyle(10, GAMEPLAY_THEME.colors.accent, 0.32).setDepth(-6);
-    }
-
-    if (this.extractInnerRing) {
-      this.extractInnerRing.setPosition(centerX, centerY);
-    } else {
-      this.extractInnerRing = this.add.circle(centerX, centerY, 82, GAMEPLAY_THEME.colors.signal, 0.08);
-      this.extractInnerRing.setStrokeStyle(4, GAMEPLAY_THEME.colors.bone, 0.2).setDepth(-5);
-    }
-
-    if (!this.extractBeacon) {
-      this.extractBeacon = this.createExtractBeacon(centerX, centerY);
-    } else {
-      this.extractBeacon.setPosition(centerX, centerY - 8);
-    }
-
-    if (!this.extractLabel) {
-      this.extractLabel = this.add.text(centerX, centerY + 112, "撤离点", {
-        fontFamily: GAMEPLAY_THEME.fonts.display,
-        fontSize: "20px",
-        color: "#e8dfc8",
-        stroke: "#16130f",
-        strokeThickness: 6
-      });
-      this.extractLabel.setOrigin(0.5).setDepth(-4);
-    }
-
-    this.extractLabel.setText(this.extractState.isOpen ? "撤离点已开启" : "撤离点未开启");
-  }
-
-  private buildWorldBackdrop(state: MatchViewState): void {
-    this.terrainLayer?.destroy();
-    this.detailLayer?.destroy();
-    this.atmosphereLayer?.destroy();
-    this.obstacleLayer?.destroy(true);
-    this.worldFrame?.destroy();
-    this.extractOuterRing?.destroy();
-    this.extractInnerRing?.destroy();
-    this.extractBeacon?.destroy(true);
-    this.extractLabel?.destroy();
-    this.regionLabels.forEach((label) => label.destroy());
-    this.regionLabels = [];
-
-    const width = state.width;
-    const height = state.height;
-    const centerX = width / 2;
-    const centerY = height / 2;
-
-    this.terrainLayer = this.add.tileSprite(centerX, centerY, width, height, "ground_pixel");
-    this.terrainLayer.setDepth(-40);
-
-    this.detailLayer = this.add.graphics();
-    this.detailLayer.setDepth(-35);
-    this.detailLayer.fillStyle(0x2b2519, 0.36);
-    this.detailLayer.fillCircle(centerX, centerY, 210);
-    this.detailLayer.lineStyle(12, GAMEPLAY_THEME.colors.iron900, 0.58);
-    this.detailLayer.strokeCircle(centerX, centerY, 212);
-    this.detailLayer.lineStyle(4, GAMEPLAY_THEME.colors.signal, 0.24);
-    this.detailLayer.strokeCircle(centerX, centerY, 132);
-
-    this.drawToxicRiver(width, height);
-    this.drawCorpseMires(width, height);
-    this.drawWastelandScars(width, height);
-
-    this.atmosphereLayer = this.add.graphics();
-    this.atmosphereLayer.setDepth(-10);
-    this.atmosphereLayer.fillGradientStyle(0x0e0b08, 0x0e0b08, 0x0e0b08, 0x0e0b08, 0.08, 0.02, 0.22, 0.3);
-    this.atmosphereLayer.fillRect(0, 0, width, height);
-
-    this.obstacleLayer = this.add.container(0, 0);
-    this.obstacleLayer.setDepth(-12);
-    for (const obstacle of getObstacleLayouts(width, height)) {
-      this.obstacleLayer.add(this.createObstacle(obstacle));
-    }
-
-    const worldFrame = this.add.graphics();
-    worldFrame.setDepth(-15);
-    worldFrame.lineStyle(16, 0x111827, 1);
-    worldFrame.strokeRect(0, 0, width, height);
-    worldFrame.lineStyle(4, 0x374151, 1);
-    worldFrame.strokeRect(8, 8, width - 16, height - 16);
-    this.worldFrame = worldFrame;
-
-    this.regionLabels = [
-      this.createRegionLabel(width * 0.18, height * 0.16, "拾荒者山脊"),
-      this.createRegionLabel(width * 0.82, height * 0.15, "淹没之地"),
-      this.createRegionLabel(centerX, centerY - 182, "中央中继站"),
-      this.createRegionLabel(width * 0.18, height * 0.84, "货运堆场"),
-      this.createRegionLabel(width * 0.84, height * 0.84, "破碎低地")
-    ];
-  }
-
-  private createObstacle(layout: ObstacleLayout): Phaser.GameObjects.Container {
-    const container = this.add.container(layout.x, layout.y);
-    container.setRotation(layout.rotation ?? 0);
-    const assetKey = layout.kind === "barricade" ? "crate" : layout.kind;
-    const img = this.add.image(0, 0, assetKey);
-    img.setDisplaySize(layout.width, layout.height);
-    container.add(img);
-    return container;
-  }
-
-  private drawToxicRiver(width: number, height: number): void {
-    if (!this.detailLayer) return;
-
-    const river = this.detailLayer;
-    river.lineStyle(74, 0x243c2a, 0.24);
-    river.beginPath();
-    river.moveTo(width * 0.04, height * 0.31);
-    river.lineTo(width * 0.2, height * 0.38);
-    river.lineTo(width * 0.39, height * 0.34);
-    river.lineTo(width * 0.56, height * 0.48);
-    river.lineTo(width * 0.77, height * 0.45);
-    river.lineTo(width * 0.96, height * 0.58);
-    river.strokePath();
-
-    river.lineStyle(30, 0x5d6a36, 0.14);
-    river.strokePath();
-    river.lineStyle(3, GAMEPLAY_THEME.colors.caution, 0.08);
-    river.strokePath();
-  }
-
-  private drawCorpseMires(width: number, height: number): void {
-    if (!this.detailLayer) return;
-
-    const mires = [
-      { x: 0.2, y: 0.72, w: 420, h: 230, r: -0.2 },
-      { x: 0.72, y: 0.22, w: 360, h: 180, r: 0.18 },
-      { x: 0.8, y: 0.78, w: 520, h: 240, r: 0.08 }
-    ];
-
-    for (const mire of mires) {
-      this.detailLayer.fillStyle(0x351b14, 0.32);
-      this.detailLayer.fillEllipse(width * mire.x, height * mire.y, mire.w, mire.h);
-      this.detailLayer.lineStyle(3, GAMEPLAY_THEME.colors.danger, 0.2);
-      this.detailLayer.strokeEllipse(width * mire.x, height * mire.y, mire.w, mire.h);
-      this.detailLayer.fillStyle(0xe8dfc8, 0.12);
-      for (let i = 0; i < 7; i += 1) {
-        const bx = width * mire.x + Math.cos(i * 1.7 + mire.r) * (mire.w * 0.26);
-        const by = height * mire.y + Math.sin(i * 1.3) * (mire.h * 0.22);
-        this.detailLayer.fillRect(bx - 8, by - 2, 16, 4);
-      }
-    }
-  }
-
-  private drawWastelandScars(width: number, height: number): void {
-    if (!this.detailLayer) return;
-
-    const patches = [
-      [0.14, 0.18, 190, 74], [0.31, 0.24, 250, 90], [0.62, 0.18, 210, 86],
-      [0.17, 0.52, 280, 108], [0.44, 0.66, 240, 84], [0.7, 0.62, 310, 112],
-      [0.87, 0.36, 220, 96], [0.35, 0.84, 300, 112], [0.58, 0.86, 180, 70]
-    ] as const;
-
-    for (const [x, y, patchWidth, patchHeight] of patches) {
-      this.detailLayer.fillStyle(0xc4a35a, 0.1);
-      this.detailLayer.fillEllipse(width * x, height * y, patchWidth, patchHeight);
-      this.detailLayer.lineStyle(2, GAMEPLAY_THEME.colors.iron900, 0.18);
-      this.detailLayer.strokeEllipse(width * x, height * y, patchWidth, patchHeight);
-    }
-  }
-
-  private createRegionLabel(x: number, y: number, text: string): Phaser.GameObjects.Text {
-    const label = this.add.text(x, y, text, {
-      fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: "22px",
-      color: "#e8dfc8",
-      stroke: "#16130f",
-      strokeThickness: 8
-    });
-    label.setOrigin(0.5).setAlpha(0.34).setDepth(-11);
-    return label;
-  }
-
-  private createExtractBeacon(x: number, y: number): Phaser.GameObjects.Container {
-    const beacon = this.add.container(x, y - 8);
-    beacon.setDepth(-4);
-    const glow = this.add.circle(0, -12, 32, GAMEPLAY_THEME.colors.accent, 0.12);
-    const img = this.add.image(0, 0, "beacon");
-    img.setDisplaySize(64, 64);
-    beacon.add([glow, img]);
-    return beacon;
+    this.worldBackdrop = syncExtractBackdrop(this, this.worldBackdrop, state, this.extractState);
   }
 
   private syncPlayers(state: MatchViewState): void {
@@ -891,517 +371,8 @@ export class GameScene extends Phaser.Scene {
     for (const [id, m] of this.dropMarkers.entries()) if (!ids.has(id)) { m.destroy(); this.dropMarkers.delete(id); }
   }
 
-  private syncHudLegacy(state: MatchViewState): void {
-    const p = state.players.find(pp => pp.id === state.selfPlayerId);
-    if (this.hpBar && p) {
-      const hpRatio = Phaser.Math.Clamp(p.maxHp > 0 ? p.hp / p.maxHp : 0, 0, 1);
-      this.hpBar.track.clear();
-      this.hpBar.track.fillStyle(0x120e0b, 0.84);
-      this.hpBar.track.fillRoundedRect(20, 18, 272, 44, 10);
-      this.hpBar.track.lineStyle(2, 0x4d4330, 1);
-      this.hpBar.track.strokeRoundedRect(20, 18, 272, 44, 10);
-      this.hpBar.track.lineStyle(1, 0xe8602c, 0.16);
-      this.hpBar.track.strokeRoundedRect(26, 24, 260, 32, 8);
-
-      this.hpBar.fill.clear();
-      this.hpBar.fill.fillStyle(0x2b2519, 1);
-      this.hpBar.fill.fillRoundedRect(30, 34, 208, 10, 5);
-
-      let color = 0x7fa14a;
-      if (hpRatio < 0.3) color = 0xb8371f;
-      else if (hpRatio < 0.6) color = 0xd4b24c;
-
-      this.hpBar.fill.fillStyle(color, 1);
-      this.hpBar.fill.fillRoundedRect(30, 34, 208 * hpRatio, 10, 5);
-      this.hpBar.label.setText(`生命值 ${p.hp} / ${p.maxHp}`);
-    }
-    if (this.timerText) this.timerText.setText(state.secondsRemaining == null ? "--:--" : formatSeconds(state.secondsRemaining));
-    if (this.roomCodeText) this.roomCodeText.setText(`频道 ${state.code || "------"}`);
-    if (this.combatText) this.combatText.setText(state.lastCombatText || "向中心废土推进，搜刮战利品，然后撤离。");
-  }
-
-  private initHudLegacy(): void {
-    const { width, height } = this.scale;
-    this.hudContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(200);
-    const hpLabel = this.add.text(34, 24, "生命值 -- / --", {
-      fontFamily: '"JetBrains Mono", "Noto Sans SC", monospace',
-      fontSize: "11px",
-      color: "#e8dfc8",
-      letterSpacing: 1
-    });
-    this.hpBar = { track: this.add.graphics(), fill: this.add.graphics(), label: hpLabel };
-
-    const rightPlate = this.add.graphics();
-    rightPlate.fillStyle(0x120e0b, 0.84);
-    rightPlate.fillRoundedRect(width - 220, 18, 200, 52, 10);
-    rightPlate.lineStyle(2, 0x4d4330, 1);
-    rightPlate.strokeRoundedRect(width - 220, 18, 200, 52, 10);
-    rightPlate.lineStyle(1, 0xe8602c, 0.16);
-    rightPlate.strokeRoundedRect(width - 214, 24, 188, 40, 8);
-
-    this.timerText = this.add.text(width - 32, 22, "00:00", {
-      fontFamily: '"Noto Serif SC", "Noto Sans SC", serif',
-      fontSize: "24px",
-      color: "#d4b24c"
-    }).setOrigin(1, 0);
-    this.roomCodeText = this.add.text(width - 32, 49, "频道 ------", {
-      fontFamily: '"JetBrains Mono", "Noto Sans SC", monospace',
-      fontSize: "10px",
-      color: "#b8ae96",
-      letterSpacing: 1
-    }).setOrigin(1, 0);
-
-    const combatPlate = this.add.graphics();
-    combatPlate.fillStyle(0x120e0b, 0.84);
-    combatPlate.fillRoundedRect(width / 2 - 260, height - 86, 520, 42, 10);
-    combatPlate.lineStyle(1, 0x4d4330, 1);
-    combatPlate.strokeRoundedRect(width / 2 - 260, height - 86, 520, 42, 10);
-    this.combatText = this.add.text(width / 2, height - 55, "", {
-      fontFamily: '"Noto Sans SC", "Inter Tight", sans-serif',
-      fontSize: "15px",
-      color: "#e8dfc8",
-      align: "center"
-    }).setOrigin(0.5, 1);
-
-    const hintText = navigator.maxTouchPoints > 0
-      ? "摇杆移动 | 攻 进攻 | 技 技能 | 包 背囊"
-      : "WASD 移动 | 空格 进攻 | Q 技能 | E 交互 | I 背囊";
-    this.controlsHint = this.add.text(width - 20, height - 20, hintText, {
-      fontFamily: '"JetBrains Mono", "Noto Sans SC", monospace',
-      fontSize: "10px",
-      color: "#7d745e",
-      backgroundColor: "rgba(18, 14, 11, 0.82)",
-      padding: { x: 10, y: 6 }
-    }).setOrigin(1, 1);
-    this.hudContainer.add([this.hpBar.track, this.hpBar.fill, hpLabel, rightPlate, this.timerText, this.roomCodeText, combatPlate, this.combatText, this.controlsHint]);
-    if (navigator.maxTouchPoints <= 0) {
-      this.minimap = new Minimap({
-        scene: this,
-        parent: this.hudContainer,
-        x: 20,
-        y: 76
-      });
-    }
-  }
-
-  private syncHud(state: MatchViewState): void {
-    const player = state.players.find((candidate) => candidate.id === state.selfPlayerId);
-    if (this.hpBar && player) {
-      const hpRatio = Phaser.Math.Clamp(player.maxHp > 0 ? player.hp / player.maxHp : 0, 0, 1);
-      const layout = this.hudLayout;
-
-      this.hpBar.fill.clear();
-      this.hpBar.fill.fillStyle(GAMEPLAY_THEME.colors.iron600, 1);
-      this.hpBar.fill.fillRoundedRect(layout?.hpBarX ?? 30, layout?.hpBarY ?? 34, layout?.hpBarW ?? 208, 10, 5);
-
-      let color: number = GAMEPLAY_THEME.colors.confirm;
-      if (hpRatio < 0.3) color = GAMEPLAY_THEME.colors.danger;
-      else if (hpRatio < 0.6) color = GAMEPLAY_THEME.colors.caution;
-
-      this.hpBar.fill.fillStyle(color, 1);
-      this.hpBar.fill.fillRoundedRect(layout?.hpBarX ?? 30, layout?.hpBarY ?? 34, (layout?.hpBarW ?? 208) * hpRatio, 10, 5);
-      this.hpBar.fill.lineStyle(1, GAMEPLAY_THEME.colors.bone, 0.14);
-      this.hpBar.fill.strokeRoundedRect(layout?.hpBarX ?? 30, layout?.hpBarY ?? 34, layout?.hpBarW ?? 208, 10, 5);
-      this.hpBar.label.setText(`生命 ${player.hp} / ${player.maxHp}`);
-      this.syncLowHpOverlay(hpRatio);
-    } else {
-      this.syncLowHpOverlay(1);
-    }
-
-    if (this.weaponNameText && player) {
-      this.weaponNameText.setText(`武器 ${getWeaponLabel(player.weaponType)}`);
-    }
-
-    if (this.killsText) {
-      const deadMonsters = state.monsters.filter((monster) => !monster.isAlive).length;
-      this.killsText.setText(`压制 ${deadMonsters}/${state.monsters.length}`);
-    }
-
-    if (this.timerText) {
-      this.timerText.setText(state.secondsRemaining == null ? "--:--" : formatSeconds(state.secondsRemaining));
-    }
-    if (this.roomCodeText) {
-      this.roomCodeText.setText(`频道 ${state.code || "------"}`);
-    }
-    if (this.skillStatusText) {
-      const skillId = resolvePrimarySkill(state);
-      const now = Date.now();
-      if (!skillId) this.skillStatusText.setText("Q 技能 未配置");
-      else if (now < this.localSkillWindupEndsAt) this.skillStatusText.setText(`Q ${getPrimarySkillLabel(skillId)} 蓄力 ${formatTenths((this.localSkillWindupEndsAt - now) / 1000)}s`);
-      else if (now < this.localSkillCooldownEndsAt) this.skillStatusText.setText(`Q ${getPrimarySkillLabel(skillId)} 冷却 ${formatTenths((this.localSkillCooldownEndsAt - now) / 1000)}s`);
-      else this.skillStatusText.setText(`Q ${getPrimarySkillLabel(skillId)} 就绪`);
-    }
-    if (this.combatText) {
-      this.combatText.setText(state.lastCombatText || "向中心废土推进，搜刮战利品，然后撤离。");
-    }
-
-    this.syncExtractProgress();
-  }
-
-  private pinHudToCamera(): void {
-    if (!this.hudContainer) return;
-    const camera = this.cameras.main;
-    const zoom = camera.zoom || 1;
-    const offsetX = (camera.width * (1 - zoom)) / 2;
-    const offsetY = (camera.height * (1 - zoom)) / 2;
-    this.hudContainer.setPosition(-offsetX / zoom, -offsetY / zoom);
-    this.hudContainer.setScale(1 / zoom);
-  }
-
-  private initHud(): void {
-    const { width, height } = this.scale;
-    const isTouchDevice = this.shouldUseTouchLayout();
-    const leftW = isTouchDevice ? Math.min(292, Math.max(244, width - 32)) : 318;
-    const leftH = 78;
-    const leftX = 16;
-    const leftY = 14;
-    const rightW = isTouchDevice ? Math.min(220, Math.max(184, width - 32)) : 248;
-    const rightH = 82;
-    const stackRightBelow = isTouchDevice && width < leftX + leftW + 16 + rightW + 16;
-    const rightX = stackRightBelow ? leftX : width - rightW - 16;
-    const rightY = stackRightBelow ? leftY + leftH + 10 : 14;
-    const reservedRight = isTouchDevice ? 176 : 40;
-    const objectiveW = isTouchDevice
-      ? Math.max(220, Math.min(390, width - 36))
-      : Math.min(560, Math.max(320, width - reservedRight - 48));
-    const objectiveX = isTouchDevice
-      ? 18
-      : Math.floor(width / 2 - objectiveW / 2);
-    const objectiveY = isTouchDevice ? height - 220 : height - 90;
-
-    this.hudLayout = {
-      leftX,
-      leftY,
-      leftW,
-      leftH,
-      hpBarX: leftX + 82,
-      hpBarY: leftY + 38,
-      hpBarW: leftW - 112,
-      objectiveX,
-      objectiveY,
-      objectiveW
-    };
-
-    this.hudContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(200);
-
-    const leftPlate = this.add.graphics();
-    drawPanelFrame(leftPlate, leftX, leftY, leftW, leftH, 8);
-
-    const avatarPlate = this.add.graphics();
-    avatarPlate.fillStyle(GAMEPLAY_THEME.colors.iron900, 0.9);
-    avatarPlate.fillRoundedRect(leftX + 14, leftY + 14, 48, 48, 6);
-    avatarPlate.lineStyle(2, GAMEPLAY_THEME.colors.signal, 0.65);
-    avatarPlate.strokeRoundedRect(leftX + 14, leftY + 14, 48, 48, 6);
-    avatarPlate.fillStyle(GAMEPLAY_THEME.colors.signal, 0.92);
-    avatarPlate.fillRect(leftX + 34, leftY + 24, 8, 28);
-    avatarPlate.fillStyle(GAMEPLAY_THEME.colors.bone, 0.92);
-    avatarPlate.fillRect(leftX + 28, leftY + 30, 20, 10);
-
-    const callsignText = this.add.text(leftX + 82, leftY + 14, "流亡者 / FIELD UNIT", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#b8ae96",
-      letterSpacing: 1
-    });
-
-    const hpLabel = this.add.text(leftX + 82, leftY + 24, "生命 -- / --", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "12px",
-      color: "#e8dfc8",
-      letterSpacing: 1
-    });
-    this.hpBar = { track: this.add.graphics(), fill: this.add.graphics(), label: hpLabel };
-
-    this.weaponNameText = this.add.text(leftX + 82, leftY + 54, "武器 ----", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#e8602c",
-      letterSpacing: 1
-    });
-
-    const rightPlate = this.add.graphics();
-    drawPanelFrame(rightPlate, rightX, rightY, rightW, rightH, 8);
-
-    const timerCaption = this.add.text(rightX + 14, rightY + 13, "封锁倒计时", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#b8ae96",
-      letterSpacing: 1
-    });
-    this.timerText = this.add.text(rightX + rightW - 14, rightY + 14, "00:00", {
-      fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: "28px",
-      color: "#d4b24c"
-    }).setOrigin(1, 0);
-    this.roomCodeText = this.add.text(rightX + 14, rightY + 44, "频道 ------", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#e8dfc8",
-      letterSpacing: 1
-    });
-    this.skillStatusText = this.add.text(rightX + rightW - 14, rightY + 44, "Q 技能 就绪", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#d9c68f",
-      letterSpacing: 1
-    }).setOrigin(1, 0);
-
-    this.killsText = this.add.text(rightX + 14, rightY + 62, "压制 0/0", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#e8602c",
-      letterSpacing: 1
-    });
-
-    const combatPlate = this.add.graphics();
-    drawPanelFrame(combatPlate, objectiveX, objectiveY, objectiveW, 54, 8);
-    const objectiveLabel = this.add.text(objectiveX + 18, objectiveY + 10, "行动指令", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#e8602c",
-      letterSpacing: 2
-    });
-    this.combatText = this.add.text(objectiveX + objectiveW / 2, objectiveY + 36, "", {
-      fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: "15px",
-      color: "#e8dfc8",
-      align: "center"
-    }).setOrigin(0.5, 0.5);
-
-    this.extractProgressTrack = this.add.graphics();
-    drawPanelFrame(this.extractProgressTrack, width / 2 - 164, 96, 328, 30, 8);
-    this.extractProgressFill = this.add.graphics();
-    this.extractProgressLabel = this.add.text(width / 2, 91, "撤离读条", {
-      fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: "14px",
-      color: "#e8dfc8",
-      stroke: "#16130f",
-      strokeThickness: 4
-    }).setOrigin(0.5, 1);
-    this.extractProgressTrack.setVisible(false);
-    this.extractProgressFill.setVisible(false);
-    this.extractProgressLabel.setVisible(false);
-
-    this.lowHpOverlay = this.add.rectangle(0, 0, width, height, GAMEPLAY_THEME.colors.danger, 0)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(160);
-
-    this.controlsHint = this.add.text(width - 20, height - 20, "WASD 移动 | 空格 攻击 | Q 技能 | E 交互 | I 背包", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#7d745e",
-      backgroundColor: "rgba(18, 14, 11, 0.82)",
-      padding: { x: 10, y: 6 }
-    }).setOrigin(1, 1);
-    this.controlsHint.setVisible(!isTouchDevice);
-
-    this.hudContainer.add([
-      leftPlate,
-      avatarPlate,
-      callsignText,
-      this.hpBar.track,
-      this.hpBar.fill,
-      hpLabel,
-      this.weaponNameText,
-      rightPlate,
-      timerCaption,
-      this.timerText,
-      this.roomCodeText,
-      this.skillStatusText,
-      this.killsText,
-      combatPlate,
-      objectiveLabel,
-      this.combatText,
-      this.controlsHint,
-      this.extractProgressTrack,
-      this.extractProgressFill,
-      this.extractProgressLabel,
-      this.lowHpOverlay
-    ]);
-
-    if (!isTouchDevice) {
-      this.minimap = new Minimap({
-        scene: this,
-        parent: this.hudContainer,
-        x: 20,
-        y: 104
-      });
-    }
-  }
-
-  private initHudUnusedPrevious(): void {
-    const { width, height } = this.scale;
-    this.hudContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(200);
-
-    const hpLabel = this.add.text(34, 24, "生命值 -- / --", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "11px",
-      color: "#e8dfc8",
-      letterSpacing: 1
-    });
-    this.hpBar = { track: this.add.graphics(), fill: this.add.graphics(), label: hpLabel };
-
-    this.weaponNameText = this.add.text(34, 48, "武器 ----", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#e8602c",
-      letterSpacing: 1
-    });
-
-    const rightPlate = this.add.graphics();
-    drawPanelFrame(rightPlate, width - 220, 18, 200, 52, 10);
-
-    this.timerText = this.add.text(width - 32, 22, "00:00", {
-      fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: "24px",
-      color: "#d4b24c"
-    }).setOrigin(1, 0);
-    this.roomCodeText = this.add.text(width - 32, 49, "频道 ------", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#b8ae96",
-      letterSpacing: 1
-    }).setOrigin(1, 0);
-    this.skillStatusText = this.add.text(width - 32, 64, "Q 技能 就绪", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#d9c68f",
-      letterSpacing: 1
-    }).setOrigin(1, 0);
-
-    this.killsText = this.add.text(width - 220, 80, "压制 0/0", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#e8602c",
-      letterSpacing: 1
-    });
-
-    const combatPlate = this.add.graphics();
-    drawPanelFrame(combatPlate, width / 2 - 260, height - 86, 520, 42, 10);
-    this.combatText = this.add.text(width / 2, height - 55, "", {
-      fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: "15px",
-      color: "#e8dfc8",
-      align: "center"
-    }).setOrigin(0.5, 1);
-
-    this.extractProgressTrack = this.add.graphics();
-    drawPanelFrame(this.extractProgressTrack, width / 2 - 164, 78, 328, 28, 10);
-    this.extractProgressFill = this.add.graphics();
-    this.extractProgressLabel = this.add.text(width / 2, 73, "撤离中", {
-      fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: "14px",
-      color: "#e8dfc8",
-      stroke: "#16130f",
-      strokeThickness: 4
-    }).setOrigin(0.5, 1);
-    this.extractProgressTrack.setVisible(false);
-    this.extractProgressFill.setVisible(false);
-    this.extractProgressLabel.setVisible(false);
-
-    this.lowHpOverlay = this.add.rectangle(0, 0, width, height, GAMEPLAY_THEME.colors.danger, 0)
-      .setOrigin(0)
-      .setScrollFactor(0)
-      .setDepth(160);
-
-    const isTouchDevice = navigator.maxTouchPoints > 0;
-    const hintText = isTouchDevice
-      ? "摇杆移动 | 攻 攻击 | 技 技能 | 包 背包"
-      : "WASD 移动 | 空格 攻击 | Q 技能 | E 交互 | I 背包";
-    this.controlsHint = this.add.text(width - 20, height - 20, hintText, {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "10px",
-      color: "#7d745e",
-      backgroundColor: "rgba(18, 14, 11, 0.82)",
-      padding: { x: 10, y: 6 }
-    }).setOrigin(1, 1);
-    this.controlsHint.setVisible(!isTouchDevice);
-
-    this.hudContainer.add([
-      this.hpBar.track,
-      this.hpBar.fill,
-      hpLabel,
-      this.weaponNameText,
-      rightPlate,
-      this.timerText,
-      this.roomCodeText,
-      this.skillStatusText,
-      this.killsText,
-      combatPlate,
-      this.combatText,
-      this.controlsHint,
-      this.extractProgressTrack,
-      this.extractProgressFill,
-      this.extractProgressLabel,
-      this.lowHpOverlay
-    ]);
-
-    if (navigator.maxTouchPoints <= 0) {
-      this.minimap = new Minimap({
-        scene: this,
-        parent: this.hudContainer,
-        x: 20,
-        y: 76
-      });
-    }
-  }
-
-  private syncLowHpOverlay(hpRatio: number): void {
-    if (!this.lowHpOverlay) return;
-    const targetAlpha = hpRatio < 0.28 ? 0.18 : hpRatio < 0.48 ? 0.08 : 0;
-    this.lowHpOverlay.setAlpha(targetAlpha);
-  }
-
-  private syncExtractProgress(): void {
-    if (!this.extractProgressTrack || !this.extractProgressFill || !this.extractProgressLabel) return;
-
-    const active = this.extractState.isExtracting && this.extractState.progress !== null;
-    this.extractProgressTrack.setVisible(active);
-    this.extractProgressFill.setVisible(active);
-    this.extractProgressLabel.setVisible(active);
-
-    if (!active) {
-      return;
-    }
-
-    const width = this.scale.width;
-    const progress = Phaser.Math.Clamp(this.extractState.progress ?? 0, 0, 1);
-    this.extractProgressFill.clear();
-    this.extractProgressFill.fillStyle(GAMEPLAY_THEME.colors.signal, 1);
-    this.extractProgressFill.fillRoundedRect(width / 2 - 150, 107, 300 * progress, 8, 4);
-    const seconds = this.extractState.secondsRemaining == null ? "" : ` ${Math.ceil(this.extractState.secondsRemaining)}s`;
-    this.extractProgressLabel.setText(`撤离读条${seconds}`);
-  }
-
   public showPickupFeedback(itemName: string): void {
-    const { width, height } = this.scale;
-    this.pickupToastTween?.stop();
-    this.pickupToast?.destroy();
-
-    this.pickupToast = this.add.text(width / 2, height - 132, `回收 ${itemName}`, {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: "13px",
-      color: "#e8dfc8",
-      backgroundColor: "rgba(22,19,15,0.92)",
-      padding: { x: 16, y: 8 }
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(500);
-
-    this.pickupToast.setAlpha(0);
-    this.pickupToastTween = this.tweens.add({
-      targets: this.pickupToast,
-      y: height - 154,
-      alpha: { from: 0, to: 1 },
-      duration: 220,
-      ease: "Cubic.out",
-      hold: 1200,
-      yoyo: true,
-      onComplete: () => {
-        this.pickupToast?.destroy();
-        this.pickupToast = undefined;
-        this.pickupToastTween = undefined;
-      }
-    });
+    this.hudOverlay?.showPickupFeedback(itemName);
   }
 
   private showTutorial(): void {
@@ -1409,8 +380,8 @@ export class GameScene extends Phaser.Scene {
     const panel = this.add.container(width / 2, height / 2).setScrollFactor(0).setDepth(1000);
     const bg = this.add.graphics().fillStyle(0x0f172a, 0.95).fillRoundedRect(-160, -120, 320, 240, 12);
     const title = this.add.text(0, -100, "任务目标", { fontFamily: "monospace", fontSize: "20px", color: "#f8fafc" }).setOrigin(0.5);
-    const hint = navigator.maxTouchPoints > 0 ? "● 移动: 虚拟摇杆\n● 攻击: 攻 | 技能: 技\n● 交互: 捡" : "● 移动: WASD\n● 攻击: 空格 | 技能: Q\n● 交互: E";
-    const content = this.add.text(0, 0, hint + "\n\n目标: 击杀怪物, 收集战利品\n前往中心区域撤离。", { fontFamily: "monospace", fontSize: "16px", color: "#cbd5e1", align: "center" }).setOrigin(0.5);
+    const hint = navigator.maxTouchPoints > 0 ? "• 移动: 虚拟摇杆\n• 攻击: 攻\n• 技能: 技\n• 交互: 拾" : "• 移动: WASD\n• 攻击: 空格\n• 技能: Q\n• 交互: E";
+    const content = this.add.text(0, 0, hint + "\n\n目标: 击杀怪物，收集战利品\n前往中心区域撤离。", { fontFamily: "monospace", fontSize: "16px", color: "#cbd5e1", align: "center" }).setOrigin(0.5);
     const footer = this.add.text(0, 100, "按任意键或点击关闭", { fontFamily: "monospace", fontSize: "12px", color: "#64748b" }).setOrigin(0.5);
     panel.add([bg, title, content, footer]);
     const close = () => { panel.destroy(); this.input.keyboard?.off("keydown"); this.input.off("pointerdown"); };
@@ -1418,104 +389,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private tickExtractBeacon(time: number): void {
-    if (!this.extractBeacon) return;
-    const glow = this.extractBeacon.list[0] as Phaser.GameObjects.Arc | undefined;
+    const glow = this.worldBackdrop.extractBeacon?.list[0] as Phaser.GameObjects.Arc | undefined;
     glow?.setScale(1 + Math.sin(time / 360) * 0.05);
   }
-  private flashEffect(target: any): void {
-    if (!target) return;
-
-    if (typeof target.setTintFill === "function" && typeof target.clearTint === "function") {
-      target.setTintFill(0xffffff);
-      this.time.delayedCall(70, () => {
-        if (target.scene) target.clearTint();
-      });
-      return;
-    }
-
-    const originalAlpha = typeof target.alpha === "number" ? target.alpha : 1;
-    if (typeof target.setAlpha === "function") {
-      target.setAlpha(1);
-      this.time.delayedCall(70, () => {
-        if (target.scene && typeof target.setAlpha === "function") target.setAlpha(originalAlpha);
-      });
-    }
-  }
-
-  private applyHitStop(ms: number): void {
-    const physicsWorld = (this.physics as Phaser.Physics.Arcade.ArcadePhysics | undefined)?.world;
-    this.anims.pauseAll();
-    this.tweens.pauseAll();
-    if (physicsWorld) physicsWorld.pause();
-
-    this.time.delayedCall(ms, () => {
-      this.anims.resumeAll();
-      this.tweens.resumeAll();
-      if (physicsWorld) physicsWorld.resume();
-    });
-  }
-  private shakeCamera(intensity: number, duration: number): void { this.cameras.main.shake(duration, intensity); }
-}
-
-function resolvePrimarySkill(state: MatchViewState | null): SkillId | null {
-  const self = state?.players.find((p) => p.id === state.selfPlayerId);
-  if (self?.weaponType === "sword") return "sword_dashSlash";
-  if (self?.weaponType === "blade") return "blade_sweep";
-  if (self?.weaponType === "spear") return "spear_heavyThrust";
-  return null;
-}
-
-function getPrimarySkillCooldownMs(skillId: SkillId): number {
-  switch (skillId) {
-    case "sword_dashSlash":
-    case "blade_sweep":
-      return 4000;
-    case "spear_heavyThrust":
-      return 5000;
-    default:
-      return 3000;
-  }
-}
-
-function getPrimarySkillWindupMs(skillId: SkillId): number {
-  return skillId === "spear_heavyThrust" ? 500 : 0;
-}
-
-function getPrimarySkillLabel(skillId: SkillId): string {
-  switch (skillId) {
-    case "sword_dashSlash":
-      return "突进斩";
-    case "blade_sweep":
-      return "横扫";
-    case "spear_heavyThrust":
-      return "重击";
-    default:
-      return "技能";
-  }
-}
-
-function getWeaponLabel(weaponType: WeaponType | undefined): string {
-  switch (weaponType) {
-    case "sword":
-      return "铁剑";
-    case "blade":
-      return "战刀";
-    case "spear":
-      return "猎矛";
-    default:
-      return "未识别";
-  }
-}
-
-function formatSeconds(s: number): string {
-  const m = Math.floor(s / 60); const rs = s % 60;
-  return `${m.toString().padStart(2, "0")}:${rs.toString().padStart(2, "0")}`;
-}
-
-function formatTenths(seconds: number): string {
-  return Math.max(0, seconds).toFixed(1);
-}
-
-function getObstacleLayouts(w: number, h: number): ObstacleLayout[] {
-  return [{ x: w * 0.18, y: h * 0.16, width: 64, height: 64, kind: "brush" }, { x: w * 0.82, y: h * 0.15, width: 96, height: 96, kind: "rock" }, { x: w * 0.18, y: h * 0.84, width: 64, height: 64, kind: "crate" }, { x: w * 0.84, y: h * 0.84, width: 64, height: 64, kind: "barricade" }];
 }

@@ -1,4 +1,4 @@
-import type { WeaponType } from "./game";
+import type { Vector2, WeaponType } from "./game";
 
 export type StatusEffectType =
   | "slow"
@@ -39,6 +39,16 @@ export interface CombatEventPayload {
 
 export interface AttackRequestPayload {
   attackId: string;
+}
+
+export interface AttackConfirmedPayload {
+  playerId: string;
+  attackId: string;
+  weaponType: WeaponType;
+  x: number;
+  y: number;
+  direction: Vector2;
+  targetId?: string;
 }
 
 export interface SkillCastPayload {

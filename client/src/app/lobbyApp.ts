@@ -10,6 +10,7 @@ import type {
   RoomState,
 } from "./lobbyTypes";
 import { LobbyView } from "../ui/lobbyView";
+import { buildProfileLoadoutSnapshot, moveProfileItem, updateProfilePreference } from "../profile/localProfile";
 
 const normalizeName = (value: string) => value.trim().slice(0, 18);
 const normalizeRoomCode = (value: string) =>
@@ -20,15 +21,18 @@ const normalizeRoomCode = (value: string) =>
     .slice(0, 8)
     .toUpperCase();
 
-const createInitialState = (initialState?: Partial<LobbyState>): LobbyState => ({
+const createInitialState = (options: LobbyRuntimeOptions): LobbyState => ({
   screen: "lobby",
-  playerName: "",
+  activeTab: "hall",
+  playerName: options.profile.displayName,
   roomCodeInput: "",
   currentRoom: null,
   errorMessage: null,
-  infoMessage: "大厅壳层已切到新版设计，已开发流程继续使用真实房间逻辑。",
+  infoMessage: "输入代号后创建频道，或用频道代码加入队伍。",
   isBusy: false,
-  ...initialState,
+  botDifficulty: options.profile.botDifficulty,
+  profile: options.profile,
+  ...options.initialState,
 });
 
 export class LobbyApp {
@@ -43,7 +47,7 @@ export class LobbyApp {
     this.root = options.root;
     this.controller = options.controller ?? new MockLobbyController();
     this.onEnterGame = options.onEnterGame;
-    this.state = createInitialState(options.initialState);
+    this.state = createInitialState(options);
 
     this.runtimeApi = {
       getState: () => this.state,
@@ -70,9 +74,25 @@ export class LobbyApp {
 
     this.view = new LobbyView(this.controller, this.runtimeApi, {
       onPlayerNameChange: (value) => {
+        const nextProfile = updateProfilePreference(this.state.profile, { displayName: normalizeName(value) });
+        options.onProfileChange?.(nextProfile);
         this.patchState({
           playerName: value,
+          profile: nextProfile,
           errorMessage: null,
+        });
+      },
+      onTabChange: (activeTab: LobbyState["activeTab"]) => {
+        this.patchState({ activeTab });
+      },
+      onBotDifficultyChange: (botDifficulty) => {
+        const nextProfile = updateProfilePreference(this.state.profile, { botDifficulty });
+        options.onProfileChange?.(nextProfile);
+        this.patchState({
+          botDifficulty,
+          profile: nextProfile,
+          errorMessage: null,
+          infoMessage: `Bot强度已切换为 ${formatBotDifficulty(botDifficulty)}。`,
         });
       },
       onRoomCodeInputChange: (value) => {
@@ -96,6 +116,21 @@ export class LobbyApp {
       onStartMatch: () => {
         void this.handleStartMatch();
       },
+      onStashMoveItem: (payload) => {
+        try {
+          const nextProfile = moveProfileItem(this.state.profile, payload);
+          options.onProfileChange?.(nextProfile);
+          this.patchState({
+            profile: nextProfile,
+            errorMessage: null,
+            infoMessage: "行囊已整理。"
+          });
+        } catch (error) {
+          this.patchState({
+            errorMessage: error instanceof Error ? error.message : "行囊整理失败。"
+          });
+        }
+      }
     });
   }
 
@@ -162,7 +197,11 @@ export class LobbyApp {
   private async handleCreateRoom() {
     await this.runTask(async () => {
       const playerName = this.requirePlayerName();
-      const roomState = await this.controller.createRoom(playerName);
+      const roomState = await this.controller.createRoom(
+        playerName,
+        this.state.botDifficulty,
+        buildProfileLoadoutSnapshot(this.state.profile)
+      );
       this.consumeRoomState(roomState, "频道已创建，等待其他玩家加入。");
     });
   }
@@ -176,7 +215,11 @@ export class LobbyApp {
         throw new Error("请输入 6 位频道代码。");
       }
 
-      const roomState = await this.controller.joinRoom(playerName, roomCode);
+      const roomState = await this.controller.joinRoom(
+        playerName,
+        roomCode,
+        buildProfileLoadoutSnapshot(this.state.profile)
+      );
       this.consumeRoomState(roomState, `已加入频道 ${roomState.roomCode}。`);
     });
   }
@@ -223,7 +266,12 @@ export class LobbyApp {
           status: "starting",
         },
       });
-      await this.controller.startMatch!(roomState.roomCode, roomState.localPlayerId);
+      await this.controller.startMatch!(
+        roomState.roomCode,
+        roomState.localPlayerId,
+        this.state.botDifficulty,
+        buildProfileLoadoutSnapshot(this.state.profile)
+      );
     });
   }
 
@@ -243,3 +291,9 @@ export const bootstrapLobbyApp = async (options: LobbyRuntimeOptions) => {
   await app.mount();
   return app;
 };
+
+function formatBotDifficulty(value: LobbyState["botDifficulty"]): string {
+  if (value === "easy") return "简易";
+  if (value === "hard") return "困难";
+  return "中等";
+}

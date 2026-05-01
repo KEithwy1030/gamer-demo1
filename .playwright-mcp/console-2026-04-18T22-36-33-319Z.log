@@ -1,7 +1,0 @@
-[   31016ms] [LOG] %c %c %c %c %c Phaser v3.90.0 (Canvas | Web Audio) %c https://phaser.io/v390 background: #ff0000 background: #ffff00 background: #00ff00 background: #00ffff color: #ffffff; background: #000000 background: transparent @ http://localhost:5174/node_modules/.vite/deps/phaser.js?v=2da77e33:8455
-[   32261ms] [ERROR] Access to XMLHttpRequest at 'https://labs.phaser.io/assets/textures/rust.png' from origin 'http://localhost:5174' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:5174/:0
-[   32261ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://labs.phaser.io/assets/textures/rust.png:0
-[   32381ms] [ERROR] Access to XMLHttpRequest at 'https://labs.phaser.io/assets/textures/rust.png' from origin 'http://localhost:5174' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:5174/:0
-[   32381ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://labs.phaser.io/assets/textures/rust.png:0
-[   32500ms] [ERROR] Access to XMLHttpRequest at 'https://labs.phaser.io/assets/textures/rust.png' from origin 'http://localhost:5174' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:5174/:0
-[   32586ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://labs.phaser.io/assets/textures/rust.png:0

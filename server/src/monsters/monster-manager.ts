@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
-import { WEAPON_DEFINITIONS } from "../../../shared/dist/data/weapons.js";
-import type { AttackRequestPayload, CombatEventPayload, SkillCastPayload } from "../../../shared/dist/types/combat.js";
-import type { MonsterSpawnDefinition, MonsterState, MonsterType } from "../../../shared/dist/types/monsters.js";
+import type { AttackRequestPayload, CombatEventPayload, MonsterSpawnDefinition, MonsterState, MonsterType, SkillCastPayload } from "@gamer/shared";
+import { WEAPON_DEFINITIONS } from "@gamer/shared";
 import {
   ELITE_MONSTER_AGGRO_RANGE,
   ELITE_MONSTER_ATTACK_COOLDOWN_MS,
@@ -40,13 +39,12 @@ interface CombatPlayerState {
 const NORMAL_MONSTER_COUNT = 40;
 const ELITE_MONSTER_COUNT = 3;
 const CENTER_EXCLUSION_RADIUS = 300;
-const PLAYER_SPAWN_EXCLUSION_RADIUS = 200;
+const SAFE_ZONE_EXCLUSION_RADIUS = 520;
+const EXTRACT_ZONE_EXCLUSION_RADIUS = 260;
 const SPAWN_JITTER_PX = 200;
 const MONSTER_CORPSE_DURATION_MS = 10_000;
 const MONSTER_RESPAWN_DELAY_MS = 60_000;
 const MAP_MARGIN_PX = 96;
-const PLAYER_SPAWN_X = MATCH_MAP_WIDTH * 0.1;
-const PLAYER_SPAWN_Y = MATCH_MAP_HEIGHT * 0.1;
 const SKILL_DAMAGE = {
   swordDashSlash: 24,
   bladeSweep: 22,
@@ -87,7 +85,7 @@ export function spawnInitialMonsters(room: RuntimeRoom): MonsterState[] {
   monsters.clear();
 
   room.pendingMonsterRespawns = [];
-  room.monsterSpawnDefinitions = generateMonsterSpawnDefinitions();
+  room.monsterSpawnDefinitions = generateMonsterSpawnDefinitions(room);
 
   for (const spawn of room.monsterSpawnDefinitions) {
     const monster = buildRuntimeMonster(spawn);
@@ -537,13 +535,13 @@ function processMonsterRespawns(room: RuntimeRoom, now: number): void {
   room.pendingMonsterRespawns = remaining;
 }
 
-function generateMonsterSpawnDefinitions(): MonsterSpawnDefinition[] {
-  const normals = generateNormalSpawnDefinitions();
-  const elites = generateEliteSpawnDefinitions();
+function generateMonsterSpawnDefinitions(room: RuntimeRoom): MonsterSpawnDefinition[] {
+  const normals = generateNormalSpawnDefinitions(room);
+  const elites = generateEliteSpawnDefinitions(room);
   return [...normals, ...elites];
 }
 
-function generateNormalSpawnDefinitions(): MonsterSpawnDefinition[] {
+function generateNormalSpawnDefinitions(room: RuntimeRoom): MonsterSpawnDefinition[] {
   const columns = 8;
   const rows = 6;
   const candidates: Array<{ x: number; y: number }> = [];
@@ -553,7 +551,7 @@ function generateNormalSpawnDefinitions(): MonsterSpawnDefinition[] {
       const baseX = ((column + 0.5) / columns) * MATCH_MAP_WIDTH;
       const baseY = ((row + 0.5) / rows) * MATCH_MAP_HEIGHT;
       const point = jitterPoint(baseX, baseY);
-      if (isValidSpawnPoint(point.x, point.y)) {
+      if (isValidSpawnPoint(room, point.x, point.y)) {
         candidates.push(point);
       }
     }
@@ -562,7 +560,7 @@ function generateNormalSpawnDefinitions(): MonsterSpawnDefinition[] {
   shuffleInPlace(candidates);
 
   while (candidates.length < NORMAL_MONSTER_COUNT) {
-    const fallback = randomValidPoint();
+    const fallback = randomValidPoint(room);
     candidates.push(fallback);
   }
 
@@ -574,11 +572,9 @@ function generateNormalSpawnDefinitions(): MonsterSpawnDefinition[] {
   }));
 }
 
-function generateEliteSpawnDefinitions(): MonsterSpawnDefinition[] {
-  const quadrants = shuffleArray(["nw", "ne", "sw", "se"] as const).slice(0, ELITE_MONSTER_COUNT);
-
-  return quadrants.map((quadrant, index) => {
-    const point = randomPointInQuadrant(quadrant);
+function generateEliteSpawnDefinitions(room: RuntimeRoom): MonsterSpawnDefinition[] {
+  return Array.from({ length: ELITE_MONSTER_COUNT }, (_, index) => {
+    const point = randomMidRingPoint(room);
     return {
       id: `elite_${index + 1}`,
       type: "elite",
@@ -588,35 +584,13 @@ function generateEliteSpawnDefinitions(): MonsterSpawnDefinition[] {
   });
 }
 
-function randomPointInQuadrant(quadrant: "nw" | "ne" | "sw" | "se"): { x: number; y: number } {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const xRange = quadrant === "nw" || quadrant === "sw"
-      ? [MAP_MARGIN_PX, MATCH_MAP_WIDTH / 2 - MAP_MARGIN_PX]
-      : [MATCH_MAP_WIDTH / 2 + MAP_MARGIN_PX, MATCH_MAP_WIDTH - MAP_MARGIN_PX];
-    const yRange = quadrant === "nw" || quadrant === "ne"
-      ? [MAP_MARGIN_PX, MATCH_MAP_HEIGHT / 2 - MAP_MARGIN_PX]
-      : [MATCH_MAP_HEIGHT / 2 + MAP_MARGIN_PX, MATCH_MAP_HEIGHT - MAP_MARGIN_PX];
-
-    const point = jitterPoint(
-      randomBetween(xRange[0], xRange[1]),
-      randomBetween(yRange[0], yRange[1])
-    );
-
-    if (isValidSpawnPoint(point.x, point.y)) {
-      return point;
-    }
-  }
-
-  return randomValidPoint();
-}
-
-function randomValidPoint(): { x: number; y: number } {
+function randomValidPoint(room: RuntimeRoom): { x: number; y: number } {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const point = {
       x: randomBetween(MAP_MARGIN_PX, MATCH_MAP_WIDTH - MAP_MARGIN_PX),
       y: randomBetween(MAP_MARGIN_PX, MATCH_MAP_HEIGHT - MAP_MARGIN_PX)
     };
-    if (isValidSpawnPoint(point.x, point.y)) {
+    if (isValidSpawnPoint(room, point.x, point.y)) {
       return point;
     }
   }
@@ -634,14 +608,41 @@ function jitterPoint(x: number, y: number): { x: number; y: number } {
   };
 }
 
-function isValidSpawnPoint(x: number, y: number): boolean {
+function isValidSpawnPoint(room: RuntimeRoom, x: number, y: number): boolean {
   const centerDistance = distanceBetween(x, y, MATCH_MAP_WIDTH / 2, MATCH_MAP_HEIGHT / 2);
   if (centerDistance < CENTER_EXCLUSION_RADIUS) {
     return false;
   }
 
-  const spawnDistance = distanceBetween(x, y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y);
-  return spawnDistance >= PLAYER_SPAWN_EXCLUSION_RADIUS;
+  const layout = room.matchLayout;
+  if (!layout) {
+    return true;
+  }
+
+  if (layout.safeZones.some((zone) => distanceBetween(x, y, zone.x, zone.y) < zone.radius + SAFE_ZONE_EXCLUSION_RADIUS)) {
+    return false;
+  }
+
+  if (layout.extractZones.some((zone) => distanceBetween(x, y, zone.x, zone.y) < EXTRACT_ZONE_EXCLUSION_RADIUS)) {
+    return false;
+  }
+
+  return true;
+}
+
+function randomMidRingPoint(room: RuntimeRoom): { x: number; y: number } {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const angle = randomBetween(0, Math.PI * 2);
+    const radius = randomBetween(1200, 1850);
+    const point = jitterPoint(
+      MATCH_MAP_WIDTH / 2 + Math.cos(angle) * radius,
+      MATCH_MAP_HEIGHT / 2 + Math.sin(angle) * radius
+    );
+    if (isValidSpawnPoint(room, point.x, point.y)) {
+      return point;
+    }
+  }
+  return randomValidPoint(room);
 }
 
 function distanceBetween(ax: number, ay: number, bx: number, by: number): number {
@@ -725,3 +726,4 @@ function shuffleInPlace<T>(values: T[]): void {
     [values[index], values[swapIndex]] = [values[swapIndex], values[index]];
   }
 }
+

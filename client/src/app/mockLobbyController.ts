@@ -8,6 +8,7 @@ import type {
 interface MockRoom {
   roomCode: string;
   capacity: number;
+  botDifficulty: RoomState["botDifficulty"];
   players: LobbyPlayer[];
 }
 
@@ -50,6 +51,7 @@ const cloneRoomState = (room: MockRoom, localPlayerId: string, status: RoomState
   capacity: room.capacity,
   players: room.players.map((player) => ({ ...player })),
   localPlayerId,
+  botDifficulty: room.botDifficulty,
   status,
 });
 
@@ -60,7 +62,7 @@ export class MockLobbyController implements LobbyController {
     this.runtimeApi = api;
   }
 
-  async createRoom(playerName: string): Promise<RoomState> {
+  async createRoom(playerName: string, botDifficulty: RoomState["botDifficulty"]): Promise<RoomState> {
     await wait(240);
 
     const roomCode = makeRoomCode();
@@ -74,6 +76,7 @@ export class MockLobbyController implements LobbyController {
     mockRooms.set(roomCode, {
       roomCode,
       capacity: 4,
+      botDifficulty,
       players: [hostPlayer],
     });
 

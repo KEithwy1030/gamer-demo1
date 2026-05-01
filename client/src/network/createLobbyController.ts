@@ -1,4 +1,4 @@
-import type { MatchStartedPayload, RoomSummary } from "@gamer/shared";
+import type { BotDifficulty, InventorySnapshotPayload, MatchStartedPayload, RoomSummary } from "@gamer/shared";
 import type {
   LobbyController,
   RoomState
@@ -31,14 +31,12 @@ export function createNetworkLobbyController(
       socket.connect();
 
       socket.onRoomState((room) => {
+        localPlayerId = resolveLocalPlayerId(room, socket.id, localPlayerId);
         const mappedRoom = mapRoomState(room, localPlayerId);
         runtimeApi?.setRoomState(mappedRoom);
 
         pendingRoomAction?.resolve(mappedRoom);
         pendingRoomAction = null;
-
-        pendingVoidAction?.resolve();
-        pendingVoidAction = null;
       });
 
       socket.onRoomError((payload) => {
@@ -50,53 +48,70 @@ export function createNetworkLobbyController(
       });
 
       socket.onMatchStarted((payload) => {
+        pendingVoidAction?.resolve();
+        pendingVoidAction = null;
         runtimeApi?.setState({
           screen: "transitioning",
-          infoMessage: "匹配已开始，正在进入作战地图...",
+          infoMessage: "鍖归厤宸插紑濮嬶紝姝ｅ湪杩涘叆浣滄垬鍦板浘...",
           errorMessage: null
         });
         onMatchStarted?.(payload);
       });
     },
-    createRoom(playerName) {
-      socket.createRoom({ playerName });
-      return waitForRoomState(socket);
+    createRoom(playerName, botDifficulty, loadout) {
+      return waitForRoomState(() => {
+        socket.createRoom({ playerName, botDifficulty, loadout });
+      });
     },
-    joinRoom(playerName, roomCode) {
-      socket.joinRoom({ code: roomCode, playerName });
-      return waitForRoomState(socket);
+    joinRoom(playerName, roomCode, loadout) {
+      return waitForRoomState(() => {
+        socket.joinRoom({ code: roomCode, playerName, loadout } as { code: string; playerName: string; loadout?: InventorySnapshotPayload });
+      });
     },
     async leaveRoom(roomCode) {
       socket.leaveRoom({ code: roomCode });
     },
     updateCapacity(roomCode, _playerId, capacity) {
-      socket.setCapacity({ code: roomCode, capacity });
-      return waitForRoomState(socket);
+      return waitForRoomState(() => {
+        socket.setCapacity({ code: roomCode, capacity });
+      });
     },
-    startMatch(roomCode) {
-      socket.startRoom({ code: roomCode });
-      return waitForVoid(socket);
+    startMatch(roomCode, _playerId, botDifficulty, loadout) {
+      return waitForVoid(() => {
+        socket.startRoom({ code: roomCode, botDifficulty, loadout });
+      });
     }
   };
 
-  function waitForRoomState(_: GameSocketClient): Promise<RoomState> {
-    localPlayerId = socket.id ?? localPlayerId;
+  function waitForRoomState(request: () => void): Promise<RoomState> {
     return new Promise<RoomState>((resolve, reject) => {
       pendingRoomAction = { resolve, reject };
+      request();
     });
   }
 
-  function waitForVoid(_: GameSocketClient): Promise<void> {
+  function waitForVoid(request: () => void): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       pendingVoidAction = { resolve, reject };
+      request();
     });
   }
+}
+
+function resolveLocalPlayerId(room: RoomSummary, socketId: string | undefined, previousPlayerId: string): string {
+  if (!socketId) {
+    return previousPlayerId;
+  }
+
+  const localPlayer = room.players.find((player) => player.socketId === socketId);
+  return localPlayer?.id ?? previousPlayerId;
 }
 
 function mapRoomState(room: RoomSummary, localPlayerId: string): RoomState {
   return {
     roomCode: room.code,
     capacity: room.capacity,
+    botDifficulty: room.botDifficulty,
     localPlayerId,
     status: room.status === "started" ? "starting" : "waiting",
     players: room.players.map((player) => ({

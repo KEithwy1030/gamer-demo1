@@ -1,15 +1,19 @@
-import { io, type Socket } from "socket.io-client";
+﻿import { io, type Socket } from "socket.io-client";
 import {
   type CombatEventPayload,
-  SocketEvent,
+  type CreateRoomPayload,
+  type InventorySnapshotPayload,
   type MatchStartedPayload,
   type MonsterState,
   type PlayerInputMovePayload,
   type PlayerState,
   type RoomErrorPayload,
+  type RoomStartPayload,
   type RoomSummary,
+  type SettlementPayload,
+  SocketEvent,
   type WorldDrop
-} from "../../../shared/src/index";
+} from "@gamer/shared";
 
 export interface GameSocketClientOptions {
   serverUrl?: string;
@@ -19,56 +23,38 @@ export interface GameSocketClientOptions {
 export type Unsubscribe = () => void;
 
 export interface ExtractOpenedPayload {
-  opened?: boolean;
-  available?: boolean;
-  availableAtMs?: number;
-  remainingMs?: number;
-  message?: string;
-  roomCode?: string;
-  x?: number;
-  y?: number;
-  radius?: number;
-  channelDurationMs?: number;
+  roomCode: string;
+  zones: Array<{
+    zoneId: string;
+    x: number;
+    y: number;
+    radius: number;
+    channelDurationMs: number;
+    openAtSec: number;
+    isOpen: boolean;
+  }>;
 }
 
 export interface ExtractProgressPayload {
-  playerId?: string;
-  progress?: number;
-  ratio?: number;
-  percent?: number;
-  remainingMs?: number;
-  remainingSeconds?: number;
-  active?: boolean;
-  interrupted?: boolean;
-  cancelled?: boolean;
-  message?: string;
-  status?: "started" | "progress" | "interrupted";
-  durationMs?: number;
-  reason?: string;
+  roomCode: string;
+  playerId: string;
+  zoneId: string;
+  status: "started" | "progress" | "interrupted";
+  remainingMs: number;
+  durationMs: number;
+  reason?: "damaged" | "left_zone" | "dead" | "timeout";
 }
 
 export interface ExtractSuccessPayload {
-  playerId?: string;
-  roomCode?: string;
-  message?: string;
-  extractedAt?: number;
-  settlement?: unknown;
-}
-
-export interface InventoryUpdateEvent {
-  playerId?: string;
-  inventory?: unknown;
-  equipment?: unknown;
-}
-
-export interface SettlementEnvelope {
-  roomCode?: string;
-  playerId?: string;
-  settlement?: unknown;
+  roomCode: string;
+  playerId: string;
+  zoneId: string;
+  extractedAt: number;
+  settlement: SettlementPayload;
 }
 
 export interface ChestState {
-  id: string;
+  chestId: string;
   x: number;
   y: number;
   isOpen: boolean;
@@ -77,7 +63,23 @@ export interface ChestState {
 export interface ChestOpenedPayload {
   chestId: string;
   playerId: string;
-  loot: any[];
+  loot: InventorySnapshotPayload["inventory"]["items"];
+}
+
+export interface InventoryUpdateEvent {
+  playerId: string;
+  inventory: {
+    width: number;
+    height: number;
+    items: Array<{ item: Record<string, unknown>; x: number; y: number }>;
+    equipment?: Record<string, Record<string, unknown> | undefined>;
+  };
+}
+
+export interface SettlementEnvelope {
+  roomCode: string;
+  playerId: string;
+  settlement: SettlementPayload;
 }
 
 const DEFAULT_SERVER_PORT = "3000";
@@ -189,11 +191,11 @@ export class GameSocketClient {
     return this.on(SocketEvent.MatchSettlement, listener);
   }
 
-  createRoom(payload: { playerName: string }): void {
+  createRoom(payload: CreateRoomPayload): void {
     this.socket.emit(SocketEvent.RoomCreate, payload);
   }
 
-  joinRoom(payload: { code: string; playerName: string }): void {
+  joinRoom(payload: { code: string; playerName: string; loadout?: InventorySnapshotPayload }): void {
     this.socket.emit(SocketEvent.RoomJoin, payload);
   }
 
@@ -205,7 +207,7 @@ export class GameSocketClient {
     this.socket.emit(SocketEvent.RoomSetCapacity, payload);
   }
 
-  startRoom(payload?: { code?: string }): void {
+  startRoom(payload?: RoomStartPayload): void {
     this.socket.emit(SocketEvent.RoomStart, payload);
   }
 

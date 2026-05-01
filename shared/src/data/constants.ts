@@ -1,9 +1,12 @@
 export const ROOM_CODE_LENGTH = 6;
-export const DEFAULT_ROOM_CAPACITY = 6;
+export const DEFAULT_ROOM_CAPACITY = 4;
 export const MIN_ROOM_CAPACITY = 1;
-export const MAX_ROOM_CAPACITY = 6;
-export const MAP_WIDTH = 6400;
-export const MAP_HEIGHT = 6400;
+export const MAX_ROOM_CAPACITY = 4;
+export const MAP_WIDTH = 9600;
+export const MAP_HEIGHT = 9600;
 export const PLAYER_BASE_SPEED = 300;
 export const SERVER_PLAYER_SYNC_HZ = 20;
-export const MATCH_DURATION_SEC = 15 * 60;
+export const MATCH_DURATION_SEC = 10 * 60;
+export const EXTRACT_OPEN_SEC = 20;
+export const SQUAD_COUNT = 4;
+export const SQUAD_SIZE = 4;

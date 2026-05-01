@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import type {
   DropState,
   EquipmentSlot,
@@ -66,7 +66,7 @@ export class InventoryService {
 
   initializePlayer(player: RuntimePlayer): void {
     if (!player.inventory) {
-      player.inventory = {
+      player.inventory = buildInventoryFromSnapshot(player.pendingLoadout) ?? {
         width: INVENTORY_WIDTH,
         height: INVENTORY_HEIGHT,
         items: [],
@@ -75,8 +75,10 @@ export class InventoryService {
     }
 
     if (!player.inventory.equipment.weapon) {
-      player.inventory.equipment.weapon = this.createItem("starter_sword");
+      player.inventory.equipment.weapon = this.createItem(resolveDefaultWeaponTemplateId(player));
     }
+
+    this.applyDefaultLoadout(player);
 
     player.deathLootDropped = false;
     this.applyEquipmentStats(player);
@@ -400,6 +402,22 @@ export class InventoryService {
     return created;
   }
 
+  private applyDefaultLoadout(player: RuntimePlayer): void {
+    const inventory = this.getInventory(player);
+
+    if (!player.isBot) {
+      return;
+    }
+
+    const requiredTemplates = ["armor_head_common", "armor_chest_common", "armor_hands_common", "armor_feet_common"];
+    for (const templateId of requiredTemplates) {
+      const item = this.createItem(templateId);
+      if (item.equipmentSlot && !inventory.equipment[item.equipmentSlot]) {
+        inventory.equipment[item.equipmentSlot] = item;
+      }
+    }
+  }
+
   private applyEquipmentStats(player: RuntimePlayer): void {
     const inventory = this.getInventory(player);
     const position = player.state;
@@ -566,6 +584,114 @@ function cloneDrop(drop: DropState): DropState {
   };
 }
 
+function buildInventoryFromSnapshot(snapshot: RuntimePlayer["pendingLoadout"]): InventoryState | undefined {
+  if (!snapshot) {
+    return undefined;
+  }
+
+  const inventory: InventoryState = {
+    width: Number.isFinite(snapshot.inventory?.width) ? Math.max(1, Math.floor(snapshot.inventory.width)) : INVENTORY_WIDTH,
+    height: Number.isFinite(snapshot.inventory?.height) ? Math.max(1, Math.floor(snapshot.inventory.height)) : INVENTORY_HEIGHT,
+    items: [],
+    equipment: {}
+  };
+
+  for (const entry of snapshot.inventory?.items ?? []) {
+    const item = createItemFromSnapshot(entry);
+    if (!item) {
+      continue;
+    }
+
+    const x = Number.isFinite(entry.x) ? Math.floor(entry.x) : 0;
+    const y = Number.isFinite(entry.y) ? Math.floor(entry.y) : 0;
+    if (!canPlaceItem(inventory, item, x, y)) {
+      continue;
+    }
+
+    inventory.items.push({ item, x, y });
+  }
+
+  for (const [slot, raw] of Object.entries(snapshot.equipment ?? {})) {
+    if (!raw) {
+      continue;
+    }
+
+    const normalizedSlot = normalizeEquipmentSlot(slot);
+    if (!normalizedSlot) {
+      continue;
+    }
+
+    const item = createItemFromSnapshot(raw, normalizedSlot);
+    if (!item) {
+      continue;
+    }
+
+    inventory.equipment[normalizedSlot] = item;
+  }
+
+  return inventory;
+}
+
+function createItemFromSnapshot(
+  snapshot: {
+    instanceId: string;
+    definitionId: string;
+    kind?: string;
+    rarity?: string;
+    name?: string;
+    healAmount?: number;
+    modifiers?: Partial<InventoryItem["modifiers"]>;
+    affixes?: InventoryItem["affixes"];
+  },
+  forcedSlot?: EquipmentSlot
+): InventoryItem | undefined {
+  try {
+    const template = getItemTemplate(snapshot.definitionId);
+    return {
+      instanceId: snapshot.instanceId || crypto.randomUUID(),
+      templateId: template.templateId,
+      name: snapshot.name || template.name,
+      kind: (snapshot.kind as InventoryItem["kind"] | undefined) ?? template.kind,
+      rarity: (snapshot.rarity as InventoryItem["rarity"] | undefined) ?? template.rarity,
+      width: template.width,
+      height: template.height,
+      equipmentSlot: forcedSlot ?? template.equipmentSlot,
+      weaponType: template.weaponType,
+      goldValue: template.goldValue,
+      treasureValue: template.treasureValue,
+      healAmount: snapshot.healAmount ?? template.healAmount,
+      modifiers: snapshot.modifiers ? { ...snapshot.modifiers } : template.modifiers ? { ...template.modifiers } : undefined,
+      affixes: Array.isArray(snapshot.affixes) ? snapshot.affixes.map((affix) => ({ ...affix })) : []
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeEquipmentSlot(value: string): EquipmentSlot | undefined {
+  return value === "weapon" || value === "head" || value === "chest" || value === "hands" || value === "shoes"
+    ? value
+    : undefined;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
+
+function resolveDefaultWeaponTemplateId(player: RuntimePlayer): string {
+  if (!player.isBot) {
+    return "starter_sword";
+  }
+
+  const suffix = Number.parseInt(player.id.split("_").at(-1) ?? "1", 10);
+  const rotation = Number.isFinite(suffix) ? (suffix - 1) % 3 : 0;
+  if (rotation === 1) {
+    return "weapon_blade_basic";
+  }
+  if (rotation === 2) {
+    return "weapon_spear_basic";
+  }
+  return "weapon_sword_basic";
+}
+
+

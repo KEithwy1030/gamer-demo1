@@ -1,32 +1,50 @@
-# Agent Bootstrap
+# Gamer Repo Agent Guide
 
-This repository uses repo-native project memory under `docs/agent/`.
+This repository is a `Phaser 3 + Vite + TypeScript + Socket.IO` multiplayer web game.
 
-For any new session or agent, read in this order:
+## First Read
 
-1. `MASTER_SPEC.md`
-2. `WORK_QUEUE.md`
-3. `docs/agent/STATUS.json`
-4. `docs/agent/PROJECT_STATE.md`
-5. `docs/agent/OPEN_LOOPS.md`
-6. `docs/agent/DECISIONS.md`
-7. `docs/agent/CANONICAL_BASELINE.md`
-8. `docs/agent/DELTA_MATRIX.md`
-9. `docs/agent/WORKLOG.md`
+When you enter this repo, read only these files before major work:
 
-## Memory Rules
+1. `E:\CursorData\gamer\docs\agent\NOW.md`
+2. `E:\CursorData\gamer\docs\agent\DEMO1_DELIVERY_CONTRACT.md`
+3. `E:\CursorData\gamer\GDD_Demo1_v1.3.docx`
+4. `E:\CursorData\gamer\docs\archive\GDD_Demo1_v1.3.txt` if the docx is inconvenient to inspect
 
-- Treat `AGENTS.md` + root `MASTER_SPEC.md` + root `WORK_QUEUE.md` + `docs/agent/` as the canonical source set.
-- Update `PROJECT_STATE.md` when current truth changes.
-- Update `OPEN_LOOPS.md` when work is opened, reframed, blocked, or closed.
-- Update `DECISIONS.md` only for durable decisions.
-- Append one concise entry to `WORKLOG.md` before ending substantial work.
-- Refresh `STATUS.json` whenever priorities or active phase change.
+## Working Mode
 
-## Current Repo Notes
+- Treat the GDD and the current demo contract as the product source of truth.
+- Treat repo docs as fast orientation, not guaranteed live truth.
+- Do not jump straight into coding when demo scope, acceptance, or boundaries are unclear.
+- Work in demo-sized vertical slices such as `Demo 1`, `Demo 2`, not endless patch streams.
+- Prefer autonomous execution: plan, implement, build, run, verify, and summarize in one pass.
+- Only stop to ask the user when a decision changes product scope, timeline, or irreversible architecture.
 
-- Canonical product docs live at [MASTER_SPEC.md](/E:/CursorData/gamer/MASTER_SPEC.md) and [WORK_QUEUE.md](/E:/CursorData/gamer/WORK_QUEUE.md).
-- The audited implementation baseline lives at [docs/agent/CANONICAL_BASELINE.md](/E:/CursorData/gamer/docs/agent/CANONICAL_BASELINE.md) and [docs/agent/DELTA_MATRIX.md](/E:/CursorData/gamer/docs/agent/DELTA_MATRIX.md).
-- Historical or superseded docs live under [docs/archive/](/E:/CursorData/gamer/docs/archive/README.md) and are reference-only.
-- The design source [GDD_Demo1_v1.3.docx](/E:/CursorData/gamer/GDD_Demo1_v1.3.docx) is a historical reference, not the live implementation truth.
-- This workspace is a git worktree (`.git/` exists at repo root).
+## Architecture Guardrails
+
+- Keep rendering, network state, DOM UI, and persistence concerns separated.
+- Do not keep growing `client/src/scenes/GameScene.ts` as the default answer.
+- Move reusable logic into modules under `client/src/game`, `client/src/ui`, `client/src/network`, or `server/src`.
+- Keep server authority over combat, loot, death, extraction, settlement, and state validation.
+- Treat browser-visible behavior as the final truth. Docs help, but runtime wins.
+
+## Verification Floor
+
+Before trusting docs in a fresh session, run a minimal reality check:
+
+1. `git status --short`
+2. `npm run typecheck`
+3. `npm run build` when the current task is broad or runtime-sensitive
+4. `npm run validate:carry-loop` whenever the change touches extraction, settlement, stash, or next-run loadout
+
+Before calling a slice done, run the smallest relevant verification loop:
+
+1. `npm run build` or at minimum the affected package build/typecheck
+2. Browser/runtime verification for the changed flow
+3. Multiplayer or multi-tab verification if the feature touches rooms, sync, combat, settlement, or inventory persistence
+4. `npm run validate:carry-loop` whenever the change touches extraction, settlement, stash, or next-run loadout
+
+## Handoff
+
+- Update `docs/agent/NOW.md` only when project truth or the active target actually changes.
+- Update `docs/agent/DEMO1_DELIVERY_CONTRACT.md` only when scope or acceptance changes.

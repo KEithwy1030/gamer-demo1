@@ -1,15 +1,15 @@
-import type {
+﻿import type {
   CreateRoomPayload,
   JoinRoomPayload,
   LobbyPlayer,
-  RoomSummary,
-  SetCapacityPayload
-} from "../../shared/dist/types/lobby.js";
-import type {
+  MatchLayout,
   MatchStartedPayload,
   PlayerState,
+  RoomSummary,
+  SetCapacityPayload,
+  SquadId,
   Vector2
-} from "../../shared/dist/types/game.js";
+} from "@gamer/shared";
 import {
   DEFAULT_ROOM_CAPACITY,
   DEFAULT_WEAPON_TYPE,
@@ -18,9 +18,11 @@ import {
   MATCH_MAP_WIDTH,
   PLAYER_BASE_HP,
   PLAYER_BASE_MOVE_SPEED,
-  SPAWN_RING_RADIUS
+  SQUAD_COUNT,
+  SQUAD_SIZE
 } from "./internal-constants.js";
 import { setPlayerBaseStats, syncPlayerCombatState } from "./combat/player-effects.js";
+import { buildMatchLayout, getSquadSpawnZone } from "./match-layout.js";
 import type {
   MatchStartContext,
   RoomStateEnvelope,
@@ -36,20 +38,38 @@ function sanitizePlayerName(playerName: string): string {
 }
 
 const PLACE_WORDS = [
-  "南岭",
-  "北坞",
-  "西浮",
-  "灰湾",
-  "旧港",
-  "朔桥",
-  "荒岗",
-  "雾泽",
-  "石堡",
-  "长汀"
+  "SOUTH",
+  "NORTH",
+  "WEST",
+  "ASH",
+  "OLD",
+  "BRIDGE",
+  "WILD",
+  "MIST",
+  "STONE",
+  "LONG"
 ] as const;
 
+const BOT_SQUADS = ["bot_alpha", "bot_beta", "bot_gamma"] as const satisfies readonly SquadId[];
+type BotSquadId = typeof BOT_SQUADS[number];
+const BOT_NAMES: Record<BotSquadId, string[]> = {
+  bot_alpha: ["Alpha-01", "Alpha-02", "Alpha-03", "Alpha-04"],
+  bot_beta: ["Beta-01", "Beta-02", "Beta-03", "Beta-04"],
+  bot_gamma: ["Gamma-01", "Gamma-02", "Gamma-03", "Gamma-04"]
+};
+const FORMATION_OFFSETS: Array<{ x: number; y: number }> = [
+  { x: 0, y: 0 },
+  { x: -170, y: 120 },
+  { x: 170, y: 120 },
+  { x: 0, y: 240 }
+];
+
 function normalizeRoomCode(code: string): string {
-  return code.trim().replace(/\s+/g, "").replace(/[.\uFF0E\u3002\u30FB路]/g, "·").toUpperCase();
+  return code
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[.\uFF0E\u3002\u30FB\u8DEF]/g, "\u8DEF")
+    .toUpperCase();
 }
 
 function cloneDirection(direction?: Vector2): Vector2 {
@@ -62,7 +82,9 @@ function buildLobbyPlayer(player: RuntimePlayer): LobbyPlayer {
     name: player.name,
     isHost: player.isHost,
     ready: player.ready,
-    socketId: player.socketId
+    socketId: player.socketId,
+    squadId: player.squadId,
+    isBot: player.isBot
   };
 }
 
@@ -77,7 +99,10 @@ function buildPlayerState(player: RuntimePlayer): PlayerState {
     ...player.state,
     direction: cloneDirection(player.state.direction),
     killsPlayers: player.combat?.killsPlayers ?? player.state.killsPlayers,
-    killsMonsters: player.state.killsMonsters
+    killsMonsters: player.state.killsMonsters,
+    squadId: player.squadId,
+    squadType: player.squadType,
+    isBot: player.isBot
   };
 }
 
@@ -86,12 +111,14 @@ export class RoomStore {
 
   createRoom(payload: CreateRoomPayload, session: SocketSession): RuntimeContext {
     const code = this.generateRoomCode();
+    const roomKey = normalizeRoomCode(code);
     const room: RuntimeRoom = {
       code,
       hostPlayerId: session.playerId,
       capacity: DEFAULT_ROOM_CAPACITY,
       status: "waiting",
       createdAt: Date.now(),
+      botDifficulty: payload.botDifficulty ?? "normal",
       players: new Map()
     };
 
@@ -101,10 +128,14 @@ export class RoomStore {
       name: sanitizePlayerName(payload.playerName),
       isHost: true,
       ready: true,
-      joinedAt: Date.now()
+      squadId: "player",
+      squadType: "human",
+      isBot: false,
+      joinedAt: Date.now(),
+      pendingLoadout: payload.loadout
     });
 
-    this.rooms.set(code, room);
+    this.rooms.set(roomKey, room);
     session.roomCode = code;
     return this.toRuntimeContext(room);
   }
@@ -131,7 +162,11 @@ export class RoomStore {
       name: sanitizePlayerName(payload.playerName),
       isHost: false,
       ready: true,
-      joinedAt: Date.now()
+      squadId: "player",
+      squadType: "human",
+      isBot: false,
+      joinedAt: Date.now(),
+      pendingLoadout: payload.loadout
     });
 
     session.roomCode = room.code;
@@ -177,7 +212,13 @@ export class RoomStore {
     return this.toRuntimeContext(room);
   }
 
-  startMatch(session: SocketSession): MatchStartContext {
+  startMatch(
+    session: SocketSession,
+    options?: {
+      botDifficulty?: RuntimeRoom["botDifficulty"];
+      loadout?: RuntimePlayer["pendingLoadout"];
+    }
+  ): MatchStartContext {
     const room = this.getRoomForHost(session);
 
     if (room.status !== "waiting") {
@@ -188,12 +229,24 @@ export class RoomStore {
       throw new Error("Cannot start an empty room.");
     }
 
+    room.botDifficulty = options?.botDifficulty ?? room.botDifficulty;
+    const hostPlayer = room.players.get(session.playerId);
+    if (hostPlayer && options?.loadout) {
+      hostPlayer.pendingLoadout = options.loadout;
+    }
     room.status = "started";
     room.startedAt = Date.now();
+    this.fillBotSquads(room);
+    room.matchLayout = buildMatchLayout({
+      roomCode: room.code,
+      startedAt: room.startedAt,
+      squadIds: ["player", ...BOT_SQUADS]
+    });
     this.assignInitialStates(room);
 
     const roomState = this.toRoomState(room);
     const matchPayloadByPlayerId = new Map<string, MatchStartedPayload>();
+    const players = this.getPlayerStatesFromRoom(room);
 
     for (const player of room.players.values()) {
       matchPayloadByPlayerId.set(player.id, {
@@ -202,7 +255,11 @@ export class RoomStore {
           startedAt: room.startedAt,
           width: MATCH_MAP_WIDTH,
           height: MATCH_MAP_HEIGHT,
-          players: this.getPlayerStatesFromRoom(room)
+          players: players.map((state) => ({
+            ...state,
+            isLocalPlayer: state.id === player.id
+          })),
+          layout: cloneLayout(room.matchLayout)
         },
         selfPlayerId: player.id
       });
@@ -270,16 +327,8 @@ export class RoomStore {
       const normalizedDirection = normalizeDirection(moveInput);
       const moveStep = (player.state.moveSpeed * tickMs / 1000) * directionMagnitude;
       player.state.direction = normalizedDirection;
-      player.state.x = clamp(
-        player.state.x + normalizedDirection.x * moveStep,
-        24,
-        MATCH_MAP_WIDTH - 24
-      );
-      player.state.y = clamp(
-        player.state.y + normalizedDirection.y * moveStep,
-        24,
-        MATCH_MAP_HEIGHT - 24
-      );
+      player.state.x = clamp(player.state.x + normalizedDirection.x * moveStep, 24, MATCH_MAP_WIDTH - 24);
+      player.state.y = clamp(player.state.y + normalizedDirection.y * moveStep, 24, MATCH_MAP_HEIGHT - 24);
     }
 
     return this.toRuntimeContext(room);
@@ -305,70 +354,77 @@ export class RoomStore {
   }
 
   setPlayerSyncInterval(roomCode: string, interval: NodeJS.Timeout | undefined): void {
-    const room = this.rooms.get(roomCode);
-    if (!room) {
-      return;
-    }
-
-    if (room.playerSyncInterval) {
-      clearInterval(room.playerSyncInterval);
-    }
-
+    const room = this.rooms.get(normalizeRoomCode(roomCode));
+    if (!room) return;
+    if (room.playerSyncInterval) clearInterval(room.playerSyncInterval);
     room.playerSyncInterval = interval;
   }
 
   setMatchTimerInterval(roomCode: string, interval: NodeJS.Timeout | undefined): void {
-    const room = this.rooms.get(roomCode);
-    if (!room) {
-      return;
-    }
-
-    if (room.matchTimerInterval) {
-      clearInterval(room.matchTimerInterval);
-    }
-
+    const room = this.rooms.get(normalizeRoomCode(roomCode));
+    if (!room) return;
+    if (room.matchTimerInterval) clearInterval(room.matchTimerInterval);
     room.matchTimerInterval = interval;
   }
 
   private assignInitialStates(room: RuntimeRoom): void {
-    const players = [...room.players.values()];
-    const centerX = MATCH_MAP_WIDTH / 2;
-    const centerY = MATCH_MAP_HEIGHT / 2;
+    if (!room.matchLayout) {
+      throw new Error("Missing match layout on room start.");
+    }
 
-    players.forEach((player, index) => {
-      const angle = (Math.PI * 2 * index) / Math.max(players.length, 1);
-      const x = centerX + Math.cos(angle) * SPAWN_RING_RADIUS;
-      const y = centerY + Math.sin(angle) * SPAWN_RING_RADIUS;
+    for (const squadId of ["player", ...BOT_SQUADS] as SquadId[]) {
+      const zone = getSquadSpawnZone(room.matchLayout, squadId);
+      const squadPlayers = [...room.players.values()]
+        .filter((player) => player.squadId === squadId)
+        .sort((a, b) => {
+          const aHuman = a.isBot ? 1 : 0;
+          const bHuman = b.isBot ? 1 : 0;
+          if (aHuman !== bHuman) return aHuman - bHuman;
+          return a.joinedAt - b.joinedAt;
+        });
 
-      player.state = {
-        id: player.id,
-        name: player.name,
-        x: Math.round(x),
-        y: Math.round(y),
-        direction: { x: 0, y: 1 },
-        hp: PLAYER_BASE_HP,
-        maxHp: PLAYER_BASE_HP,
-        weaponType: DEFAULT_WEAPON_TYPE,
-        isAlive: true,
-        moveSpeed: PLAYER_BASE_MOVE_SPEED,
-        attackPower: 0,
-        attackSpeed: 0,
-        critRate: 0,
-        damageReduction: 0,
-        killsPlayers: 0,
-        killsMonsters: 0
-      };
-      player.moveInput = { x: 0, y: 0 };
-      setPlayerBaseStats(player, {
-        maxHp: PLAYER_BASE_HP,
-        weaponType: DEFAULT_WEAPON_TYPE,
-        moveSpeed: PLAYER_BASE_MOVE_SPEED,
-        attackPower: 0,
-        attackSpeed: 0,
-        critRate: 0,
-        damageReduction: 0
-      }, room.startedAt ?? Date.now());
-    });
+      squadPlayers.forEach((player, index) => {
+        const offset = FORMATION_OFFSETS[index] ?? FORMATION_OFFSETS[FORMATION_OFFSETS.length - 1];
+        const rotated = rotateOffset(offset, zone.facing);
+        const x = clamp(Math.round(zone.anchorX + rotated.x), 24, MATCH_MAP_WIDTH - 24);
+        const y = clamp(Math.round(zone.anchorY + rotated.y), 24, MATCH_MAP_HEIGHT - 24);
+
+        player.state = {
+          id: player.id,
+          name: player.name,
+          x,
+          y,
+          direction: cloneDirection(zone.facing),
+          hp: PLAYER_BASE_HP,
+          maxHp: PLAYER_BASE_HP,
+          weaponType: DEFAULT_WEAPON_TYPE,
+          isAlive: true,
+          moveSpeed: PLAYER_BASE_MOVE_SPEED,
+          attackPower: 0,
+          attackSpeed: 0,
+          critRate: 0,
+          damageReduction: 0,
+          killsPlayers: 0,
+          killsMonsters: 0,
+          squadId: player.squadId,
+          squadType: player.squadType,
+          isBot: player.isBot
+        };
+        player.moveInput = { x: 0, y: 0 };
+        player.botHomeAnchor = { x: zone.anchorX, y: zone.anchorY };
+        player.botOpeningStage = "staging";
+        player.botOpeningReleasedAt = undefined;
+        setPlayerBaseStats(player, {
+          maxHp: PLAYER_BASE_HP,
+          weaponType: DEFAULT_WEAPON_TYPE,
+          moveSpeed: PLAYER_BASE_MOVE_SPEED,
+          attackPower: 0,
+          attackSpeed: 0,
+          critRate: 0,
+          damageReduction: 0
+        }, room.startedAt ?? Date.now());
+      });
+    }
   }
 
   private getPlayerStatesFromRoom(room: RuntimeRoom): PlayerState[] {
@@ -378,18 +434,20 @@ export class RoomStore {
   }
 
   private toRuntimeContext(room: RuntimeRoom): RuntimeContext {
-    return {
-      room,
-      roomState: this.toRoomState(room)
-    };
+    return { room, roomState: this.toRoomState(room) };
   }
 
   private toRoomState(room: RuntimeRoom): RoomStateEnvelope {
     return {
       code: room.code,
       capacity: room.capacity,
+      humanCapacity: room.capacity,
+      squadCount: SQUAD_COUNT,
+      botDifficulty: room.botDifficulty,
       status: room.status,
-      players: [...room.players.values()].map((player) => buildLobbyPlayer(player)),
+      players: [...room.players.values()]
+        .filter((player) => !player.isBot)
+        .map((player) => buildLobbyPlayer(player)),
       hostPlayerId: room.hostPlayerId
     };
   }
@@ -399,7 +457,6 @@ export class RoomStore {
     if (room.hostPlayerId !== session.playerId) {
       throw new Error("Only the host can perform this action.");
     }
-
     return room;
   }
 
@@ -408,12 +465,11 @@ export class RoomStore {
     if (!room) {
       throw new Error("Player is not currently in a room.");
     }
-
     return room;
   }
 
   private getRoomBySession(session: SocketSession): RuntimeRoom | undefined {
-    return session.roomCode ? this.rooms.get(session.roomCode) : undefined;
+    return session.roomCode ? this.rooms.get(normalizeRoomCode(session.roomCode)) : undefined;
   }
 
   private getRoomByCode(code: string): RuntimeRoom {
@@ -421,38 +477,76 @@ export class RoomStore {
     if (!room) {
       throw new Error("Room not found.");
     }
-
     return room;
   }
 
   private disposeRoom(roomCode: string): void {
-    const room = this.rooms.get(roomCode);
-    if (!room) {
-      return;
-    }
-
-    if (room.playerSyncInterval) {
-      clearInterval(room.playerSyncInterval);
-    }
-
-    if (room.matchTimerInterval) {
-      clearInterval(room.matchTimerInterval);
-    }
-
-    this.rooms.delete(roomCode);
+    const roomKey = normalizeRoomCode(roomCode);
+    const room = this.rooms.get(roomKey);
+    if (!room) return;
+    if (room.playerSyncInterval) clearInterval(room.playerSyncInterval);
+    if (room.matchTimerInterval) clearInterval(room.matchTimerInterval);
+    if (room.monsterSyncInterval) clearInterval(room.monsterSyncInterval);
+    this.rooms.delete(roomKey);
   }
 
   private generateRoomCode(): string {
     let code = "";
-
     do {
       const place = PLACE_WORDS[Math.floor(Math.random() * PLACE_WORDS.length)];
       const number = String(Math.floor(Math.random() * 100)).padStart(2, "0");
-      code = `${place}·${number}`;
-    } while (this.rooms.has(code));
-
+      code = `${place}\u8DEF${number}`;
+    } while (this.rooms.has(normalizeRoomCode(code)));
     return code;
   }
+
+  private fillBotSquads(room: RuntimeRoom): void {
+    const squadIds: BotSquadId[] = [...BOT_SQUADS];
+
+    for (const squadId of squadIds) {
+      const currentCount = [...room.players.values()].filter((player) => player.squadId === squadId).length;
+      for (let index = currentCount; index < SQUAD_SIZE; index += 1) {
+        const id = `bot_${squadId}_${index + 1}`;
+        if (room.players.has(id)) continue;
+        room.players.set(id, {
+          id,
+          socketId: id,
+          name: BOT_NAMES[squadId][index] ?? `${squadId}-${index + 1}`,
+          isHost: false,
+          ready: true,
+          joinedAt: Date.now(),
+          squadId,
+          squadType: "bot",
+          isBot: true,
+          botDifficulty: room.botDifficulty
+        });
+      }
+    }
+  }
+}
+
+function cloneLayout(layout: MatchLayout | undefined): MatchLayout {
+  if (!layout) {
+    throw new Error("Missing match layout.");
+  }
+  return {
+    templateId: layout.templateId,
+    squadSpawns: layout.squadSpawns.map((entry) => ({ ...entry, facing: { ...entry.facing } })),
+    extractZones: layout.extractZones.map((entry) => ({ ...entry })),
+    chestZones: layout.chestZones.map((entry) => ({ ...entry })),
+    safeZones: layout.safeZones.map((entry) => ({ ...entry })),
+    riverHazards: layout.riverHazards.map((entry) => ({ ...entry })),
+    safeCrossings: layout.safeCrossings.map((entry) => ({ ...entry }))
+  };
+}
+
+function rotateOffset(offset: { x: number; y: number }, facing: Vector2): Vector2 {
+  const forward = normalizeDirection(facing);
+  const right = { x: forward.y, y: -forward.x };
+  return {
+    x: right.x * offset.x + forward.x * offset.y,
+    y: right.y * offset.x + forward.y * offset.y
+  };
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -463,22 +557,16 @@ function normalizeDirection(direction: Vector2): Vector2 {
   if (!Number.isFinite(direction.x) || !Number.isFinite(direction.y)) {
     return { x: 0, y: 0 };
   }
-
   const length = Math.hypot(direction.x, direction.y);
   if (length === 0) {
     return { x: 0, y: 0 };
   }
-
-  return {
-    x: direction.x / length,
-    y: direction.y / length
-  };
+  return { x: direction.x / length, y: direction.y / length };
 }
 
 function getDirectionMagnitude(direction: Vector2): number {
   if (!Number.isFinite(direction.x) || !Number.isFinite(direction.y)) {
     return 0;
   }
-
   return clamp(Math.hypot(direction.x, direction.y), 0, 1);
 }

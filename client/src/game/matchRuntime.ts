@@ -1,4 +1,4 @@
-import type { MonsterState, PlayerState, RoomRuntimeSnapshot, WorldDrop } from "../../../shared/src/index";
+import type { MonsterState, PlayerState, RoomRuntimeSnapshot, WorldDrop, MatchLayout, MatchLayoutExtractZone } from "@gamer/shared";
 
 export interface MatchInventoryItem {
   instanceId: string;
@@ -6,9 +6,12 @@ export interface MatchInventoryItem {
   name: string;
   kind?: string;
   rarity?: string;
+  width?: number;
+  height?: number;
   x?: number;
   y?: number;
   slot?: string;
+  equipmentSlot?: string;
   healAmount?: number;
   affixes?: Array<{ key: string; value: number }>;
   modifiers?: Partial<{
@@ -48,6 +51,7 @@ export interface MatchViewState {
   secondsRemaining: number | null;
   inventory: MatchInventoryState | null;
   lastCombatText: string | null;
+  layout: MatchLayout | null;
 }
 
 type Listener = (state: MatchViewState) => void;
@@ -66,7 +70,8 @@ export class MatchRuntimeStore {
     drops: [],
     secondsRemaining: null,
     inventory: null,
-    lastCombatText: null
+    lastCombatText: null,
+    layout: null
   };
 
   private readonly listeners = new Set<Listener>();
@@ -91,56 +96,39 @@ export class MatchRuntimeStore {
       monsters: [],
       drops: [],
       inventory: null,
-      lastCombatText: null
+      lastCombatText: null,
+      layout: bootstrap.snapshot.layout ? cloneLayout(bootstrap.snapshot.layout) : null
     };
     this.emit();
   }
 
   updatePlayers(players: PlayerState[]): void {
-    this.state = {
-      ...this.state,
-      players: players.slice()
-    };
+    this.state = { ...this.state, players: players.slice() };
     this.emit();
   }
 
   updateMonsters(monsters: MonsterState[]): void {
-    this.state = {
-      ...this.state,
-      monsters: monsters.slice()
-    };
+    this.state = { ...this.state, monsters: monsters.slice() };
     this.emit();
   }
 
   updateDrops(drops: WorldDrop[]): void {
-    this.state = {
-      ...this.state,
-      drops: drops.slice()
-    };
+    this.state = { ...this.state, drops: drops.slice() };
     this.emit();
   }
 
   setTimer(secondsRemaining: number): void {
-    this.state = {
-      ...this.state,
-      secondsRemaining
-    };
+    this.state = { ...this.state, secondsRemaining };
     this.emit();
   }
 
   setInventory(inventory: MatchInventoryState): void {
-    this.state = {
-      ...this.state,
-      inventory: cloneInventory(inventory)
-    };
+    this.state = { ...this.state, inventory: cloneInventory(inventory) };
     this.emit();
   }
 
   setCombatText(text: string | null): void {
-    this.state = {
-      ...this.state,
-      lastCombatText: text
-    };
+    this.state = { ...this.state, lastCombatText: text };
     this.emit();
   }
 
@@ -150,7 +138,8 @@ export class MatchRuntimeStore {
       players: this.state.players.slice(),
       monsters: this.state.monsters.slice(),
       drops: this.state.drops.slice(),
-      inventory: this.state.inventory ? cloneInventory(this.state.inventory) : null
+      inventory: this.state.inventory ? cloneInventory(this.state.inventory) : null,
+      layout: this.state.layout ? cloneLayout(this.state.layout) : null
     };
   }
 
@@ -176,5 +165,17 @@ function cloneInventory(inventory: MatchInventoryState): MatchInventoryState {
     height: inventory.height,
     items: inventory.items.map((item) => ({ ...item })),
     equipment
+  };
+}
+
+function cloneLayout(layout: MatchLayout): MatchLayout {
+  return {
+    templateId: layout.templateId,
+    squadSpawns: layout.squadSpawns.map((entry) => ({ ...entry, facing: { ...entry.facing } })),
+    extractZones: layout.extractZones.map((entry: MatchLayoutExtractZone) => ({ ...entry })),
+    chestZones: layout.chestZones.map((entry) => ({ ...entry })),
+    safeZones: layout.safeZones.map((entry) => ({ ...entry })),
+    riverHazards: layout.riverHazards.map((entry) => ({ ...entry })),
+    safeCrossings: layout.safeCrossings.map((entry) => ({ ...entry }))
   };
 }

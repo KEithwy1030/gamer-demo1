@@ -6,7 +6,7 @@ export const INVENTORY_HEIGHT = 6;
 export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   weapon_sword_basic: {
     id: "weapon_sword_basic",
-    name: "锈蚀长剑",
+    name: "Rust Sword",
     category: "weapon",
     rarity: "common",
     size: { width: 1, height: 3 },
@@ -16,7 +16,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   },
   weapon_blade_basic: {
     id: "weapon_blade_basic",
-    name: "突袭弯刃",
+    name: "Raider Blade",
     category: "weapon",
     rarity: "common",
     size: { width: 1, height: 3 },
@@ -26,7 +26,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   },
   weapon_spear_basic: {
     id: "weapon_spear_basic",
-    name: "旧猎矛",
+    name: "Old Spear",
     category: "weapon",
     rarity: "common",
     size: { width: 1, height: 4 },
@@ -36,7 +36,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   },
   armor_head_common: {
     id: "armor_head_common",
-    name: "斥候兜帽",
+    name: "Scout Hood",
     category: "armor",
     rarity: "common",
     size: { width: 2, height: 2 },
@@ -46,7 +46,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   },
   armor_chest_common: {
     id: "armor_chest_common",
-    name: "拼接胸甲",
+    name: "Patch Chestpiece",
     category: "armor",
     rarity: "common",
     size: { width: 2, height: 3 },
@@ -56,7 +56,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   },
   armor_hands_common: {
     id: "armor_hands_common",
-    name: "握柄手套",
+    name: "Grip Gloves",
     category: "armor",
     rarity: "common",
     size: { width: 2, height: 2 },
@@ -66,7 +66,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   },
   armor_feet_common: {
     id: "armor_feet_common",
-    name: "旅者短靴",
+    name: "Road Boots",
     category: "armor",
     rarity: "common",
     size: { width: 2, height: 2 },
@@ -76,7 +76,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   },
   treasure_small_idol: {
     id: "treasure_small_idol",
-    name: "小型偶像",
+    name: "Small Idol",
     category: "treasure",
     rarity: "common",
     size: { width: 1, height: 1 },
@@ -85,7 +85,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   },
   treasure_medium_tablet: {
     id: "treasure_medium_tablet",
-    name: "石刻碑板",
+    name: "Stone Tablet",
     category: "treasure",
     rarity: "rare",
     size: { width: 1, height: 2 },
@@ -94,7 +94,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   },
   treasure_large_statue: {
     id: "treasure_large_statue",
-    name: "残破雕像",
+    name: "Broken Statue",
     category: "treasure",
     rarity: "epic",
     size: { width: 2, height: 2 },
@@ -103,7 +103,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   },
   health_potion: {
     id: "health_potion",
-    name: "回血药剂",
+    name: "Health Potion",
     category: "consumable",
     rarity: "common",
     size: { width: 1, height: 1 },

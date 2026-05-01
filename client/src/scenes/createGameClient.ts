@@ -1,4 +1,4 @@
-import Phaser from "phaser";
+﻿import Phaser from "phaser";
 import type {
   CombatEventPayload,
   MatchStartedPayload,
@@ -9,9 +9,9 @@ import type {
   SkillId,
   Vector2,
   WorldDrop
-} from "../../../shared/src/index";
-import type { InventoryUpdateEvent, SettlementEnvelope } from "../network";
-import { GameSocketClient, type ExtractProgressPayload, type GameSocketClientOptions, type Unsubscribe } from "../network";
+} from "@gamer/shared";
+import type { ExtractOpenedPayload, ExtractProgressPayload, InventoryUpdateEvent, SettlementEnvelope } from "../network";
+import { GameSocketClient, type GameSocketClientOptions, type Unsubscribe } from "../network";
 import { MatchRuntimeStore, type MatchInventoryState } from "../game";
 import type { MatchInventoryItem } from "../game/matchRuntime";
 import { translateItemName } from "../ui/itemPresentation";
@@ -65,6 +65,8 @@ export function createGameClientController(
   const subscriptions: Unsubscribe[] = [];
 
   let game: Phaser.Game | null = null;
+  let lastViewportWidth = 0;
+  let lastViewportHeight = 0;
   let extractState = createInitialExtractState();
 
   const controller: GameClientController = {
@@ -140,7 +142,16 @@ export function createGameClientController(
         startedAt: state.startedAt,
         width: state.width,
         height: state.height,
-        players: state.players
+        players: state.players,
+        layout: state.layout ?? {
+          templateId: "A",
+          squadSpawns: [],
+          extractZones: [],
+          chestZones: [],
+          safeZones: [],
+          riverHazards: [],
+          safeCrossings: []
+        }
       };
     }
   };
@@ -160,11 +171,9 @@ export function createGameClientController(
         isExtracting: false,
         progress: null,
         secondsRemaining: resolveCountdownSeconds(payload),
-        message: payload?.message ?? "撤离点现已开启。",
+        message: buildExtractMessage(payload),
         didSucceed: false,
-        x: payload?.x,
-        y: payload?.y,
-        radius: payload?.radius
+        ...resolvePrimaryExtractZone(payload)
       });
     }),
     network.onExtractProgress((payload) => {
@@ -183,17 +192,23 @@ export function createGameClientController(
         isExtracting: false,
         progress: 1,
         secondsRemaining: 0,
-        message: payload?.message ?? "撤离完成，等待结算。",
+        message: "撤离完成，正在结算",
         didSucceed: true
       });
     }),
     network.onSettlement((payload) => {
+      const selfPlayerId = controller.getSelfPlayerId();
+      if (payload && typeof payload === "object" && "playerId" in payload) {
+        const playerId = typeof payload.playerId === "string" ? payload.playerId : undefined;
+        if (playerId && playerId !== selfPlayerId) return;
+      }
+
       const settlement = normalizeSettlementPayload(payload);
       controller.setExtractState({
         isExtracting: false,
         progress: settlement.result === "success" ? 1 : null,
         secondsRemaining: 0,
-        message: settlement.result === "success" ? "结算已收到。" : `游戏结束: ${settlement.reason ?? "未知"}。`,
+        message: settlement.result === "success" ? "已成功带出物资" : `撤离失败：${settlement.reason ?? "未知原因"}`,
         didSucceed: settlement.result === "success"
       });
       options.onSettlement?.(settlement);
@@ -208,21 +223,16 @@ export function createGameClientController(
       return;
     }
 
-    // Detect if mobile portrait mode
-    const isMobilePortrait = window.innerWidth < 768 && window.innerHeight > window.innerWidth;
-    const baseWidth = isMobilePortrait ? 720 : 1280;  // Swap dimensions for portrait
-    const baseHeight = isMobilePortrait ? 1280 : 720;
-
     game = new Phaser.Game({
       type: Phaser.CANVAS,
       parent: options.parent,
-      width: baseWidth,
-      height: baseHeight,
+      width: 1280,
+      height: 720,
+      pixelArt: true,
+      antialias: false,
+      autoRound: true,
       backgroundColor: "#020617",
       scene: [GameScene],
-      input: {
-        activePointers: 3
-      },
       physics: {
         default: "arcade",
         arcade: {
@@ -231,8 +241,7 @@ export function createGameClientController(
       },
       scale: {
         mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        resizeInterval: 100
+        autoCenter: Phaser.Scale.CENTER_BOTH
       }
     });
     syncGameViewport();
@@ -281,11 +290,14 @@ export function createGameClientController(
     const resize = () => {
       const width = Math.max(1, Math.round(parent.clientWidth));
       const height = Math.max(1, Math.round(parent.clientHeight));
+      if (width === lastViewportWidth && height === lastViewportHeight) {
+        return;
+      }
+      lastViewportWidth = width;
+      lastViewportHeight = height;
       game?.scale.resize(width, height);
     };
     resize();
-    requestAnimationFrame(resize);
-    setTimeout(resize, 50);
   }
 }
 
@@ -300,45 +312,70 @@ function createInitialExtractState(): ExtractUiState {
   };
 }
 
-function resolveExtractOpen(payload: { opened?: boolean; available?: boolean } | undefined): boolean {
+function resolveExtractOpen(payload: ExtractOpenedPayload | undefined): boolean {
   if (!payload) return true;
-  return payload.opened ?? payload.available ?? true;
+  return payload.zones.some((zone) => zone.isOpen);
 }
 
-function resolveCountdownSeconds(payload: { remainingMs?: number } | undefined): number | null {
-  if (typeof payload?.remainingMs === "number") return Math.max(0, Math.ceil(payload.remainingMs / 1000));
-  return null;
+function resolveCountdownSeconds(payload: ExtractOpenedPayload | undefined): number | null {
+  const openZones = payload?.zones.filter((zone) => zone.isOpen) ?? [];
+  if (openZones.length === 0) return null;
+  return Math.max(0, Math.ceil(openZones[0]!.channelDurationMs / 1000));
+}
+
+function resolvePrimaryExtractZone(payload: ExtractOpenedPayload | undefined): { x?: number; y?: number; radius?: number } {
+  const zone = payload?.zones.find((entry) => entry.isOpen) ?? payload?.zones[0];
+  if (!zone) {
+    return {};
+  }
+  return {
+    x: zone.x,
+    y: zone.y,
+    radius: zone.radius
+  };
+}
+
+function buildExtractMessage(payload: ExtractOpenedPayload | undefined): string {
+  const zoneCount = payload?.zones.filter((zone) => zone.isOpen).length ?? 0;
+  if (zoneCount > 1) {
+    return `撤离点已开启，当前开放 ${zoneCount} 处通道`;
+  }
+  return "撤离点已开启，尽快带着物资撤离";
 }
 
 function normalizeExtractProgress(payload: ExtractProgressPayload | number | undefined): Partial<ExtractUiState> {
   if (typeof payload === "number") {
-    return {
-      isOpen: true,
-      isExtracting: payload > 0 && payload < 1,
-      progress: Phaser.Math.Clamp(payload, 0, 1),
-      secondsRemaining: null,
-      message: payload >= 1 ? "撤离完成。" : "正在撤离..."
-    };
+      return {
+        isOpen: true,
+        isExtracting: payload > 0 && payload < 1,
+        progress: Phaser.Math.Clamp(payload, 0, 1),
+        secondsRemaining: null,
+        message: payload >= 1 ? "撤离完成" : "撤离中..."
+      };
   }
-  const rawProgress = typeof payload?.progress === "number" ? payload.progress : (typeof payload?.ratio === "number" ? payload.ratio : (typeof payload?.percent === "number" ? payload.percent / 100 : (typeof payload?.durationMs === "number" && typeof payload?.remainingMs === "number" ? 1 - payload.remainingMs / Math.max(1, payload.durationMs) : null)));
+
+  const rawProgress = typeof payload?.durationMs === "number" && typeof payload?.remainingMs === "number"
+    ? 1 - payload.remainingMs / Math.max(1, payload.durationMs)
+    : null;
   const progress = rawProgress == null ? null : Phaser.Math.Clamp(rawProgress, 0, 1);
-  const secondsRemaining = typeof payload?.remainingSeconds === "number" ? Math.max(0, payload.remainingSeconds) : (typeof payload?.remainingMs === "number" ? Math.max(0, Math.ceil(payload.remainingMs / 1000)) : null);
-  const interrupted = payload?.interrupted === true || payload?.cancelled === true || payload?.status === "interrupted";
-  const active = interrupted === true ? false : (typeof payload?.active === "boolean" ? payload.active : (payload?.status === "started" || payload?.status === "progress" ? true : (progress != null ? progress > 0 && progress < 1 : false)));
+  const secondsRemaining = typeof payload?.remainingMs === "number" ? Math.max(0, Math.ceil(payload.remainingMs / 1000)) : null;
+  const interrupted = payload?.status === "interrupted";
+  const active = !interrupted && (payload?.status === "started" || payload?.status === "progress");
+
   return {
     isOpen: true,
     isExtracting: active,
     progress: interrupted ? null : progress,
     secondsRemaining,
-    message: typeof payload?.message === "string" ? payload.message : (interrupted ? "撤离被打断。" : (active ? "正在撤离..." : (progress === 1 ? "撤离完成。" : "准备撤离。"))),
+    message: interrupted ? "撤离被打断" : (active ? "撤离中..." : (progress === 1 ? "撤离完成" : "撤离点待命")),
     didSucceed: progress === 1
   };
 }
 
 function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryState {
-  const inventoryRoot = isRecord(payload.inventory) ? payload.inventory : {};
+  const inventoryRoot = payload.inventory;
   const inventoryItems = Array.isArray(inventoryRoot.items) ? inventoryRoot.items : [];
-  const rawEquipment = isRecord(payload.equipment) ? payload.equipment : (isRecord(inventoryRoot.equipment) ? inventoryRoot.equipment : {});
+  const rawEquipment = isRecord(inventoryRoot.equipment) ? inventoryRoot.equipment : {};
   return {
     width: asNumber(inventoryRoot.width, 10),
     height: asNumber(inventoryRoot.height, 6),
@@ -354,9 +391,12 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
         ),
         kind: asOptionalStringValue(item.kind),
         rarity: asOptionalStringValue(item.rarity),
+        width: asOptionalNumber(item.width),
+        height: asOptionalNumber(item.height),
         x: asOptionalNumber(entry.x),
         y: asOptionalNumber(entry.y),
         slot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot),
+        equipmentSlot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot),
         healAmount: asOptionalNumber(item.healAmount),
         modifiers: normalizeItemModifiers(item.modifiers),
         affixes: normalizeAffixes(item.affixes)
@@ -374,7 +414,10 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
           ),
           kind: asOptionalStringValue(item.kind),
           rarity: asOptionalStringValue(item.rarity),
+          width: asOptionalNumber(item.width),
+          height: asOptionalNumber(item.height),
           slot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot) ?? slot,
+          equipmentSlot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot) ?? slot,
           healAmount: asOptionalNumber(item.healAmount),
           modifiers: normalizeItemModifiers(item.modifiers),
           affixes: normalizeAffixes(item.affixes)
@@ -455,7 +498,11 @@ function normalizeSettlementPayload(payload: SettlementEnvelope | unknown): Sett
     monsterKills: asNumber(settlement.monsterKills, 0),
     extractedGold: asNumber(settlement.extractedGold, 0),
     extractedTreasureValue: asNumber(settlement.extractedTreasureValue, 0),
-    extractedItems: Array.isArray(settlement.extractedItems) ? settlement.extractedItems.map((item) => translateItemName(String(item))) : []
+    extractedItems: Array.isArray(settlement.extractedItems) ? settlement.extractedItems.map((item) => translateItemName(String(item))) : [],
+    retainedItems: Array.isArray(settlement.retainedItems) ? settlement.retainedItems.map((item) => translateItemName(String(item))) : [],
+    lostItems: Array.isArray(settlement.lostItems) ? settlement.lostItems.map((item) => translateItemName(String(item))) : [],
+    loadoutLost: settlement.loadoutLost === true,
+    profileGoldDelta: asNumber(settlement.profileGoldDelta, 0)
   };
 }
 

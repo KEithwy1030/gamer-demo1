@@ -1,13 +1,13 @@
 import crypto from "node:crypto";
-import { ITEM_DEFINITIONS } from "../../../shared/dist/data/items.js";
 import type {
   Affix,
   AffixKey,
   EquipmentSlot as SharedEquipmentSlot,
   ItemCategory,
   ItemRarity
-} from "../../../shared/dist/types/inventory.js";
-import type { MonsterType } from "../../../shared/dist/types/monsters.js";
+} from "@gamer/shared";
+import type { MonsterType } from "@gamer/shared";
+import { ITEM_DEFINITIONS } from "@gamer/shared";
 import type { DropState, EquipmentSlot, InventoryItem, RuntimeMonster, RuntimeRoom } from "../types.js";
 
 interface WeightedDefinition {

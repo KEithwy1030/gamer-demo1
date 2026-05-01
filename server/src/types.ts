@@ -1,17 +1,20 @@
 import type {
+  BotDifficulty,
   LobbyPlayer,
-  RoomSummary
-} from "../../shared/dist/types/lobby.js";
-import type {
+  InventorySnapshotPayload,
+  MatchLayout,
+  MatchLayoutExtractZone,
   MatchStartedPayload,
   PlayerState,
+  RoomStartPayload,
+  RoomSummary,
   SettlementPayload,
+  SquadId,
+  SquadType,
   Vector2,
   WeaponType
-} from "../../shared/dist/types/game.js";
-import type { Affix, ItemRarity } from "../../shared/dist/types/inventory.js";
-import type { MonsterState, MonsterType } from "../../shared/dist/types/monsters.js";
-import type { SkillId } from "../../shared/dist/types/combat.js";
+} from "@gamer/shared";
+import type { Affix, ItemRarity, MonsterState, MonsterType, SkillId } from "@gamer/shared";
 import type { Socket } from "socket.io";
 
 export interface SocketSession {
@@ -22,7 +25,6 @@ export interface SocketSession {
 }
 
 export type InventoryItemKind = "weapon" | "equipment" | "treasure" | "currency" | "consumable";
-
 export type EquipmentSlot = "weapon" | "head" | "chest" | "hands" | "shoes";
 
 export interface ItemStatModifiers {
@@ -167,30 +169,36 @@ export interface RuntimePlayerExtractState {
   lastProgressBroadcastAt?: number;
   settledAt?: number;
   settlement?: SettlementPayload;
+  zoneId?: string;
+}
+
+export interface RuntimeRoomExtractZone extends MatchLayoutExtractZone {
+  isOpen: boolean;
+  openedAt?: number;
 }
 
 export interface RuntimeRoomExtractState {
-  centerX: number;
-  centerY: number;
-  radius: number;
-  channelDurationMs: number;
-  openAtSec: number;
-  isOpen: boolean;
-  openedAt?: number;
+  zones: RuntimeRoomExtractZone[];
   matchEndedAt?: number;
 }
 
 export interface ExtractOpenedPayload {
   roomCode: string;
-  x: number;
-  y: number;
-  radius: number;
-  channelDurationMs: number;
+  zones: Array<{
+    zoneId: string;
+    x: number;
+    y: number;
+    radius: number;
+    channelDurationMs: number;
+    openAtSec: number;
+    isOpen: boolean;
+  }>;
 }
 
 export interface ExtractProgressPayload {
   roomCode: string;
   playerId: string;
+  zoneId: string;
   status: "started" | "progress" | "interrupted";
   remainingMs: number;
   durationMs: number;
@@ -200,6 +208,7 @@ export interface ExtractProgressPayload {
 export interface ExtractSuccessPayload {
   roomCode: string;
   playerId: string;
+  zoneId: string;
   extractedAt: number;
   settlement: SettlementPayload;
 }
@@ -208,6 +217,16 @@ export interface MatchSettlementEnvelope {
   roomCode: string;
   playerId: string;
   settlement: SettlementPayload;
+}
+
+export interface AttackConfirmedPayload {
+  playerId: string;
+  attackId: string;
+  weaponType: WeaponType;
+  x: number;
+  y: number;
+  direction: Vector2;
+  targetId?: string;
 }
 
 export interface ServerPlayerState {
@@ -227,11 +246,27 @@ export interface ServerPlayerState {
   damageReduction: number;
   killsPlayers: number;
   killsMonsters: number;
+  squadId: SquadId;
+  squadType: SquadType;
+  isBot: boolean;
+  isLocalPlayer?: boolean;
 }
 
 export interface RuntimePlayer extends LobbyPlayer {
   socketId: string;
   joinedAt: number;
+  squadId: SquadId;
+  squadType: SquadType;
+  isBot: boolean;
+  botDifficulty?: BotDifficulty;
+  botGoal?: "patrol" | "loot" | "hunt" | "retreat" | "extract";
+  botNextDecisionAt?: number;
+  botTargetPlayerId?: string;
+  botTargetDropId?: string;
+  botPatrolPoint?: Vector2;
+  botHomeAnchor?: Vector2;
+  botOpeningStage?: "staging" | "starter" | "contested";
+  botOpeningReleasedAt?: number;
   state?: ServerPlayerState;
   baseStats?: RuntimePlayerBaseStats;
   combat?: RuntimeCombatState;
@@ -240,6 +275,8 @@ export interface RuntimePlayer extends LobbyPlayer {
   moveInput?: Vector2;
   deathLootDropped?: boolean;
   attackCooldownEndsAt?: number;
+  lastRiverDamageAt?: number;
+  pendingLoadout?: InventorySnapshotPayload;
 }
 
 export interface RuntimeMonster extends MonsterState {
@@ -265,6 +302,7 @@ export interface MonsterRespawnEntry {
 export interface RuntimeRoom {
   code: string;
   hostPlayerId: string;
+  botDifficulty: BotDifficulty;
   capacity: number;
   status: RoomSummary["status"];
   createdAt: number;
@@ -279,14 +317,10 @@ export interface RuntimeRoom {
   drops?: Map<string, DropState>;
   chests?: Map<string, Chest>;
   extract?: RuntimeRoomExtractState;
+  matchLayout?: MatchLayout;
 }
 
-export interface RoomStartPayload {
-  code?: string;
-}
-
-export interface RoomStateEnvelope extends RoomSummary {
-}
+export interface RoomStateEnvelope extends RoomSummary {}
 
 export interface RuntimeContext {
   room: RuntimeRoom;

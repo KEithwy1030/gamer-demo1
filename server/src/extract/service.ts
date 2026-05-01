@@ -1,11 +1,9 @@
-import type { SettlementPayload } from "../../../shared/dist/types/game.js";
+import type { SettlementPayload } from "@gamer/shared";
 import {
   EXTRACT_CHANNEL_DURATION_MS,
   EXTRACT_CENTER_RADIUS,
   EXTRACT_OPEN_SEC,
-  MATCH_DURATION_SEC,
-  MATCH_MAP_HEIGHT,
-  MATCH_MAP_WIDTH
+  MATCH_DURATION_SEC
 } from "../internal-constants.js";
 import type {
   ExtractOpenedPayload,
@@ -13,7 +11,8 @@ import type {
   ExtractSuccessPayload,
   MatchSettlementEnvelope,
   RuntimePlayer,
-  RuntimeRoom
+  RuntimeRoom,
+  RuntimeRoomExtractZone
 } from "../types.js";
 
 interface ExtractUpdateResult {
@@ -29,14 +28,26 @@ type ExtractInterruptReason = "damaged" | "left_zone" | "dead" | "timeout";
 const PROGRESS_BROADCAST_INTERVAL_MS = 250;
 
 export function initializeExtractState(room: RuntimeRoom): void {
+  const layoutZones = room.matchLayout?.extractZones ?? [];
   room.extract ??= {
-    centerX: MATCH_MAP_WIDTH / 2,
-    centerY: MATCH_MAP_HEIGHT / 2,
-    radius: EXTRACT_CENTER_RADIUS,
-    channelDurationMs: EXTRACT_CHANNEL_DURATION_MS,
-    openAtSec: EXTRACT_OPEN_SEC,
-    isOpen: false
+    zones: layoutZones.map((zone) => ({
+      ...zone,
+      radius: zone.radius ?? EXTRACT_CENTER_RADIUS,
+      channelDurationMs: zone.channelDurationMs ?? EXTRACT_CHANNEL_DURATION_MS,
+      openAtSec: zone.openAtSec ?? EXTRACT_OPEN_SEC,
+      isOpen: false
+    }))
   };
+
+  if (room.extract.zones.length === 0 && layoutZones.length > 0) {
+    room.extract.zones = layoutZones.map((zone) => ({
+      ...zone,
+      radius: zone.radius ?? EXTRACT_CENTER_RADIUS,
+      channelDurationMs: zone.channelDurationMs ?? EXTRACT_CHANNEL_DURATION_MS,
+      openAtSec: zone.openAtSec ?? EXTRACT_OPEN_SEC,
+      isOpen: false
+    }));
+  }
 
   for (const player of room.players.values()) {
     player.extract ??= {};
@@ -52,7 +63,8 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
     throw new Error("Match is already settled.");
   }
 
-  if (!room.extract?.isOpen) {
+  const zone = resolveOccupiedExtractZone(room, player);
+  if (!zone?.isOpen) {
     throw new Error("Extract is not open yet.");
   }
 
@@ -64,20 +76,31 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
     throw new Error("Player already settled.");
   }
 
-  if (!isInsideExtractZone(room, player)) {
-    throw new Error("Player must stand inside the extract zone.");
+  if (
+    player.extract?.zoneId === zone.zoneId
+    && player.extract.completesAt
+    && !player.extract.settledAt
+  ) {
+    return {
+      opened,
+      progressEvents: [],
+      successEvents: [],
+      settlementEvents: [],
+      shouldCloseRoom: false
+    };
   }
 
   player.extract = {
     ...player.extract,
+    zoneId: zone.zoneId,
     startedAt: now,
-    completesAt: now + room.extract.channelDurationMs,
+    completesAt: now + zone.channelDurationMs,
     lastProgressBroadcastAt: now
   };
 
   return {
     opened,
-    progressEvents: [buildProgressPayload(room, player, "started", room.extract.channelDurationMs)],
+    progressEvents: [buildProgressPayload(room, player, zone.zoneId, "started", zone.channelDurationMs)],
     successEvents: [],
     settlementEvents: [],
     shouldCloseRoom: false
@@ -92,15 +115,17 @@ export function interruptPlayerExtract(
 ): ExtractProgressPayload | undefined {
   initializeExtractState(room);
   const player = room.players.get(playerId);
-  if (!player?.extract?.completesAt || player.extract.settledAt) {
+  if (!player?.extract?.completesAt || player.extract.settledAt || !player.extract.zoneId) {
     return undefined;
   }
 
+  const zoneId = player.extract.zoneId;
   player.extract.startedAt = undefined;
   player.extract.completesAt = undefined;
   player.extract.lastProgressBroadcastAt = now;
+  player.extract.zoneId = undefined;
 
-  return buildProgressPayload(room, player, "interrupted", 0, reason);
+  return buildProgressPayload(room, player, zoneId, "interrupted", 0, reason);
 }
 
 export function advanceExtractState(room: RuntimeRoom, now = Date.now()): ExtractUpdateResult {
@@ -144,6 +169,30 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
       continue;
     }
 
+    if (player.extract?.completesAt && player.extract.zoneId) {
+      const activeZone = room.extract?.zones.find((entry) => entry.zoneId === player.extract?.zoneId);
+      if (activeZone && isInsideExtractZone(activeZone, player) && player.extract.completesAt <= now) {
+        const settlement = settlePlayer(room, player, {
+          now,
+          result: 'success',
+          reason: 'extracted'
+        });
+        if (!settlement) {
+          continue;
+        }
+
+        successEvents.push({
+          roomCode: room.code,
+          playerId: player.id,
+          zoneId: activeZone.zoneId,
+          extractedAt: now,
+          settlement: settlement.settlement
+        });
+        settlementEvents.push(settlement);
+        continue;
+      }
+    }
+
     if (player.state && !player.state.isAlive) {
       const interruption = interruptPlayerExtract(room, player.id, "dead", now);
       if (interruption) {
@@ -161,11 +210,12 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
       continue;
     }
 
-    if (!player.extract?.completesAt) {
+    if (!player.extract?.completesAt || !player.extract.zoneId) {
       continue;
     }
 
-    if (!isInsideExtractZone(room, player)) {
+    const zone = room.extract?.zones.find((entry) => entry.zoneId === player.extract?.zoneId);
+    if (!zone || !isInsideExtractZone(zone, player)) {
       const interruption = interruptPlayerExtract(room, player.id, "left_zone", now);
       if (interruption) {
         progressEvents.push(interruption);
@@ -177,7 +227,7 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
     if (remainingMs > 0) {
       if (!player.extract.lastProgressBroadcastAt || now - player.extract.lastProgressBroadcastAt >= PROGRESS_BROADCAST_INTERVAL_MS) {
         player.extract.lastProgressBroadcastAt = now;
-        progressEvents.push(buildProgressPayload(room, player, "progress", remainingMs));
+        progressEvents.push(buildProgressPayload(room, player, zone.zoneId, "progress", remainingMs));
       }
       continue;
     }
@@ -194,6 +244,7 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
     successEvents.push({
       roomCode: room.code,
       playerId: player.id,
+      zoneId: zone.zoneId,
       extractedAt: now,
       settlement: settlement.settlement
     });
@@ -215,24 +266,32 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
 }
 
 function openExtractIfReady(room: RuntimeRoom, now: number): ExtractOpenedPayload | undefined {
-  if (!room.startedAt || !room.extract || room.extract.isOpen) {
+  if (!room.startedAt || !room.extract || room.extract.zones.every((zone) => zone.isOpen)) {
     return undefined;
   }
 
   const elapsedSec = Math.floor((now - room.startedAt) / 1000);
-  if (elapsedSec < room.extract.openAtSec) {
+  const zonesToOpen = room.extract.zones.filter((zone) => !zone.isOpen && elapsedSec >= zone.openAtSec);
+  if (zonesToOpen.length === 0) {
     return undefined;
   }
 
-  room.extract.isOpen = true;
-  room.extract.openedAt = now;
+  for (const zone of zonesToOpen) {
+    zone.isOpen = true;
+    zone.openedAt = now;
+  }
 
   return {
     roomCode: room.code,
-    x: room.extract.centerX,
-    y: room.extract.centerY,
-    radius: room.extract.radius,
-    channelDurationMs: room.extract.channelDurationMs
+    zones: room.extract.zones.map((zone) => ({
+      zoneId: zone.zoneId,
+      x: zone.x,
+      y: zone.y,
+      radius: zone.radius,
+      channelDurationMs: zone.channelDurationMs,
+      openAtSec: zone.openAtSec,
+      isOpen: zone.isOpen
+    }))
   };
 }
 
@@ -246,14 +305,12 @@ function shouldForceTimeout(room: RuntimeRoom, now: number): boolean {
 
 function areAllPlayersSettled(room: RuntimeRoom): boolean {
   let hasPlayers = false;
-
   for (const player of room.players.values()) {
     hasPlayers = true;
     if (!player.extract?.settledAt) {
       return false;
     }
   }
-
   return hasPlayers;
 }
 
@@ -277,6 +334,7 @@ function settlePlayer(
   player.extract.startedAt = undefined;
   player.extract.completesAt = undefined;
   player.extract.lastProgressBroadcastAt = undefined;
+  player.extract.zoneId = undefined;
 
   if (outcome.reason === "extracted" && player.state) {
     player.state.isAlive = false;
@@ -313,10 +371,15 @@ function buildSettlement(
       monsterKills: player.state?.killsMonsters ?? 0,
       extractedGold: extractedItems.gold,
       extractedTreasureValue: extractedItems.treasureValue,
-      extractedItems: extractedItems.names
+      extractedItems: extractedItems.names,
+      retainedItems: extractedItems.names,
+      lostItems: [],
+      loadoutLost: false,
+      profileGoldDelta: extractedItems.gold + extractedItems.treasureValue
     };
   }
 
+  const lostItems = collectAllItemNames(player);
   return {
     result: "failure",
     reason: outcome.reason,
@@ -325,7 +388,11 @@ function buildSettlement(
     monsterKills: player.state?.killsMonsters ?? 0,
     extractedGold: 0,
     extractedTreasureValue: 0,
-    extractedItems: []
+    extractedItems: [],
+    retainedItems: [],
+    lostItems,
+    loadoutLost: lostItems.length > 0,
+    profileGoldDelta: 0
   };
 }
 
@@ -342,34 +409,48 @@ function collectExtractedItems(player: RuntimePlayer): { gold: number; treasureV
   };
 }
 
+function collectAllItemNames(player: RuntimePlayer): string[] {
+  return [
+    ...(player.inventory?.items.map((entry) => entry.item.name) ?? []),
+    ...Object.values(player.inventory?.equipment ?? {})
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .map((item) => item.name)
+  ];
+}
+
 function buildProgressPayload(
   room: RuntimeRoom,
   player: RuntimePlayer,
+  zoneId: string,
   status: ExtractProgressPayload["status"],
   remainingMs: number,
   reason?: ExtractProgressPayload["reason"]
 ): ExtractProgressPayload {
+  const zone = room.extract?.zones.find((entry) => entry.zoneId === zoneId);
   return {
     roomCode: room.code,
     playerId: player.id,
+    zoneId,
     status,
     remainingMs,
-    durationMs: room.extract?.channelDurationMs ?? EXTRACT_CHANNEL_DURATION_MS,
+    durationMs: zone?.channelDurationMs ?? EXTRACT_CHANNEL_DURATION_MS,
     reason
   };
 }
 
-function isInsideExtractZone(room: RuntimeRoom, player: RuntimePlayer): boolean {
+function resolveOccupiedExtractZone(room: RuntimeRoom, player: RuntimePlayer): RuntimeRoomExtractZone | undefined {
   if (!room.extract || !player.state) {
+    return undefined;
+  }
+  return room.extract.zones.find((zone) => isInsideExtractZone(zone, player));
+}
+
+function isInsideExtractZone(zone: RuntimeRoomExtractZone, player: RuntimePlayer): boolean {
+  if (!player.state) {
     return false;
   }
-
-  const distance = Math.hypot(
-    player.state.x - room.extract.centerX,
-    player.state.y - room.extract.centerY
-  );
-
-  return distance <= room.extract.radius;
+  const distance = Math.hypot(player.state.x - zone.x, player.state.y - zone.y);
+  return distance <= zone.radius;
 }
 
 function getRuntimePlayer(room: RuntimeRoom, playerId: string): RuntimePlayer {
@@ -377,6 +458,5 @@ function getRuntimePlayer(room: RuntimeRoom, playerId: string): RuntimePlayer {
   if (!player) {
     throw new Error("Player not found in room.");
   }
-
   return player;
 }
