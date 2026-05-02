@@ -141,7 +141,13 @@ export function resolvePlayerSkillCast(
         caster,
         targets,
         scaleOutgoingDamage(caster, SKILL_DAMAGE.swordDashSlash + attackPowerBonus, now),
-        now
+        now,
+        {
+          sourceId: payload.skillId,
+          damageSourceId: caster.id,
+          slowMultiplier: 0.2,
+          slowDurationMs: 1500
+        }
       );
     }
     case "blade_sweep": {

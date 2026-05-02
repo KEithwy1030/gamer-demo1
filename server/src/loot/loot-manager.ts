@@ -234,11 +234,7 @@ function rollAffixes(slot: EquipmentSlot | undefined, rarity: ItemRarity): Affix
   }
 
   const count = AFFIX_COUNT_BY_RARITY[rarity] ?? 0;
-  if (count === 0) {
-    return [];
-  }
-
-  const pool = [...AFFIX_POOLS_BY_SLOT[slot]];
+  const pool = AFFIX_POOLS_BY_SLOT[slot].filter((key) => key !== "bleed");
   const affixes: Affix[] = [];
 
   for (let index = 0; index < count && pool.length > 0; index += 1) {
@@ -247,6 +243,13 @@ function rollAffixes(slot: EquipmentSlot | undefined, rarity: ItemRarity): Affix
     affixes.push({
       key,
       value: rollAffixValue(key)
+    });
+  }
+
+  if (slot === "weapon" && Math.random() < 0.10) {
+    affixes.push({
+      key: "bleed",
+      value: rollAffixValue("bleed")
     });
   }
 

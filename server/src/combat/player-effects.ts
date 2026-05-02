@@ -70,7 +70,7 @@ export function syncPlayerCombatState(
 
   state.maxHp = baseStats.maxHp;
   state.weaponType = baseStats.weaponType;
-  state.attackPower = baseStats.attackPower;
+  state.attackPower = Math.round(baseStats.attackPower * Math.max(0, 1 + totals.attackDamageMultiplier) * 100) / 100;
   state.attackSpeed = Math.max(0, baseStats.attackSpeed + totals.attackSpeedMultiplier);
   state.critRate = baseStats.critRate;
   state.dodgeRate = clamp(baseStats.dodgeRate + totals.dodgeRateBonus, 0, 0.75);
