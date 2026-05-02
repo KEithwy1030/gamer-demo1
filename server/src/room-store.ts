@@ -52,8 +52,10 @@ const PLACE_WORDS = [
 
 const BOT_SQUADS = ["bot_alpha", "bot_beta", "bot_gamma"] as const satisfies readonly SquadId[];
 type BotSquadId = typeof BOT_SQUADS[number];
+const ACTIVE_MATCH_SQUADS = ["player", "bot_alpha"] as const satisfies readonly SquadId[];
+const ACTIVE_BOT_SQUADS = ["bot_alpha"] as const satisfies readonly BotSquadId[];
 const BOT_NAMES: Record<BotSquadId, string[]> = {
-  bot_alpha: ["Alpha-01", "Alpha-02", "Alpha-03", "Alpha-04"],
+  bot_alpha: ["Alpha-01", "Alpha-02", "Alpha-03", "Alpha-04", "Alpha-05"],
   bot_beta: ["Beta-01", "Beta-02", "Beta-03", "Beta-04"],
   bot_gamma: ["Gamma-01", "Gamma-02", "Gamma-03", "Gamma-04"]
 };
@@ -61,7 +63,9 @@ const FORMATION_OFFSETS: Array<{ x: number; y: number }> = [
   { x: 0, y: 0 },
   { x: -170, y: 120 },
   { x: 170, y: 120 },
-  { x: 0, y: 240 }
+  { x: 0, y: 240 },
+  { x: -170, y: 360 },
+  { x: 170, y: 360 }
 ];
 
 function normalizeRoomCode(code: string): string {
@@ -240,7 +244,7 @@ export class RoomStore {
     room.matchLayout = buildMatchLayout({
       roomCode: room.code,
       startedAt: room.startedAt,
-      squadIds: ["player", ...BOT_SQUADS]
+      squadIds: [...ACTIVE_MATCH_SQUADS]
     });
     this.assignInitialStates(room);
 
@@ -372,7 +376,7 @@ export class RoomStore {
       throw new Error("Missing match layout on room start.");
     }
 
-    for (const squadId of ["player", ...BOT_SQUADS] as SquadId[]) {
+    for (const squadId of ACTIVE_MATCH_SQUADS) {
       const zone = getSquadSpawnZone(room.matchLayout, squadId);
       const squadPlayers = [...room.players.values()]
         .filter((player) => player.squadId === squadId)
@@ -501,11 +505,12 @@ export class RoomStore {
   }
 
   private fillBotSquads(room: RuntimeRoom): void {
-    const squadIds: BotSquadId[] = [...BOT_SQUADS];
+    const humanCount = [...room.players.values()].filter((player) => !player.isBot).length;
+    let botsToAdd = Math.max(0, room.capacity - humanCount);
 
-    for (const squadId of squadIds) {
+    for (const squadId of ACTIVE_BOT_SQUADS) {
       const currentCount = [...room.players.values()].filter((player) => player.squadId === squadId).length;
-      for (let index = currentCount; index < SQUAD_SIZE; index += 1) {
+      for (let index = currentCount; botsToAdd > 0; index += 1) {
         const id = `bot_${squadId}_${index + 1}`;
         if (room.players.has(id)) continue;
         room.players.set(id, {
@@ -520,6 +525,7 @@ export class RoomStore {
           isBot: true,
           botDifficulty: room.botDifficulty
         });
+        botsToAdd -= 1;
       }
     }
   }

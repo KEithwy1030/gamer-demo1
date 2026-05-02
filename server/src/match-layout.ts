@@ -57,7 +57,7 @@ export function buildMatchLayout(options: BuildMatchLayoutOptions): MatchLayout 
   const squadSpawns: MatchLayoutSpawnZone[] = [];
   const safeZones: MatchLayoutSafeZone[] = [];
 
-  nodeOffsets.forEach((nodeIndex, idx) => {
+  nodeOffsets.slice(0, options.squadIds.length).forEach((nodeIndex, idx) => {
     const angle = nodeIndexToAngle(nodeIndex);
     const anchor = pointOnRing(OUTER_RING_RADIUS, angle);
     const facing = normalize({ x: MAP_CENTER_X - anchor.x, y: MAP_CENTER_Y - anchor.y });
