@@ -78,7 +78,7 @@
   flex-direction: column;
   overflow-y: auto;
   max-height: 75vh;
-  max-width: 450px;
+  max-width: min(92vw, 920px);
   align-items: center;
 }
 
@@ -218,6 +218,8 @@
   border-top: 1px solid rgba(232, 96, 44, 0.3);
   padding-top: 20px;
   margin-top: 10px;
+  width: 100%;
+  overflow-x: auto;
 }
 
 .inventory-section h4 {
@@ -236,7 +238,8 @@
 }
 
 .inventory-grid--backpack {
-  grid-template-columns: repeat(var(--inventory-columns, 10), minmax(0, 1fr));
+  grid-template-columns: repeat(var(--inventory-columns, 30), 24px);
+  width: max-content;
   gap: 4px;
 }
 

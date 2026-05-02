@@ -20,6 +20,7 @@ export interface GameSceneInputBridgeOptions {
   onMoveInput?: (direction: Vector2) => void;
   onAttack: () => void;
   onSkill: (slotIndex: number) => void;
+  onDodge: () => void;
   onPickup: () => void;
   onExtract: () => void;
   onInventory: () => void;
@@ -133,6 +134,7 @@ export class GameSceneInputBridge {
     this.keyboardControls?.consumeActions({
       onAttack: this.options.onAttack,
       onSkill: this.options.onSkill,
+      onDodge: this.options.onDodge,
       onPickup: this.options.onPickup,
       onExtract: this.options.onExtract,
       onInventory: this.options.onInventory

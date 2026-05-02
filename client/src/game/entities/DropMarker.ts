@@ -8,12 +8,12 @@ export class DropMarker {
   constructor(scene: Phaser.Scene, drop: WorldDrop) {
     this.id = drop.id;
 
-    const ring = scene.add.ellipse(0, 12, 28, 10, 0x0e0b08, 0.36);
-    const scan = scene.add.rectangle(0, -8, 34, 2, 0xe8602c, 0.64);
+    const ring = scene.add.ellipse(0, 20, 42, 14, 0x0e0b08, 0.36);
+    const scan = scene.add.rectangle(0, -12, 46, 3, 0xe8602c, 0.64);
     const sprite = scene.add.sprite(0, 0, "drop");
-    sprite.setDisplaySize(32, 32);
+    sprite.setDisplaySize(68, 68);
 
-    const label = scene.add.text(0, 18, formatDropLabel(drop.definitionId), {
+    const label = scene.add.text(0, 36, formatDropLabel(drop.definitionId), {
       fontFamily: "Arial",
       fontSize: "10px",
       color: "#e8dfc8",

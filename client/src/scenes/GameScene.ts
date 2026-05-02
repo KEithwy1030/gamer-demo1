@@ -19,7 +19,7 @@ import { GameSceneFeedbackFx } from "./gameScene/feedbackFx";
 import {
   getPrimarySkillCooldownMs,
   getPrimarySkillWindupMs,
-  resolveSkillSlots
+  resolveSkillBySlot,
 } from "./gameScene/skillHelpers";
 
 export interface GameSceneInitData {
@@ -77,8 +77,14 @@ export class GameScene extends Phaser.Scene {
   private onToggleInventory?: () => void;
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
-  private localSkillCooldownEndsAtBySlot = [0, 0, 0];
-  private localSkillWindupEndsAtBySlot = [0, 0, 0];
+  private localSkillCooldownEndsAt = 0;
+  private localSkillWindupEndsAt = 0;
+  private readonly localSkillCooldowns = [
+    { endsAt: 0, durationMs: 0 },
+    { endsAt: 0, durationMs: 0 },
+    { endsAt: 0, durationMs: 0 },
+    { endsAt: 0, durationMs: 0 }
+  ];
   private pendingSkillCast?: Phaser.Time.TimerEvent;
 
   constructor() {
@@ -86,74 +92,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image("terrain_wasteland", "assets/wasteland-ground.png");
-    this.load.image("hud_status_panel", "assets/hud/runtime-hp.png");
-    this.load.image("hud_timer_panel", "assets/hud/asset-timer.png");
-    this.load.image("hud_command_panel", "assets/hud/asset-command.png");
-
-    // Spitesheets and textures generation...
-    const pCanvas = document.createElement("canvas");
-    pCanvas.width = 192; pCanvas.height = 192;
-    const pCtx = pCanvas.getContext("2d")!;
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 4; col++) {
-        const x = col * 48 + 24; const y = row * 48 + 24;
-        let leftLegY = 12; let rightLegY = 12;
-        if (col === 1) leftLegY += 3;
-        if (col === 3) rightLegY += 3;
-        pCtx.fillStyle = "#16130f"; pCtx.fillRect(x - 6, y + leftLegY, 4, 8); pCtx.fillRect(x + 2, y + rightLegY, 4, 8);
-        pCtx.fillStyle = "#2b2519"; pCtx.fillRect(x - 6, y - 4, 12, 16);
-        pCtx.fillStyle = "#e8dfc8"; pCtx.fillRect(x - 5, y - 14, 10, 10);
-        pCtx.fillStyle = "#e8602c";
-        if (row === 0) { pCtx.fillRect(x - 3, y - 10, 2, 2); pCtx.fillRect(x + 1, y - 10, 2, 2); }
-        else if (row === 1) { pCtx.fillRect(x - 5, y - 10, 2, 2); }
-        else if (row === 2) { pCtx.fillRect(x + 3, y - 10, 2, 2); }
-      }
-    }
-    this.textures.addSpriteSheet("player", pCanvas as any, { frameWidth: 48, frameHeight: 48 });
-
-    const mCanvas = document.createElement("canvas");
-    mCanvas.width = 128; mCanvas.height = 32;
-    const mCtx = mCanvas.getContext("2d")!;
-    for (let f = 0; f < 4; f++) {
-      const x = f * 32 + 16; const y = 16;
-      mCtx.fillStyle = "#6f2a1b"; mCtx.beginPath(); mCtx.arc(x, y, 10, 0, Math.PI * 2); mCtx.fill();
-      mCtx.fillStyle = "#16130f"; mCtx.fillRect(x - 4, y - 2, 2, 2); mCtx.fillRect(x + 2, y - 2, 2, 2);
-    }
-    this.textures.addSpriteSheet("monster", mCanvas as any, { frameWidth: 32, frameHeight: 32 });
-
-    const eCanvas = document.createElement("canvas");
-    eCanvas.width = 64; eCanvas.height = 64;
-    const eCtx = eCanvas.getContext("2d")!;
-    eCtx.fillStyle = "#b8371f"; eCtx.beginPath(); eCtx.moveTo(32, 8); eCtx.lineTo(56, 32); eCtx.lineTo(32, 56); eCtx.lineTo(8, 32); eCtx.closePath(); eCtx.fill();
-    eCtx.strokeStyle = "#e8602c"; eCtx.lineWidth = 4; eCtx.stroke();
-    this.textures.addCanvas("elite", eCanvas);
-
-    const dCanvas = document.createElement("canvas");
-    dCanvas.width = 16; dCanvas.height = 16;
-    const dCtx = dCanvas.getContext("2d")!;
-    dCtx.fillStyle = "#e8602c"; dCtx.fillRect(2, 2, 12, 12);
-    dCtx.strokeStyle = "#e8dfc8"; dCtx.lineWidth = 1; dCtx.strokeRect(2.5, 2.5, 11, 11);
-    this.textures.addCanvas("drop", dCanvas);
-
-    const bCanvas = document.createElement("canvas");
-    bCanvas.width = 64; bCanvas.height = 64;
-    const bCtx = bCanvas.getContext("2d")!;
-    bCtx.fillStyle = "#e8602c"; bCtx.fillRect(16, 16, 32, 32);
-    bCtx.fillStyle = "#e8dfc8"; bCtx.fillRect(28, 6, 8, 52);
-    this.textures.addCanvas("beacon", bCanvas);
-
-    const ccCanvas = document.createElement("canvas");
-    ccCanvas.width = 32; ccCanvas.height = 32;
-    const ccCtx = ccCanvas.getContext("2d")!;
-    ccCtx.fillStyle = "#8B4513"; ccCtx.fillRect(2, 8, 28, 22);
-    this.textures.addCanvas("chest_closed", ccCanvas);
-
-    const coCanvas = document.createElement("canvas");
-    coCanvas.width = 32; coCanvas.height = 32;
-    const coCtx = coCanvas.getContext("2d")!;
-    coCtx.fillStyle = "#8B4513"; coCtx.fillRect(2, 12, 28, 18);
-    this.textures.addCanvas("chest_open", coCanvas);
+    this.load.image("terrain_wasteland", "assets/generated/medieval-battlefield-ground-cpa-image2-20260501.png");
+    this.load.image("extract_beacon_asset", "assets/generated/medieval-extract-marker-cpa-image2-256-20260501.png");
+    this.load.spritesheet("unit_player_sword", "assets/generated/image2_processed/characters/unit_player_sword_sheet_8x4.png", { frameWidth: 222, frameHeight: 222 });
+    this.load.spritesheet("unit_player_blade", "assets/generated/image2_processed/characters/unit_player_blade_sheet_8x4.png", { frameWidth: 222, frameHeight: 222 });
+    this.load.spritesheet("unit_player_spear", "assets/generated/image2_processed/characters/unit_player_spear_sheet_8x4.png", { frameWidth: 222, frameHeight: 222 });
+    this.load.spritesheet("unit_enemy_raider", "assets/generated/image2_processed/characters/unit_enemy_raider_sheet_4x4.png", { frameWidth: 314, frameHeight: 314 });
+    this.load.spritesheet("monster_normal_sheet", "assets/generated/image2_processed/monsters/monster_normal_sheet_4x4.png", { frameWidth: 314, frameHeight: 314 });
+    this.load.spritesheet("monster_elite_sheet", "assets/generated/image2_processed/monsters/monster_elite_sheet_4x4.png", { frameWidth: 314, frameHeight: 314 });
+    this.load.spritesheet("world_structures", "assets/generated/image2_processed/atlases/atlas_world_structures_3x3.png", { frameWidth: 418, frameHeight: 418 });
+    this.load.image("drop", "assets/generated/image2_processed/items/loot_drop_bag.png");
+    this.load.image("chest_closed", "assets/generated/image2_processed/items/loot_chest_closed.png");
+    this.load.image("chest_open", "assets/generated/image2_processed/items/loot_chest_open.png");
+    this.load.image("icon_weapon_sword", "assets/generated/image2_processed/items/icon_weapon_sword.png");
+    this.load.image("icon_weapon_blade", "assets/generated/image2_processed/items/icon_weapon_blade.png");
+    this.load.image("icon_weapon_spear", "assets/generated/image2_processed/items/icon_weapon_spear.png");
+    this.load.image("hud_panel_status", "assets/generated/hud_single/medieval-hud-status-cpa-image2-20260501.png");
+    this.load.image("hud_panel_objective", "assets/generated/hud_single/medieval-hud-objective-cpa-image2-20260501.png");
+    this.load.image("hud_panel_timer", "assets/generated/hud_single/medieval-hud-timer-cpa-image2-20260501.png");
+    this.load.image("hud_panel_command", "assets/generated/hud_single/medieval-hud-command-cpa-image2-20260501.png");
+    this.load.image("hud_panel_skills", "assets/generated/hud_single/medieval-hud-skills-cpa-image2-20260501.png");
   }
 
   init(data: GameSceneInitData): void {
@@ -175,6 +133,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleServerPlayerAttack(payload: { playerId: string; attackId: string }): void {
+    const player = this.latestState?.players.find((entry) => entry.id === payload.playerId);
+    this.playerMarkers.get(payload.playerId)?.playAction("attack", player?.direction);
     this.feedbackFx?.handleServerPlayerAttack(
       payload,
       this.latestState,
@@ -187,15 +147,41 @@ export class GameScene extends Phaser.Scene {
     this.feedbackFx?.handleCombatResult(payload, this.latestState, this.playerMarkers, this.monsterMarkers);
   }
 
+  private createUnitAnimations(): void {
+    const directions = ["down", "left", "right", "up"] as const;
+    const playerSheets: WeaponType[] = ["sword", "blade", "spear"];
+
+    for (const weaponType of playerSheets) {
+      for (const [row, direction] of directions.entries()) {
+        const base = row * 8;
+        this.createAnimation(`player-${weaponType}-move-${direction}`, `unit_player_${weaponType}`, [base, base + 1, base + 2, base + 3], 8, -1);
+        this.createAnimation(`player-${weaponType}-attack-${direction}`, `unit_player_${weaponType}`, [base + 4, base + 5], 14, 0);
+        this.createAnimation(`player-${weaponType}-skill-${direction}`, `unit_player_${weaponType}`, [base + 5, base + 6, base + 7], 12, 0);
+        this.createAnimation(`player-${weaponType}-dodge-${direction}`, `unit_player_${weaponType}`, [base + 6, base + 7], 16, 0);
+        this.createAnimation(`player-${weaponType}-hurt-${direction}`, `unit_player_${weaponType}`, [base + 6, base], 12, 0);
+        this.createAnimation(`player-${weaponType}-die-${direction}`, `unit_player_${weaponType}`, [base + 7], 1, 0);
+      }
+    }
+
+    this.createAnimation("monster-normal-sway", "monster_normal_sheet", [0, 1, 2, 3, 2, 1], 6, -1);
+    this.createAnimation("monster-elite-sway", "monster_elite_sheet", [0, 1, 2, 3, 2, 1], 5, -1);
+  }
+
+  private createAnimation(key: string, textureKey: string, frames: number[], frameRate: number, repeat: number): void {
+    if (this.anims.exists(key)) return;
+    this.anims.create({
+      key,
+      frames: frames.map((frame) => ({ key: textureKey, frame })),
+      frameRate,
+      repeat
+    });
+  }
+
   create(): void {
     this.cameras.main.setBackgroundColor("#0e0b08");
     const touchLayout = shouldUseTouchLayout();
-    this.cameras.main.setZoom(touchLayout ? 0.68 : 0.52);
-    this.anims.create({ key: "player-walk-down", frames: this.anims.generateFrameNumbers("player", { start: 0, end: 3 }), frameRate: 12, repeat: -1 });
-    this.anims.create({ key: "player-walk-left", frames: this.anims.generateFrameNumbers("player", { start: 4, end: 7 }), frameRate: 12, repeat: -1 });
-    this.anims.create({ key: "player-walk-right", frames: this.anims.generateFrameNumbers("player", { start: 8, end: 11 }), frameRate: 12, repeat: -1 });
-    this.anims.create({ key: "player-walk-up", frames: this.anims.generateFrameNumbers("player", { start: 12, end: 15 }), frameRate: 12, repeat: -1 });
-    this.anims.create({ key: "monster-sway", frames: this.anims.generateFrameNumbers("monster", { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
+    this.cameras.main.setZoom(touchLayout ? 0.86 : 0.96);
+    this.createUnitAnimations();
 
     this.hudOverlay = new GameHudOverlay(this, touchLayout);
     this.hudOverlay.mount();
@@ -207,6 +193,7 @@ export class GameScene extends Phaser.Scene {
       onMoveInput: this.onMoveInput,
       onAttack: () => this.handleAttack(),
       onSkill: (slotIndex) => this.handleSkill(slotIndex),
+      onDodge: () => this.handleDodge(),
       onPickup: () => this.handleInteract(),
       onExtract: () => this.onStartExtract?.(),
       onInventory: () => this.handleToggleInventory()
@@ -223,45 +210,57 @@ export class GameScene extends Phaser.Scene {
       this.hudOverlay?.sync({
         state,
         extractState: this.extractState,
-        skillCooldownEndsAtBySlot: this.localSkillCooldownEndsAtBySlot,
-        skillWindupEndsAtBySlot: this.localSkillWindupEndsAtBySlot
+        skillCooldownEndsAt: this.localSkillCooldownEndsAt,
+        skillWindupEndsAt: this.localSkillWindupEndsAt,
+        skillCooldowns: this.localSkillCooldowns
       });
     });
   }
 
   private handleAttack(): void {
+    const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
+    const direction = this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
+    if (self) this.playerMarkers.get(self.id)?.playAction("attack", direction);
     this.feedbackFx?.playLocalAttack(
       this.latestState,
-      this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 }
+      direction
     );
     this.onAttack?.();
   }
 
   private handleSkill(slotIndex = 0): void {
-    const sid = resolveSkillSlots(this.latestState)[slotIndex];
+    const sid = resolveSkillBySlot(this.latestState, slotIndex);
     if (!sid) return;
 
     const now = Date.now();
-    if (now < this.localSkillWindupEndsAtBySlot[slotIndex] || now < this.localSkillCooldownEndsAtBySlot[slotIndex]) return;
+    const slot = Math.max(0, Math.min(2, slotIndex));
+    const slotCooldown = this.localSkillCooldowns[slot];
+    if (now < this.localSkillWindupEndsAt || now < slotCooldown.endsAt) return;
 
     const windupMs = getPrimarySkillWindupMs(sid);
-    this.localSkillWindupEndsAtBySlot[slotIndex] = now + windupMs;
-    this.localSkillCooldownEndsAtBySlot[slotIndex] = now + windupMs + getPrimarySkillCooldownMs(sid);
+    const cooldownMs = getPrimarySkillCooldownMs(sid);
+    this.localSkillWindupEndsAt = now + windupMs;
+    this.localSkillCooldownEndsAt = now + windupMs + cooldownMs;
+    this.localSkillCooldowns[slot] = { endsAt: this.localSkillCooldownEndsAt, durationMs: cooldownMs };
     this.pendingSkillCast?.remove(false);
+    const direction = this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
     this.feedbackFx?.playLocalSkill(
       sid,
       windupMs > 0 ? "windup" : "cast",
       this.latestState,
-      this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 }
+      direction
     );
 
     if (windupMs > 0) {
       this.pendingSkillCast = this.time.delayedCall(windupMs, () => {
+        const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
+        const castDirection = this.inputBridge?.getLastFacingDirection() ?? direction;
+        if (self) this.playerMarkers.get(self.id)?.playAction("skill", castDirection);
         this.feedbackFx?.playLocalSkill(
           sid,
           "cast",
           this.latestState,
-          this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 }
+          castDirection
         );
         this.onSkill?.(sid);
         this.pendingSkillCast = undefined;
@@ -269,7 +268,27 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
+    if (self) this.playerMarkers.get(self.id)?.playAction("skill", direction);
     this.onSkill?.(sid);
+  }
+
+  private handleDodge(): void {
+    const now = Date.now();
+    const cooldownMs = getPrimarySkillCooldownMs("common_dodge");
+    if (now < this.localSkillWindupEndsAt || now < this.localSkillCooldowns[3].endsAt) return;
+    this.localSkillCooldownEndsAt = now + cooldownMs;
+    this.localSkillCooldowns[3] = { endsAt: this.localSkillCooldownEndsAt, durationMs: cooldownMs };
+    const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
+    const direction = this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
+    if (self) this.playerMarkers.get(self.id)?.playAction("dodge", direction);
+    this.feedbackFx?.playLocalSkill(
+      "common_dodge",
+      "cast",
+      this.latestState,
+      direction
+    );
+    this.onSkill?.("common_dodge");
   }
 
   private handleInteract(): void {
@@ -292,6 +311,15 @@ export class GameScene extends Phaser.Scene {
 
     this.inputBridge?.update(time);
     this.tickExtractBeacon(time);
+    if (this.latestState) {
+      this.hudOverlay?.sync({
+        state: this.latestState,
+        extractState: this.extractState,
+        skillCooldownEndsAt: this.localSkillCooldownEndsAt,
+        skillWindupEndsAt: this.localSkillWindupEndsAt,
+        skillCooldowns: this.localSkillCooldowns
+      });
+    }
     this.hudOverlay?.pinToCamera();
 
     const sid = this.latestState?.selfPlayerId;
@@ -314,8 +342,9 @@ export class GameScene extends Phaser.Scene {
       this.hudOverlay?.sync({
         state: this.latestState,
         extractState: this.extractState,
-        skillCooldownEndsAtBySlot: this.localSkillCooldownEndsAtBySlot,
-        skillWindupEndsAtBySlot: this.localSkillWindupEndsAtBySlot
+        skillCooldownEndsAt: this.localSkillCooldownEndsAt,
+        skillWindupEndsAt: this.localSkillWindupEndsAt,
+        skillCooldowns: this.localSkillCooldowns
       });
       this.syncWorld(this.latestState);
     }
@@ -336,7 +365,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private syncWorld(state: MatchViewState): void {
-    const nextSignature = `${state.width}x${state.height}`;
+    const layoutSignature = state.layout
+      ? [
+        state.layout.templateId,
+        ...state.layout.riverHazards.map((entry) => `${entry.hazardId}:${entry.x},${entry.y},${entry.width},${entry.height}`),
+        ...state.layout.safeCrossings.map((entry) => `${entry.crossingId}:${entry.x},${entry.y},${entry.width},${entry.height}`)
+      ].join("|")
+      : "no-layout";
+    const nextSignature = `${state.width}x${state.height}:${layoutSignature}`;
     if (this.worldSignature !== nextSignature) {
       this.worldBackdrop = rebuildWorldBackdrop(this, this.worldBackdrop, state);
       this.worldSignature = nextSignature;

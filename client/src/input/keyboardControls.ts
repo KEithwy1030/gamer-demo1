@@ -8,6 +8,7 @@ export interface Vector2 {
 export interface KeyboardActionHandlers {
   onAttack?(): void;
   onSkill?(slotIndex: number): void;
+  onDodge?(): void;
   onPickup?(): void;
   onExtract?(): void;
   onInventory?(): void;
@@ -31,8 +32,8 @@ function readAxis(
 export function createKeyboardControls(
   keyboard: Phaser.Input.Keyboard.KeyboardPlugin
 ): KeyboardControlsApi {
-  const keys = keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,Q,R,E,F,I,B,T,TAB") as Record<
-    "W" | "A" | "S" | "D" | "UP" | "DOWN" | "LEFT" | "RIGHT" | "SPACE" | "Q" | "R" | "E" | "F" | "I" | "B" | "T" | "TAB",
+  const keys = keyboard.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,Q,R,T,SHIFT,E,F,I,B,TAB") as Record<
+    "W" | "A" | "S" | "D" | "UP" | "DOWN" | "LEFT" | "RIGHT" | "SPACE" | "Q" | "R" | "T" | "SHIFT" | "E" | "F" | "I" | "B" | "TAB",
     Phaser.Input.Keyboard.Key
   >;
 
@@ -61,6 +62,10 @@ export function createKeyboardControls(
 
       if (Phaser.Input.Keyboard.JustDown(keys.T)) {
         handlers.onSkill?.(2);
+      }
+
+      if (Phaser.Input.Keyboard.JustDown(keys.SHIFT)) {
+        handlers.onDodge?.();
       }
 
       if (Phaser.Input.Keyboard.JustDown(keys.E)) {

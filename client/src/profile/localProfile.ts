@@ -1,4 +1,14 @@
-import type { Affix, BotDifficulty, EquipmentSlot, InventorySnapshotPayload, ItemCategory, ItemRarity, SettlementPayload } from "@gamer/shared";
+import {
+  INVENTORY_HEIGHT,
+  INVENTORY_WIDTH,
+  type Affix,
+  type BotDifficulty,
+  type EquipmentSlot,
+  type InventorySnapshotPayload,
+  type ItemCategory,
+  type ItemRarity,
+  type SettlementPayload
+} from "@gamer/shared";
 import type { MatchInventoryItem, MatchInventoryState } from "../game/matchRuntime";
 
 export interface LocalRunSummary {
@@ -65,8 +75,6 @@ export interface LocalProfileMovePayload {
 
 const STORAGE_KEY = "liuhuang.localProfile.v2";
 const LEGACY_STORAGE_KEY = "liuhuang.localProfile.v1";
-const INVENTORY_WIDTH = 10;
-const INVENTORY_HEIGHT = 6;
 const STASH_WIDTH = 10;
 const STASH_HEIGHT = 8;
 const STASH_PAGE_COUNT = 5;
@@ -327,8 +335,8 @@ function normalizeSettlementItems(runtimeInventory: MatchInventoryState | null |
 function normalizeInventoryGrid(raw: unknown, defaultWidth: number, defaultHeight: number): LocalInventoryGrid {
   const record = isRecord(raw) ? raw : {};
   return {
-    width: toNumber(record.width, defaultWidth),
-    height: toNumber(record.height, defaultHeight),
+    width: Math.max(defaultWidth, toNumber(record.width, defaultWidth)),
+    height: Math.max(defaultHeight, toNumber(record.height, defaultHeight)),
     items: normalizeGridItems(record.items)
   };
 }

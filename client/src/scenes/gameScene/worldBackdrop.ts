@@ -11,11 +11,13 @@ export interface WorldBackdropRefs {
   extractInnerRing?: Phaser.GameObjects.Arc;
   extractBeacon?: Phaser.GameObjects.Container;
   extractLabel?: Phaser.GameObjects.Text;
+  crossingSprites: Phaser.GameObjects.GameObject[];
   regionLabels: Phaser.GameObjects.Text[];
 }
 
 export function createWorldBackdropRefs(): WorldBackdropRefs {
   return {
+    crossingSprites: [],
     regionLabels: []
   };
 }
@@ -32,6 +34,7 @@ export function rebuildWorldBackdrop(
   refs.extractInnerRing?.destroy();
   refs.extractBeacon?.destroy(true);
   refs.extractLabel?.destroy();
+  refs.crossingSprites.forEach((sprite) => sprite.destroy());
   refs.regionLabels.forEach((label) => label.destroy());
 
   const width = state.width;
@@ -44,14 +47,15 @@ export function rebuildWorldBackdrop(
 
   const detailLayer = scene.add.graphics();
   detailLayer.setDepth(-35);
-  detailLayer.fillStyle(0x241912, 0.24);
-  detailLayer.fillCircle(centerX, centerY, 250);
-  detailLayer.lineStyle(8, GAMEPLAY_THEME.colors.iron900, 0.48);
-  detailLayer.strokeCircle(centerX, centerY, 248);
-  detailLayer.lineStyle(3, GAMEPLAY_THEME.colors.signal, 0.22);
-  detailLayer.strokeCircle(centerX, centerY, 148);
+  detailLayer.fillStyle(0x2a2118, 0.2);
+  detailLayer.fillCircle(centerX, centerY, 260);
+  detailLayer.lineStyle(8, GAMEPLAY_THEME.colors.iron900, 0.5);
+  detailLayer.strokeCircle(centerX, centerY, 252);
+  detailLayer.lineStyle(3, GAMEPLAY_THEME.colors.signal, 0.16);
+  detailLayer.strokeCircle(centerX, centerY, 154);
 
-  drawToxicRiver(detailLayer, width, height);
+  drawCorpseRiver(detailLayer, state);
+  const crossingSprites = drawSafeCrossings(scene, state);
 
   const atmosphereLayer = scene.add.graphics();
   atmosphereLayer.setDepth(-10);
@@ -66,10 +70,11 @@ export function rebuildWorldBackdrop(
     extractInnerRing: undefined,
     extractBeacon: undefined,
     extractLabel: undefined,
+    crossingSprites,
     regionLabels: [
       createRegionLabel(scene, width * 0.18, height * 0.16, "拾荒者山脊"),
-      createRegionLabel(scene, width * 0.82, height * 0.15, "泥沼低地"),
-      createRegionLabel(scene, centerX, centerY - 182, "中央中继站"),
+      createRegionLabel(scene, width * 0.82, height * 0.15, "尸毒溶河"),
+      createRegionLabel(scene, centerX, centerY - 182, "归营石阵"),
       createRegionLabel(scene, width * 0.18, height * 0.84, "货运堆场"),
       createRegionLabel(scene, width * 0.84, height * 0.84, "破碎洼地")
     ]
@@ -101,14 +106,14 @@ export function syncExtractBackdrop(
   extractBeacon.setPosition(centerX, centerY - 8);
 
   const extractLabel = refs.extractLabel
-    ?? scene.add.text(centerX, centerY + 112, "撤离点", {
+    ?? scene.add.text(centerX, centerY + 126, "归营石阵", {
       fontFamily: GAMEPLAY_THEME.fonts.display,
       fontSize: "20px",
       color: "#e8dfc8",
       stroke: "#16130f",
       strokeThickness: 6
     }).setOrigin(0.5).setDepth(-4);
-  extractLabel.setText(extractState.isOpen ? "撤离点已开启" : "撤离点未开启");
+  extractLabel.setText(extractState.isOpen ? "归营火已点燃" : "归营火未点燃");
 
   return {
     ...refs,
@@ -119,21 +124,59 @@ export function syncExtractBackdrop(
   };
 }
 
-function drawToxicRiver(layer: Phaser.GameObjects.Graphics, width: number, height: number): void {
-  layer.lineStyle(74, 0x243c2a, 0.24);
-  layer.beginPath();
-  layer.moveTo(width * 0.04, height * 0.31);
-  layer.lineTo(width * 0.2, height * 0.38);
-  layer.lineTo(width * 0.39, height * 0.34);
-  layer.lineTo(width * 0.56, height * 0.48);
-  layer.lineTo(width * 0.77, height * 0.45);
-  layer.lineTo(width * 0.96, height * 0.58);
-  layer.strokePath();
+function drawCorpseRiver(layer: Phaser.GameObjects.Graphics, state: MatchViewState): void {
+  const hazards = state.layout?.riverHazards ?? [];
+  if (hazards.length === 0) return;
 
-  layer.lineStyle(30, 0x5d6a36, 0.14);
-  layer.strokePath();
-  layer.lineStyle(3, GAMEPLAY_THEME.colors.caution, 0.08);
-  layer.strokePath();
+  for (const hazard of hazards) {
+    layer.fillStyle(0x26331e, 0.08);
+    layer.fillRect(hazard.x, hazard.y, hazard.width, hazard.height);
+    layer.fillStyle(0x5d6a36, 0.06);
+    layer.fillRect(hazard.x + hazard.width * 0.18, hazard.y, hazard.width * 0.64, hazard.height);
+    layer.lineStyle(3, GAMEPLAY_THEME.colors.caution, 0.16);
+    layer.lineBetween(hazard.x + 8, hazard.y, hazard.x + 8, hazard.y + hazard.height);
+    layer.lineBetween(hazard.x + hazard.width - 8, hazard.y, hazard.x + hazard.width - 8, hazard.y + hazard.height);
+    layer.lineStyle(2, 0x9aa35a, 0.08);
+    for (let y = hazard.y + 120; y < hazard.y + hazard.height; y += 180) {
+      layer.lineBetween(hazard.x + 44, y, hazard.x + hazard.width - 44, y + 48);
+    }
+  }
+}
+
+function drawSafeCrossings(scene: Phaser.Scene, state: MatchViewState): Phaser.GameObjects.GameObject[] {
+  const crossings = state.layout?.safeCrossings ?? [];
+  return crossings.map((crossing) => {
+    const graphics = scene.add.graphics();
+    graphics.setDepth(-30);
+
+    if (crossing.crossingId === "extract_plaza") {
+      const cx = crossing.x + crossing.width / 2;
+      const cy = crossing.y + crossing.height / 2;
+      graphics.fillStyle(0x2a2118, 0.16);
+      graphics.fillCircle(cx, cy, 270);
+      graphics.lineStyle(18, 0xb7c0c7, 0.16);
+      graphics.strokeCircle(cx, cy, 236);
+      graphics.lineStyle(5, GAMEPLAY_THEME.colors.bone, 0.18);
+      graphics.strokeCircle(cx, cy, 156);
+      return graphics;
+    }
+
+    const padX = Math.min(86, crossing.width * 0.12);
+    const padY = Math.min(64, crossing.height * 0.2);
+    const x = crossing.x + padX;
+    const y = crossing.y + padY;
+    const width = crossing.width - padX * 2;
+    const height = crossing.height - padY * 2;
+    graphics.fillStyle(0x5b5346, 0.58);
+    graphics.fillRoundedRect(x, y, width, height, 14);
+    graphics.lineStyle(5, 0xd4b24c, 0.3);
+    graphics.strokeRoundedRect(x, y, width, height, 14);
+    graphics.lineStyle(2, 0x16130f, 0.18);
+    for (let offset = 56; offset < width; offset += 72) {
+      graphics.lineBetween(x + offset, y + 12, x + offset - 20, y + height - 12);
+    }
+    return graphics;
+  });
 }
 
 function createRegionLabel(
@@ -160,9 +203,9 @@ function createExtractBeacon(
 ): Phaser.GameObjects.Container {
   const beacon = scene.add.container(x, y - 8);
   beacon.setDepth(-4);
-  const glow = scene.add.circle(0, -12, 32, GAMEPLAY_THEME.colors.accent, 0.12);
-  const img = scene.add.image(0, 0, "beacon");
-  img.setDisplaySize(64, 64);
+  const glow = scene.add.circle(0, -6, 74, GAMEPLAY_THEME.colors.signal, 0.13);
+  const img = scene.add.image(0, 0, "extract_beacon_asset");
+  img.setDisplaySize(138, 138);
   beacon.add([glow, img]);
   return beacon;
 }

@@ -75,7 +75,7 @@ export class MockLobbyController implements LobbyController {
 
     mockRooms.set(roomCode, {
       roomCode,
-      capacity: 4,
+      capacity: 20,
       botDifficulty,
       players: [hostPlayer],
     });

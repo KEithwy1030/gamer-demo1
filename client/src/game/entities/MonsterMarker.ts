@@ -1,6 +1,9 @@
 import Phaser from "phaser";
 import type { MonsterState } from "@gamer/shared";
 
+const NORMAL_MONSTER_FRAME_SIZE = 120;
+const ELITE_MONSTER_FRAME_SIZE = 158;
+
 export class MonsterMarker {
   readonly id: string;
   readonly root: Phaser.GameObjects.Container;
@@ -23,21 +26,23 @@ export class MonsterMarker {
     this.targetY = monster.y;
     this.isAlive = monster.isAlive;
 
-    this.shadow = scene.add.ellipse(0, 16, 28, 10, 0x0e0b08, 0.42);
+    this.shadow = scene.add.ellipse(0, 40, monster.type === "elite" ? 92 : 72, monster.type === "elite" ? 28 : 22, 0x0e0b08, 0.42);
     
-    const assetKey = monster.type === "elite" ? "elite" : "monster";
-    this.sprite = scene.add.sprite(0, 0, assetKey);
-    this.sprite.setDisplaySize(monster.type === "elite" ? 56 : 36, monster.type === "elite" ? 56 : 36);
+    const assetKey = monster.type === "elite" ? "monster_elite_sheet" : "monster_normal_sheet";
+    this.sprite = scene.add.sprite(0, 8, assetKey);
+    const displaySize = monster.type === "elite" ? ELITE_MONSTER_FRAME_SIZE : NORMAL_MONSTER_FRAME_SIZE;
+    this.sprite.setDisplaySize(displaySize, displaySize);
 
-    if (monster.type !== "elite") {
-      this.sprite.anims.play("monster-sway", true);
+    const idleKey = monster.type === "elite" ? "monster-elite-sway" : "monster-normal-sway";
+    if (scene.anims.exists(idleKey)) {
+      this.sprite.anims.play(idleKey, true);
     }
 
-    this.hpTrack = scene.add.rectangle(0, -28, 36, 6, 0x16130f, 0.92);
-    this.hpFill = scene.add.rectangle(-18, -28, 36, 6, 0xb8371f, 1);
+    this.hpTrack = scene.add.rectangle(0, monster.type === "elite" ? -88 : -72, monster.type === "elite" ? 64 : 52, 7, 0x16130f, 0.92);
+    this.hpFill = scene.add.rectangle(monster.type === "elite" ? -32 : -26, monster.type === "elite" ? -88 : -72, monster.type === "elite" ? 64 : 52, 7, 0xb8371f, 1);
     this.hpFill.setOrigin(0, 0.5);
 
-    this.label = scene.add.text(0, 24, monster.type === "elite" ? "精英" : "游荡者", {
+    this.label = scene.add.text(0, monster.type === "elite" ? 76 : 62, monster.type === "elite" ? "精英" : "游荡者", {
       fontFamily: "monospace",
       fontSize: "12px",
       fontStyle: "bold",
@@ -62,16 +67,19 @@ export class MonsterMarker {
   sync(monster: MonsterState): void {
     if (this.isAlive && !monster.isAlive) {
       this.emitDeathParticles();
+      this.targetX = this.root.x;
+      this.targetY = this.root.y;
+    } else {
+      this.targetX = monster.x;
+      this.targetY = monster.y;
     }
     this.isAlive = monster.isAlive;
-    this.targetX = monster.x;
-    this.targetY = monster.y;
     this.applyState(monster);
   }
 
   private emitDeathParticles(): void {
     const scene = this.root.scene;
-    const color = this.sprite.texture.key === "elite" ? 0xdc2626 : 0xf97316;
+    const color = this.sprite.texture.key === "monster_elite_sheet" ? 0xdc2626 : 0xf97316;
     
     const emitter = scene.add.particles(this.root.x, this.root.y, "drop", {
       lifespan: 600,
@@ -119,6 +127,12 @@ export class MonsterMarker {
   }
 
   step(alpha: number): void {
+    if (!this.isAlive) {
+      if (Math.abs(this.root.depth - this.root.y) > 0.5) {
+        this.root.setDepth(this.root.y);
+      }
+      return;
+    }
     this.root.x = Phaser.Math.Linear(this.root.x, this.targetX, alpha);
     this.root.y = Phaser.Math.Linear(this.root.y, this.targetY, alpha);
     if (Math.abs(this.root.depth - this.root.y) > 0.5) {
@@ -140,7 +154,7 @@ export class MonsterMarker {
     this.isAlive = monster.isAlive;
     this.lastHp = monster.hp;
 
-    const hpWidth = Math.max(0, 36 * hpRatio);
+    const hpWidth = Math.max(0, (monster.type === "elite" ? 64 : 52) * hpRatio);
     if (Math.abs(this.lastHpWidth - hpWidth) > 0.5) {
       this.hpFill.width = hpWidth;
       this.lastHpWidth = hpWidth;
@@ -156,17 +170,27 @@ export class MonsterMarker {
       this.root.setAlpha(1);
       this.sprite.setVisible(true);
       this.sprite.clearTint();
+      this.sprite.setAngle(0);
+      this.sprite.setAlpha(1);
+      this.shadow.setAlpha(1);
       this.label.setVisible(true);
       this.hpTrack.setVisible(true);
       this.hpFill.setVisible(true);
     } else {
-      // Monster is dead - show corpse for 10 seconds
-      // Keep sprite visible but remove HP bar and label
+      this.sprite.anims.stop();
+      this.sprite.setFrame(resolveCorpseFrame(monster.type));
       this.sprite.setVisible(true);
-      this.sprite.setTint(0x666666); // Gray tint for corpse
+      this.sprite.setTint(0x5f5149);
+      this.sprite.setAngle(monster.type === "elite" ? -70 : 72);
+      this.sprite.setAlpha(0.62);
+      this.shadow.setAlpha(0.2);
       this.label.setVisible(false);
       this.hpTrack.setVisible(false);
       this.hpFill.setVisible(false);
     }
   }
+}
+
+function resolveCorpseFrame(type: MonsterState["type"]): number {
+  return type === "elite" ? 7 : 7;
 }

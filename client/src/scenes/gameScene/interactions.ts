@@ -25,6 +25,7 @@ export class GameSceneInteractions {
         chests.forEach((chest) => {
           if (!this.chestSprites.has(chest.chestId)) {
             const sprite = this.scene.add.image(chest.x, chest.y, chest.isOpen ? "chest_open" : "chest_closed").setDepth(chest.y);
+            sprite.setDisplaySize(92, 92);
             this.chestSprites.set(chest.chestId, sprite);
             if (!chest.isOpen) {
               const label = this.scene.add.text(chest.x, chest.y - 30, "宝箱", {

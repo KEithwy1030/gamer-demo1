@@ -29,7 +29,7 @@ interface LobbyViewCallbacks {
   onStashMoveItem(payload: LocalProfileMovePayload): void;
 }
 
-const MAX_VISIBLE_SLOTS = 6;
+const MAX_VISIBLE_SLOTS = 20;
 
 const createElement = <K extends keyof HTMLElementTagNameMap>(
   tagName: K,
@@ -179,7 +179,7 @@ export class LobbyView {
       createElement("div", "room-code-value", "调整人数"),
     );
     this.capacitySelect = createElement("select", "code-input") as HTMLSelectElement;
-    [1, 2, 3, 4].forEach((value) => {
+    Array.from({ length: 20 }, (_, index) => index + 1).forEach((value) => {
       const option = document.createElement("option");
       option.value = String(value);
       option.textContent = `${value} 人`;
@@ -378,7 +378,7 @@ export class LobbyView {
     this.playerNameInput.value = state.playerName;
     this.roomCodeInput.value = state.roomCodeInput;
     this.botDifficultySelect.value = state.botDifficulty;
-    this.capacitySelect.value = String(state.currentRoom?.capacity ?? 4);
+    this.capacitySelect.value = String(state.currentRoom?.capacity ?? 20);
     this.botButtons.forEach((button, index) => {
       const value = index === 0 ? "easy" : index === 1 ? "normal" : "hard";
       button.classList.toggle("active", state.botDifficulty === value);
@@ -435,7 +435,7 @@ export class LobbyView {
       this.roomCodeValue.textContent = "------";
       this.roomCodeCopy.disabled = true;
       this.playerList.replaceChildren(...renderEmptySlots(MAX_VISIBLE_SLOTS));
-      this.capacitySelect.value = "4";
+      this.capacitySelect.value = "20";
       this.deployButtonLabel.textContent = state.isBusy ? "正在建立频道" : "创建频道";
       this.deployButtonSub.textContent = state.infoMessage?.includes("入库") || state.infoMessage?.includes("损失")
         ? "上一局已完成结算，整理装束后可以再次出征"
