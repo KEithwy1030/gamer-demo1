@@ -4,6 +4,7 @@ export * from "./types/game.js";
 export * from "./types/combat.js";
 export * from "./types/inventory.js";
 export * from "./types/monsters.js";
+export * from "./types/market.js";
 export * from "./data/constants.js";
 export * from "./data/weapons.js";
 export * from "./data/items.js";

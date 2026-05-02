@@ -196,6 +196,66 @@ async function installManualProfile(page, profileOptions) {
   }, profileOptions);
 }
 
+async function installManualMarketProfile(page) {
+  await page.addInitScript(() => {
+    const extractedItem = {
+      instanceId: "market-extracted-amulet",
+      definitionId: "treasure_relic_amulet",
+      name: "遗迹银饰",
+      kind: "treasure",
+      rarity: "rare",
+      width: 1,
+      height: 1,
+      modifiers: {},
+      affixes: []
+    };
+    const stashItem = {
+      instanceId: "market-stash-spear",
+      definitionId: "hunter-spear",
+      name: "猎人长矛",
+      kind: "weapon",
+      rarity: "uncommon",
+      slot: "weapon",
+      equipmentSlot: "weapon",
+      width: 2,
+      height: 4,
+      modifiers: { attackPower: 6 },
+      affixes: [{ key: "slow", value: 1 }],
+      x: 0,
+      y: 0
+    };
+    const profile = {
+      profileId: "manual-market-profile",
+      displayName: "codexMarket",
+      gold: 1200,
+      stashItems: [stashItem.name],
+      loadout: [],
+      inventory: { width: 10, height: 6, items: [] },
+      equipment: {},
+      stash: {
+        width: 10,
+        height: 8,
+        pages: [
+          { width: 10, height: 8, items: [stashItem] },
+          ...Array.from({ length: 4 }, () => ({ width: 10, height: 8, items: [] }))
+        ]
+      },
+      pendingReturn: { items: [extractedItem] },
+      lastRun: {
+        result: "success",
+        reason: "extracted",
+        survivedSeconds: 531,
+        playerKills: 0,
+        monsterKills: 3,
+        goldDelta: 460,
+        items: [extractedItem.name]
+      },
+      botDifficulty: "easy"
+    };
+    localStorage.setItem("liuhuang.localProfile.v2", JSON.stringify(profile));
+  });
+}
+
 async function getEvents(page, eventName) {
   return await page.evaluate((name) => {
     const events = window.__manualLoopEvents ?? [];
@@ -583,6 +643,41 @@ async function verifyCorpseFogBranch(page) {
   };
 }
 
+async function verifyMarketBranch(page) {
+  await page.goto(APP_URL, { waitUntil: "networkidle" });
+  await screenshot(page, "codexMarket-01-lobby.png");
+  await page.getByRole("button", { name: "黑市" }).click();
+  await page.getByRole("button", { name: /遗迹银饰/ }).click();
+  await page.locator(".market-price-input").fill("777");
+  await screenshot(page, "codexMarket-02-selected-item.png");
+  await page.getByRole("button", { name: "挂出" }).click();
+  const listing = page.locator(".market-listing-row", { hasText: "遗迹银饰" });
+  await listing.waitFor({ timeout: 8_000 });
+  await screenshot(page, "codexMarket-03-listed.png");
+  await listing.locator(".market-row-price").fill("888");
+  await listing.getByRole("button", { name: "改价" }).click();
+  await page.waitForFunction(() => document.body.textContent?.includes("888 金币"));
+  await screenshot(page, "codexMarket-04-repriced.png");
+  await page.locator(".market-listing-row", { hasText: "遗迹银饰" }).getByRole("button", { name: "取消" }).click();
+  await page.waitForFunction(() => !document.body.textContent?.includes("888 金币"));
+  await screenshot(page, "codexMarket-05-cancelled.png");
+
+  return {
+    checks: {
+      marketTabOpens: await page.getByText("我的挂单").isVisible(),
+      listingCreated: true,
+      listingRepriced: true,
+      listingCancelled: await page.getByText("还没有挂单").isVisible()
+    },
+    evidence: {
+      profileId: "manual-market-profile",
+      itemName: "遗迹银饰",
+      createdPrice: 777,
+      updatedPrice: 888
+    }
+  };
+}
+
 async function main() {
   await mkdir(SHOT_DIR, { recursive: true });
   const requestedUrls = [];
@@ -592,6 +687,7 @@ async function main() {
   try {
     let combat;
     let fog;
+    let market;
     if (SCENARIO === "all" || SCENARIO === "combat") {
       const combatPage = await createManualPage(browser, requestedUrls, {
         modifiers: {
@@ -624,7 +720,14 @@ async function main() {
       await fogPage.close();
     }
 
-    const summary = { combat, fog };
+    if (SCENARIO === "all" || SCENARIO === "market") {
+      const marketPage = await browser.newPage({ viewport: VIEWPORT });
+      await installManualMarketProfile(marketPage);
+      market = await verifyMarketBranch(marketPage);
+      await marketPage.close();
+    }
+
+    const summary = { combat, fog, market };
     const summaryPath = path.join(SHOT_DIR, "manual-loop-summary.json");
     await writeFile(summaryPath, JSON.stringify(summary, null, 2), "utf8");
     log(`summary ${summaryPath}`);
@@ -640,6 +743,9 @@ async function main() {
         corpseFogIntensifiesAtTwelve: fog.checks.intensifiedAtTwelve,
         corpseFogSettlement: fog.checks.corpseFogSettlement
       });
+    }
+    if (market) {
+      Object.assign(allChecks, market.checks);
     }
     for (const [name, ok] of Object.entries(allChecks)) {
       log(`${ok ? "PASS" : "FAIL"} ${name}`);

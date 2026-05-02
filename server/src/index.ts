@@ -3,12 +3,14 @@ import cors from "cors";
 import express from "express";
 import type {
   AttackRequestPayload,
+  CreateMarketListingPayload,
   CreateRoomPayload,
   JoinRoomPayload,
   PlayerInputMovePayload,
   RoomErrorPayload,
   RoomStartPayload,
   SetCapacityPayload,
+  UpdateMarketListingPayload,
   SkillCastPayload
 } from "@gamer/shared";
 import {
@@ -42,6 +44,7 @@ import {
   tickMonsters
 } from "./monsters/monster-manager.js";
 import { RoomStore } from "./room-store.js";
+import { MarketStore } from "./market-store.js";
 import { listChests, openChest, spawnChests } from "./chests/chest-manager.js";
 import type {
   ChestOpenedPayload,
@@ -58,6 +61,7 @@ import type {
 } from "./types.js";
 
 const app = express();
+app.use(express.json({ limit: "256kb" }));
 app.use(
   cors({
     origin: serverConfig.corsOrigin,
@@ -71,6 +75,44 @@ app.get("/health", (_request, response) => {
     uptimeSec: Math.round(process.uptime()),
     rooms: "in-memory"
   });
+});
+
+app.get("/market/listings", (request, response) => {
+  const playerId = String(request.query.playerId ?? "").trim();
+  if (!playerId) {
+    response.status(400).json({ message: "playerId is required." });
+    return;
+  }
+
+  response.json({ listings: marketStore.list(playerId) });
+});
+
+app.post("/market/listings", (request, response) => {
+  try {
+    const payload = request.body as CreateMarketListingPayload;
+    response.status(201).json(marketStore.create(payload));
+  } catch (error) {
+    response.status(400).json({ message: error instanceof Error ? error.message : "Failed to create listing." });
+  }
+});
+
+app.patch("/market/listings/:listingId", (request, response) => {
+  try {
+    const payload = request.body as UpdateMarketListingPayload;
+    response.json(marketStore.update(request.params.listingId, payload));
+  } catch (error) {
+    response.status(404).json({ message: error instanceof Error ? error.message : "Failed to update listing." });
+  }
+});
+
+app.delete("/market/listings/:listingId", (request, response) => {
+  try {
+    const playerId = String(request.query.playerId ?? "").trim();
+    marketStore.cancel(playerId, request.params.listingId);
+    response.status(204).end();
+  } catch (error) {
+    response.status(404).json({ message: error instanceof Error ? error.message : "Failed to cancel listing." });
+  }
 });
 
 const httpServer = http.createServer(app);
@@ -87,6 +129,7 @@ const io = new Server(httpServer, {
 
 const roomStore = new RoomStore();
 const inventoryService = new InventoryService();
+const marketStore = new MarketStore();
 const CombatSocketEvent = {
   PlayerAttack: "player:attack",
   PlayerCastSkill: "player:castSkill",

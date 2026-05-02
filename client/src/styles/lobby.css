@@ -829,6 +829,238 @@ button { font-family: inherit; cursor: pointer; }
 }
 .run-item.rare { background: rgba(127, 180, 194, 0.08); border-color: rgba(127, 180, 194, 0.3); color: var(--ice); }
 
+/* ============ STASH / MARKET VIEWS ============ */
+.view-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+.view-title {
+  margin: 4px 0;
+  font-family: var(--display-cn);
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+.view-sub {
+  color: var(--bone-dim);
+  font-size: 13px;
+}
+.view-header-right {
+  min-width: 150px;
+  text-align: right;
+}
+.stash-gold {
+  margin-top: 4px;
+  color: var(--signal);
+  font-family: var(--disp);
+  font-size: 30px;
+}
+.market-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(260px, 0.85fr) minmax(360px, 1.25fr);
+  gap: 14px;
+  min-height: 540px;
+}
+.market-panel {
+  min-width: 0;
+  padding: 14px;
+  background: rgba(22, 19, 15, 0.76);
+  border: 1px solid var(--iron-500);
+}
+.market-panel-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--iron-600);
+  font-family: var(--display-cn);
+  font-size: 18px;
+  font-weight: 700;
+}
+.market-panel-title small {
+  color: var(--bone-low);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+}
+.market-source-list,
+.market-listings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 472px;
+  overflow: auto;
+  padding-right: 4px;
+}
+.market-source-row,
+.market-listing-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 9px;
+  color: var(--bone);
+  background: rgba(14, 11, 8, 0.64);
+  border: 1px solid var(--iron-600);
+  text-align: left;
+}
+.market-source-row:hover,
+.market-source-row.active {
+  border-color: rgba(232, 96, 44, 0.64);
+  background: rgba(232, 96, 44, 0.08);
+}
+.market-listing-row {
+  grid-template-columns: 44px minmax(0, 1fr) minmax(190px, auto);
+}
+.market-item-thumb {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--iron-400);
+  background: rgba(43, 37, 25, 0.78);
+}
+.market-item-thumb.tier-uncommon { border-color: rgba(127, 161, 74, 0.75); }
+.market-item-thumb.tier-rare { border-color: rgba(127, 180, 194, 0.8); }
+.market-item-thumb.tier-epic { border-color: rgba(139, 114, 217, 0.8); }
+.mt-shape {
+  color: var(--bone-dim);
+  font-family: var(--display-cn);
+  font-size: 16px;
+  font-weight: 700;
+}
+.market-item-text {
+  min-width: 0;
+}
+.market-item-text .item-name,
+.market-selected-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--display-cn);
+  font-size: 17px;
+  font-weight: 700;
+}
+.market-item-text .item-meta,
+.market-selected-meta {
+  margin-top: 3px;
+  color: var(--bone-low);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+.market-selected-name {
+  margin: 6px 0 2px;
+  font-size: 24px;
+}
+.market-selected-stats {
+  min-height: 120px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  margin: 16px 0;
+  padding: 10px;
+  border: 1px solid var(--iron-600);
+  background: rgba(14, 11, 8, 0.5);
+}
+.market-stat {
+  height: 26px;
+  padding: 5px 8px;
+  border: 1px solid rgba(127, 180, 194, 0.28);
+  color: var(--ice);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.market-price-input,
+.market-row-price {
+  width: 100%;
+  height: 38px;
+  border: 1px solid var(--iron-500);
+  background: rgba(14, 11, 8, 0.86);
+  color: var(--bone);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 0 10px;
+}
+.market-primary,
+.market-mini {
+  height: 38px;
+  border: 1px solid rgba(232, 96, 44, 0.55);
+  background: rgba(232, 96, 44, 0.14);
+  color: var(--signal);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+.market-primary {
+  width: 100%;
+  margin-top: 10px;
+}
+.market-primary:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.market-mini {
+  min-width: 54px;
+  padding: 0 10px;
+}
+.market-mini.danger {
+  border-color: rgba(184, 55, 31, 0.6);
+  color: #e7a08f;
+  background: rgba(184, 55, 31, 0.12);
+}
+.market-listing-actions {
+  display: grid;
+  grid-template-columns: 82px 58px 58px;
+  gap: 6px;
+}
+.market-status {
+  min-height: 20px;
+  margin-top: 10px;
+  color: var(--confirm);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.market-status.error {
+  color: #e7a08f;
+}
+.market-empty {
+  padding: 18px 12px;
+  border: 1px dashed var(--iron-500);
+  color: var(--bone-low);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: center;
+}
+@media (max-width: 1180px) {
+  .market-layout {
+    grid-template-columns: 1fr;
+  }
+  .market-source-list,
+  .market-listings {
+    max-height: none;
+  }
+}
+@media (max-width: 640px) {
+  .view-header {
+    flex-direction: column;
+  }
+  .view-header-right {
+    text-align: left;
+  }
+  .market-listing-row,
+  .market-listing-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ============ FOOTER TICKER ============ */
 .ticker {
   position: fixed;

@@ -112,7 +112,7 @@ export class LobbyView {
     this.tabButtons = {
       hall: this.createNavButton("大厅", "hall"),
       stash: this.createNavButton("行囊", "stash"),
-      market: this.createNavButton("货摊", "market"),
+      market: this.createNavButton("黑市", "market"),
     };
     nav.append(this.tabButtons.hall, this.tabButtons.stash, this.tabButtons.market);
 
