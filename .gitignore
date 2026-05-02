@@ -7,6 +7,7 @@ npm-debug.log*
 coverage/
 .DS_Store
 .claude/worktrees/
+.claude/settings.local.json
 server/data/
 artifacts/*.log
 artifacts/*.err.log
@@ -18,3 +19,4 @@ tmp-*.log
 tmp-*.err.log
 .playwright-mcp/
 tmp/
+Microsoft/
