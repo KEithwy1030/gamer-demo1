@@ -9,6 +9,10 @@ coverage/
 .claude/worktrees/
 .claude/settings.local.json
 server/data/
+artifacts/
+output/
+.codex-run/
+gamer-*.png
 artifacts/*.log
 artifacts/*.err.log
 artifacts/history/
