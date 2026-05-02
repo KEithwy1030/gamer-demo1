@@ -14,5 +14,9 @@
     "build": "npm run build --workspace shared && npm run build --workspace server && npm run build --workspace client",
     "typecheck": "npm run typecheck --workspace shared && npm run typecheck --workspace server && npm run typecheck --workspace client",
     "validate:carry-loop": "tsx scripts/validate-carry-loop.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "playwright": "^1.59.1"
   }
 }
