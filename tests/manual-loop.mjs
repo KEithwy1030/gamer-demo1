@@ -1,10 +1,19 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { chromium } from "playwright";
 
-const APP_URL = process.env.MANUAL_LOOP_URL ?? "http://localhost:5173/";
 const SHOT_DIR = process.env.MANUAL_LOOP_SHOT_DIR ?? "C:/Users/wuyon/codex-screenshots";
 const VIEWPORT = { width: 1600, height: 900 };
+const MANAGED_SERVER_FOG_OVERRIDE_SEC = Number.parseInt(process.env.CORPSE_FOG_TIMELINE_OVERRIDE_SEC ?? "20", 10);
+const MANAGED_SERVER_EXTRACT_OPEN_SEC = Number.parseInt(process.env.EXTRACT_OPEN_SEC ?? "20", 10);
+const MANAGED_SERVER_PORT = Number.parseInt(process.env.MANUAL_LOOP_SERVER_PORT ?? "3100", 10);
+const MANAGED_CLIENT_PORT = Number.parseInt(process.env.MANUAL_LOOP_CLIENT_PORT ?? "5174", 10);
+const MATCH_DURATION_SEC = Number.parseInt(process.env.MATCH_DURATION_SEC ?? "900", 10);
+const MANAGE_DEV_SERVERS = process.env.MANUAL_LOOP_MANAGE_SERVERS !== "0";
+const APP_URL = process.env.MANUAL_LOOP_URL
+  ?? (MANAGE_DEV_SERVERS ? `http://127.0.0.1:${MANAGED_CLIENT_PORT}/` : "http://localhost:5173/");
+const SCENARIO = process.env.MANUAL_LOOP_SCENARIO ?? "all";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -14,6 +23,89 @@ function dist(a, b) {
 
 function log(line) {
   console.log(`[manual-loop] ${line}`);
+}
+
+function runNpmScript(scriptName, env = {}, args = []) {
+  return runNpmCommand(["run", scriptName, ...(args.length > 0 ? ["--", ...args] : [])], env);
+}
+
+function runNpmCommand(args, env = {}) {
+  const childEnv = { ...process.env, ...env };
+  if (process.platform === "win32") {
+    return spawn("cmd.exe", ["/d", "/s", "/c", `npm ${args.join(" ")}`], {
+      cwd: path.resolve(import.meta.dirname, ".."),
+      env: childEnv,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true
+    });
+  }
+
+  return spawn("npm", args, {
+    cwd: path.resolve(import.meta.dirname, ".."),
+    env: childEnv,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+}
+
+async function waitForHttp(url, timeoutMs) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return;
+    } catch {
+      // Server is still starting.
+    }
+    await sleep(250);
+  }
+  throw new Error(`Timed out waiting for ${url}`);
+}
+
+async function startManagedDevServers() {
+  if (!MANAGE_DEV_SERVERS) {
+    return [];
+  }
+
+  const server = runNpmCommand(["run", "dev", "--workspace", "server"], {
+    PORT: String(MANAGED_SERVER_PORT),
+    CORPSE_FOG_TIMELINE_OVERRIDE_SEC: String(MANAGED_SERVER_FOG_OVERRIDE_SEC),
+    EXTRACT_OPEN_SEC: String(MANAGED_SERVER_EXTRACT_OPEN_SEC)
+  });
+  const client = runNpmCommand(["run", "dev", "--workspace", "client", "--", "--port", String(MANAGED_CLIENT_PORT), "--strictPort"], {
+    VITE_SERVER_URL: `http://localhost:${MANAGED_SERVER_PORT}`
+  });
+  const children = [server, client];
+
+  for (const [name, child] of [["server", server], ["client", client]]) {
+    child.stdout?.on("data", (chunk) => log(`${name}: ${String(chunk).trim()}`));
+    child.stderr?.on("data", (chunk) => log(`${name}: ${String(chunk).trim()}`));
+    child.on("exit", (code, signal) => {
+      if (code !== null || signal) {
+        log(`${name} exited code=${code ?? "null"} signal=${signal ?? "null"}`);
+      }
+    });
+  }
+
+  await waitForHttp(`http://127.0.0.1:${MANAGED_SERVER_PORT}/health`, 30_000);
+  await waitForHttp(APP_URL, 30_000);
+  return children;
+}
+
+function stopManagedDevServers(children) {
+  for (const child of children) {
+    if (child.killed) {
+      continue;
+    }
+
+    if (process.platform === "win32") {
+      spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+        stdio: "ignore",
+        windowsHide: true
+      });
+    } else {
+      child.kill();
+    }
+  }
 }
 
 async function installSocketRecorder(page) {
@@ -433,6 +525,14 @@ async function verifyCombatAndExtract(page, requestedUrls) {
 async function verifyCorpseFogBranch(page) {
   const matchStarted = await startRoom(page, "codexFog");
   await useManualTonic(page);
+  const fogCounterattackStartsAt = Number.isFinite(MANAGED_SERVER_FOG_OVERRIDE_SEC) && MANAGED_SERVER_FOG_OVERRIDE_SEC > 0
+    ? MANAGED_SERVER_FOG_OVERRIDE_SEC
+    : 480;
+  const fogIntensifiesAt = Number.isFinite(MANAGED_SERVER_FOG_OVERRIDE_SEC) && MANAGED_SERVER_FOG_OVERRIDE_SEC > 0
+    ? MANAGED_SERVER_FOG_OVERRIDE_SEC * 1.5
+    : 720;
+  const counterattackTimerTarget = MATCH_DURATION_SEC - fogCounterattackStartsAt;
+  const intensifiedTimerTarget = MATCH_DURATION_SEC - fogIntensifiesAt;
   const evidence = {
     roomCode: matchStarted.room.code,
     hpAtStart: (await getSelf(page))?.hp,
@@ -441,12 +541,22 @@ async function verifyCorpseFogBranch(page) {
     settlement: null
   };
 
-  await waitForEvent(page, "match:timer", (entry) => Number(entry.args?.[0]) <= 420, 510_000);
+  await waitForEvent(
+    page,
+    "match:timer",
+    (entry) => Number(entry.args?.[0]) <= counterattackTimerTarget,
+    Math.max(20_000, (fogCounterattackStartsAt + 30) * 1000)
+  );
   await sleep(1_200);
   evidence.eightMinute = { timer: (await latestEvent(page, "match:timer"))?.args?.[0], hp: (await getSelf(page))?.hp };
   await screenshot(page, "codexFog-03-fog-eight-minute-damage.png");
 
-  await waitForEvent(page, "match:timer", (entry) => Number(entry.args?.[0]) <= 180, 270_000);
+  await waitForEvent(
+    page,
+    "match:timer",
+    (entry) => Number(entry.args?.[0]) <= intensifiedTimerTarget,
+    Math.max(20_000, (fogIntensifiesAt - fogCounterattackStartsAt + 30) * 1000)
+  );
   await sleep(1_200);
   evidence.twelveMinute = { timer: (await latestEvent(page, "match:timer"))?.args?.[0], hp: (await getSelf(page))?.hp };
   await screenshot(page, "codexFog-04-fog-twelve-minute-intensified.png");
@@ -476,49 +586,61 @@ async function verifyCorpseFogBranch(page) {
 async function main() {
   await mkdir(SHOT_DIR, { recursive: true });
   const requestedUrls = [];
+  const managedDevServers = await startManagedDevServers();
   const browser = await chromium.launch({ headless: true });
 
   try {
-    const combatPage = await createManualPage(browser, requestedUrls, {
-      modifiers: {
-        attackPower: 90,
-        attackSpeed: 1.1,
-        damageReduction: 0.9,
-        dodgeRate: 0.75,
-        moveSpeed: 180,
-        maxHp: 30000
-      },
-      tonicHeal: 30000
-    });
-    const combat = await verifyCombatAndExtract(combatPage, requestedUrls);
-    await combatPage.close();
+    let combat;
+    let fog;
+    if (SCENARIO === "all" || SCENARIO === "combat") {
+      const combatPage = await createManualPage(browser, requestedUrls, {
+        modifiers: {
+          attackPower: 90,
+          attackSpeed: 1.1,
+          damageReduction: 0.9,
+          dodgeRate: 0.75,
+          moveSpeed: 180,
+          maxHp: 30000
+        },
+        tonicHeal: 30000
+      });
+      combat = await verifyCombatAndExtract(combatPage, requestedUrls);
+      await combatPage.close();
+    }
 
-    const fogPage = await createManualPage(browser, requestedUrls, {
-      modifiers: {
-        attackPower: 40,
-        attackSpeed: 0.6,
-        damageReduction: 0,
-        dodgeRate: 0.75,
-        moveSpeed: 180,
-        maxHp: 1300
-      },
-      tonicHeal: 1300
-    });
-    const fog = await verifyCorpseFogBranch(fogPage);
-    await fogPage.close();
+    if (SCENARIO === "all" || SCENARIO === "fog") {
+      const fogPage = await createManualPage(browser, requestedUrls, {
+        modifiers: {
+          attackPower: 40,
+          attackSpeed: 0.6,
+          damageReduction: 0,
+          dodgeRate: 0.75,
+          moveSpeed: 180,
+          maxHp: MANAGED_SERVER_FOG_OVERRIDE_SEC > 0 ? 80 : 1300
+        },
+        tonicHeal: MANAGED_SERVER_FOG_OVERRIDE_SEC > 0 ? 180 : 1300
+      });
+      fog = await verifyCorpseFogBranch(fogPage);
+      await fogPage.close();
+    }
 
     const summary = { combat, fog };
     const summaryPath = path.join(SHOT_DIR, "manual-loop-summary.json");
     await writeFile(summaryPath, JSON.stringify(summary, null, 2), "utf8");
     log(`summary ${summaryPath}`);
 
-    const allChecks = {
-      ...combat.checks,
-      corpseFogVisual: fog.checks.visualIntensifies,
-      corpseFogDamageAtEight: fog.checks.damageAtEight,
-      corpseFogIntensifiesAtTwelve: fog.checks.intensifiedAtTwelve,
-      corpseFogSettlement: fog.checks.corpseFogSettlement
-    };
+    const allChecks = {};
+    if (combat) {
+      Object.assign(allChecks, combat.checks);
+    }
+    if (fog) {
+      Object.assign(allChecks, {
+        corpseFogVisual: fog.checks.visualIntensifies,
+        corpseFogDamageAtEight: fog.checks.damageAtEight,
+        corpseFogIntensifiesAtTwelve: fog.checks.intensifiedAtTwelve,
+        corpseFogSettlement: fog.checks.corpseFogSettlement
+      });
+    }
     for (const [name, ok] of Object.entries(allChecks)) {
       log(`${ok ? "PASS" : "FAIL"} ${name}`);
     }
@@ -527,6 +649,7 @@ async function main() {
     }
   } finally {
     await browser.close();
+    stopManagedDevServers(managedDevServers);
   }
 }
 

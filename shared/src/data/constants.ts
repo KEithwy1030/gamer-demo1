@@ -8,5 +8,6 @@ export const PLAYER_BASE_SPEED = 300;
 export const SERVER_PLAYER_SYNC_HZ = 20;
 export const MATCH_DURATION_SEC = 15 * 60;
 export const EXTRACT_OPEN_SEC = 8 * 60;
+export const CORPSE_FOG_TIMELINE_OVERRIDE_SEC = 0;
 export const SQUAD_COUNT = 2;
 export const SQUAD_SIZE = 3;
