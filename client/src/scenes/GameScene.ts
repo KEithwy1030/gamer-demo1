@@ -48,6 +48,9 @@ export class GameScene extends Phaser.Scene {
   private readonly dropMarkers = new Map<string, DropMarker>();
   private worldBackdrop: WorldBackdropRefs = createWorldBackdropRefs();
   private extractPulseTween?: Phaser.Tweens.Tween;
+  private corpseFogImage?: Phaser.GameObjects.Image;
+  private corpseFogTexture?: Phaser.Textures.CanvasTexture;
+  private corpseFogSignature = "";
   private hudOverlay?: GameHudOverlay;
   private inputBridge?: GameSceneInputBridge;
   private interactions?: GameSceneInteractions;
@@ -216,6 +219,7 @@ export class GameScene extends Phaser.Scene {
       this.syncPlayers(state);
       this.syncMonsters(state);
       this.syncDrops(state);
+      this.syncCorpseFog(state);
       this.hudOverlay?.sync({
         state,
         extractState: this.extractState,
@@ -325,6 +329,10 @@ export class GameScene extends Phaser.Scene {
     this.inputBridge = undefined;
     this.hudOverlay?.destroy();
     this.hudOverlay = undefined;
+    this.corpseFogImage?.destroy();
+    this.corpseFogImage = undefined;
+    this.corpseFogTexture?.destroy();
+    this.corpseFogTexture = undefined;
   }
 
   private syncWorld(state: MatchViewState): void {
@@ -392,4 +400,70 @@ export class GameScene extends Phaser.Scene {
     const glow = this.worldBackdrop.extractBeacon?.list[0] as Phaser.GameObjects.Arc | undefined;
     glow?.setScale(1 + Math.sin(time / 360) * 0.05);
   }
+
+  private syncCorpseFog(state: MatchViewState): void {
+    if (!state.startedAt) return;
+
+    const { width, height } = this.scale;
+    const fogState = resolveCorpseFogVisualState(state.startedAt);
+    const bucket = Math.round(fogState.visibilityPercent * 1000);
+    const signature = `${width}x${height}:${bucket}`;
+    if (this.corpseFogSignature === signature && this.corpseFogImage) {
+      return;
+    }
+
+    this.corpseFogSignature = signature;
+    if (!this.corpseFogTexture || this.corpseFogTexture.width !== width || this.corpseFogTexture.height !== height) {
+      this.corpseFogTexture?.destroy();
+      this.corpseFogTexture = this.textures.createCanvas("corpse_fog_mask", width, height) ?? undefined;
+    }
+
+    const texture = this.corpseFogTexture;
+    if (!texture) return;
+    const context = texture.getContext();
+    context.clearRect(0, 0, width, height);
+
+    const density = Phaser.Math.Clamp(1 - fogState.visibilityPercent, 0, 0.92);
+    context.fillStyle = `rgba(74, 93, 58, ${0.10 + density * 0.46})`;
+    context.fillRect(0, 0, width, height);
+    context.fillStyle = `rgba(107, 91, 58, ${0.06 + density * 0.28})`;
+    context.fillRect(0, 0, width, height);
+    context.fillStyle = `rgba(6, 8, 5, ${Math.max(0, density - 0.45) * 0.55})`;
+    context.fillRect(0, 0, width, height);
+
+    const radius = Math.max(80, Math.max(width, height) * 0.78 * fogState.visibilityPercent);
+    const gradient = context.createRadialGradient(width / 2, height / 2, radius * 0.48, width / 2, height / 2, radius);
+    gradient.addColorStop(0, "rgba(0,0,0,1)");
+    gradient.addColorStop(0.68, "rgba(0,0,0,0.72)");
+    gradient.addColorStop(1, "rgba(0,0,0,0)");
+    context.globalCompositeOperation = "destination-out";
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, width, height);
+    context.globalCompositeOperation = "source-over";
+    texture.refresh();
+
+    if (!this.corpseFogImage) {
+      this.corpseFogImage = this.add.image(0, 0, "corpse_fog_mask")
+        .setOrigin(0)
+        .setScrollFactor(0)
+        .setDepth(165);
+    }
+    this.corpseFogImage.setTexture("corpse_fog_mask");
+    this.corpseFogImage.setDisplaySize(width, height);
+  }
+}
+
+function resolveCorpseFogVisualState(startedAt: number): { visibilityPercent: number } {
+  const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
+  if (elapsedSec <= 480) {
+    return { visibilityPercent: lerp(1, 0.5, elapsedSec / 480) };
+  }
+  if (elapsedSec <= 720) {
+    return { visibilityPercent: lerp(0.5, 0.25, (elapsedSec - 480) / 240) };
+  }
+  return { visibilityPercent: lerp(0.25, 0.1, Math.min(1, (elapsedSec - 720) / 180)) };
+}
+
+function lerp(from: number, to: number, t: number): number {
+  return from + (to - from) * Phaser.Math.Clamp(t, 0, 1);
 }

@@ -133,6 +133,24 @@ export function getLastDamageSourceId(player: RuntimePlayer): string | undefined
   return ensureCombatState(player).lastDamageSourceId;
 }
 
+export function applyEnvironmentalDamage(
+  player: RuntimePlayer,
+  amount: number,
+  sourceId: string,
+  now = Date.now()
+): number {
+  if (!player.state?.isAlive) {
+    return 0;
+  }
+
+  syncPlayerCombatState(player, now);
+  const mitigatedAmount = Math.max(1, Math.round(amount * (1 - player.state.damageReduction)));
+  player.state.hp = Math.max(0, player.state.hp - mitigatedAmount);
+  player.state.isAlive = player.state.hp > 0;
+  ensureCombatState(player).lastDamageSourceId = sourceId;
+  return mitigatedAmount;
+}
+
 function emptyTotals(): CombatModifierTotals {
   return {
     attackDamageMultiplier: 0,

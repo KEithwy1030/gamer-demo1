@@ -287,8 +287,10 @@ export interface RuntimePlayer extends LobbyPlayer {
   inventory?: InventoryState;
   moveInput?: Vector2;
   deathLootDropped?: boolean;
+  deathReason?: SettlementPayload["reason"];
   attackCooldownEndsAt?: number;
   lastRiverDamageAt?: number;
+  lastCorpseFogDamageAt?: number;
   pendingLoadout?: InventorySnapshotPayload;
 }
 

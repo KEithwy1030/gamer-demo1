@@ -20,8 +20,10 @@ import {
   resolvePlayerSkillCast,
   tickPlayerCombatEffects
 } from "./combat/combat-service.js";
+import { applyEnvironmentalDamage } from "./combat/player-effects.js";
 import { tickBots, type BotTickResult } from "./bots/bot-manager.js";
 import { serverConfig } from "./config.js";
+import { getCorpseFogState } from "./corpse-fog.js";
 import {
   SERVER_MONSTER_SYNC_HZ
 } from "./internal-constants.js";
@@ -195,6 +197,45 @@ function applyRiverHazardTick(roomCode: string, now = Date.now()): void {
   }
 }
 
+function applyCorpseFogTick(roomCode: string, now = Date.now()): Array<{ playerId: string; killerId: string; roomCode: string; timestamp: number }> {
+  const context = roomStore.getRoomByCodeSnapshot(roomCode);
+  const room = context.room;
+  if (!room.startedAt) {
+    return [];
+  }
+
+  const fogState = getCorpseFogState(room.startedAt, now);
+  if (fogState.damagePerSecond <= 0) {
+    return [];
+  }
+
+  const deaths: Array<{ playerId: string; killerId: string; roomCode: string; timestamp: number }> = [];
+  for (const player of room.players.values()) {
+    if (!player.state?.isAlive || player.extract?.settledAt) {
+      continue;
+    }
+
+    const lastDamageAt = player.lastCorpseFogDamageAt ?? 0;
+    if (now - lastDamageAt < 1000) {
+      continue;
+    }
+
+    player.lastCorpseFogDamageAt = now;
+    applyEnvironmentalDamage(player, fogState.damagePerSecond, "corpse_fog", now);
+    if (!player.state.isAlive) {
+      player.deathReason = "corpseFog";
+      deaths.push({
+        playerId: player.id,
+        killerId: "corpse_fog",
+        roomCode,
+        timestamp: now
+      });
+    }
+  }
+
+  return deaths;
+}
+
 function applyExtractUpdate(roomCode: string): boolean {
   const context = roomStore.getRoomByCodeSnapshot(roomCode);
   const result = advanceExtractState(context.room);
@@ -283,6 +324,10 @@ function startPlayerSyncLoop(roomCode: string): void {
       }
 
       applyRiverHazardTick(roomCode);
+      const fogDeaths = applyCorpseFogTick(roomCode);
+      for (const death of fogDeaths) {
+        io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
+      }
       const effectDeaths = tickPlayerCombatEffects(context.room);
       for (const death of effectDeaths) {
         io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);

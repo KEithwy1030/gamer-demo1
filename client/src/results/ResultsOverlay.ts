@@ -150,6 +150,9 @@ function formatSettlementReason(settlement: SettlementPayload): string {
   if (settlement.reason === "killed") {
     return "你在撤离前被击倒，携带物资全部遗落。";
   }
+  if (settlement.reason === "corpseFog") {
+    return "被尸毒吞没，携带物资全部遗落。";
+  }
   return settlement.result === "success" ? "本局回收已记入营地。" : "本局损失已计入营地记录。";
 }
 
