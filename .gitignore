@@ -20,3 +20,4 @@ tmp-*.err.log
 .playwright-mcp/
 tmp/
 Microsoft/
+*.tsbuildinfo
