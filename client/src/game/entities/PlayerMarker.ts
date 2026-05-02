@@ -57,8 +57,8 @@ export class PlayerMarker {
     this.shadow.fillEllipse(0, 38, 48, 14);
     
     this.sprite = scene.add.sprite(0, PLAYER_BODY_Y, getPlayerTextureKey(player.weaponType));
-    this.sprite.setFrame(getIdleFrame(this.facing));
     this.sprite.setDisplaySize(PLAYER_FRAME_SIZE, PLAYER_FRAME_SIZE);
+    this.playIdle();
     if (player.isBot) {
       this.sprite.setTint(resolveSquadTint(player.squadId));
     } else if (!isSelf) {
@@ -121,7 +121,7 @@ export class PlayerMarker {
     if (direction && (direction.x !== 0 || direction.y !== 0)) {
       this.facing = directionToKey(direction);
     }
-    const actionFacing = direction ? directionToActionKey(direction) : this.facing;
+    const actionFacing = direction ? directionToKey(direction) : this.facing;
     const animKey = getPlayerAnimKey(this.weaponType, action, actionFacing);
     if (this.sprite.scene.anims.exists(animKey)) {
       this.currentState = action === "hurt" ? "HURT" : "ATTACK";
@@ -156,8 +156,7 @@ export class PlayerMarker {
           this.sprite.anims.play(moveAnim, true);
         }
       } else {
-        this.sprite.anims.stop();
-        this.sprite.setFrame(getIdleFrame(this.facing));
+        this.playIdle();
       }
     }
   }
@@ -171,7 +170,7 @@ export class PlayerMarker {
     if (this.weaponType !== player.weaponType) {
       this.weaponType = player.weaponType;
       this.sprite.setTexture(getPlayerTextureKey(player.weaponType));
-      this.sprite.setFrame(getIdleFrame(this.facing));
+      this.playIdle();
     }
     
     if (!player.isAlive) {
@@ -244,6 +243,19 @@ export class PlayerMarker {
       onComplete: () => ghost.destroy()
     });
   }
+
+  private playIdle(): void {
+    const idleAnim = getPlayerAnimKey(this.weaponType, "idle", this.facing);
+    if (this.sprite.scene.anims.exists(idleAnim)) {
+      if (this.sprite.anims.currentAnim?.key !== idleAnim || !this.sprite.anims.isPlaying) {
+        this.sprite.anims.play(idleAnim, true);
+      }
+      return;
+    }
+
+    this.sprite.anims.stop();
+    this.sprite.setFrame(getIdleFrame(this.facing));
+  }
 }
 
 function resolveHpColor(hpRatio: number): number {
@@ -271,13 +283,6 @@ function directionToKey(direction: { x: number; y: number }): DirectionKey {
     return direction.x >= 0 ? "right" : "left";
   }
   return direction.y < 0 ? "up" : "down";
-}
-
-function directionToActionKey(direction: { x: number; y: number }): DirectionKey {
-  const key = directionToKey(direction);
-  if (key === "left") return "right";
-  if (key === "right") return "left";
-  return key;
 }
 
 function movementToDirectionKey(dx: number, dy: number): DirectionKey {
