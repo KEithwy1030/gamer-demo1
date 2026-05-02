@@ -25,6 +25,7 @@ import {
 import { createDropsForMonster, listWorldDrops } from "../loot/loot-manager.js";
 import {
   consumePendingBasicAttack,
+  getBasicAttackBonusDamage,
   scaleOutgoingDamage,
   syncPlayerCombatState
 } from "../combat/player-effects.js";
@@ -145,6 +146,18 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
     }
 
     monster.nextAttackAt = now + monster.attackCooldownMs;
+    if (target.state.dodgeRate > 0 && Math.random() < target.state.dodgeRate) {
+      combatEvents.push({
+        attackerId: monster.id,
+        targetId: target.id,
+        amount: 0,
+        targetHp: target.state.hp,
+        targetAlive: true
+      });
+      playerStateChanged = true;
+      continue;
+    }
+
     const mitigatedDamage = Math.max(1, Math.round(monster.attackDamage * (1 - target.state.damageReduction)));
     target.state.hp = Math.max(0, target.state.hp - mitigatedDamage);
     target.state.isAlive = target.state.hp > 0;
@@ -188,7 +201,7 @@ export function handlePlayerAttack(
     return undefined;
   }
 
-  player.attackCooldownEndsAt = now + Math.round(1000 / Math.max(weapon.attacksPerSecond + player.state.attackSpeed, 0.1));
+  player.attackCooldownEndsAt = now + Math.round((1000 / Math.max(weapon.attacksPerSecond, 0.1)) / Math.max(1 + player.state.attackSpeed, 0.1));
   const targetMonster = findAttackableMonster(room, player.state, weapon.range);
   if (!targetMonster) {
     return {
@@ -199,9 +212,10 @@ export function handlePlayerAttack(
   }
 
   const pendingBasicAttack = consumePendingBasicAttack(player);
+  const basicAttackBonusDamage = getBasicAttackBonusDamage(player, now);
   const attackPower = scaleOutgoingDamage(
     player,
-    weapon.attackPower + player.state.attackPower + (pendingBasicAttack?.bonusDamage ?? 0),
+    weapon.attackPower + player.state.attackPower + basicAttackBonusDamage + (pendingBasicAttack?.bonusDamage ?? 0),
     now
   );
   targetMonster.targetPlayerId = player.id;
@@ -216,6 +230,7 @@ export function handlePlayerAttack(
     attackerId: player.id,
     targetId: targetMonster.id,
     amount: attackPower,
+    statusApplied: getEquippedWeaponAffixTotal(player, "bleed") > 0 ? ["bleed"] : undefined,
     targetHp: targetMonster.hp,
     targetAlive: !monsterDied
   };
@@ -235,6 +250,12 @@ export function handlePlayerAttack(
     combat,
     spawnedDrops
   };
+}
+
+function getEquippedWeaponAffixTotal(player: RuntimePlayer, key: string): number {
+  return player.inventory?.equipment.weapon?.affixes?.reduce((sum, affix) => (
+    affix.key === key ? sum + affix.value : sum
+  ), 0) ?? 0;
 }
 
 export function handlePlayerSkill(

@@ -429,6 +429,7 @@ export class InventoryService {
     let attackPowerBonus = 0;
     let attackSpeedBonus = 0;
     let critRateBonus = 0;
+    let dodgeRateBonus = 0;
     let damageReductionBonus = 0;
     let moveSpeedBonus = 0;
     const equippedWeapon = inventory.equipment.weapon;
@@ -442,6 +443,7 @@ export class InventoryService {
       attackPowerBonus += getItemStatTotal(item, "attackPower");
       attackSpeedBonus += getItemStatTotal(item, "attackSpeed");
       critRateBonus += getItemStatTotal(item, "critRate");
+      dodgeRateBonus += getItemStatTotal(item, "dodgeRate");
       damageReductionBonus += getItemStatTotal(item, "damageReduction");
       moveSpeedBonus += getItemStatTotal(item, "moveSpeed");
     }
@@ -453,6 +455,7 @@ export class InventoryService {
       attackPower: attackPowerBonus,
       attackSpeed: attackSpeedBonus,
       critRate: critRateBonus,
+      dodgeRate: dodgeRateBonus,
       damageReduction: damageReductionBonus,
       moveSpeed: PLAYER_BASE_MOVE_SPEED + moveSpeedBonus
     });
@@ -462,6 +465,7 @@ export class InventoryService {
 function getItemStatTotal(
   item: InventoryItem,
   statKey: "maxHp" | "attackPower" | "attackSpeed" | "critRate" | "damageReduction" | "moveSpeed"
+  | "dodgeRate"
 ): number {
   const modifierValue = item.modifiers?.[statKey] ?? 0;
   const affixValue = (item.affixes ?? []).reduce((sum, affix) => (

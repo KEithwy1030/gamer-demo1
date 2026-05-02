@@ -7,7 +7,7 @@ import {
   formatTenths,
   getPrimarySkillLabel,
   getWeaponLabel,
-  resolvePrimarySkill
+  resolveSkillSlots
 } from "./skillHelpers";
 
 type HudLayout = {
@@ -31,8 +31,8 @@ type HudLayout = {
 export interface HudSyncContext {
   state: MatchViewState;
   extractState: ExtractUiState;
-  skillCooldownEndsAt: number;
-  skillWindupEndsAt: number;
+  skillCooldownEndsAtBySlot: number[];
+  skillWindupEndsAtBySlot: number[];
 }
 
 export class GameHudOverlay {
@@ -44,6 +44,7 @@ export class GameHudOverlay {
   private timerText?: Phaser.GameObjects.Text;
   private roomCodeText?: Phaser.GameObjects.Text;
   private weaponNameText?: Phaser.GameObjects.Text;
+  private statusEffectsText?: Phaser.GameObjects.Text;
   private killsText?: Phaser.GameObjects.Text;
   private skillStatusText?: Phaser.GameObjects.Text;
   private combatText?: Phaser.GameObjects.Text;
@@ -61,6 +62,7 @@ export class GameHudOverlay {
   private lastHudHpColor = -1;
   private lastHudHpLabel = "";
   private lastWeaponLabel = "";
+  private lastStatusEffectsLabel = "";
   private lastKillsLabel = "";
   private lastTimerLabel = "";
   private lastRoomCodeLabel = "";
@@ -137,6 +139,13 @@ export class GameHudOverlay {
       strokeThickness: 4,
       letterSpacing: 1
     });
+    this.statusEffectsText = this.scene.add.text(statusX + statusW - 16, statusY + 64, "", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: "10px",
+      color: "#d4b24c",
+      stroke: "#16130f",
+      strokeThickness: 3
+    }).setOrigin(1, 0);
 
     const timerPanel = this.scene.add.image(timerX + timerW / 2, timerY + timerH / 2, "hud_timer_panel");
     timerPanel.setDisplaySize(timerW, timerH);
@@ -221,6 +230,7 @@ export class GameHudOverlay {
       this.hpBar.fill,
       hpLabel,
       this.weaponNameText,
+      this.statusEffectsText,
       timerPanel,
       timerCaption,
       this.timerText,
@@ -239,7 +249,7 @@ export class GameHudOverlay {
   }
 
   sync(context: HudSyncContext): void {
-    const { state, extractState, skillCooldownEndsAt, skillWindupEndsAt } = context;
+    const { state, extractState, skillCooldownEndsAtBySlot, skillWindupEndsAtBySlot } = context;
     const player = state.players.find((candidate) => candidate.id === state.selfPlayerId);
     if (this.hpBar && player && this.layout) {
       const hpRatio = Phaser.Math.Clamp(player.maxHp > 0 ? player.hp / player.maxHp : 0, 0, 1);
@@ -277,6 +287,14 @@ export class GameHudOverlay {
       }
     }
 
+    if (this.statusEffectsText && player) {
+      const statusEffectsLabel = formatStatusEffects(player.statusEffects ?? []);
+      if (this.lastStatusEffectsLabel !== statusEffectsLabel) {
+        this.statusEffectsText.setText(statusEffectsLabel);
+        this.lastStatusEffectsLabel = statusEffectsLabel;
+      }
+    }
+
     if (this.killsText) {
       const deadMonsters = state.monsters.filter((monster) => !monster.isAlive).length;
       const killsLabel = `压制 ${deadMonsters}/${state.monsters.length}`;
@@ -303,14 +321,18 @@ export class GameHudOverlay {
     }
 
     if (this.skillStatusText) {
-      const skillId = resolvePrimarySkill(state);
+      const skillIds = resolveSkillSlots(state);
       const now = Date.now();
-      let skillStatusLabel = "Q 技能 未配置";
-      if (skillId) {
-        if (now < skillWindupEndsAt) skillStatusLabel = `Q ${getPrimarySkillLabel(skillId)} 蓄力 ${formatTenths((skillWindupEndsAt - now) / 1000)}s`;
-        else if (now < skillCooldownEndsAt) skillStatusLabel = `Q ${getPrimarySkillLabel(skillId)} 冷却 ${formatTenths((skillCooldownEndsAt - now) / 1000)}s`;
-        else skillStatusLabel = `Q ${getPrimarySkillLabel(skillId)} 就绪`;
-      }
+      const keys = ["Q", "R", "T"];
+      const skillStatusLabel = skillIds.length === 0
+        ? "Q 技能 未配置"
+        : skillIds.map((skillId, index) => {
+          const windupEndsAt = skillWindupEndsAtBySlot[index] ?? 0;
+          const cooldownEndsAt = skillCooldownEndsAtBySlot[index] ?? 0;
+          if (now < windupEndsAt) return `${keys[index]} ${getPrimarySkillLabel(skillId)} 蓄 ${formatTenths((windupEndsAt - now) / 1000)}s`;
+          if (now < cooldownEndsAt) return `${keys[index]} ${getPrimarySkillLabel(skillId)} ${formatTenths((cooldownEndsAt - now) / 1000)}s`;
+          return `${keys[index]} ${getPrimarySkillLabel(skillId)}`;
+        }).join("  ");
       if (this.lastSkillStatusLabel !== skillStatusLabel) {
         this.skillStatusText.setText(skillStatusLabel);
         this.lastSkillStatusLabel = skillStatusLabel;
@@ -424,5 +446,32 @@ export class GameHudOverlay {
       this.extractProgressLabel.setText(label);
       this.lastExtractProgressLabel = label;
     }
+  }
+}
+
+function formatStatusEffects(effects: Array<{ type: string; expiresAt: number; magnitude: number }>): string {
+  const now = Date.now();
+  return effects
+    .filter((effect) => effect.expiresAt > now)
+    .map((effect) => `${translateStatusEffect(effect.type)} ${Math.max(0, (effect.expiresAt - now) / 1000).toFixed(1)}s`)
+    .join(" | ");
+}
+
+function translateStatusEffect(type: string): string {
+  switch (type) {
+    case "slow":
+      return "减速";
+    case "bleed":
+      return "流血";
+    case "damageReduction":
+      return "减伤";
+    case "attackBoost":
+      return "加攻";
+    case "attackSpeedBoost":
+      return "攻速";
+    case "moveSpeedBoost":
+      return "疾行";
+    default:
+      return type;
   }
 }

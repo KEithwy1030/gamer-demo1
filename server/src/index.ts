@@ -17,7 +17,8 @@ import {
 import { Server } from "socket.io";
 import {
   resolvePlayerAttack,
-  resolvePlayerSkillCast
+  resolvePlayerSkillCast,
+  tickPlayerCombatEffects
 } from "./combat/combat-service.js";
 import { tickBots, type BotTickResult } from "./bots/bot-manager.js";
 import { serverConfig } from "./config.js";
@@ -282,6 +283,10 @@ function startPlayerSyncLoop(roomCode: string): void {
       }
 
       applyRiverHazardTick(roomCode);
+      const effectDeaths = tickPlayerCombatEffects(context.room);
+      for (const death of effectDeaths) {
+        io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
+      }
       const botResult = tickBots(context);
       emitBotTickResult(roomCode, botResult);
       if (botResult.monsterStateChanged) {

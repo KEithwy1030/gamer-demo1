@@ -14,7 +14,7 @@ import type {
   Vector2,
   WeaponType
 } from "@gamer/shared";
-import type { Affix, ItemRarity, MonsterState, MonsterType, SkillId } from "@gamer/shared";
+import type { Affix, ItemRarity, MonsterState, MonsterType, SkillId, StatusEffectType } from "@gamer/shared";
 import type { Socket } from "socket.io";
 
 export interface SocketSession {
@@ -134,16 +134,26 @@ export interface RuntimeCombatState {
   lastCastAtBySkillId: Partial<Record<SkillId, number>>;
   invulnerableUntil?: number;
   killsPlayers?: number;
+  lastDamageSourceId?: string;
   activeModifiers: RuntimeTimedCombatModifier[];
   pendingBasicAttack?: PendingBasicAttackModifier;
 }
 
 export interface RuntimeTimedCombatModifier {
   sourceId: string;
+  type: StatusEffectType;
   expiresAt: number;
+  magnitude: number;
+  damageSourceId?: string;
   attackDamageMultiplier?: number;
+  attackSpeedMultiplier?: number;
+  basicAttackBonusDamage?: number;
   damageReductionBonus?: number;
   moveSpeedMultiplier?: number;
+  dodgeRateBonus?: number;
+  bleedDamagePerTick?: number;
+  bleedTickIntervalMs?: number;
+  nextBleedTickAt?: number;
 }
 
 export interface PendingBasicAttackModifier {
@@ -160,6 +170,7 @@ export interface RuntimePlayerBaseStats {
   attackPower: number;
   attackSpeed: number;
   critRate: number;
+  dodgeRate: number;
   damageReduction: number;
 }
 
@@ -243,7 +254,9 @@ export interface ServerPlayerState {
   attackPower: number;
   attackSpeed: number;
   critRate: number;
+  dodgeRate: number;
   damageReduction: number;
+  statusEffects: import("@gamer/shared").StatusEffectState[];
   killsPlayers: number;
   killsMonsters: number;
   squadId: SquadId;

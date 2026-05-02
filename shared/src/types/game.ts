@@ -1,3 +1,5 @@
+import type { StatusEffectState } from "./combat";
+
 export interface Vector2 {
   x: number;
   y: number;
@@ -88,7 +90,9 @@ export interface PlayerState {
   attackPower: number;
   attackSpeed: number;
   critRate: number;
+  dodgeRate: number;
   damageReduction: number;
+  statusEffects?: StatusEffectState[];
   killsPlayers: number;
   killsMonsters: number;
 }

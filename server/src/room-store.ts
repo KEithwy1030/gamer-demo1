@@ -99,12 +99,13 @@ function buildPlayerState(player: RuntimePlayer): PlayerState {
 
   syncPlayerCombatState(player);
 
-  return {
-    ...player.state,
-    direction: cloneDirection(player.state.direction),
-    killsPlayers: player.combat?.killsPlayers ?? player.state.killsPlayers,
-    killsMonsters: player.state.killsMonsters,
-    squadId: player.squadId,
+    return {
+      ...player.state,
+      direction: cloneDirection(player.state.direction),
+      statusEffects: player.state.statusEffects.map((effect) => ({ ...effect })),
+      killsPlayers: player.combat?.killsPlayers ?? player.state.killsPlayers,
+      killsMonsters: player.state.killsMonsters,
+      squadId: player.squadId,
     squadType: player.squadType,
     isBot: player.isBot
   };
@@ -407,7 +408,9 @@ export class RoomStore {
           attackPower: 0,
           attackSpeed: 0,
           critRate: 0,
+          dodgeRate: 0,
           damageReduction: 0,
+          statusEffects: [],
           killsPlayers: 0,
           killsMonsters: 0,
           squadId: player.squadId,
@@ -425,6 +428,7 @@ export class RoomStore {
           attackPower: 0,
           attackSpeed: 0,
           critRate: 0,
+          dodgeRate: 0,
           damageReduction: 0
         }, room.startedAt ?? Date.now());
       });

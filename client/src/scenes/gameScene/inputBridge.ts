@@ -19,7 +19,7 @@ export interface GameSceneInputBridgeOptions {
   touchLayout: boolean;
   onMoveInput?: (direction: Vector2) => void;
   onAttack: () => void;
-  onSkill: () => void;
+  onSkill: (slotIndex: number) => void;
   onPickup: () => void;
   onExtract: () => void;
   onInventory: () => void;
@@ -61,7 +61,7 @@ export class GameSceneInputBridge {
         this.joystickVector = vector;
       },
       onAttack: this.options.onAttack,
-      onSkill: this.options.onSkill,
+      onSkill: () => this.options.onSkill(0),
       onPickup: this.options.onPickup,
       onInventory: this.options.onInventory
     });

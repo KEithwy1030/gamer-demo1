@@ -21,6 +21,8 @@ import {
   addTimedModifier,
   consumePendingBasicAttack,
   ensureCombatState,
+  getBasicAttackBonusDamage,
+  getLastDamageSourceId,
   scaleOutgoingDamage,
   setPendingBasicAttack,
   syncPlayerCombatState
@@ -44,10 +46,22 @@ export interface PlayerDeathPayload {
 
 const SKILL_COOLDOWN_MS = 4000;
 const SKILL_DAMAGE = {
-  swordDashSlash: 24,
+  swordDashSlash: 18,
   bladeSweep: 22,
   spearHeavyThrust: 24
 } as const;
+const SKILL_COOLDOWNS_MS: Partial<Record<SkillCastPayload["skillId"], number>> = {
+  common_dodge: 4000,
+  sword_dashSlash: 6000,
+  sword_bladeFlurry: 10000,
+  sword_shadowStep: 12000,
+  blade_sweep: 7000,
+  blade_guard: 12000,
+  blade_overpower: 10000,
+  spear_heavyThrust: 8000,
+  spear_warCry: 12000,
+  spear_draggingStrike: 9000
+};
 
 export function resolvePlayerAttack(
   room: RuntimeRoom,
@@ -77,9 +91,11 @@ export function resolvePlayerAttack(
   }
 
   const pendingBasicAttack = consumePendingBasicAttack(attacker);
+  const basicAttackBonusDamage = getBasicAttackBonusDamage(attacker, now);
+  const onHitEffect = buildBasicAttackHitEffect(attacker, pendingBasicAttack, now);
   const attackPower = scaleOutgoingDamage(
     attacker,
-    weapon.attackPower + attackerState.attackPower + (pendingBasicAttack?.bonusDamage ?? 0),
+    weapon.attackPower + attackerState.attackPower + basicAttackBonusDamage + (pendingBasicAttack?.bonusDamage ?? 0),
     now
   );
 
@@ -89,13 +105,7 @@ export function resolvePlayerAttack(
     target,
     attackPower,
     now,
-    pendingBasicAttack?.slowMultiplier && pendingBasicAttack.slowDurationMs
-      ? {
-        sourceId: pendingBasicAttack.sourceId,
-        slowMultiplier: pendingBasicAttack.slowMultiplier,
-        slowDurationMs: pendingBasicAttack.slowDurationMs
-      }
-      : undefined
+    onHitEffect
   );
 }
 
@@ -123,7 +133,7 @@ export function resolvePlayerSkillCast(
       return emptyResolution();
     }
     case "sword_dashSlash": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
+      requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
       const targets = selectDashSlashTargets(room, caster, 150);
       movePlayerByDirection(caster.state!, 150);
       return applyDamageToTargets(
@@ -135,31 +145,35 @@ export function resolvePlayerSkillCast(
       );
     }
     case "blade_sweep": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
+      requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
       const targets = selectAttackTargets(room, caster, "blade", 148, 170);
       movePlayerByDirection(caster.state!, -110);
       return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, SKILL_DAMAGE.bladeSweep + attackPowerBonus, now), now);
     }
     case "blade_guard": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
+      requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
       addTimedModifier(caster, {
         sourceId: payload.skillId,
+        type: "damageReduction",
         expiresAt: now + 2000,
+        magnitude: 0.4,
         damageReductionBonus: 0.4
       }, now);
       return emptyResolution();
     }
     case "blade_overpower": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
+      requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
       addTimedModifier(caster, {
         sourceId: payload.skillId,
+        type: "attackBoost",
         expiresAt: now + 4000,
-        attackDamageMultiplier: 0.60
+        magnitude: 0.25,
+        attackDamageMultiplier: 0.25
       }, now);
       return emptyResolution();
     }
     case "spear_heavyThrust": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
+      requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
       const target = selectAttackTarget(room, caster, "spear", 180, 50);
       return target
         ? applyDamage(
@@ -174,28 +188,57 @@ export function resolvePlayerSkillCast(
         : emptyResolution();
     }
     case "spear_warCry": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
+      requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
       addTimedModifier(caster, {
         sourceId: payload.skillId,
+        type: "damageReduction",
         expiresAt: now + 3000,
-        damageReductionBonus: 0.25,
+        magnitude: 0.25,
+        damageReductionBonus: 0.25
+      }, now);
+      addTimedModifier(caster, {
+        sourceId: payload.skillId,
+        type: "moveSpeedBoost",
+        expiresAt: now + 3000,
+        magnitude: 0.20,
         moveSpeedMultiplier: 0.20
       }, now);
       return emptyResolution();
     }
     case "spear_draggingStrike": {
-      requireSkillCooldown(combatState, payload.skillId, now, SKILL_COOLDOWN_MS);
+      requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
       setPendingBasicAttack(caster, {
         sourceId: payload.skillId,
-        bonusDamage: 50,
-        slowMultiplier: 0.40,
+        bonusDamage: 8,
+        slowMultiplier: 0.25,
         slowDurationMs: 2000
       });
       return emptyResolution();
     }
-    case "sword_bladeFlurry":
-    case "sword_shadowStep":
-      throw new Error(`Skill ${payload.skillId} is not implemented yet.`);
+    case "sword_bladeFlurry": {
+      requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
+      addTimedModifier(caster, {
+        sourceId: payload.skillId,
+        type: "attackSpeedBoost",
+        expiresAt: now + 4000,
+        magnitude: 0.3,
+        attackSpeedMultiplier: 0.3,
+        basicAttackBonusDamage: 2
+      }, now);
+      return emptyResolution();
+    }
+    case "sword_shadowStep": {
+      requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
+      addTimedModifier(caster, {
+        sourceId: payload.skillId,
+        type: "moveSpeedBoost",
+        expiresAt: now + 3000,
+        magnitude: 0.25,
+        moveSpeedMultiplier: 0.25,
+        dodgeRateBonus: 0.15
+      }, now);
+      return emptyResolution();
+    }
     default:
       throw new Error("Unknown skill.");
   }
@@ -237,6 +280,19 @@ function applyDamageToTargets(
     syncPlayerCombatState(target, timestamp);
     const targetCombatState = ensureCombatState(target);
     if (targetCombatState.invulnerableUntil && targetCombatState.invulnerableUntil > timestamp) {
+      continue;
+    }
+
+    if (target.state.dodgeRate > 0 && Math.random() < target.state.dodgeRate) {
+      combatEvents.push({
+        attackerId: attacker.id,
+        targetId: target.id,
+        amount: 0,
+        isCritical,
+        statusApplied: undefined,
+        targetHp: target.state.hp,
+        targetAlive: true
+      });
       continue;
     }
 
@@ -456,8 +512,12 @@ function emptyResolution(): CombatResolution {
 
 interface PlayerHitEffect {
   sourceId: string;
+  damageSourceId?: string;
   slowMultiplier?: number;
   slowDurationMs?: number;
+  bleedDurationMs?: number;
+  bleedDamagePerTick?: number;
+  bleedTickIntervalMs?: number;
 }
 
 function applyOnHitEffect(
@@ -473,10 +533,25 @@ function applyOnHitEffect(
   if (effect.slowMultiplier && effect.slowDurationMs) {
     addTimedModifier(target, {
       sourceId: effect.sourceId,
+      type: "slow",
       expiresAt: now + effect.slowDurationMs,
+      magnitude: effect.slowMultiplier,
       moveSpeedMultiplier: -effect.slowMultiplier
     }, now);
     applied.push("slow");
+  }
+
+  if (effect.bleedDurationMs && effect.bleedDamagePerTick && effect.bleedTickIntervalMs) {
+    addTimedModifier(target, {
+      sourceId: effect.sourceId,
+      type: "bleed",
+      expiresAt: now + effect.bleedDurationMs,
+      magnitude: effect.bleedDamagePerTick,
+      damageSourceId: effect.damageSourceId,
+      bleedDamagePerTick: effect.bleedDamagePerTick,
+      bleedTickIntervalMs: effect.bleedTickIntervalMs
+    }, now);
+    applied.push("bleed");
   }
 
   return applied.length > 0 ? applied : undefined;
@@ -493,4 +568,53 @@ function requireSkillCooldown(
     throw new Error("Skill is on cooldown.");
   }
   combatState.lastCastAtBySkillId[skillId] = now;
+}
+
+export function tickPlayerCombatEffects(room: RuntimeRoom, now = Date.now()): PlayerDeathPayload[] {
+  const deaths: PlayerDeathPayload[] = [];
+  for (const player of room.players.values()) {
+    const wasAlive = player.state?.isAlive === true;
+    syncPlayerCombatState(player, now);
+    if (wasAlive && player.state && !player.state.isAlive) {
+      deaths.push({
+        playerId: player.id,
+        killerId: getLastDamageSourceId(player) ?? "environment",
+        roomCode: room.code,
+        timestamp: now
+      });
+    }
+  }
+  return deaths;
+}
+
+function getSkillCooldownMs(skillId: SkillCastPayload["skillId"]): number {
+  return SKILL_COOLDOWNS_MS[skillId] ?? SKILL_COOLDOWN_MS;
+}
+
+function buildBasicAttackHitEffect(
+  attacker: RuntimePlayer,
+  pendingBasicAttack: ReturnType<typeof consumePendingBasicAttack> | undefined,
+  now: number
+): PlayerHitEffect | undefined {
+  const hasBleed = getEquippedWeaponAffixTotal(attacker, "bleed") > 0;
+  const hasSlow = Boolean(pendingBasicAttack?.slowMultiplier && pendingBasicAttack.slowDurationMs);
+  if (!hasBleed && !hasSlow) {
+    return undefined;
+  }
+
+  return {
+    sourceId: hasBleed ? "weapon_bleed" : pendingBasicAttack?.sourceId ?? "basic_attack",
+    damageSourceId: attacker.id,
+    slowMultiplier: pendingBasicAttack?.slowMultiplier,
+    slowDurationMs: pendingBasicAttack?.slowDurationMs,
+    bleedDurationMs: hasBleed ? 4000 : undefined,
+    bleedDamagePerTick: hasBleed ? 2 : undefined,
+    bleedTickIntervalMs: hasBleed ? 500 : undefined
+  };
+}
+
+function getEquippedWeaponAffixTotal(attacker: RuntimePlayer, key: string): number {
+  return attacker.inventory?.equipment.weapon?.affixes?.reduce((sum, affix) => (
+    affix.key === key ? sum + affix.value : sum
+  ), 0) ?? 0;
 }

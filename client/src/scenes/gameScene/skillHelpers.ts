@@ -2,22 +2,39 @@ import type { SkillId, WeaponType } from "@gamer/shared";
 import type { MatchViewState } from "../../game";
 
 export function resolvePrimarySkill(state: MatchViewState | null): SkillId | null {
+  return resolveSkillSlots(state)[0] ?? null;
+}
+
+export function resolveSkillSlots(state: MatchViewState | null): SkillId[] {
   const self = state?.players.find((player) => player.id === state.selfPlayerId);
-  if (self?.weaponType === "sword") return "sword_dashSlash";
-  if (self?.weaponType === "blade") return "blade_sweep";
-  if (self?.weaponType === "spear") return "spear_heavyThrust";
-  return null;
+  if (self?.weaponType === "sword") return ["sword_dashSlash", "sword_bladeFlurry", "sword_shadowStep"];
+  if (self?.weaponType === "blade") return ["blade_sweep", "blade_guard", "blade_overpower"];
+  if (self?.weaponType === "spear") return ["spear_heavyThrust", "spear_warCry", "spear_draggingStrike"];
+  return [];
 }
 
 export function getPrimarySkillCooldownMs(skillId: SkillId): number {
   switch (skillId) {
     case "sword_dashSlash":
+      return 6000;
+    case "sword_bladeFlurry":
+      return 10000;
+    case "sword_shadowStep":
+      return 12000;
     case "blade_sweep":
-      return 4000;
+      return 7000;
+    case "blade_guard":
+      return 12000;
+    case "blade_overpower":
+      return 10000;
     case "spear_heavyThrust":
-      return 5000;
+      return 8000;
+    case "spear_warCry":
+      return 12000;
+    case "spear_draggingStrike":
+      return 9000;
     default:
-      return 3000;
+      return 4000;
   }
 }
 
@@ -29,10 +46,22 @@ export function getPrimarySkillLabel(skillId: SkillId): string {
   switch (skillId) {
     case "sword_dashSlash":
       return "突进斩";
+    case "sword_bladeFlurry":
+      return "连斩";
+    case "sword_shadowStep":
+      return "闪身";
     case "blade_sweep":
       return "横扫";
+    case "blade_guard":
+      return "格挡";
+    case "blade_overpower":
+      return "强攻";
     case "spear_heavyThrust":
-      return "重击";
+      return "重刺";
+    case "spear_warCry":
+      return "战吼";
+    case "spear_draggingStrike":
+      return "拖枪";
     default:
       return "技能";
   }
@@ -41,13 +70,13 @@ export function getPrimarySkillLabel(skillId: SkillId): string {
 export function getWeaponLabel(weaponType: WeaponType | undefined): string {
   switch (weaponType) {
     case "sword":
-      return "铁剑";
+      return "剑";
     case "blade":
-      return "战刃";
+      return "刀";
     case "spear":
-      return "猎矛";
+      return "枪";
     default:
-      return "未识别";
+      return "未知";
   }
 }
 

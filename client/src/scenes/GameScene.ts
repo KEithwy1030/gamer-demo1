@@ -19,7 +19,7 @@ import { GameSceneFeedbackFx } from "./gameScene/feedbackFx";
 import {
   getPrimarySkillCooldownMs,
   getPrimarySkillWindupMs,
-  resolvePrimarySkill
+  resolveSkillSlots
 } from "./gameScene/skillHelpers";
 
 export interface GameSceneInitData {
@@ -74,8 +74,8 @@ export class GameScene extends Phaser.Scene {
   private onToggleInventory?: () => void;
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
-  private localSkillCooldownEndsAt = 0;
-  private localSkillWindupEndsAt = 0;
+  private localSkillCooldownEndsAtBySlot = [0, 0, 0];
+  private localSkillWindupEndsAtBySlot = [0, 0, 0];
   private pendingSkillCast?: Phaser.Time.TimerEvent;
 
   constructor() {
@@ -203,7 +203,7 @@ export class GameScene extends Phaser.Scene {
       touchLayout,
       onMoveInput: this.onMoveInput,
       onAttack: () => this.handleAttack(),
-      onSkill: () => this.handleSkill(),
+      onSkill: (slotIndex) => this.handleSkill(slotIndex),
       onPickup: () => this.handleInteract(),
       onExtract: () => this.onStartExtract?.(),
       onInventory: () => this.handleToggleInventory()
@@ -219,8 +219,8 @@ export class GameScene extends Phaser.Scene {
       this.hudOverlay?.sync({
         state,
         extractState: this.extractState,
-        skillCooldownEndsAt: this.localSkillCooldownEndsAt,
-        skillWindupEndsAt: this.localSkillWindupEndsAt
+        skillCooldownEndsAtBySlot: this.localSkillCooldownEndsAtBySlot,
+        skillWindupEndsAtBySlot: this.localSkillWindupEndsAtBySlot
       });
     });
   }
@@ -233,16 +233,16 @@ export class GameScene extends Phaser.Scene {
     this.onAttack?.();
   }
 
-  private handleSkill(): void {
-    const sid = resolvePrimarySkill(this.latestState);
+  private handleSkill(slotIndex = 0): void {
+    const sid = resolveSkillSlots(this.latestState)[slotIndex];
     if (!sid) return;
 
     const now = Date.now();
-    if (now < this.localSkillWindupEndsAt || now < this.localSkillCooldownEndsAt) return;
+    if (now < this.localSkillWindupEndsAtBySlot[slotIndex] || now < this.localSkillCooldownEndsAtBySlot[slotIndex]) return;
 
     const windupMs = getPrimarySkillWindupMs(sid);
-    this.localSkillWindupEndsAt = now + windupMs;
-    this.localSkillCooldownEndsAt = now + windupMs + getPrimarySkillCooldownMs(sid);
+    this.localSkillWindupEndsAtBySlot[slotIndex] = now + windupMs;
+    this.localSkillCooldownEndsAtBySlot[slotIndex] = now + windupMs + getPrimarySkillCooldownMs(sid);
     this.pendingSkillCast?.remove(false);
     this.feedbackFx?.playLocalSkill(
       sid,
@@ -310,8 +310,8 @@ export class GameScene extends Phaser.Scene {
       this.hudOverlay?.sync({
         state: this.latestState,
         extractState: this.extractState,
-        skillCooldownEndsAt: this.localSkillCooldownEndsAt,
-        skillWindupEndsAt: this.localSkillWindupEndsAt
+        skillCooldownEndsAtBySlot: this.localSkillCooldownEndsAtBySlot,
+        skillWindupEndsAtBySlot: this.localSkillWindupEndsAtBySlot
       });
       this.syncWorld(this.latestState);
     }

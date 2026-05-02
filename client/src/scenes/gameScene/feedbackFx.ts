@@ -118,6 +118,37 @@ export class GameSceneFeedbackFx {
       return;
     }
 
+    if (skillId === "sword_bladeFlurry") {
+      const ring = this.scene.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 120);
+      ring.lineStyle(3, 0x93c5fd, 0.95).strokeCircle(0, 0, 30);
+      ring.lineStyle(2, 0xe2e8f0, 0.7).strokeCircle(0, 0, 44);
+      for (let index = 0; index < 5; index += 1) {
+        const angle = Math.atan2(lastFacingDirection.y, lastFacingDirection.x) + (index - 2) * 0.35;
+        ring.lineStyle(3, 0xe2e8f0, 0.85).beginPath();
+        ring.moveTo(Math.cos(angle) * 18, Math.sin(angle) * 18);
+        ring.lineTo(Math.cos(angle) * 78, Math.sin(angle) * 78);
+        ring.strokePath();
+      }
+      this.scene.tweens.add({ targets: ring, alpha: 0, scale: 1.35, duration: 360, onComplete: () => ring.destroy() });
+      this.createSkillVfx(self.x, self.y, 0x93c5fd);
+      return;
+    }
+
+    if (skillId === "sword_shadowStep") {
+      const afterimage = this.scene.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 118);
+      afterimage.fillStyle(0x38bdf8, 0.18).fillEllipse(0, 0, 72, 30);
+      afterimage.lineStyle(3, 0x38bdf8, 0.75).strokeEllipse(0, 0, 88, 38);
+      const streak = this.scene.add.graphics().setPosition(self.x, self.y).setDepth(self.y + 119);
+      streak.lineStyle(5, 0x67e8f9, 0.82).beginPath();
+      streak.moveTo(-lastFacingDirection.x * 54, -lastFacingDirection.y * 54);
+      streak.lineTo(lastFacingDirection.x * 36, lastFacingDirection.y * 36);
+      streak.strokePath();
+      this.scene.tweens.add({ targets: afterimage, alpha: 0, scale: 1.5, duration: 300, onComplete: () => afterimage.destroy() });
+      this.scene.tweens.add({ targets: streak, alpha: 0, duration: 180, onComplete: () => streak.destroy() });
+      this.createSkillVfx(self.x, self.y, 0x38bdf8);
+      return;
+    }
+
     this.shakeCamera(skillId === "spear_heavyThrust" ? 0.012 : 0.008, skillId === "spear_heavyThrust" ? 180 : 150);
 
     if (skillId === "blade_sweep") {
