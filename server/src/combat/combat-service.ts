@@ -225,11 +225,17 @@ export function resolvePlayerSkillCast(
     case "sword_bladeFlurry": {
       requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
       addTimedModifier(caster, {
-        sourceId: payload.skillId,
+        sourceId: `${payload.skillId}:speed`,
         type: "attackSpeedBoost",
         expiresAt: now + 4000,
         magnitude: 0.3,
-        attackSpeedMultiplier: 0.3,
+        attackSpeedMultiplier: 0.3
+      }, now);
+      addTimedModifier(caster, {
+        sourceId: `${payload.skillId}:damage`,
+        type: "attackBoost",
+        expiresAt: now + 4000,
+        magnitude: 2,
         basicAttackBonusDamage: 2
       }, now);
       return emptyResolution();

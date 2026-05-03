@@ -785,6 +785,95 @@ async function verifyBleedFloatBranch(page) {
   };
 }
 
+async function waitForBasicAttackDamage(page, selfId, afterAt, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let latest;
+  while (Date.now() < deadline) {
+    await page.keyboard.press("Space");
+    await sleep(140);
+    const combatEvents = await getEvents(page, "combat:result");
+    latest = combatEvents
+      .filter((entry) => entry.at > afterAt)
+      .map((entry) => entry.args?.[0])
+      .filter((entry) => (
+        entry?.attackerId === selfId
+        && entry.amount > 0
+        && entry.damageType !== "bleed"
+      ))
+      .at(-1);
+    if (latest) {
+      return latest;
+    }
+  }
+  throw new Error("Timed out waiting for basic attack damage.");
+}
+
+async function verifyBladeFlurryBranch(page) {
+  const matchStarted = await startRoom(page, "codexBatchAFlurry");
+  await moveToward(
+    page,
+    async () => nearestEnemyPlayer(await latestPlayers(page), await getSelf(page)),
+    96,
+    18_000,
+    "bladeFlurry bot"
+  );
+
+  const self = await getSelf(page);
+  const baseline = await waitForBasicAttackDamage(page, self.id, Date.now() - 1, 6_000);
+  await screenshot(page, "codexBatchA-flurry-01-baseline-10.png");
+
+  await page.keyboard.press("r");
+  const cast = await waitForEvent(
+    page,
+    "player:castSkill",
+    (entry) => entry.direction === "out" && entry.args?.[0]?.skillId === "sword_bladeFlurry",
+    4_000
+  );
+  const buffState = await waitForEvent(
+    page,
+    "state:players",
+    (entry) => {
+      const current = entry.args?.[0]?.find((player) => player.id === self.id);
+      const effectTypes = current?.statusEffects?.map((effect) => effect.type) ?? [];
+      return effectTypes.includes("attackSpeedBoost")
+        && effectTypes.includes("attackBoost")
+        && current.attackSpeed >= 0.3;
+    },
+    4_000
+  );
+  await screenshot(page, "codexBatchA-flurry-02-buff-active.png");
+
+  const empowered = await waitForBasicAttackDamage(page, self.id, cast.at, 4_000);
+  await screenshot(page, "codexBatchA-flurry-03-damage-12.png");
+  await sleep(4_300);
+  await moveToward(
+    page,
+    async () => nearestEnemyPlayer(await latestPlayers(page), await getSelf(page)),
+    96,
+    8_000,
+    "post-flurry bot"
+  );
+  const expired = await waitForBasicAttackDamage(page, self.id, Date.now() - 1, 6_000);
+  await screenshot(page, "codexBatchA-flurry-04-expired-10.png");
+
+  const buffSelf = buffState.args?.[0]?.find((player) => player.id === self.id);
+  return {
+    checks: {
+      baselineDamage: baseline.amount === 10,
+      empoweredDamage: empowered.amount === 12,
+      buffAttackSpeed: buffSelf?.attackSpeed >= 0.3,
+      expiredDamage: expired.amount === 10
+    },
+    evidence: {
+      roomCode: matchStarted.room.code,
+      baselineDamage: baseline.amount,
+      empoweredDamage: empowered.amount,
+      buffAttackSpeed: buffSelf?.attackSpeed,
+      expiredDamage: expired.amount
+    }
+  };
+}
+
 async function verifyMarketBranch(page) {
   await page.goto(APP_URL, { waitUntil: "networkidle" });
   await screenshot(page, "codexMarket-01-lobby.png");
@@ -831,6 +920,7 @@ async function main() {
     let fog;
     let extractDot;
     let bleedFloat;
+    let flurry;
     let market;
     if (SCENARIO === "all" || SCENARIO === "combat") {
       const combatPage = await createManualPage(browser, requestedUrls, {
@@ -896,6 +986,22 @@ async function main() {
       await bleedPage.close();
     }
 
+    if (SCENARIO === "all" || SCENARIO === "flurry") {
+      const flurryPage = await createManualPage(browser, requestedUrls, {
+        modifiers: {
+          attackPower: 0,
+          attackSpeed: 0,
+          damageReduction: 0.9,
+          dodgeRate: 0.75,
+          moveSpeed: 220,
+          maxHp: 30000
+        },
+        tonicHeal: 30000
+      });
+      flurry = await verifyBladeFlurryBranch(flurryPage);
+      await flurryPage.close();
+    }
+
     if (SCENARIO === "all" || SCENARIO === "market") {
       const marketPage = await browser.newPage({ viewport: VIEWPORT });
       await installManualMarketProfile(marketPage);
@@ -903,7 +1009,7 @@ async function main() {
       await marketPage.close();
     }
 
-    const summary = { combat, fog, extractDot, bleedFloat, market };
+    const summary = { combat, fog, extractDot, bleedFloat, flurry, market };
     const summaryPath = path.join(SHOT_DIR, "manual-loop-summary.json");
     await writeFile(summaryPath, JSON.stringify(summary, null, 2), "utf8");
     log(`summary ${summaryPath}`);
@@ -932,6 +1038,14 @@ async function main() {
         bleedApplied: bleedFloat.checks.bleedApplied,
         bleedTickEvents: bleedFloat.checks.bleedTickEvents,
         bleedTicksDoNotInterruptExtract: bleedFloat.checks.bleedTicksDoNotInterruptExtract
+      });
+    }
+    if (flurry) {
+      Object.assign(allChecks, {
+        flurryBaselineDamage: flurry.checks.baselineDamage,
+        flurryEmpoweredDamage: flurry.checks.empoweredDamage,
+        flurryAttackSpeed: flurry.checks.buffAttackSpeed,
+        flurryExpiredDamage: flurry.checks.expiredDamage
       });
     }
     if (market) {
