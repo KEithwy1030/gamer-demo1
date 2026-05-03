@@ -1,4 +1,5 @@
-﻿import http from "node:http";
+﻿import "dotenv/config";
+import http from "node:http";
 import cors from "cors";
 import express from "express";
 import type {
