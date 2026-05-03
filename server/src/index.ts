@@ -4,6 +4,7 @@ import cors from "cors";
 import express from "express";
 import type {
   AttackRequestPayload,
+  CombatEventPayload,
   CreateMarketListingPayload,
   CreateRoomPayload,
   JoinRoomPayload,
@@ -58,6 +59,7 @@ import type {
   PlayerPickupPayload,
   PlayerUseItemPayload,
   RuntimeContext,
+  RuntimeRoom,
   SocketSession
 } from "./types.js";
 
@@ -183,10 +185,7 @@ function emitBotTickResult(roomCode: string, result: BotTickResult): void {
   const context = roomStore.getRoomByCodeSnapshot(roomCode);
 
   for (const event of result.combatEvents) {
-    const interruption = interruptPlayerExtract(context.room, event.targetId, "damaged");
-    if (interruption) {
-      io.to(roomCode).emit(SocketEvent.ExtractProgress, interruption);
-    }
+    emitExtractInterruptForCombatEvent(roomCode, context.room, event);
     io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
   }
 
@@ -196,6 +195,21 @@ function emitBotTickResult(roomCode: string, result: BotTickResult): void {
 
   for (const progress of result.extractProgressEvents) {
     io.to(roomCode).emit(SocketEvent.ExtractProgress, progress);
+  }
+}
+
+function emitExtractInterruptForCombatEvent(
+  roomCode: string,
+  room: RuntimeRoom,
+  event: CombatEventPayload
+): void {
+  if (event.amount <= 0 || event.interruptsExtract === false) {
+    return;
+  }
+
+  const interruption = interruptPlayerExtract(room, event.targetId, "damaged");
+  if (interruption) {
+    io.to(roomCode).emit(SocketEvent.ExtractProgress, interruption);
   }
 }
 
@@ -433,10 +447,7 @@ function startMonsterSyncLoop(roomCode: string): void {
       io.to(roomCode).emit(SocketEvent.StateMonsters, result.monsters);
 
       for (const event of result.combatEvents) {
-        const interruption = interruptPlayerExtract(context.room, event.targetId, "damaged");
-        if (interruption) {
-          io.to(roomCode).emit(SocketEvent.ExtractProgress, interruption);
-        }
+        emitExtractInterruptForCombatEvent(roomCode, context.room, event);
         io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
         if (!event.targetAlive) {
           io.to(roomCode).emit(CombatSocketEvent.PlayerDied, {
@@ -715,10 +726,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       });
 
       for (const event of resolution.combatEvents) {
-        const interruption = interruptPlayerExtract(context.room, event.targetId, "damaged");
-        if (interruption) {
-          io.to(roomCode).emit(SocketEvent.ExtractProgress, interruption);
-        }
+        emitExtractInterruptForCombatEvent(roomCode, context.room, event);
         io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
       }
 
@@ -775,10 +783,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       const monsterOutcome = handleMonsterPlayerSkill(context, session.playerId, payload, skillOriginState);
 
       for (const event of resolution.combatEvents) {
-        const interruption = interruptPlayerExtract(context.room, event.targetId, "damaged");
-        if (interruption) {
-          io.to(roomCode).emit(SocketEvent.ExtractProgress, interruption);
-        }
+        emitExtractInterruptForCombatEvent(roomCode, context.room, event);
         io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
       }
 
@@ -903,5 +908,3 @@ httpServer.listen(serverConfig.port, serverConfig.host, () => {
     `[server] listening on http://${serverConfig.host}:${serverConfig.port}`
   );
 });
-
-

@@ -643,6 +643,71 @@ async function verifyCorpseFogBranch(page) {
   };
 }
 
+async function verifyExtractDotBranch(page) {
+  const matchStarted = await startRoom(page, "codexBatchAExtractDot");
+  await useManualTonic(page);
+
+  const opened = await waitForEvent(
+    page,
+    "extract:opened",
+    (entry) => entry.args?.[0]?.zones?.some((zone) => zone.isOpen),
+    90_000
+  );
+  const self = await getSelf(page);
+  const zone = opened.args[0].zones
+    .filter((entry) => entry.isOpen)
+    .map((entry) => ({ ...entry, selfDistance: dist(self, entry) }))
+    .sort((a, b) => a.selfDistance - b.selfDistance)[0];
+
+  await screenshot(page, "codexBatchA-extract-dot-01-opened.png");
+  await enterExtractZone(page, zone);
+  await screenshot(page, "codexBatchA-extract-dot-02-inside-zone.png");
+
+  const beforeChannel = await getSelf(page);
+  await page.keyboard.press("f");
+  const started = await waitForEvent(page, "extract:progress", (entry) => entry.args?.[0]?.status === "started", 8_000);
+  await screenshot(page, "codexBatchA-extract-dot-03-channel-started.png");
+
+  const dotTick = await waitForEvent(
+    page,
+    "state:players",
+    (entry) => {
+      const current = entry.args?.[0]?.find((player) => player.id === beforeChannel?.id);
+      return current?.isAlive && typeof current.hp === "number" && current.hp < (beforeChannel?.hp ?? 0);
+    },
+    4_500
+  ).catch(() => undefined);
+
+  const settlement = await waitForEvent(
+    page,
+    "match:settlement",
+    (entry) => entry.args?.[0]?.settlement?.reason === "extracted",
+    30_000
+  );
+  await screenshot(page, "codexBatchA-extract-dot-04-settlement.png");
+
+  const progressEvents = await getEvents(page, "extract:progress");
+  const interruptedAfterStart = progressEvents.some((entry) => (
+    entry.at >= started.at
+    && entry.args?.[0]?.status === "interrupted"
+  ));
+
+  return {
+    checks: {
+      dotTickDuringExtract: Boolean(dotTick),
+      extractNotInterruptedByDot: !interruptedAfterStart,
+      extractSettlement: settlement.args[0].settlement.result === "success"
+    },
+    evidence: {
+      roomCode: matchStarted.room.code,
+      hpBeforeChannel: beforeChannel?.hp,
+      hpAfterDot: dotTick?.args?.[0]?.find((player) => player.id === beforeChannel?.id)?.hp,
+      settlement: settlement.args[0].settlement,
+      interruptedAfterStart
+    }
+  };
+}
+
 async function verifyMarketBranch(page) {
   await page.goto(APP_URL, { waitUntil: "networkidle" });
   await screenshot(page, "codexMarket-01-lobby.png");
@@ -687,6 +752,7 @@ async function main() {
   try {
     let combat;
     let fog;
+    let extractDot;
     let market;
     if (SCENARIO === "all" || SCENARIO === "combat") {
       const combatPage = await createManualPage(browser, requestedUrls, {
@@ -720,6 +786,22 @@ async function main() {
       await fogPage.close();
     }
 
+    if (SCENARIO === "all" || SCENARIO === "extract-dot") {
+      const extractDotPage = await createManualPage(browser, requestedUrls, {
+        modifiers: {
+          attackPower: 40,
+          attackSpeed: 0.6,
+          damageReduction: 0.9,
+          dodgeRate: 0.75,
+          moveSpeed: 220,
+          maxHp: 30000
+        },
+        tonicHeal: 30000
+      });
+      extractDot = await verifyExtractDotBranch(extractDotPage);
+      await extractDotPage.close();
+    }
+
     if (SCENARIO === "all" || SCENARIO === "market") {
       const marketPage = await browser.newPage({ viewport: VIEWPORT });
       await installManualMarketProfile(marketPage);
@@ -727,7 +809,7 @@ async function main() {
       await marketPage.close();
     }
 
-    const summary = { combat, fog, market };
+    const summary = { combat, fog, extractDot, market };
     const summaryPath = path.join(SHOT_DIR, "manual-loop-summary.json");
     await writeFile(summaryPath, JSON.stringify(summary, null, 2), "utf8");
     log(`summary ${summaryPath}`);
@@ -742,6 +824,13 @@ async function main() {
         corpseFogDamageAtEight: fog.checks.damageAtEight,
         corpseFogIntensifiesAtTwelve: fog.checks.intensifiedAtTwelve,
         corpseFogSettlement: fog.checks.corpseFogSettlement
+      });
+    }
+    if (extractDot) {
+      Object.assign(allChecks, {
+        dotTickDuringExtract: extractDot.checks.dotTickDuringExtract,
+        extractNotInterruptedByDot: extractDot.checks.extractNotInterruptedByDot,
+        extractDotSettlement: extractDot.checks.extractSettlement
       });
     }
     if (market) {
