@@ -386,8 +386,12 @@ function startPlayerSyncLoop(roomCode: string): void {
       for (const death of fogDeaths) {
         io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
       }
-      const effectDeaths = tickPlayerCombatEffects(context.room);
-      for (const death of effectDeaths) {
+      const effectResult = tickPlayerCombatEffects(context.room);
+      for (const event of effectResult.combatEvents) {
+        emitExtractInterruptForCombatEvent(roomCode, context.room, event);
+        io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
+      }
+      for (const death of effectResult.deaths) {
         io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
       }
       const botResult = tickBots(context);

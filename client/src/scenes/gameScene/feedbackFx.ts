@@ -49,20 +49,21 @@ export class GameSceneFeedbackFx {
     const target = playerMarkers.get(payload.targetId) || monsterMarkers.get(payload.targetId);
     if (!target) return;
 
-    const color = payload.isCritical ? "#d4b24c" : "#b8371f";
+    const isBleedTick = payload.damageType === "bleed";
+    const color = payload.isCritical ? "#d4b24c" : (isBleedTick ? "#8f1d1d" : "#b8371f");
     const text = this.scene.add.text(target.root.x, target.root.y - 30, `-${payload.amount}`, {
       fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: payload.isCritical ? "30px" : "18px",
+      fontSize: payload.isCritical ? "30px" : (isBleedTick ? "15px" : "18px"),
       fontStyle: "bold",
       color,
       stroke: "#16130f",
-      strokeThickness: payload.isCritical ? 6 : 4
+      strokeThickness: payload.isCritical ? 6 : (isBleedTick ? 3 : 4)
     }).setOrigin(0.5).setDepth(3000);
     this.scene.tweens.add({
       targets: text,
-      y: text.y - (payload.isCritical ? 58 : 40),
+      y: text.y - (payload.isCritical ? 58 : (isBleedTick ? 30 : 40)),
       alpha: 0,
-      duration: payload.isCritical ? 980 : 760,
+      duration: payload.isCritical ? 980 : (isBleedTick ? 620 : 760),
       ease: "Cubic.out",
       onComplete: () => text.destroy()
     });
@@ -80,8 +81,10 @@ export class GameSceneFeedbackFx {
       });
     }
 
-    this.flashEffect(target.root);
-    if (payload.targetId === latestState?.selfPlayerId) {
+    if (!isBleedTick) {
+      this.flashEffect(target.root);
+    }
+    if (!isBleedTick && payload.targetId === latestState?.selfPlayerId) {
       this.scene.cameras.main.shake(150, 4 / this.scene.scale.width);
       this.applyHitStop(50);
       this.showDamageWash();

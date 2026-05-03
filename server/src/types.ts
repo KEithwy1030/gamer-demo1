@@ -1,5 +1,6 @@
 import type {
   BotDifficulty,
+  CombatEventPayload,
   LobbyPlayer,
   InventorySnapshotPayload,
   MatchLayout,
@@ -137,6 +138,7 @@ export interface RuntimeCombatState {
   lastDamageSourceId?: string;
   activeModifiers: RuntimeTimedCombatModifier[];
   pendingBasicAttack?: PendingBasicAttackModifier;
+  pendingCombatEvents?: CombatEventPayload[];
 }
 
 export interface RuntimeTimedCombatModifier {

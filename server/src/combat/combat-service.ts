@@ -20,6 +20,7 @@ import {
 import {
   addTimedModifier,
   consumePendingBasicAttack,
+  drainPendingCombatEvents,
   ensureCombatState,
   getBasicAttackBonusDamage,
   getLastDamageSourceId,
@@ -576,11 +577,16 @@ function requireSkillCooldown(
   combatState.lastCastAtBySkillId[skillId] = now;
 }
 
-export function tickPlayerCombatEffects(room: RuntimeRoom, now = Date.now()): PlayerDeathPayload[] {
+export function tickPlayerCombatEffects(
+  room: RuntimeRoom,
+  now = Date.now()
+): { combatEvents: CombatEventPayload[]; deaths: PlayerDeathPayload[] } {
+  const combatEvents: CombatEventPayload[] = [];
   const deaths: PlayerDeathPayload[] = [];
   for (const player of room.players.values()) {
     const wasAlive = player.state?.isAlive === true;
     syncPlayerCombatState(player, now);
+    combatEvents.push(...drainPendingCombatEvents(player));
     if (wasAlive && player.state && !player.state.isAlive) {
       deaths.push({
         playerId: player.id,
@@ -590,7 +596,7 @@ export function tickPlayerCombatEffects(room: RuntimeRoom, now = Date.now()): Pl
       });
     }
   }
-  return deaths;
+  return { combatEvents, deaths };
 }
 
 function getSkillCooldownMs(skillId: SkillCastPayload["skillId"]): number {

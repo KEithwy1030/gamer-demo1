@@ -708,6 +708,83 @@ async function verifyExtractDotBranch(page) {
   };
 }
 
+async function verifyBleedFloatBranch(page) {
+  const matchStarted = await startRoom(page, "codexBatchABleed");
+  await moveToward(
+    page,
+    async () => nearestEnemyPlayer(await latestPlayers(page), await getSelf(page)),
+    96,
+    18_000,
+    "bleed bot"
+  );
+
+  let bleedApplied;
+  const deadline = Date.now() + 8_000;
+  while (Date.now() < deadline && !bleedApplied) {
+    const self = await getSelf(page);
+    const target = nearestEnemyPlayer(await latestPlayers(page), self);
+    if (!target) break;
+    if (dist(self, target) > 100) {
+      await holdKeys(page, directionKeys(self, target), 160);
+    }
+    await page.keyboard.press("Space");
+    await sleep(420);
+    const combatEvents = await getEvents(page, "combat:result");
+    bleedApplied = combatEvents
+      .map((entry) => entry.args?.[0])
+      .filter(Boolean)
+      .reverse()
+      .find((entry) => entry.attackerId === self.id && entry.statusApplied?.includes("bleed"));
+  }
+
+  if (!bleedApplied) {
+    throw new Error("Failed to apply bleed for floating damage verification.");
+  }
+
+  await screenshot(page, "codexBatchA-bleed-01-applied.png");
+  const tickDeadline = Date.now() + 7_000;
+  while (Date.now() < tickDeadline) {
+    const combatEvents = await getEvents(page, "combat:result");
+    const bleedTicks = combatEvents
+      .map((entry) => entry.args?.[0])
+      .filter((entry) => (
+        entry?.targetId === bleedApplied.targetId
+        && entry.damageType === "bleed"
+        && entry.amount === 2
+        && entry.interruptsExtract === false
+      ));
+    if (bleedTicks.length >= 8) {
+      break;
+    }
+    await sleep(100);
+  }
+  await screenshot(page, "codexBatchA-bleed-02-eight-ticks.png");
+
+  const combatEvents = await getEvents(page, "combat:result");
+  const bleedTicks = combatEvents
+    .map((entry) => entry.args?.[0])
+    .filter((entry) => (
+      entry?.targetId === bleedApplied.targetId
+      && entry.damageType === "bleed"
+      && entry.amount === 2
+      && entry.interruptsExtract === false
+    ));
+
+  return {
+    checks: {
+      bleedApplied: Boolean(bleedApplied.statusApplied?.includes("bleed")),
+      bleedTickEvents: bleedTicks.length >= 8,
+      bleedTicksDoNotInterruptExtract: bleedTicks.every((entry) => entry.interruptsExtract === false)
+    },
+    evidence: {
+      roomCode: matchStarted.room.code,
+      targetId: bleedApplied.targetId,
+      bleedTickCount: bleedTicks.length,
+      tickAmounts: bleedTicks.map((entry) => entry.amount)
+    }
+  };
+}
+
 async function verifyMarketBranch(page) {
   await page.goto(APP_URL, { waitUntil: "networkidle" });
   await screenshot(page, "codexMarket-01-lobby.png");
@@ -753,6 +830,7 @@ async function main() {
     let combat;
     let fog;
     let extractDot;
+    let bleedFloat;
     let market;
     if (SCENARIO === "all" || SCENARIO === "combat") {
       const combatPage = await createManualPage(browser, requestedUrls, {
@@ -802,6 +880,22 @@ async function main() {
       await extractDotPage.close();
     }
 
+    if (SCENARIO === "all" || SCENARIO === "bleed-float") {
+      const bleedPage = await createManualPage(browser, requestedUrls, {
+        modifiers: {
+          attackPower: 0,
+          attackSpeed: 0.2,
+          damageReduction: 0.9,
+          dodgeRate: 0.75,
+          moveSpeed: 220,
+          maxHp: 30000
+        },
+        tonicHeal: 30000
+      });
+      bleedFloat = await verifyBleedFloatBranch(bleedPage);
+      await bleedPage.close();
+    }
+
     if (SCENARIO === "all" || SCENARIO === "market") {
       const marketPage = await browser.newPage({ viewport: VIEWPORT });
       await installManualMarketProfile(marketPage);
@@ -809,7 +903,7 @@ async function main() {
       await marketPage.close();
     }
 
-    const summary = { combat, fog, extractDot, market };
+    const summary = { combat, fog, extractDot, bleedFloat, market };
     const summaryPath = path.join(SHOT_DIR, "manual-loop-summary.json");
     await writeFile(summaryPath, JSON.stringify(summary, null, 2), "utf8");
     log(`summary ${summaryPath}`);
@@ -831,6 +925,13 @@ async function main() {
         dotTickDuringExtract: extractDot.checks.dotTickDuringExtract,
         extractNotInterruptedByDot: extractDot.checks.extractNotInterruptedByDot,
         extractDotSettlement: extractDot.checks.extractSettlement
+      });
+    }
+    if (bleedFloat) {
+      Object.assign(allChecks, {
+        bleedApplied: bleedFloat.checks.bleedApplied,
+        bleedTickEvents: bleedFloat.checks.bleedTickEvents,
+        bleedTicksDoNotInterruptExtract: bleedFloat.checks.bleedTicksDoNotInterruptExtract
       });
     }
     if (market) {

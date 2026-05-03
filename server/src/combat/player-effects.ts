@@ -1,3 +1,4 @@
+import type { CombatEventPayload } from "@gamer/shared";
 import type {
   PendingBasicAttackModifier,
   RuntimeCombatState,
@@ -18,10 +19,12 @@ export interface CombatModifierTotals {
 export function ensureCombatState(player: RuntimePlayer): RuntimeCombatState {
   player.combat ??= {
     lastCastAtBySkillId: {},
-    activeModifiers: []
+    activeModifiers: [],
+    pendingCombatEvents: []
   };
 
   player.combat.activeModifiers ??= [];
+  player.combat.pendingCombatEvents ??= [];
   return player.combat;
 }
 
@@ -133,6 +136,13 @@ export function getLastDamageSourceId(player: RuntimePlayer): string | undefined
   return ensureCombatState(player).lastDamageSourceId;
 }
 
+export function drainPendingCombatEvents(player: RuntimePlayer): CombatEventPayload[] {
+  const combatState = ensureCombatState(player);
+  const events = combatState.pendingCombatEvents ?? [];
+  combatState.pendingCombatEvents = [];
+  return events;
+}
+
 export function applyEnvironmentalDamage(
   player: RuntimePlayer,
   amount: number,
@@ -179,6 +189,15 @@ function applyBleedTicks(player: RuntimePlayer, now: number): void {
       state.hp = Math.max(0, state.hp - modifier.bleedDamagePerTick);
       state.isAlive = state.hp > 0;
       combatState.lastDamageSourceId = modifier.damageSourceId ?? modifier.sourceId;
+      combatState.pendingCombatEvents?.push({
+        attackerId: modifier.damageSourceId ?? modifier.sourceId,
+        targetId: player.id,
+        amount: modifier.bleedDamagePerTick,
+        damageType: "bleed",
+        interruptsExtract: false,
+        targetHp: state.hp,
+        targetAlive: state.isAlive
+      });
       modifier.nextBleedTickAt += modifier.bleedTickIntervalMs;
     }
   }
