@@ -87,20 +87,24 @@ export function syncExtractBackdrop(
   state: MatchViewState,
   extractState: ExtractUiState
 ): WorldBackdropRefs {
-  const centerX = state.width / 2;
-  const centerY = state.height / 2;
+  const centerX = extractState.x ?? state.layout?.extractZones[0]?.x ?? state.width / 2;
+  const centerY = extractState.y ?? state.layout?.extractZones[0]?.y ?? state.height / 2;
+  const outerRadius = Math.max((extractState.radius ?? state.layout?.extractZones[0]?.radius ?? 126) + 30, 126);
+  const innerRadius = Math.max((extractState.radius ?? state.layout?.extractZones[0]?.radius ?? 82) - 14, 54);
 
   const extractOuterRing = refs.extractOuterRing
-    ?? scene.add.circle(centerX, centerY, 126, GAMEPLAY_THEME.colors.signal, 0.1)
+    ?? scene.add.circle(centerX, centerY, outerRadius, GAMEPLAY_THEME.colors.signal, 0.1)
       .setStrokeStyle(10, GAMEPLAY_THEME.colors.accent, 0.32)
       .setDepth(-6);
   extractOuterRing.setPosition(centerX, centerY);
+  extractOuterRing.setRadius(outerRadius);
 
   const extractInnerRing = refs.extractInnerRing
-    ?? scene.add.circle(centerX, centerY, 82, GAMEPLAY_THEME.colors.signal, 0.08)
+    ?? scene.add.circle(centerX, centerY, innerRadius, GAMEPLAY_THEME.colors.signal, 0.08)
       .setStrokeStyle(4, GAMEPLAY_THEME.colors.bone, 0.2)
       .setDepth(-5);
   extractInnerRing.setPosition(centerX, centerY);
+  extractInnerRing.setRadius(innerRadius);
 
   const extractBeacon = refs.extractBeacon ?? createExtractBeacon(scene, centerX, centerY);
   extractBeacon.setPosition(centerX, centerY - 8);
