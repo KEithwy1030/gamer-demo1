@@ -173,7 +173,7 @@ class StashView {
     this.loadoutSummary.className = "stash-capacity-text";
     loadoutHead.append(this.loadoutSummary);
     this.equipmentRack = document.createElement("div");
-    this.equipmentRack.className = "stash-equipment-rack";
+    this.equipmentRack.className = "stash-equipment-rack stash-paperdoll";
     this.loadoutGrid = document.createElement("div");
     this.loadoutGrid.className = "stash-grid stash-grid--loadout";
     loadoutPanel.append(loadoutHead, this.equipmentRack, this.loadoutGrid);
@@ -317,10 +317,11 @@ class StashView {
     this.loadoutSummary.textContent = `${countOccupiedCells(loadout?.items ?? [])} / ${(loadout?.width ?? INVENTORY_WIDTH) * (loadout?.height ?? INVENTORY_HEIGHT)} 格`;
 
     this.equipmentRack.replaceChildren();
+    this.equipmentRack.append(this.buildPaperdollCore());
     for (const slot of EQUIPMENT_ORDER) {
       const item = this.profile?.equipment[slot];
       const slotEl = document.createElement("div");
-      slotEl.className = "stash-equip-slot";
+      slotEl.className = `stash-equip-slot stash-equip-slot--${slot}`;
       const label = document.createElement("div");
       label.className = "stash-equip-label";
       label.textContent = EQUIPMENT_LABELS[slot];
@@ -355,6 +356,19 @@ class StashView {
     (loadout?.items ?? []).forEach((item) => {
       this.loadoutGrid.append(this.buildGridItem({ area: "inventory", item }, item.x, item.y, item.width ?? 1, item.height ?? 1));
     });
+  }
+
+  private buildPaperdollCore(): HTMLElement {
+    const core = document.createElement("div");
+    core.className = "stash-paperdoll-core";
+    const portrait = document.createElement("div");
+    portrait.className = "stash-paperdoll-portrait";
+    portrait.textContent = "游";
+    const caption = document.createElement("div");
+    caption.className = "stash-paperdoll-caption";
+    caption.textContent = "游击者装具";
+    core.append(portrait, caption);
+    return core;
   }
 
   private renderDetail(): void {
