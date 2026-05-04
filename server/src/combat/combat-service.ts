@@ -228,15 +228,15 @@ export function resolvePlayerSkillCast(
         sourceId: `${payload.skillId}:speed`,
         type: "attackSpeedBoost",
         expiresAt: now + 4000,
-        magnitude: 0.3,
-        attackSpeedMultiplier: 0.3
+        magnitude: 0.5,
+        attackSpeedMultiplier: 0.5
       }, now);
       addTimedModifier(caster, {
         sourceId: `${payload.skillId}:damage`,
         type: "attackBoost",
         expiresAt: now + 4000,
-        magnitude: 2,
-        basicAttackBonusDamage: 2
+        magnitude: 5,
+        basicAttackBonusDamage: 5
       }, now);
       return emptyResolution();
     }
