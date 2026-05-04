@@ -1,5 +1,6 @@
 import { INVENTORY_HEIGHT, INVENTORY_WIDTH, type EquipmentSlot } from "@gamer/shared";
 import type { LocalProfile, LocalProfileItem, LocalProfileMovePayload } from "../profile/localProfile";
+import { getItemPresentation } from "./itemPresentation";
 
 type SelectedItemRef =
   | { area: "inventory"; item: LocalProfile["inventory"]["items"][number] }
@@ -258,9 +259,10 @@ class StashView {
       if (this.selected?.area === "pending" && this.selected.item.instanceId === item.instanceId) {
         button.classList.add("selected");
       }
+      const displayName = getDisplayName(item);
       button.innerHTML = `
         <div class="pending-item-badge">待整理</div>
-        <div class="item-name">${item.name ?? item.definitionId}</div>
+        <div class="item-name">${displayName}</div>
         <div class="item-meta">${buildCompactMeta(item)}</div>
       `;
       button.addEventListener("click", () => {
@@ -330,8 +332,9 @@ class StashView {
         if (this.selected?.area === "equipment" && this.selected.item.instanceId === item.instanceId) {
           card.classList.add("selected");
         }
+        const displayName = getDisplayName(item);
         card.innerHTML = `
-          <div class="stash-equip-name">${item.name ?? item.definitionId}</div>
+          <div class="stash-equip-name">${displayName}</div>
           <div class="stash-equip-meta">${buildCompactMeta(item)}</div>
         `;
         card.addEventListener("click", () => {
@@ -369,7 +372,7 @@ class StashView {
 
     this.selected = selected;
     this.detailEmpty.hidden = true;
-    this.detailTitle.textContent = selected.item.name ?? selected.item.definitionId;
+    this.detailTitle.textContent = getDisplayName(selected.item);
     this.detailMeta.textContent = buildAreaMeta(selected);
     this.detailDesc.textContent = buildDescription(selected.item);
 
@@ -421,8 +424,9 @@ class StashView {
     itemEl.style.top = `${y * GRID_CELL_SIZE}px`;
     itemEl.style.width = `${width * GRID_CELL_SIZE}px`;
     itemEl.style.height = `${height * GRID_CELL_SIZE}px`;
+    const displayName = getDisplayName(ref.item);
     itemEl.innerHTML = `
-      <div class="item-name">${ref.item.name ?? ref.item.definitionId}</div>
+      <div class="item-name">${displayName}</div>
       <div class="item-meta">${buildCompactMeta(ref.item)}</div>
       <div class="item-tier-pin">${width}×${height}</div>
     `;
@@ -535,6 +539,10 @@ function buildActionsForSelected(selected: SelectedItemRef, currentPageIndex: nu
 
 function buildCompactMeta(item: LocalProfileItem): string {
   return `${rarityLabel(item.rarity)} · ${item.width ?? 1}×${item.height ?? 1}`;
+}
+
+function getDisplayName(item: LocalProfileItem): string {
+  return getItemPresentation(item).displayName;
 }
 
 function buildAreaMeta(selected: SelectedItemRef): string {

@@ -366,7 +366,7 @@ function createStarterWeapon(): InventoryItemInstance {
     definitionId: "weapon_sword_basic",
     kind: "weapon",
     rarity: "common",
-    name: "Rust Sword"
+    name: safeTemplate("weapon_sword_basic")?.name ?? "锈蚀长剑"
   };
 }
 
