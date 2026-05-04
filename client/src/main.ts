@@ -7,6 +7,7 @@ import {
   type GameClientController
 } from "./scenes";
 import { createInventoryPanel } from "./ui/InventoryPanel";
+import { attachViewportScaler } from "./ui/viewportScaler";
 import type { LocalProfile } from "./profile/localProfile";
 import { getServerProfile, loadServerProfile } from "./profile/profileClient";
 import "./styles/mobile.css";
@@ -43,16 +44,18 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
 
     const lobbyRoot = document.createElement("div");
     const gameRoot = document.createElement("div");
+    const gameViewport = document.createElement("div");
     const sceneRoot = document.createElement("div");
 
     lobbyRoot.style.minHeight = "100vh";
-    gameRoot.style.width = "100%";
-    gameRoot.style.height = "100vh";
-    gameRoot.style.position = "relative";
-    gameRoot.style.overflow = "hidden";
+    gameRoot.className = "game-scale-frame";
     gameRoot.hidden = true;
-    sceneRoot.style.width = "100%";
-    sceneRoot.style.height = "100%";
+    gameViewport.className = "game-scale-canvas";
+    sceneRoot.className = "game-scene-root";
+    const gameScaler = attachViewportScaler(gameRoot, gameViewport, {
+      designWidth: 1280,
+      designHeight: 720
+    });
 
     const resultsOverlay = createResultsOverlay({
       onReturnToLobby: async () => {
@@ -78,6 +81,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
 
         gameController?.destroy();
         gameController = null;
+        gameScaler.destroy();
         inventoryPanel.destroy();
         inventoryPanel.render(null);
         setInventoryAvailable(false);
@@ -129,7 +133,8 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
 
     setInventoryAvailable(false);
 
-    gameRoot.append(sceneRoot, inventoryPanel.element, resultsOverlay.element);
+    gameViewport.append(sceneRoot, inventoryPanel.element, resultsOverlay.element);
+    gameRoot.append(gameViewport);
     appRoot.replaceChildren(lobbyRoot, gameRoot);
 
     gameController = createGameClientController({

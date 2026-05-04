@@ -8,6 +8,7 @@ import type {
 import { LobbyBackground } from "./lobbyBackground";
 import { createStashView, type StashViewApi } from "./stashView";
 import { createMarketView, type MarketViewApi } from "./marketView";
+import { attachViewportScaler, type ViewportScaler } from "./viewportScaler";
 import { buildSettlementCopy } from "../results/ResultsOverlay";
 import {
   getProfileLoadoutCount,
@@ -46,6 +47,7 @@ const createElement = <K extends keyof HTMLElementTagNameMap>(
 export class LobbyView {
   readonly element: HTMLElement;
   private readonly background: LobbyBackground;
+  private readonly scaler: ViewportScaler;
   private readonly callbacks: LobbyViewCallbacks;
   private readonly runtimeApi: LobbyRuntimeApi;
   private readonly hallView: HTMLElement;
@@ -97,6 +99,10 @@ export class LobbyView {
 
     const stage = createElement("div", "stage");
     this.element.append(stage);
+    this.scaler = attachViewportScaler(this.element, stage, {
+      designWidth: 1600,
+      designHeight: 900
+    });
 
     const topbar = createElement("div", "topbar");
     const brand = createElement("div", "brand");
@@ -496,6 +502,7 @@ export class LobbyView {
   }
 
   destroy() {
+    this.scaler.destroy();
     this.background.stop();
   }
 

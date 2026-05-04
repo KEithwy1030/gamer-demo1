@@ -1,5 +1,5 @@
 /* Mobile portrait mode enhancements */
-@media screen and (orientation: portrait) {
+@media screen and (max-width: 768px) and (orientation: portrait) {
   body.portrait-mode::before {
     content: "请横屏游玩";
     position: fixed;

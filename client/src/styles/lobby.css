@@ -89,13 +89,55 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* ----- layout ----- */
+.viewport-scale-frame {
+  position: relative;
+  overflow: visible;
+  background: var(--void);
+}
+
+.viewport-scale-canvas {
+  position: absolute;
+  left: var(--viewport-offset-x, 0);
+  top: 0;
+  transform: scale(var(--viewport-scale, 1));
+  transform-origin: top left;
+}
+
 .stage {
   position: relative;
-  width: 100%;
+  width: 1600px;
   min-height: 100vh;
   padding: 64px 40px 120px;
-  max-width: 1600px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
+}
+
+.game-scale-frame {
+  position: relative;
+  width: 100vw;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--void);
+}
+
+.game-scale-canvas {
+  width: 1280px;
+  min-height: 720px;
+  height: 720px;
+  overflow: hidden;
+}
+
+.game-scene-root {
+  position: absolute;
+  inset: 0;
+  width: 1280px;
+  height: 720px;
+  overflow: hidden;
+}
+
+.game-scene-root canvas {
+  width: 1280px !important;
+  height: 720px !important;
 }
 
 /* Top bar */
@@ -1488,6 +1530,54 @@ button { font-family: inherit; cursor: pointer; }
   .market-listing-actions {
     grid-template-columns: 1fr;
   }
+}
+
+.viewport-scale-frame .market-layout {
+  grid-template-columns: minmax(260px, 0.9fr) minmax(260px, 0.85fr) minmax(360px, 1.25fr);
+}
+
+.viewport-scale-frame .market-source-list,
+.viewport-scale-frame .market-listings {
+  max-height: 472px;
+}
+
+.viewport-scale-frame .stash-layout {
+  grid-template-columns: 160px minmax(0, 1fr);
+}
+
+.viewport-scale-frame .stash-detail {
+  grid-column: 2;
+}
+
+.viewport-scale-frame .stash-main {
+  grid-template-columns: minmax(520px, max-content) minmax(300px, 0.7fr);
+}
+
+.viewport-scale-frame .stash-grid-wrap--main,
+.viewport-scale-frame .stash-grid-wrap--loadout {
+  width: max-content;
+}
+
+.viewport-scale-frame .stash-grid-wrap--loadout {
+  position: sticky;
+  top: 14px;
+  width: min(340px, 100%);
+}
+
+.viewport-scale-frame .view-header {
+  flex-direction: row;
+}
+
+.viewport-scale-frame .view-header-right {
+  text-align: right;
+}
+
+.viewport-scale-frame .market-listing-row {
+  grid-template-columns: 44px minmax(0, 1fr) minmax(190px, auto);
+}
+
+.viewport-scale-frame .market-listing-actions {
+  grid-template-columns: 82px 58px 58px;
 }
 
 /* ============ FOOTER TICKER ============ */
