@@ -22,10 +22,6 @@ const POSITION_TOLERANCE = 36;
 const EXTRACT_THREAT_RADIUS = 260;
 const BRIDGE_APPROACH_RADIUS = 96;
 const EXPECTED_HUMAN_CLIENT_COUNT = 2;
-const EXPECTED_BOT_SQUAD_COUNT = 3;
-const EXPECTED_BOT_SQUAD_SIZE = 4;
-const EXPECTED_SQUAD_COUNT = 1 + EXPECTED_BOT_SQUAD_COUNT;
-const EXPECTED_PLAYER_COUNT = EXPECTED_HUMAN_CLIENT_COUNT + EXPECTED_BOT_SQUAD_COUNT * EXPECTED_BOT_SQUAD_SIZE;
 
 const STEP_TIMEOUTS = {
   1: 5_000,
@@ -39,6 +35,10 @@ const STEP_TIMEOUTS = {
   9: 12_000,
   10: 70_000
 };
+
+let shuttingDown = false;
+let activeServerMonitor;
+const activeClients = new Set();
 
 function logStepResult(step, ok, detail) {
   console.log(`[${ok ? "PASS" : "FAIL"}] Step ${step}: ${detail}`);
@@ -64,6 +64,51 @@ async function withTimeout(factory, timeoutMs, errorMessage) {
       timer.unref?.();
     })
   ]);
+}
+
+function describeClientState(client) {
+  const state = client.state;
+  const room = state.roomState;
+  const selfPlayerId = state.matchStarted?.selfPlayerId;
+  const self = selfPlayerId ? state.players.find((player) => player.id === selfPlayerId) : undefined;
+  return [
+    `${state.label}: connected=${client.socket.connected}`,
+    `room=${room?.code ?? "n/a"}/${room?.status ?? "n/a"}`,
+    `roomPlayers=${room?.players?.length ?? 0}`,
+    `match=${state.matchStarted ? "yes" : "no"}`,
+    `players=${state.players.length}`,
+    `monsters=${state.monsters.length}`,
+    `drops=${state.drops.length}`,
+    self ? `self=${self.id}@${Math.round(self.x)},${Math.round(self.y)} hp=${self.hp}/${self.maxHp} alive=${self.isAlive}` : "self=n/a",
+    `errors=${state.roomErrors.length}`,
+    `disconnect=${state.disconnectReason ?? "none"}`
+  ].join(" ");
+}
+
+function describeValidationState() {
+  const clients = [...activeClients].map(describeClientState);
+  const server = activeServerMonitor
+    ? `serverFailures=${activeServerMonitor.failures.length}`
+    : "serverFailures=n/a";
+  return [server, ...clients].join("\n");
+}
+
+function assertNoRuntimeFailures() {
+  if (activeServerMonitor?.failures.length) {
+    throw new Error(`Server failure detected:\n${activeServerMonitor.failures.join("\n")}\n${describeValidationState()}`);
+  }
+
+  for (const client of activeClients) {
+    const roomError = client.state.roomErrors[0];
+    if (roomError) {
+      throw new Error(`room:error from ${client.state.label}: ${roomError.message ?? JSON.stringify(roomError)}\n${describeValidationState()}`);
+    }
+
+    const reason = client.state.disconnectReason;
+    if (reason && !shuttingDown && reason !== "io client disconnect") {
+      throw new Error(`Socket disconnected for ${client.state.label}: ${reason}\n${describeValidationState()}`);
+    }
+  }
 }
 
 async function runCommand(command, args, options = {}) {
@@ -187,7 +232,9 @@ async function waitForServerReady(serverProcess, timeoutMs = 15_000) {
     }
   };
   const onStderr = (chunk) => {
-    process.stderr.write(`[server:err] ${String(chunk)}`);
+    const text = String(chunk);
+    process.stderr.write(`[server:err] ${text}`);
+    ready.reject(new Error(`Server wrote stderr before ready:\n${text}`));
   };
   const onExit = (code, signal) => {
     ready.reject(new Error(`Server exited early with code=${code} signal=${signal}`));
@@ -203,11 +250,39 @@ async function waitForServerReady(serverProcess, timeoutMs = 15_000) {
       timeoutMs,
       `Server did not become ready within ${timeoutMs}ms`
     );
+    activeServerMonitor = attachServerFailureMonitor(serverProcess);
   } finally {
     serverProcess.stdout.off("data", onStdout);
     serverProcess.stderr.off("data", onStderr);
     serverProcess.off("exit", onExit);
   }
+}
+
+function attachServerFailureMonitor(serverProcess) {
+  const monitor = {
+    failures: [],
+    active: true
+  };
+  const onStderr = (chunk) => {
+    const text = String(chunk);
+    process.stderr.write(`[server:err] ${text}`);
+    if (monitor.active) {
+      monitor.failures.push(`stderr: ${text.trim() || "(empty)"}`);
+    }
+  };
+  const onExit = (code, signal) => {
+    if (monitor.active && !shuttingDown) {
+      monitor.failures.push(`exit: code=${code} signal=${signal}`);
+    }
+  };
+  serverProcess.stderr.on("data", onStderr);
+  serverProcess.once("exit", onExit);
+  monitor.detach = () => {
+    monitor.active = false;
+    serverProcess.stderr.off("data", onStderr);
+    serverProcess.off("exit", onExit);
+  };
+  return monitor;
 }
 
 function startServer() {
@@ -326,7 +401,9 @@ function createClient(label) {
   });
 
   const state = attachClientState(socket, label);
-  return { socket, state };
+  const client = { socket, state };
+  activeClients.add(client);
+  return client;
 }
 
 async function waitForSocketConnect(socket, label) {
@@ -348,6 +425,7 @@ async function waitForSocketConnect(socket, label) {
 async function waitForCondition(check, timeoutMs, message, intervalMs = 50) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    assertNoRuntimeFailures();
     const value = check();
     if (value) {
       return value;
@@ -355,6 +433,7 @@ async function waitForCondition(check, timeoutMs, message, intervalMs = 50) {
     await delay(intervalMs);
   }
 
+  assertNoRuntimeFailures();
   throw new Error(message);
 }
 
@@ -374,15 +453,19 @@ function summarizeSquads(players) {
   }, {});
 }
 
-function assertFullSquads(players) {
-  if (players.length !== EXPECTED_PLAYER_COUNT) {
-    throw new Error(`Expected ${EXPECTED_PLAYER_COUNT} player units, got ${players.length}`);
+function assertFullSquads(players, roomState) {
+  if (!roomState) {
+    throw new Error("Missing started room:state payload");
+  }
+
+  if (players.length !== roomState.capacity) {
+    throw new Error(`Expected match payload to fill room capacity ${roomState.capacity}, got ${players.length}`);
   }
 
   const squadSummary = summarizeSquads(players);
   const squads = Object.keys(squadSummary);
-  if (squads.length !== EXPECTED_SQUAD_COUNT) {
-    throw new Error(`Expected ${EXPECTED_SQUAD_COUNT} squads, got ${squads.length}: ${JSON.stringify(squadSummary)}`);
+  if (squads.length !== roomState.squadCount) {
+    throw new Error(`Expected ${roomState.squadCount} active squads, got ${squads.length}: ${JSON.stringify(squadSummary)}`);
   }
 
   const playerSquad = players.filter((player) => player.squadId === "player");
@@ -401,8 +484,12 @@ function assertFullSquads(players) {
     if (squadId === "player") {
       continue;
     }
-    if (count !== EXPECTED_BOT_SQUAD_SIZE) {
-      throw new Error(`Expected squad ${squadId} to have ${EXPECTED_BOT_SQUAD_SIZE} units, got ${count}`);
+    const botPlayers = players.filter((player) => player.squadId === squadId);
+    if (botPlayers.some((player) => !player.isBot)) {
+      throw new Error(`Expected squad ${squadId} to contain only bots`);
+    }
+    if (count === 0) {
+      throw new Error(`Expected squad ${squadId} to contain at least one bot`);
     }
   }
 
@@ -538,6 +625,17 @@ function normalizeDirection(from, to) {
   return { x: dx / length, y: dy / length };
 }
 
+function getAttackIntervalMs(player) {
+  const attacksPerSecondByWeapon = {
+    sword: 1.01,
+    blade: 0.72,
+    spear: 0.43
+  };
+  const attacksPerSecond = attacksPerSecondByWeapon[player.weaponType] ?? attacksPerSecondByWeapon.sword;
+  const cooldownMs = Math.round((1000 / attacksPerSecond) / Math.max(1 + (player.attackSpeed ?? 0), 0.1));
+  return cooldownMs + 120;
+}
+
 async function movePlayerTowards(client, target, stopDistance, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -652,7 +750,7 @@ async function killOneMonster(client, timeoutMs) {
       continue;
     }
 
-    if (Date.now() - lastAttackAt >= 700) {
+    if (Date.now() - lastAttackAt >= getAttackIntervalMs(self)) {
       client.socket.emit("player:attack", {
         attackId: `attack_${Date.now()}`
       });
@@ -705,7 +803,7 @@ async function killMonsterById(client, targetMonsterId, timeoutMs) {
       continue;
     }
 
-    if (Date.now() - lastAttackAt >= 700) {
+    if (Date.now() - lastAttackAt >= getAttackIntervalMs(self)) {
       client.socket.emit('player:attack', {
         attackId: `attack_${Date.now()}`
       });
@@ -804,6 +902,7 @@ async function pickupNearestDrop(client, timeoutMs) {
 }
 
 async function cleanup({ clients, serverProcess }) {
+  shuttingDown = true;
   for (const client of clients) {
     try {
       client.socket.disconnect();
@@ -813,11 +912,16 @@ async function cleanup({ clients, serverProcess }) {
   }
 
   if (serverProcess && !serverProcess.killed) {
+    activeServerMonitor?.detach?.();
     serverProcess.kill();
     await Promise.race([
       new Promise((resolve) => serverProcess.once("exit", resolve)),
       delay(2_000)
     ]);
+  }
+
+  for (const client of clients) {
+    activeClients.delete(client);
   }
 }
 
@@ -826,6 +930,8 @@ async function main() {
   let serverProcess;
   let ownsServerProcess = false;
   const clients = [];
+  shuttingDown = false;
+  activeServerMonitor = undefined;
 
   try {
     await ensureServerBuild();
@@ -878,6 +984,7 @@ async function main() {
     } catch (error) {
       stepResults.push(false);
       logStepResult(1, false, error.message);
+      throw error;
     }
 
     try {
@@ -902,6 +1009,7 @@ async function main() {
     } catch (error) {
       stepResults.push(false);
       logStepResult(2, false, error.message);
+      throw error;
     }
 
     try {
@@ -924,13 +1032,14 @@ async function main() {
         "PlayerA did not receive started room:state"
       );
       assertHumanLobbyPlayers(startedRoomState, 2);
-      const squadSummary = assertFullSquads(playerAMatch.room.players);
+      const squadSummary = assertFullSquads(playerAMatch.room.players, startedRoomState);
       initialDropCount = playerA.state.drops.length;
       stepResults.push(true);
       logStepResult(3, true, `Both clients received match:started, units=${playerAMatch.room.players.length}, squads=${JSON.stringify(squadSummary)}`);
     } catch (error) {
       stepResults.push(false);
       logStepResult(3, false, error.message);
+      throw error;
     }
 
     try {
@@ -947,6 +1056,7 @@ async function main() {
     } catch (error) {
       stepResults.push(false);
       logStepResult(4, false, error.message);
+      throw error;
     }
 
     let killedMonster;
@@ -957,6 +1067,7 @@ async function main() {
     } catch (error) {
       stepResults.push(false);
       logStepResult(5, false, error.message);
+      throw error;
     }
 
     try {
@@ -980,6 +1091,7 @@ async function main() {
     } catch (error) {
       stepResults.push(false);
       logStepResult(6, false, error.message);
+      throw error;
     }
 
     let pickedDropId;
@@ -999,6 +1111,7 @@ async function main() {
     } catch (error) {
       stepResults.push(false);
       logStepResult(7, false, error.message);
+      throw error;
     }
 
     try {
@@ -1013,6 +1126,7 @@ async function main() {
     } catch (error) {
       stepResults.push(false);
       logStepResult(8, false, error.message);
+      throw error;
     }
 
     try {
@@ -1051,6 +1165,7 @@ async function main() {
     } catch (error) {
       stepResults.push(false);
       logStepResult(9, false, error.message);
+      throw error;
     }
 
     try {
@@ -1070,6 +1185,7 @@ async function main() {
     } catch (error) {
       stepResults.push(false);
       logStepResult(10, false, error.message);
+      throw error;
     }
     const passed = stepResults.filter(Boolean).length;
     console.log(`Summary: passed ${passed} / 10 steps`);

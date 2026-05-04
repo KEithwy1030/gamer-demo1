@@ -144,18 +144,33 @@ function inventoryContains(
 }
 
 function selectSettledWeapon(profile: LocalProfile): LocalProfileItem | undefined {
-  return profile.pendingReturn?.items.find((item) => item.equipmentSlot === "weapon");
+  return listReturnedItems(profile).find((item) => item.equipmentSlot === "weapon");
 }
 
-function selectPendingItem(profile: LocalProfile, expected: CarriedExpectation): LocalProfileItem | undefined {
-  return profile.pendingReturn?.items.find((item) => item.instanceId === expected.instanceId);
+function listReturnedItems(profile: LocalProfile): LocalProfileItem[] {
+  return [
+    ...(profile.pendingReturn?.items ?? []),
+    ...profile.stash.pages.flatMap((page) => page.items)
+  ];
+}
+
+function summarizeReturnedItems(profile: LocalProfile): string {
+  const pending = (profile.pendingReturn?.items ?? []).map((item) => `${item.definitionId}:${item.instanceId}`);
+  const stash = profile.stash.pages.flatMap((page, pageIndex) => (
+    page.items.map((item) => `p${pageIndex}:${item.definitionId}:${item.instanceId}`)
+  ));
+  return `pending=[${pending.join(", ")}] stash=[${stash.join(", ")}]`;
+}
+
+function selectReturnedItem(profile: LocalProfile, expected: CarriedExpectation): LocalProfileItem | undefined {
+  return listReturnedItems(profile).find((item) => item.instanceId === expected.instanceId);
 }
 
 function selectCarryCandidate(profile: LocalProfile): CarriedExpectation {
-  const pendingItems = profile.pendingReturn?.items ?? [];
-  const preferred = pendingItems.find((item) => item.equipmentSlot !== "weapon") ?? pendingItems[0];
+  const returnedItems = listReturnedItems(profile);
+  const preferred = returnedItems.find((item) => item.equipmentSlot !== "weapon") ?? returnedItems[0];
   if (!preferred) {
-    throw new Error("Settlement did not leave any pending-return item to carry into the next run");
+    throw new Error("Settlement did not leave any returned item to carry into the next run");
   }
 
   return {
@@ -186,21 +201,21 @@ function prepareNextLoadout(profile: LocalProfile, carriedItem: CarriedExpectati
     };
   }
 
-  const pendingItem = selectPendingItem(next, carriedItem);
-  if (!pendingItem) {
-    log(`prepareNextLoadout missing carried item ${carriedItem.instanceId}; pending=${(next.pendingReturn?.items ?? []).map((item) => `${item.definitionId}:${item.instanceId}`).join(", ")}`);
-    throw new Error(`Pending return is missing carried item ${carriedItem.instanceId}`);
+  const returnedItem = selectReturnedItem(next, carriedItem);
+  if (!returnedItem) {
+    log(`prepareNextLoadout missing carried item ${carriedItem.instanceId}; ${summarizeReturnedItems(next)}`);
+    throw new Error(`Returned inventory is missing carried item ${carriedItem.instanceId}`);
   }
 
-  if (pendingItem.equipmentSlot && !next.equipment[pendingItem.equipmentSlot]) {
+  if (returnedItem.equipmentSlot && !next.equipment[returnedItem.equipmentSlot]) {
     next = moveProfileItem(next, {
-      itemInstanceId: pendingItem.instanceId,
+      itemInstanceId: returnedItem.instanceId,
       targetArea: "equipment",
-      slot: pendingItem.equipmentSlot
+      slot: returnedItem.equipmentSlot
     });
   } else {
     next = moveProfileItem(next, {
-      itemInstanceId: pendingItem.instanceId,
+      itemInstanceId: returnedItem.instanceId,
       targetArea: "grid"
     });
   }
