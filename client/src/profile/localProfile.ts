@@ -334,10 +334,34 @@ function normalizeSettlementItems(runtimeInventory: MatchInventoryState | null |
 
 function normalizeInventoryGrid(raw: unknown, defaultWidth: number, defaultHeight: number): LocalInventoryGrid {
   const record = isRecord(raw) ? raw : {};
+  const width = Math.max(defaultWidth, toNumber(record.width, defaultWidth));
+  const height = Math.max(defaultHeight, toNumber(record.height, defaultHeight));
+  const items = normalizeGridItems(record.items);
+  const normalized: LocalInventoryGrid = {
+    width: defaultWidth,
+    height: defaultHeight,
+    items: []
+  };
+
+  for (const item of items) {
+    const clamped = {
+      ...item,
+      x: Math.min(Math.max(0, item.x), Math.max(0, width - item.width)),
+      y: Math.min(Math.max(0, item.y), Math.max(0, height - item.height))
+    };
+
+    if (canPlaceAt(normalized, clamped, clamped.x, clamped.y)) {
+      normalized.items.push(clamped);
+      continue;
+    }
+
+    placeInInventory(normalized, stripGridPosition(clamped));
+  }
+
   return {
-    width: Math.max(defaultWidth, toNumber(record.width, defaultWidth)),
-    height: Math.max(defaultHeight, toNumber(record.height, defaultHeight)),
-    items: normalizeGridItems(record.items)
+    width: normalized.width,
+    height: normalized.height,
+    items: normalized.items
   };
 }
 

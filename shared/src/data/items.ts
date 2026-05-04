@@ -1,7 +1,7 @@
 import type { ItemDefinition } from "../types/inventory";
 
 export const INVENTORY_WIDTH = 10;
-export const INVENTORY_HEIGHT = 20;
+export const INVENTORY_HEIGHT = 6;
 
 export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   weapon_sword_basic: {

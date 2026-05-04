@@ -5,21 +5,21 @@ export const WEAPON_DEFINITIONS: Record<string, WeaponDefinition> = {
     type: "sword",
     name: "长剑",
     attackPower: 10,
-    attacksPerSecond: 1.5,
+    attacksPerSecond: 1.1,
     range: 116
   },
   blade: {
     type: "blade",
     name: "弯刃",
     attackPower: 15,
-    attacksPerSecond: 1,
+    attacksPerSecond: 0.8,
     range: 128
   },
   spear: {
     type: "spear",
     name: "长矛",
     attackPower: 20,
-    attacksPerSecond: 0.5,
+    attacksPerSecond: 0.4,
     range: 180
   }
 };

@@ -54,7 +54,7 @@ const STAT_LABELS: Record<string, string> = {
   antiCrit: "抗暴"
 };
 
-const GRID_CELL_SIZE = 30;
+const GRID_CELL_SIZE = 34;
 const GRID_GAP = 4;
 
 export function createInventoryPanel(options: InventoryPanelOptions): InventoryPanelApi {
@@ -543,7 +543,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     }
 
     const width = Math.max(1, inventory.width || 10);
-    const height = Math.max(1, inventory.height || 20);
+    const height = Math.max(1, inventory.height || 6);
     const total = width * height;
     const used = inventory.items.reduce((sum, item) => sum + Math.max(1, item.width ?? 1) * Math.max(1, item.height ?? 1), 0);
     const weaponName = inventory.equipment.weapon ? getItemPresentation(inventory.equipment.weapon).displayName : "空手";
