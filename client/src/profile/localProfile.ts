@@ -117,14 +117,17 @@ export function applySettlementToProfile(
   const extracted = settlement.result === "success"
     ? normalizeSettlementItems(runtimeInventory, settlement.extractedItems)
     : [];
+  const stashPlacement = settlement.result === "success"
+    ? placeItemsIntoStash(base.stash.pages, extracted)
+    : { placedCount: 0, overflow: [] as LocalProfileItem[] };
 
   const next: LocalProfile = {
     ...base,
     gold: Math.max(0, profile.gold + (settlement.profileGoldDelta ?? 0)),
     inventory: settlement.result === "success" ? createEmptyInventory() : base.inventory,
     equipment: settlement.result === "success" ? {} : base.equipment,
-    pendingReturn: settlement.result === "success" && extracted.length > 0
-      ? { items: extracted }
+    pendingReturn: settlement.result === "success" && stashPlacement.overflow.length > 0
+      ? { items: stashPlacement.overflow }
       : null,
     lastRun: {
       result: settlement.result,
@@ -569,6 +572,31 @@ function restoreProfileItem(
 
 function placeInInventory(inventory: LocalInventoryGrid, item: LocalProfileItem, preferredX?: number, preferredY?: number): boolean {
   return placeInGridPage(inventory, item, preferredX, preferredY);
+}
+
+function placeItemsIntoStash(
+  pages: LocalStashPage[],
+  items: LocalProfileItem[]
+): { placedCount: number; overflow: LocalProfileItem[] } {
+  let placedCount = 0;
+  const overflow: LocalProfileItem[] = [];
+
+  for (const item of items) {
+    let placed = false;
+    for (const page of pages) {
+      if (placeInGridPage(page, item)) {
+        placed = true;
+        placedCount += 1;
+        break;
+      }
+    }
+
+    if (!placed) {
+      overflow.push(stripGridPosition(item));
+    }
+  }
+
+  return { placedCount, overflow };
 }
 
 function placeInGridPage(
