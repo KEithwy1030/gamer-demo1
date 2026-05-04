@@ -20,7 +20,6 @@ import {
 const MAP_CENTER_X = MATCH_MAP_WIDTH / 2;
 const MAP_CENTER_Y = MATCH_MAP_HEIGHT / 2;
 const OUTER_RING_RADIUS = 880;
-const INNER_EXTRACT_RADIUS = 520;
 const MID_CHEST_RADIUS = 720;
 const SAFE_RADIUS = 340;
 const STARTER_CHEST_OFFSET = 260;
@@ -74,10 +73,8 @@ export function buildMatchLayout(options: BuildMatchLayoutOptions): MatchLayout 
     safeZones.push({ squadId, x: anchor.x, y: anchor.y, radius: SAFE_RADIUS });
   });
 
-  const templatePhase = nodeOffsets[0] * 30;
   const extractZones: MatchLayoutExtractZone[] = [
-    buildExtractZone("extract_alpha", templatePhase + 45),
-    buildExtractZone("extract_beta", templatePhase + 225)
+    buildExtractZone("extract_center")
   ];
 
   const chestZones: MatchLayoutChestZone[] = [
@@ -162,12 +159,11 @@ export function getRiverHazardAtPoint(layout: MatchLayout, x: number, y: number)
   return layout.riverHazards.find((hazard) => pointInRect(x, y, hazard));
 }
 
-function buildExtractZone(zoneId: string, angleDeg: number): MatchLayoutExtractZone {
-  const point = pointOnRing(INNER_EXTRACT_RADIUS, angleDeg);
+function buildExtractZone(zoneId: string): MatchLayoutExtractZone {
   return {
     zoneId,
-    x: point.x,
-    y: point.y,
+    x: MAP_CENTER_X,
+    y: MAP_CENTER_Y,
     radius: EXTRACT_CENTER_RADIUS,
     openAtSec: EXTRACT_OPEN_SEC,
     channelDurationMs: EXTRACT_CHANNEL_DURATION_MS

@@ -1,10 +1,12 @@
 import type { AttackRequestPayload, BotDifficulty, CombatEventPayload, SkillCastPayload, Vector2 } from "@gamer/shared";
+import { openChest } from "../chests/chest-manager.js";
 import { startPlayerExtract } from "../extract/index.js";
+import { InventoryService } from "../inventory/service.js";
 import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "../internal-constants.js";
 import { getBestSafeCrossing, getNearestContestedChestZone, getRiverHazardAtPoint, getSquadSpawnZone, getStarterChestZone, isPointInsideSafeCrossing } from "../match-layout.js";
 import { handlePlayerAttack as handleMonsterPlayerAttack, handlePlayerSkill as handleMonsterPlayerSkill } from "../monsters/monster-manager.js";
 import { resolvePlayerAttack, resolvePlayerSkillCast, type PlayerDeathPayload } from "../combat/combat-service.js";
-import type { ExtractProgressPayload, RuntimeContext, RuntimeMonster, RuntimePlayer } from "../types.js";
+import type { ChestOpenedPayload, ExtractProgressPayload, LootPickedPayload, RuntimeContext, RuntimeMonster, RuntimePlayer } from "../types.js";
 
 interface BotDifficultyProfile {
   aggroRange: number;
@@ -23,6 +25,8 @@ export interface BotTickResult {
   combatEvents: CombatEventPayload[];
   playerDeaths: PlayerDeathPayload[];
   extractProgressEvents: ExtractProgressPayload[];
+  chestOpenedEvents: ChestOpenedPayload[];
+  lootPickedEvents: LootPickedPayload[];
   monsterStateChanged: boolean;
   playerStateChanged: boolean;
 }
@@ -38,12 +42,19 @@ const OPENING_VISION_RANGE = 1200;
 const OPENING_RELEASE_MS = 30_000;
 const EXTRACT_PRESSURE_PLAYER_RADIUS = 380;
 const EXTRACT_PRESSURE_STAGING_DISTANCE = 54;
+const BOT_SCAVENGE_VISION_RANGE = 420;
+const BOT_SCAVENGE_INTERACT_RANGE = 86;
+const BOT_CARGO_EXTRACT_BONUS = 0.22;
+
+const botInventoryService = new InventoryService();
 
 export function tickBots(context: RuntimeContext, now = Date.now()): BotTickResult {
   const result: BotTickResult = {
     combatEvents: [],
     playerDeaths: [],
     extractProgressEvents: [],
+    chestOpenedEvents: [],
+    lootPickedEvents: [],
     monsterStateChanged: false,
     playerStateChanged: false
   };
@@ -78,6 +89,7 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
   const hpRatio = botState.maxHp > 0 ? botState.hp / botState.maxHp : 0;
   const extractZones = context.room.extract?.zones ?? [];
   const nearestOpenExtract = extractZones.filter((zone) => zone.isOpen).sort((a, b) => distance(botState, a) - distance(botState, b))[0];
+  const hasCargo = hasBackpackCargo(bot);
 
   const extractPressure = resolveExtractPressureIntent(context, bot, hpRatio);
   if (extractPressure?.enemy?.state) {
@@ -100,11 +112,21 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
     return;
   }
 
-  if (nearestOpenExtract && (hpRatio <= profile.fleeHpRatio || Math.random() < profile.extractChance)) {
+  if (nearestOpenExtract && (hpRatio <= profile.fleeHpRatio || Math.random() < Math.min(0.98, profile.extractChance + (hasCargo ? BOT_CARGO_EXTRACT_BONUS : 0)))) {
     bot.botGoal = "extract";
     bot.botTargetPlayerId = undefined;
     bot.botTargetDropId = undefined;
     bot.botPatrolPoint = { x: nearestOpenExtract.x, y: nearestOpenExtract.y };
+    bot.moveInput = getTravelDirection(context, botState, bot.botPatrolPoint);
+    return;
+  }
+
+  const scavengeTarget = findVisibleScavengeTarget(context, bot);
+  if (scavengeTarget) {
+    bot.botGoal = "loot";
+    bot.botTargetPlayerId = undefined;
+    bot.botTargetDropId = scavengeTarget.kind === "drop" ? scavengeTarget.id : undefined;
+    bot.botPatrolPoint = { x: scavengeTarget.x, y: scavengeTarget.y };
     bot.moveInput = getTravelDirection(context, botState, bot.botPatrolPoint);
     return;
   }
@@ -167,6 +189,13 @@ function tryBotAction(
     }
   }
 
+  if (bot.botGoal === "loot") {
+    const didScavenge = tryBotScavenge(context, bot, result);
+    if (didScavenge) {
+      return true;
+    }
+  }
+
   const enemy = findNearestEnemyPlayer(context, bot, 190);
   if (enemy) {
     return useBotPlayerAttack(context, bot, enemy, profile, result);
@@ -175,6 +204,58 @@ function tryBotAction(
   const monster = findNearestMonster(context, bot, 190);
   if (monster) {
     return useBotMonsterAttack(context, bot, profile, result);
+  }
+
+  return false;
+}
+
+function tryBotScavenge(
+  context: RuntimeContext,
+  bot: RuntimePlayer,
+  result: BotTickResult
+): boolean {
+  if (!bot.state) {
+    return false;
+  }
+
+  const chest = [...(context.room.chests?.values() ?? [])]
+    .filter((entry) => !entry.isOpen)
+    .map((entry) => ({ entry, distance: distance(bot.state!, entry) }))
+    .filter((entry) => entry.distance <= BOT_SCAVENGE_INTERACT_RANGE)
+    .sort((a, b) => a.distance - b.distance)[0]?.entry;
+
+  if (chest) {
+    try {
+      const { loot } = openChest(context.room, bot.id, chest.id, bot.state.x, bot.state.y);
+      botInventoryService.addItemsToInventory(context.room, bot.id, loot);
+      result.chestOpenedEvents.push({
+        chestId: chest.id,
+        playerId: bot.id,
+        loot
+      });
+      result.playerStateChanged = true;
+      return true;
+    } catch {
+      // Ignore failed opportunistic loot attempts; next decision will pick a new goal.
+    }
+  }
+
+  const drop = [...(context.room.drops?.values() ?? [])]
+    .map((entry) => ({ entry, distance: distance(bot.state!, entry) }))
+    .filter((entry) => entry.distance <= BOT_SCAVENGE_INTERACT_RANGE)
+    .sort((a, b) => a.distance - b.distance)[0]?.entry;
+
+  if (drop) {
+    try {
+      const pickup = botInventoryService.pickup(context.room, bot.id, drop.id);
+      if (pickup.lootPicked) {
+        result.lootPickedEvents.push(pickup.lootPicked);
+      }
+      result.playerStateChanged = true;
+      return true;
+    } catch {
+      // Full inventory or stale drop; continue with combat/patrol behavior.
+    }
   }
 
   return false;
@@ -334,6 +415,35 @@ function findNearestMonster(context: RuntimeContext, bot: RuntimePlayer, maxDist
     .map((monster) => ({ monster, distance: distance(bot.state!, monster) }))
     .filter((entry) => entry.distance <= maxDistance)
     .sort((a, b) => a.distance - b.distance)[0]?.monster;
+}
+
+function findVisibleScavengeTarget(
+  context: RuntimeContext,
+  bot: RuntimePlayer
+): { kind: "chest" | "drop"; id: string; x: number; y: number; distance: number } | undefined {
+  if (!bot.state) return undefined;
+
+  const visibleChests = [...(context.room.chests?.values() ?? [])]
+    .filter((chest) => !chest.isOpen)
+    .map((chest) => ({ kind: "chest" as const, id: chest.id, x: chest.x, y: chest.y, distance: distance(bot.state!, chest) }))
+    .filter((entry) => entry.distance <= BOT_SCAVENGE_VISION_RANGE);
+
+  const visibleDrops = [...(context.room.drops?.values() ?? [])]
+    .map((drop) => ({ kind: "drop" as const, id: drop.id, x: drop.x, y: drop.y, distance: distance(bot.state!, drop) }))
+    .filter((entry) => entry.distance <= BOT_SCAVENGE_VISION_RANGE);
+
+  return [...visibleChests, ...visibleDrops]
+    .sort((a, b) => a.distance - b.distance)[0];
+}
+
+function hasBackpackCargo(bot: RuntimePlayer): boolean {
+  return (bot.inventory?.items ?? []).some((entry) => (
+    entry.item.treasureValue > 0
+    || entry.item.goldValue > 0
+    || entry.item.kind === "equipment"
+    || entry.item.kind === "weapon"
+    || entry.item.kind === "consumable"
+  ));
 }
 
 function resolveExtractPressureIntent(

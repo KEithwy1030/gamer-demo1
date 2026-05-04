@@ -273,7 +273,7 @@ export class GameHudOverlay {
     }
 
     if (this.objectiveText) {
-      const objectiveLabel = resolveObjectiveLabel(extractState, state.secondsRemaining);
+      const objectiveLabel = resolveObjectiveLabel(extractState, state);
       if (this.lastObjectiveLabel !== objectiveLabel) {
         this.objectiveText.setText(objectiveLabel);
         this.lastObjectiveLabel = objectiveLabel;
@@ -323,7 +323,7 @@ export class GameHudOverlay {
     }
 
     if (this.combatText) {
-      const combatLabel = extractState.message || "穿过腐土荒岗，搜刮战利品，活着回营。";
+      const combatLabel = extractState.message || resolvePressureHint(state, extractState);
       if (this.lastCombatLabel !== combatLabel) {
         this.combatText.setText(combatLabel);
         this.lastCombatLabel = combatLabel;
@@ -546,7 +546,7 @@ function buildSkillSlotLabel(key: string, skillId: ReturnType<typeof resolveSkil
   return skillId ? `${key}\n${getPrimarySkillLabel(skillId)}` : `${key}\n--`;
 }
 
-function resolveObjectiveLabel(extractState: ExtractUiState, secondsRemaining: number | null): string {
+function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewState): string {
   if (extractState.isExtracting) {
     const seconds = extractState.secondsRemaining == null ? "" : ` ${Math.ceil(extractState.secondsRemaining)}s`;
     return `守住归营石阵，读条中${seconds}`;
@@ -557,20 +557,24 @@ function resolveObjectiveLabel(extractState: ExtractUiState, secondsRemaining: n
   }
 
   if (extractState.isOpen) {
-    return "归营石阵已点燃，带着战利品撤出";
+    return hasBackpackCargo(state) ? "中心归营石阵已点燃，带货会引来围堵，立刻撤出" : "中心归营石阵已点燃，立刻向中心撤出";
   }
 
-  if (secondsRemaining !== null && secondsRemaining <= 60) {
-    return "暮鼓将尽，立刻奔向归营石阵";
+  if (isCorpseFogCounterattacking(state)) {
+    return "尸毒反噬已起，生命正在被荒雾追债";
   }
 
-  return "搜刮遗物，避开围杀，等待归营火起";
+  if (state.secondsRemaining !== null && state.secondsRemaining <= 60) {
+    return "暮鼓将尽，立刻奔向中心归营石阵";
+  }
+
+  return hasBackpackCargo(state) ? "背包已有收获，准备向中心撤离点收束" : "搜刮遗物，避开围杀，等待中心归营火起";
 }
 
 function resolveExtractStateLabel(extractState: ExtractUiState): string {
   if (extractState.isExtracting) return "撤离 读条中";
   if (extractState.didSucceed) return "撤离 成功";
-  return extractState.isOpen ? "撤离 已点燃" : "撤离 未点燃";
+  return extractState.isOpen ? "撤离 已开放" : "撤离 8分钟开放";
 }
 
 function resolveInventoryLabel(state: MatchViewState): string {
@@ -582,5 +586,31 @@ function resolveInventoryLabel(state: MatchViewState): string {
     return sum + Math.max(1, item.width ?? 1) * Math.max(1, item.height ?? 1);
   }, 0);
 
-  return `背包 ${used}/${total}`;
+  return hasBackpackCargo(state) ? `背包 ${used}/${total} 带货` : `背包 ${used}/${total}`;
+}
+
+function resolvePressureHint(state: MatchViewState, extractState: ExtractUiState): string {
+  if (isCorpseFogCounterattacking(state)) {
+    return extractState.isOpen
+      ? "尸毒反噬开始扣血，中心撤离点已开放，别贪最后一箱。"
+      : "尸毒反噬正在逼近，准备向中心撤离点收束。";
+  }
+
+  if (hasBackpackCargo(state)) {
+    return "背包有货，越靠近撤离窗口越容易被截，规划回中心的路线。";
+  }
+
+  return "穿过腐土荒岗，搜刮战利品，活着回营。";
+}
+
+function hasBackpackCargo(state: MatchViewState): boolean {
+  return (state.inventory?.items.length ?? 0) > 0;
+}
+
+function isCorpseFogCounterattacking(state: MatchViewState): boolean {
+  return getElapsedSeconds(state.startedAt) >= 8 * 60;
+}
+
+function getElapsedSeconds(startedAt: number): number {
+  return startedAt > 0 ? Math.max(0, (Date.now() - startedAt) / 1000) : 0;
 }

@@ -46,6 +46,7 @@ const SPAWN_JITTER_PX = 200;
 const MONSTER_CORPSE_DURATION_MS = 10_000;
 const MONSTER_RESPAWN_DELAY_MS = 60_000;
 const MAP_MARGIN_PX = 96;
+const ELITE_RESOURCE_GUARD_OFFSET_PX = 150;
 const SKILL_DAMAGE = {
   swordDashSlash: 24,
   bladeSweep: 22,
@@ -594,8 +595,11 @@ function generateNormalSpawnDefinitions(room: RuntimeRoom): MonsterSpawnDefiniti
 }
 
 function generateEliteSpawnDefinitions(room: RuntimeRoom): MonsterSpawnDefinition[] {
+  const resourcePoints = getHighValueResourcePoints(room);
   return Array.from({ length: ELITE_MONSTER_COUNT }, (_, index) => {
-    const point = randomMidRingPoint(room);
+    const point = resourcePoints.length > 0
+      ? resolveEliteGuardPoint(room, resourcePoints[index % resourcePoints.length], index)
+      : randomMidRingPoint(room);
     return {
       id: `elite_${index + 1}`,
       type: "elite",
@@ -603,6 +607,32 @@ function generateEliteSpawnDefinitions(room: RuntimeRoom): MonsterSpawnDefinitio
       y: Math.round(point.y)
     };
   });
+}
+
+function getHighValueResourcePoints(room: RuntimeRoom): Array<{ x: number; y: number }> {
+  return (room.matchLayout?.chestZones ?? [])
+    .filter((zone) => zone.lane === "contested")
+    .map((zone) => ({ x: zone.x, y: zone.y }));
+}
+
+function resolveEliteGuardPoint(
+  room: RuntimeRoom,
+  resourcePoint: { x: number; y: number },
+  index: number
+): { x: number; y: number } {
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    const angle = ((index * 137) + attempt * 47) * (Math.PI / 180);
+    const radius = ELITE_RESOURCE_GUARD_OFFSET_PX + (attempt % 3) * 45;
+    const point = {
+      x: clamp(resourcePoint.x + Math.cos(angle) * radius, MAP_MARGIN_PX, MATCH_MAP_WIDTH - MAP_MARGIN_PX),
+      y: clamp(resourcePoint.y + Math.sin(angle) * radius, MAP_MARGIN_PX, MATCH_MAP_HEIGHT - MAP_MARGIN_PX)
+    };
+    if (isValidSpawnPoint(room, point.x, point.y)) {
+      return point;
+    }
+  }
+
+  return randomMidRingPoint(room);
 }
 
 function randomValidPoint(room: RuntimeRoom): { x: number; y: number } {

@@ -2,30 +2,60 @@ import crypto from "node:crypto";
 import { buildInventoryItem } from "../loot/loot-manager.js";
 import type { Chest, InventoryItem, RuntimeRoom } from "../types.js";
 
-const CHEST_LOOT_TEMPLATES = [
+const STARTER_LOOT_TEMPLATES = [
   "armor_hands_common",
   "armor_feet_common",
-  "armor_head_common",
-  "armor_chest_common",
   "weapon_sword_basic",
   "weapon_blade_basic",
-  "weapon_spear_basic"
+  "health_potion",
+  "treasure_small_idol"
 ] as const;
 
-const MIN_LOOT = 2;
-const MAX_LOOT = 4;
+const STARTER_MIN_LOOT = 2;
+const STARTER_MAX_LOOT = 3;
+const CONTESTED_MIN_LOOT = 3;
+const CONTESTED_MAX_LOOT = 5;
 
-function pickLootItem(): InventoryItem | undefined {
-  const templateId = CHEST_LOOT_TEMPLATES[Math.floor(Math.random() * CHEST_LOOT_TEMPLATES.length)];
-  return buildInventoryItem(templateId);
+function pickStarterLootItem(): InventoryItem | undefined {
+  const templateId = STARTER_LOOT_TEMPLATES[Math.floor(Math.random() * STARTER_LOOT_TEMPLATES.length)];
+  return buildInventoryItem(templateId, "normal");
 }
 
-function generateChestLoot(): InventoryItem[] {
-  const count = MIN_LOOT + Math.floor(Math.random() * (MAX_LOOT - MIN_LOOT + 1));
+function pickContestedLootItem(): InventoryItem | undefined {
+  const templateId = pickWeighted([
+    { templateId: "treasure_small_idol", weight: 12 },
+    { templateId: "treasure_medium_tablet", weight: 26 },
+    { templateId: "treasure_large_statue", weight: 14 },
+    { templateId: "armor_head_common", weight: 13 },
+    { templateId: "armor_chest_common", weight: 13 },
+    { templateId: "weapon_spear_basic", weight: 10 },
+    { templateId: "weapon_blade_basic", weight: 6 },
+    { templateId: "weapon_sword_basic", weight: 6 }
+  ]).templateId;
+  return buildInventoryItem(templateId, "elite");
+}
+
+function generateStarterChestLoot(): InventoryItem[] {
+  const count = STARTER_MIN_LOOT + Math.floor(Math.random() * (STARTER_MAX_LOOT - STARTER_MIN_LOOT + 1));
   const loot: InventoryItem[] = [];
 
   for (let i = 0; i < count; i += 1) {
-    const item = pickLootItem();
+    const item = pickStarterLootItem();
+    if (item) {
+      loot.push(item);
+    }
+  }
+
+  return loot;
+}
+
+function generateContestedChestLoot(): InventoryItem[] {
+  const count = CONTESTED_MIN_LOOT + Math.floor(Math.random() * (CONTESTED_MAX_LOOT - CONTESTED_MIN_LOOT + 1));
+  const guaranteedTreasure = buildInventoryItem(Math.random() < 0.65 ? "treasure_medium_tablet" : "treasure_large_statue", "elite");
+  const loot: InventoryItem[] = guaranteedTreasure ? [guaranteedTreasure] : [];
+
+  while (loot.length < count) {
+    const item = pickContestedLootItem();
     if (item) {
       loot.push(item);
     }
@@ -44,7 +74,7 @@ export function spawnChests(room: RuntimeRoom): void {
       x: zone.x,
       y: zone.y,
       isOpen: false,
-      loot: generateChestLoot()
+      loot: zone.lane === "contested" ? generateContestedChestLoot() : generateStarterChestLoot()
     };
     room.chests.set(chest.id, chest);
   }
@@ -90,4 +120,18 @@ export function openChest(
   }));
 
   return { chest, loot };
+}
+
+function pickWeighted<T extends { weight: number }>(entries: T[]): T {
+  const totalWeight = entries.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = Math.random() * totalWeight;
+
+  for (const entry of entries) {
+    roll -= entry.weight;
+    if (roll <= 0) {
+      return entry;
+    }
+  }
+
+  return entries[entries.length - 1];
 }
