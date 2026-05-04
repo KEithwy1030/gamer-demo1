@@ -17,7 +17,7 @@ import {
   PLAYER_BASE_HP,
   PLAYER_BASE_MOVE_SPEED
 } from "../internal-constants.js";
-import { INVENTORY_HEIGHT, INVENTORY_WIDTH } from "@gamer/shared";
+import { canPlaceRect, findFirstFitRect, INVENTORY_HEIGHT, INVENTORY_WIDTH } from "@gamer/shared";
 import { setPlayerBaseStats } from "../combat/player-effects.js";
 import { getItemTemplate, listSeedDropTemplateIds } from "./catalog.js";
 
@@ -508,42 +508,28 @@ function removeInventoryItem(inventory: InventoryState, itemInstanceId: string):
 }
 
 function findFirstFit(inventory: InventoryState, item: InventoryItem): { x: number; y: number } | undefined {
-  for (let y = 0; y <= inventory.height - item.height; y += 1) {
-    for (let x = 0; x <= inventory.width - item.width; x += 1) {
-      if (canPlaceItem(inventory, item, x, y)) {
-        return { x, y };
-      }
-    }
-  }
-
-  return undefined;
+  return findFirstFitRect(inventory, getInventoryRects(inventory), {
+    width: item.width,
+    height: item.height
+  });
 }
 
 function canPlaceItem(inventory: InventoryState, item: InventoryItem, x: number, y: number): boolean {
-  if (x < 0 || y < 0 || x + item.width > inventory.width || y + item.height > inventory.height) {
-    return false;
-  }
-
-  for (const entry of inventory.items) {
-    if (rectanglesOverlap(x, y, item.width, item.height, entry.x, entry.y, entry.item.width, entry.item.height)) {
-      return false;
-    }
-  }
-
-  return true;
+  return canPlaceRect(inventory, getInventoryRects(inventory), {
+    x,
+    y,
+    width: item.width,
+    height: item.height
+  });
 }
 
-function rectanglesOverlap(
-  x1: number,
-  y1: number,
-  width1: number,
-  height1: number,
-  x2: number,
-  y2: number,
-  width2: number,
-  height2: number
-): boolean {
-  return x1 < x2 + width2 && x1 + width1 > x2 && y1 < y2 + height2 && y1 + height1 > y2;
+function getInventoryRects(inventory: InventoryState): Array<{ x: number; y: number; width: number; height: number }> {
+  return inventory.items.map((entry) => ({
+    x: entry.x,
+    y: entry.y,
+    width: entry.item.width,
+    height: entry.item.height
+  }));
 }
 
 function buildSpreadOffset(radius: number): { x: number; y: number } {

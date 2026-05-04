@@ -1,5 +1,7 @@
 import {
   ITEM_DEFINITIONS,
+  resolveEquipmentSlot,
+  resolveItemSize,
   type EquipmentSlot,
   type InventoryItemInstance,
   type InventoryPlacedItem,
@@ -150,7 +152,8 @@ function enrichPlacedItem(item: InventoryPlacedItem): LocalGridItem {
 
 function enrichItem(item: InventoryItemInstance, forcedSlot?: EquipmentSlot): LocalProfileItem {
   const definition = ITEM_DEFINITIONS[item.definitionId];
-  const equipmentSlot = forcedSlot ?? normalizeEquipmentSlot(definition?.slot ?? definition?.armorType);
+  const equipmentSlot = forcedSlot ?? resolveEquipmentSlot(item);
+  const size = resolveItemSize(item);
   return {
     instanceId: item.instanceId,
     definitionId: item.definitionId,
@@ -159,8 +162,8 @@ function enrichItem(item: InventoryItemInstance, forcedSlot?: EquipmentSlot): Lo
     rarity: item.rarity,
     slot: equipmentSlot,
     equipmentSlot,
-    width: definition?.size.width ?? 1,
-    height: definition?.size.height ?? 1,
+    width: size.width,
+    height: size.height,
     healAmount: item.healAmount ?? definition?.healAmount,
     modifiers: item.modifiers ? { ...item.modifiers } : undefined,
     affixes: item.affixes ? item.affixes.map((affix) => ({ ...affix })) : undefined

@@ -14,7 +14,7 @@ import type {
   ProfileRunSummary,
   SettlementPayload
 } from "@gamer/shared";
-import { INVENTORY_HEIGHT, INVENTORY_WIDTH } from "@gamer/shared";
+import { canPlaceRect, findFirstFitRect, INVENTORY_HEIGHT, INVENTORY_WIDTH, resolveEquipmentSlot as resolveSharedEquipmentSlot } from "@gamer/shared";
 import type { InventoryItem, InventoryState as RuntimeInventoryState } from "./types.js";
 import { getItemTemplate } from "./inventory/catalog.js";
 
@@ -479,28 +479,34 @@ function placeInGrid(grid: ProfileInventoryState, item: InventoryItemInstance, p
     return true;
   }
 
-  for (let y = 0; y <= grid.height - size.height; y += 1) {
-    for (let x = 0; x <= grid.width - size.width; x += 1) {
-      if (canPlaceAt(grid, candidate, x, y)) {
-        grid.items.push({ ...candidate, x, y });
-        return true;
-      }
-    }
+  const placement = findFirstFitRect(grid, getGridRects(grid), size);
+  if (placement) {
+    grid.items.push({ ...candidate, x: placement.x, y: placement.y });
+    return true;
   }
+
   return false;
 }
 
 function canPlaceAt(grid: ProfileInventoryState, item: InventoryItemInstance, x: number, y: number): boolean {
   const size = getItemSize(item);
-  if (x < 0 || y < 0 || x + size.width > grid.width || y + size.height > grid.height) {
-    return false;
-  }
-  return !grid.items.some((entry) => {
-    const entrySize = getItemSize(entry);
-    return x < entry.x + entrySize.width
-      && x + size.width > entry.x
-      && y < entry.y + entrySize.height
-      && y + size.height > entry.y;
+  return canPlaceRect(grid, getGridRects(grid), {
+    x,
+    y,
+    width: size.width,
+    height: size.height
+  });
+}
+
+function getGridRects(grid: ProfileInventoryState): Array<{ x: number; y: number; width: number; height: number }> {
+  return grid.items.map((entry) => {
+    const size = getItemSize(entry);
+    return {
+      x: entry.x,
+      y: entry.y,
+      width: size.width,
+      height: size.height
+    };
   });
 }
 
@@ -513,7 +519,7 @@ function getItemSize(item: InventoryItemInstance): { width: number; height: numb
 }
 
 function inferEquipmentSlot(item: InventoryItemInstance): EquipmentSlot | undefined {
-  return safeTemplate(item.definitionId)?.equipmentSlot;
+  return resolveSharedEquipmentSlot(item) ?? safeTemplate(item.definitionId)?.equipmentSlot;
 }
 
 function createEmptyInventory(width: number, height: number): ProfileInventoryState {

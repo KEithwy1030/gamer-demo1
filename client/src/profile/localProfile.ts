@@ -1,6 +1,10 @@
 import {
+  canPlaceRect,
+  findFirstFitRect,
   INVENTORY_HEIGHT,
   INVENTORY_WIDTH,
+  resolveEquipmentSlot as resolveSharedEquipmentSlot,
+  resolveItemSize,
   type Affix,
   type BotDifficulty,
   type EquipmentSlot,
@@ -449,10 +453,16 @@ function normalizeProfileItem(raw: unknown): LocalProfileItem | null {
     return null;
   }
 
-  const slot = normalizeEquipmentSlot(raw.equipmentSlot ?? raw.slot);
+  const definitionId = asString(raw.definitionId ?? raw.templateId, "unknown");
+  const slot = normalizeEquipmentSlot(raw.equipmentSlot ?? raw.slot) ?? resolveSharedEquipmentSlot({ definitionId });
+  const size = resolveItemSize({
+    definitionId,
+    width: asOptionalNumber(raw.width),
+    height: asOptionalNumber(raw.height)
+  });
   return {
     instanceId: asString(raw.instanceId, crypto.randomUUID()),
-    definitionId: asString(raw.definitionId ?? raw.templateId, "unknown"),
+    definitionId,
     name: asString(raw.name, "未知物资"),
     kind: asOptionalString(raw.kind),
     rarity: asOptionalString(raw.rarity),
@@ -460,8 +470,8 @@ function normalizeProfileItem(raw: unknown): LocalProfileItem | null {
     y: asOptionalNumber(raw.y),
     slot: slot,
     equipmentSlot: slot,
-    width: toNumber(raw.width, 1),
-    height: toNumber(raw.height, 1),
+    width: size.width,
+    height: size.height,
     healAmount: asOptionalNumber(raw.healAmount),
     modifiers: isRecord(raw.modifiers) ? {
       attackPower: asOptionalNumber(raw.modifiers.attackPower),
@@ -628,32 +638,25 @@ function resolvePlacement(
     return { x: preferredX, y: preferredY };
   }
 
-  for (let y = 0; y <= grid.height - item.height; y += 1) {
-    for (let x = 0; x <= grid.width - item.width; x += 1) {
-      if (canPlaceAt(grid, item, x, y)) {
-        return { x, y };
-      }
-    }
-  }
-
-  return null;
+  return findFirstFitRect(grid, getGridRects(grid), { width: item.width, height: item.height }) ?? null;
 }
 
 function canPlaceAt(grid: LocalInventoryGrid | LocalStashPage, item: LocalProfileItem, x: number, y: number): boolean {
-  if (x < 0 || y < 0 || x + item.width > grid.width || y + item.height > grid.height) {
-    return false;
-  }
-
-  return !grid.items.some((entry) => overlaps(entry, x, y, item.width, item.height));
+  return canPlaceRect(grid, getGridRects(grid), {
+    x,
+    y,
+    width: item.width,
+    height: item.height
+  });
 }
 
-function overlaps(entry: LocalGridItem, x: number, y: number, width: number, height: number): boolean {
-  return !(
-    entry.x + entry.width <= x
-    || x + width <= entry.x
-    || entry.y + entry.height <= y
-    || y + height <= entry.y
-  );
+function getGridRects(grid: LocalInventoryGrid | LocalStashPage): Array<{ x: number; y: number; width: number; height: number }> {
+  return grid.items.map((entry) => ({
+    x: entry.x,
+    y: entry.y,
+    width: entry.width,
+    height: entry.height
+  }));
 }
 
 function stripGridPosition<T extends LocalProfileItem>(item: T): LocalProfileItem {

@@ -1,3 +1,4 @@
+import { findFirstFitRect } from "@gamer/shared";
 import type { MatchInventoryItem, MatchInventoryState } from "../game/matchRuntime";
 import "../styles/inventory.css";
 import { getItemPresentation, getSlotLabel } from "./itemPresentation";
@@ -570,52 +571,20 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   ): { x: number; y: number } | null {
     const itemWidth = Math.max(1, item.width ?? 1);
     const itemHeight = Math.max(1, item.height ?? 1);
-    for (let y = 0; y <= gridHeight - itemHeight; y += 1) {
-      for (let x = 0; x <= gridWidth - itemWidth; x += 1) {
-        if (canPlace(items, gridWidth, gridHeight, itemWidth, itemHeight, x, y)) {
-          return { x, y };
-        }
-      }
-    }
-    return null;
+    return findFirstFitRect(
+      { width: gridWidth, height: gridHeight },
+      toGridRects(items),
+      { width: itemWidth, height: itemHeight }
+    ) ?? null;
   }
 
-  function canPlace(
-    items: MatchInventoryItem[],
-    gridWidth: number,
-    gridHeight: number,
-    itemWidth: number,
-    itemHeight: number,
-    x: number,
-    y: number
-  ): boolean {
-    if (x < 0 || y < 0 || x + itemWidth > gridWidth || y + itemHeight > gridHeight) {
-      return false;
-    }
-
-    return !items.some((entry) => rectanglesOverlap(
-      x,
-      y,
-      itemWidth,
-      itemHeight,
-      Number.isFinite(entry.x) ? Number(entry.x) : 0,
-      Number.isFinite(entry.y) ? Number(entry.y) : 0,
-      Math.max(1, entry.width ?? 1),
-      Math.max(1, entry.height ?? 1)
-    ));
-  }
-
-  function rectanglesOverlap(
-    x1: number,
-    y1: number,
-    width1: number,
-    height1: number,
-    x2: number,
-    y2: number,
-    width2: number,
-    height2: number
-  ): boolean {
-    return x1 < x2 + width2 && x1 + width1 > x2 && y1 < y2 + height2 && y1 + height1 > y2;
+  function toGridRects(items: MatchInventoryItem[]): Array<{ x: number; y: number; width: number; height: number }> {
+    return items.map((entry) => ({
+      x: Number.isFinite(entry.x) ? Number(entry.x) : 0,
+      y: Number.isFinite(entry.y) ? Number(entry.y) : 0,
+      width: Math.max(1, entry.width ?? 1),
+      height: Math.max(1, entry.height ?? 1)
+    }));
   }
 
   toggle.addEventListener("click", () => {
