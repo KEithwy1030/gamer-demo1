@@ -15,6 +15,7 @@ import type {
   LocalProfile,
   LocalProfileItem
 } from "./localProfile";
+import { saveLocalProfile } from "./localProfile";
 
 const PROFILE_ID_STORAGE_KEY = "liuhuang.serverProfileId.v1";
 const DEFAULT_SERVER_PORT = "3000";
@@ -40,7 +41,7 @@ export async function getServerProfile(profileId: string): Promise<LocalProfile>
     throw new Error("服务端档案加载失败。");
   }
 
-  return toLocalProfile(await response.json() as ProfileSnapshot);
+  return persistServerProfile(await response.json() as ProfileSnapshot);
 }
 
 export async function patchServerProfile(
@@ -56,7 +57,7 @@ export async function patchServerProfile(
     throw new Error("服务端档案更新失败。");
   }
 
-  return toLocalProfile(await response.json() as ProfileSnapshot);
+  return persistServerProfile(await response.json() as ProfileSnapshot);
 }
 
 export async function moveServerProfileItem(
@@ -73,7 +74,7 @@ export async function moveServerProfileItem(
     throw new Error(body || "服务端行囊整理失败。");
   }
 
-  return toLocalProfile(await response.json() as ProfileSnapshot);
+  return persistServerProfile(await response.json() as ProfileSnapshot);
 }
 
 export function resolveServerUrl(): string {
@@ -131,6 +132,13 @@ function toLocalProfile(snapshot: ProfileSnapshot): LocalProfile {
     ...Object.values(profile.equipment).filter((item): item is LocalProfileItem => Boolean(item)).map((item) => item.name),
     ...profile.inventory.items.map((item) => item.name)
   ];
+  return profile;
+}
+
+function persistServerProfile(snapshot: ProfileSnapshot): LocalProfile {
+  const profile = toLocalProfile(snapshot);
+  localStorage.setItem(PROFILE_ID_STORAGE_KEY, profile.profileId);
+  saveLocalProfile(profile);
   return profile;
 }
 
