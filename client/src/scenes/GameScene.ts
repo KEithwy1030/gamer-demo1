@@ -88,10 +88,6 @@ export class GameScene extends Phaser.Scene {
     { endsAt: 0, durationMs: 0 }
   ];
   private localBasicAttackEndsAt = 0;
-  private localBasicAttackPhase: "idle" | "startup" | "recovery" = "idle";
-  private localBasicAttackBuffered = false;
-  private pendingBasicAttackHit?: Phaser.Time.TimerEvent;
-  private pendingBasicAttackRecovery?: Phaser.Time.TimerEvent;
   private pendingSkillCast?: Phaser.Time.TimerEvent;
 
   constructor() {
@@ -233,13 +229,7 @@ export class GameScene extends Phaser.Scene {
     const cadence = getBasicAttackCadence(weaponType, self.attackSpeed ?? 0);
     const now = Date.now();
 
-    if (this.localBasicAttackPhase !== "idle") {
-      const bufferOpensAt = this.localBasicAttackEndsAt - cadence.bufferWindowMs;
-      if (now >= bufferOpensAt) {
-        this.localBasicAttackBuffered = true;
-      }
-      return;
-    }
+    if (now < this.localBasicAttackEndsAt) return;
 
     this.startLocalBasicAttack(self, cadence);
   }
@@ -294,33 +284,12 @@ export class GameScene extends Phaser.Scene {
     cadence: ReturnType<typeof getBasicAttackCadence>
   ): void {
     const direction = this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
-    this.localBasicAttackPhase = "startup";
-    this.localBasicAttackBuffered = false;
     this.localBasicAttackEndsAt = Date.now() + cadence.repeatMs;
 
     this.playerMarkers.get(self.id)?.playAction("attack", direction);
-    this.pendingBasicAttackHit?.remove(false);
-    this.pendingBasicAttackRecovery?.remove(false);
-
-    this.pendingBasicAttackHit = this.time.delayedCall(cadence.startupMs, () => {
+    this.time.delayedCall(cadence.startupMs, () => {
       this.feedbackFx?.playLocalAttack(this.latestState, direction);
       this.onAttack?.();
-      this.localBasicAttackPhase = "recovery";
-      this.pendingBasicAttackHit = undefined;
-    });
-
-    this.pendingBasicAttackRecovery = this.time.delayedCall(cadence.repeatMs, () => {
-      this.localBasicAttackPhase = "idle";
-      this.pendingBasicAttackRecovery = undefined;
-      if (this.localBasicAttackBuffered) {
-        const latestSelf = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
-        if (latestSelf) {
-          const nextCadence = getBasicAttackCadence(latestSelf.weaponType ?? "sword", latestSelf.attackSpeed ?? 0);
-          this.startLocalBasicAttack(latestSelf, nextCadence);
-          return;
-        }
-      }
-      this.localBasicAttackBuffered = false;
     });
   }
 
@@ -409,12 +378,6 @@ export class GameScene extends Phaser.Scene {
     this.inputBridge = undefined;
     this.hudOverlay?.destroy();
     this.hudOverlay = undefined;
-    this.pendingBasicAttackHit?.remove(false);
-    this.pendingBasicAttackHit = undefined;
-    this.pendingBasicAttackRecovery?.remove(false);
-    this.pendingBasicAttackRecovery = undefined;
-    this.localBasicAttackPhase = "idle";
-    this.localBasicAttackBuffered = false;
     this.localBasicAttackEndsAt = 0;
     this.corpseFogImage?.destroy();
     this.corpseFogImage = undefined;

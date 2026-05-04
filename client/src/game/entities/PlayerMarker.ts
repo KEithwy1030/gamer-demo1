@@ -129,7 +129,10 @@ export class PlayerMarker {
       this.sprite.off(Phaser.Animations.Events.ANIMATION_COMPLETE);
       this.sprite.anims.play(animKey, true);
       this.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-        if (this.currentState !== "DIE") this.currentState = "IDLE";
+        if (this.currentState !== "DIE") {
+          this.currentState = "IDLE";
+          this.actionLockedUntil = 0;
+        }
       });
     }
   }
@@ -310,7 +313,7 @@ function getDirectionRow(direction: DirectionKey): number {
 function getActionLockMs(action: ActionKey, weaponType: WeaponType): number {
   switch (action) {
     case "attack":
-      return getBasicAttackLockMs(weaponType);
+      return getAttackAnimationLockMs(weaponType);
     case "skill":
       return 360;
     case "dodge":
@@ -342,9 +345,10 @@ function formatNameplate(player: PlayerState, isSelf: boolean): string {
   }
 }
 
-function getBasicAttackLockMs(weaponType: WeaponType): number {
+function getAttackAnimationLockMs(weaponType: WeaponType): number {
   const attacksPerSecond = WEAPON_DEFINITIONS[weaponType]?.attacksPerSecond ?? 0.5;
-  return Math.max(260, Math.round(1000 / Math.max(attacksPerSecond, 0.1)));
+  const frameRate = Math.max(5, Math.round(attacksPerSecond * 12));
+  return Math.max(140, Math.round((2 / frameRate) * 1000));
 }
 
 function resolveSquadTint(squadId: PlayerState["squadId"]): number {
