@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { PlayerState, WeaponType } from "@gamer/shared";
+import { WEAPON_DEFINITIONS, type PlayerState, type WeaponType } from "@gamer/shared";
 
 export type AnimationState = "IDLE" | "MOVE" | "ATTACK" | "HURT" | "DIE";
 type DirectionKey = "down" | "left" | "right" | "up";
@@ -125,7 +125,7 @@ export class PlayerMarker {
     const animKey = getPlayerAnimKey(this.weaponType, action, actionFacing);
     if (this.sprite.scene.anims.exists(animKey)) {
       this.currentState = action === "hurt" ? "HURT" : "ATTACK";
-      this.actionLockedUntil = Date.now() + getActionLockMs(action);
+      this.actionLockedUntil = Date.now() + getActionLockMs(action, this.weaponType);
       this.sprite.off(Phaser.Animations.Events.ANIMATION_COMPLETE);
       this.sprite.anims.play(animKey, true);
       this.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
@@ -307,10 +307,10 @@ function getDirectionRow(direction: DirectionKey): number {
   }
 }
 
-function getActionLockMs(action: ActionKey): number {
+function getActionLockMs(action: ActionKey, weaponType: WeaponType): number {
   switch (action) {
     case "attack":
-      return 260;
+      return getBasicAttackLockMs(weaponType);
     case "skill":
       return 360;
     case "dodge":
@@ -340,6 +340,11 @@ function formatNameplate(player: PlayerState, isSelf: boolean): string {
     default:
       return `BOT ${suffix}`;
   }
+}
+
+function getBasicAttackLockMs(weaponType: WeaponType): number {
+  const attacksPerSecond = WEAPON_DEFINITIONS[weaponType]?.attacksPerSecond ?? 0.5;
+  return Math.max(260, Math.round(1000 / Math.max(attacksPerSecond, 0.1)));
 }
 
 function resolveSquadTint(squadId: PlayerState["squadId"]): number {

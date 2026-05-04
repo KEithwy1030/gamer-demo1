@@ -1,5 +1,6 @@
 ﻿import type { CombatEventPayload, SkillId, Vector2, WeaponType } from "@gamer/shared";
 import Phaser from "phaser";
+import { WEAPON_DEFINITIONS } from "@gamer/shared";
 import { DropMarker } from "../game/entities/DropMarker";
 import { MonsterMarker } from "../game/entities/MonsterMarker";
 import { PlayerMarker } from "../game/entities/PlayerMarker";
@@ -86,6 +87,7 @@ export class GameScene extends Phaser.Scene {
     { endsAt: 0, durationMs: 0 },
     { endsAt: 0, durationMs: 0 }
   ];
+  private localBasicAttackEndsAt = 0;
   private pendingSkillCast?: Phaser.Time.TimerEvent;
 
   constructor() {
@@ -157,7 +159,7 @@ export class GameScene extends Phaser.Scene {
         const base = row * 8;
         this.createAnimation(`player-${weaponType}-idle-${direction}`, `unit_player_${weaponType}`, [base, base + 1, base + 2, base + 1], 4, -1);
         this.createAnimation(`player-${weaponType}-move-${direction}`, `unit_player_${weaponType}`, [base, base + 1, base + 2, base + 1], 8, -1);
-        this.createAnimation(`player-${weaponType}-attack-${direction}`, `unit_player_${weaponType}`, [base + 3, base + 4], 14, 0);
+        this.createAnimation(`player-${weaponType}-attack-${direction}`, `unit_player_${weaponType}`, [base + 3, base + 4], getAttackAnimationFrameRate(weaponType), 0);
         this.createAnimation(`player-${weaponType}-skill-${direction}`, `unit_player_${weaponType}`, [base + 5, base + 6], 12, 0);
         this.createAnimation(`player-${weaponType}-dodge-${direction}`, `unit_player_${weaponType}`, [base + 6, base + 7], 16, 0);
         this.createAnimation(`player-${weaponType}-hurt-${direction}`, `unit_player_${weaponType}`, [base + 7, base + 6], 12, 0);
@@ -220,8 +222,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleAttack(): void {
+    const now = Date.now();
+    if (now < this.localBasicAttackEndsAt) return;
+
     const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
     const direction = this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
+    const weaponType = self?.weaponType ?? "sword";
+    this.localBasicAttackEndsAt = now + getBasicAttackCooldownMs(weaponType, self?.attackSpeed ?? 0);
     if (self) this.playerMarkers.get(self.id)?.playAction("attack", direction);
     this.feedbackFx?.playLocalAttack(
       this.latestState,
@@ -489,6 +496,16 @@ export class GameScene extends Phaser.Scene {
     this.corpseFogImage.setTexture("corpse_fog_mask");
     this.corpseFogImage.setDisplaySize(width, height);
   }
+}
+
+function getBasicAttackCooldownMs(weaponType: WeaponType, attackSpeedBonus: number): number {
+  const attacksPerSecond = WEAPON_DEFINITIONS[weaponType]?.attacksPerSecond ?? 0.5;
+  return Math.round((1000 / Math.max(attacksPerSecond, 0.1)) / Math.max(1 + attackSpeedBonus, 0.1));
+}
+
+function getAttackAnimationFrameRate(weaponType: WeaponType): number {
+  const attacksPerSecond = WEAPON_DEFINITIONS[weaponType]?.attacksPerSecond ?? 0.5;
+  return Math.max(5, Math.round(attacksPerSecond * 12));
 }
 
 function resolveCorpseFogVisualState(startedAt: number): { visibilityPercent: number } {
