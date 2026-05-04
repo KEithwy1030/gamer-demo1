@@ -88,6 +88,10 @@ export class GameScene extends Phaser.Scene {
     { endsAt: 0, durationMs: 0 }
   ];
   private localBasicAttackEndsAt = 0;
+  private localBasicAttackPhase: "idle" | "startup" | "recovery" = "idle";
+  private localBasicAttackBuffered = false;
+  private pendingBasicAttackHit?: Phaser.Time.TimerEvent;
+  private pendingBasicAttackRecovery?: Phaser.Time.TimerEvent;
   private pendingSkillCast?: Phaser.Time.TimerEvent;
 
   constructor() {
@@ -222,19 +226,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleAttack(): void {
-    const now = Date.now();
-    if (now < this.localBasicAttackEndsAt) return;
-
     const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
-    const direction = this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
-    const weaponType = self?.weaponType ?? "sword";
-    this.localBasicAttackEndsAt = now + getBasicAttackCooldownMs(weaponType, self?.attackSpeed ?? 0);
-    if (self) this.playerMarkers.get(self.id)?.playAction("attack", direction);
-    this.feedbackFx?.playLocalAttack(
-      this.latestState,
-      direction
-    );
-    this.onAttack?.();
+    if (!self) return;
+
+    const weaponType = self.weaponType ?? "sword";
+    const cadence = getBasicAttackCadence(weaponType, self.attackSpeed ?? 0);
+    const now = Date.now();
+
+    if (this.localBasicAttackPhase !== "idle") {
+      const bufferOpensAt = this.localBasicAttackEndsAt - cadence.bufferWindowMs;
+      if (now >= bufferOpensAt) {
+        this.localBasicAttackBuffered = true;
+      }
+      return;
+    }
+
+    this.startLocalBasicAttack(self, cadence);
   }
 
   private handleSkill(slotIndex = 0): void {
@@ -280,6 +287,41 @@ export class GameScene extends Phaser.Scene {
     const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
     if (self) this.playerMarkers.get(self.id)?.playAction("skill", direction);
     this.onSkill?.(sid);
+  }
+
+  private startLocalBasicAttack(
+    self: NonNullable<MatchViewState["players"]>[number],
+    cadence: ReturnType<typeof getBasicAttackCadence>
+  ): void {
+    const direction = this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
+    this.localBasicAttackPhase = "startup";
+    this.localBasicAttackBuffered = false;
+    this.localBasicAttackEndsAt = Date.now() + cadence.repeatMs;
+
+    this.playerMarkers.get(self.id)?.playAction("attack", direction);
+    this.pendingBasicAttackHit?.remove(false);
+    this.pendingBasicAttackRecovery?.remove(false);
+
+    this.pendingBasicAttackHit = this.time.delayedCall(cadence.startupMs, () => {
+      this.feedbackFx?.playLocalAttack(this.latestState, direction);
+      this.onAttack?.();
+      this.localBasicAttackPhase = "recovery";
+      this.pendingBasicAttackHit = undefined;
+    });
+
+    this.pendingBasicAttackRecovery = this.time.delayedCall(cadence.repeatMs, () => {
+      this.localBasicAttackPhase = "idle";
+      this.pendingBasicAttackRecovery = undefined;
+      if (this.localBasicAttackBuffered) {
+        const latestSelf = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
+        if (latestSelf) {
+          const nextCadence = getBasicAttackCadence(latestSelf.weaponType ?? "sword", latestSelf.attackSpeed ?? 0);
+          this.startLocalBasicAttack(latestSelf, nextCadence);
+          return;
+        }
+      }
+      this.localBasicAttackBuffered = false;
+    });
   }
 
   private handleDodge(): void {
@@ -367,6 +409,13 @@ export class GameScene extends Phaser.Scene {
     this.inputBridge = undefined;
     this.hudOverlay?.destroy();
     this.hudOverlay = undefined;
+    this.pendingBasicAttackHit?.remove(false);
+    this.pendingBasicAttackHit = undefined;
+    this.pendingBasicAttackRecovery?.remove(false);
+    this.pendingBasicAttackRecovery = undefined;
+    this.localBasicAttackPhase = "idle";
+    this.localBasicAttackBuffered = false;
+    this.localBasicAttackEndsAt = 0;
     this.corpseFogImage?.destroy();
     this.corpseFogImage = undefined;
     this.corpseFogTexture?.destroy();
@@ -501,6 +550,25 @@ export class GameScene extends Phaser.Scene {
 function getBasicAttackCooldownMs(weaponType: WeaponType, attackSpeedBonus: number): number {
   const attacksPerSecond = WEAPON_DEFINITIONS[weaponType]?.attacksPerSecond ?? 0.5;
   return Math.round((1000 / Math.max(attacksPerSecond, 0.1)) / Math.max(1 + attackSpeedBonus, 0.1));
+}
+
+function getBasicAttackCadence(weaponType: WeaponType, attackSpeedBonus: number): {
+  startupMs: number;
+  recoveryMs: number;
+  repeatMs: number;
+  bufferWindowMs: number;
+} {
+  const repeatMs = getBasicAttackCooldownMs(weaponType, attackSpeedBonus);
+  const startupRatio = weaponType === "sword" ? 0.32 : weaponType === "blade" ? 0.36 : 0.42;
+  const startupMs = Math.max(90, Math.round(repeatMs * startupRatio));
+  const recoveryMs = Math.max(120, repeatMs - startupMs);
+  const bufferWindowMs = Math.max(80, Math.round(recoveryMs * 0.45));
+  return {
+    startupMs,
+    recoveryMs,
+    repeatMs,
+    bufferWindowMs
+  };
 }
 
 function getAttackAnimationFrameRate(weaponType: WeaponType): number {
