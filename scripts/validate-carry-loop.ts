@@ -247,7 +247,8 @@ async function reachExtractZone(client: TestClient, roundIndex: number): Promise
         `Round ${roundIndex}: no usable extract zone found`
       );
 
-      await movePlayerAlongSafeRoute(client, extractZone, extractZone.radius - 36, 18_000);
+      await clearThreatsNearPoint(client, extractZone, 320, 35_000);
+      await movePlayerAlongSafeRoute(client, extractZone, extractZone.radius - 36, 24_000);
       await clearThreatsNearPoint(client, extractZone, 260, 25_000);
       await movePlayerAlongSafeRoute(client, extractZone, extractZone.radius - 36, 12_000);
       return;

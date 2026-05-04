@@ -16,7 +16,6 @@ const FORCE_SERVER_BUILD = process.env.TEST_LOOP_FORCE_BUILD === "1";
 const ALLOW_EXTERNAL_SERVER = process.env.TEST_LOOP_ALLOW_EXTERNAL_SERVER === "1";
 
 const MOVE_STEP_PER_INPUT = 28;
-const ATTACK_RANGE = 58;
 const PICKUP_RADIUS = 140;
 const POSITION_TOLERANCE = 36;
 const EXTRACT_THREAT_RADIUS = 260;
@@ -28,7 +27,7 @@ const STEP_TIMEOUTS = {
   2: 5_000,
   3: 5_000,
   4: 5_000,
-  5: 20_000,
+  5: 30_000,
   6: 8_000,
   7: 10_000,
   8: 15_000,
@@ -636,6 +635,15 @@ function getAttackIntervalMs(player) {
   return cooldownMs + 120;
 }
 
+function getAttackRangePx(player) {
+  const rangeByWeapon = {
+    sword: 116,
+    blade: 128,
+    spear: 180
+  };
+  return rangeByWeapon[player.weaponType] ?? rangeByWeapon.sword;
+}
+
 async function movePlayerTowards(client, target, stopDistance, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -733,8 +741,9 @@ async function killOneMonster(client, timeoutMs) {
       throw new Error("PlayerA state unavailable during attack");
     }
 
+    const attackRange = getAttackRangePx(self);
     const rangeToMonster = distance(self, targetMonster);
-    if (rangeToMonster > ATTACK_RANGE + 16) {
+    if (rangeToMonster > attackRange + 16) {
       client.socket.emit("player:inputMove", {
         direction: normalizeDirection(self, targetMonster)
       });
@@ -742,7 +751,7 @@ async function killOneMonster(client, timeoutMs) {
       continue;
     }
 
-    if (rangeToMonster > ATTACK_RANGE - 6) {
+    if (rangeToMonster > attackRange - 12) {
       client.socket.emit("player:inputMove", {
         direction: normalizeDirection(self, targetMonster)
       });
@@ -786,8 +795,9 @@ async function killMonsterById(client, targetMonsterId, timeoutMs) {
       throw new Error(`${client.state.label} player state unavailable during attack`);
     }
 
+    const attackRange = getAttackRangePx(self);
     const rangeToMonster = distance(self, targetMonster);
-    if (rangeToMonster > ATTACK_RANGE + 16) {
+    if (rangeToMonster > attackRange + 16) {
       client.socket.emit('player:inputMove', {
         direction: normalizeDirection(self, targetMonster)
       });
@@ -795,7 +805,7 @@ async function killMonsterById(client, targetMonsterId, timeoutMs) {
       continue;
     }
 
-    if (rangeToMonster > ATTACK_RANGE - 6) {
+    if (rangeToMonster > attackRange - 12) {
       client.socket.emit('player:inputMove', {
         direction: normalizeDirection(self, targetMonster)
       });
@@ -856,7 +866,7 @@ async function pickupNearestDrop(client, timeoutMs) {
     const targetDrop = sortedDrops[0];
     const rangeToDrop = distance(self, targetDrop);
 
-    if (rangeToDrop > PICKUP_RADIUS - 24) {
+    if (rangeToDrop > PICKUP_RADIUS - 4) {
       client.socket.emit("player:inputMove", {
         direction: normalizeDirection(self, targetDrop)
       });
