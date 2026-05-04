@@ -558,11 +558,15 @@ function getBasicAttackCadence(weaponType: WeaponType, attackSpeedBonus: number)
   repeatMs: number;
   bufferWindowMs: number;
 } {
+  const speedScale = Math.max(1 + attackSpeedBonus, 0.1);
   const repeatMs = getBasicAttackCooldownMs(weaponType, attackSpeedBonus);
-  const startupRatio = weaponType === "sword" ? 0.32 : weaponType === "blade" ? 0.36 : 0.42;
-  const startupMs = Math.max(90, Math.round(repeatMs * startupRatio));
+  const startupBaseMs = weaponType === "sword" ? 140 : weaponType === "blade" ? 190 : 250;
+  const startupMs = Math.min(
+    Math.max(100, Math.round(startupBaseMs / speedScale)),
+    Math.max(140, repeatMs - 160)
+  );
   const recoveryMs = Math.max(120, repeatMs - startupMs);
-  const bufferWindowMs = Math.max(80, Math.round(recoveryMs * 0.45));
+  const bufferWindowMs = Math.min(220, Math.max(90, Math.round(recoveryMs * 0.35)));
   return {
     startupMs,
     recoveryMs,
