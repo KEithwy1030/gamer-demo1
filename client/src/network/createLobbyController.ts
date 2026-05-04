@@ -58,14 +58,14 @@ export function createNetworkLobbyController(
         onMatchStarted?.(payload);
       });
     },
-    createRoom(playerName, botDifficulty, loadout) {
+    createRoom(playerName, botDifficulty, profileId, loadout) {
       return waitForRoomState(() => {
-        socket.createRoom({ playerName, botDifficulty, loadout });
+        socket.createRoom({ playerName, botDifficulty, profileId, loadout });
       });
     },
-    joinRoom(playerName, roomCode, loadout) {
+    joinRoom(playerName, roomCode, profileId, loadout) {
       return waitForRoomState(() => {
-        socket.joinRoom({ code: roomCode, playerName, loadout } as { code: string; playerName: string; loadout?: InventorySnapshotPayload });
+        socket.joinRoom({ code: roomCode, playerName, profileId, loadout });
       });
     },
     async leaveRoom(roomCode) {
@@ -76,9 +76,9 @@ export function createNetworkLobbyController(
         socket.setCapacity({ code: roomCode, capacity });
       });
     },
-    startMatch(roomCode, _playerId, botDifficulty, loadout) {
+    startMatch(roomCode, _playerId, botDifficulty, profileId, loadout) {
       return waitForVoid(() => {
-        socket.startRoom({ code: roomCode, botDifficulty, loadout });
+        socket.startRoom({ code: roomCode, botDifficulty, profileId, loadout });
       });
     }
   };

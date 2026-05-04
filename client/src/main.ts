@@ -7,7 +7,8 @@ import {
   type GameClientController
 } from "./scenes";
 import { createInventoryPanel } from "./ui/InventoryPanel";
-import { applySettlementToProfile, loadLocalProfile, type LocalProfile } from "./profile/localProfile";
+import type { LocalProfile } from "./profile/localProfile";
+import { getServerProfile, loadServerProfile } from "./profile/profileClient";
 import "./styles/mobile.css";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -18,7 +19,7 @@ if (app) {
 
 async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
   let sessionVersion = 0;
-  let profile: LocalProfile = loadLocalProfile();
+  let profile: LocalProfile = await loadServerProfile();
   let pendingLobbyInfoMessage: string | null = null;
 
   // Handle orientation changes for mobile portrait mode
@@ -57,6 +58,12 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
       onReturnToLobby: async () => {
         if (myVersion !== sessionVersion) {
           return;
+        }
+
+        try {
+          profile = await getServerProfile(profile.profileId);
+        } catch {
+          // Keep the last known profile so the player can still return to the lobby shell.
         }
 
         pendingLobbyInfoMessage = profile.lastRun?.result === "success"
@@ -133,7 +140,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
         inventoryPanel.render(inventory);
       },
       onSettlement: (payload) => {
-        profile = applySettlementToProfile(profile, payload, lastInventory);
+        void refreshProfileAfterSettlement();
         resultsOverlay.show(payload);
       },
       onToggleInventory: () => {
@@ -170,6 +177,14 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
       pendingLobbyInfoMessage = null;
     } catch (error) {
       appRoot.innerHTML = `<pre style="color:#fca5a5;padding:24px">${String(error)}</pre>`;
+    }
+  }
+
+  async function refreshProfileAfterSettlement(): Promise<void> {
+    try {
+      profile = await getServerProfile(profile.profileId);
+    } catch {
+      // The settlement result remains visible; the lobby will retry loading the profile on the next session.
     }
   }
 }

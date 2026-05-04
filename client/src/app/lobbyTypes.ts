@@ -40,11 +40,11 @@ export interface LobbyGameTransition {
 
 export interface LobbyController {
   initialize?(api: LobbyRuntimeApi): void | Promise<void>;
-  createRoom(playerName: string, botDifficulty: BotDifficulty, loadout?: InventorySnapshotPayload): Promise<RoomState>;
-  joinRoom(playerName: string, roomCode: string, loadout?: InventorySnapshotPayload): Promise<RoomState>;
+  createRoom(playerName: string, botDifficulty: BotDifficulty, profileId?: string, loadout?: InventorySnapshotPayload): Promise<RoomState>;
+  joinRoom(playerName: string, roomCode: string, profileId?: string, loadout?: InventorySnapshotPayload): Promise<RoomState>;
   leaveRoom(roomCode: string, playerId: string): Promise<void>;
   updateCapacity?(roomCode: string, playerId: string, capacity: number): Promise<RoomState>;
-  startMatch?(roomCode: string, playerId: string, botDifficulty: BotDifficulty, loadout?: InventorySnapshotPayload): Promise<void>;
+  startMatch?(roomCode: string, playerId: string, botDifficulty: BotDifficulty, profileId?: string, loadout?: InventorySnapshotPayload): Promise<void>;
 }
 
 export interface LobbyRuntimeOptions {

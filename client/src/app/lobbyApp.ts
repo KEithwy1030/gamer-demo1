@@ -10,7 +10,12 @@ import type {
   RoomState,
 } from "./lobbyTypes";
 import { LobbyView } from "../ui/lobbyView";
-import { buildProfileLoadoutSnapshot, moveProfileItem, updateProfilePreference } from "../profile/localProfile";
+import { buildProfileLoadoutSnapshot } from "../profile/localProfile";
+import {
+  getServerProfile,
+  moveServerProfileItem,
+  patchServerProfile
+} from "../profile/profileClient";
 
 const normalizeName = (value: string) => value.trim().slice(0, 18);
 const normalizeRoomCode = (value: string) =>
@@ -39,6 +44,7 @@ export class LobbyApp {
   private readonly root: HTMLElement;
   private readonly controller: LobbyController;
   private readonly onEnterGame?: (transition: LobbyGameTransition) => void;
+  private readonly onProfileChange?: LobbyRuntimeOptions["onProfileChange"];
   private readonly runtimeApi: LobbyRuntimeApi;
   private readonly view: LobbyView;
   private state: LobbyState;
@@ -47,6 +53,7 @@ export class LobbyApp {
     this.root = options.root;
     this.controller = options.controller ?? new MockLobbyController();
     this.onEnterGame = options.onEnterGame;
+    this.onProfileChange = options.onProfileChange;
     this.state = createInitialState(options);
 
     this.runtimeApi = {
@@ -74,25 +81,17 @@ export class LobbyApp {
 
     this.view = new LobbyView(this.controller, this.runtimeApi, {
       onPlayerNameChange: (value) => {
-        const nextProfile = updateProfilePreference(this.state.profile, { displayName: normalizeName(value) });
-        options.onProfileChange?.(nextProfile);
-        this.patchState({
-          playerName: value,
-          profile: nextProfile,
-          errorMessage: null,
+        void this.handleProfilePatch({ displayName: normalizeName(value) }, {
+          playerName: value
         });
       },
       onTabChange: (activeTab: LobbyState["activeTab"]) => {
         this.patchState({ activeTab });
       },
       onBotDifficultyChange: (botDifficulty) => {
-        const nextProfile = updateProfilePreference(this.state.profile, { botDifficulty });
-        options.onProfileChange?.(nextProfile);
-        this.patchState({
+        void this.handleProfilePatch({ botDifficulty }, {
           botDifficulty,
-          profile: nextProfile,
-          errorMessage: null,
-          infoMessage: `Bot强度已切换为 ${formatBotDifficulty(botDifficulty)}。`,
+          infoMessage: `Bot强度已切换为 ${formatBotDifficulty(botDifficulty)}。`
         });
       },
       onRoomCodeInputChange: (value) => {
@@ -117,19 +116,10 @@ export class LobbyApp {
         void this.handleStartMatch();
       },
       onStashMoveItem: (payload) => {
-        try {
-          const nextProfile = moveProfileItem(this.state.profile, payload);
-          options.onProfileChange?.(nextProfile);
-          this.patchState({
-            profile: nextProfile,
-            errorMessage: null,
-            infoMessage: "行囊已整理。"
-          });
-        } catch (error) {
-          this.patchState({
-            errorMessage: error instanceof Error ? error.message : "行囊整理失败。"
-          });
-        }
+        void this.handleStashMoveItem(payload);
+      },
+      onMarketProfileChanged: () => {
+        void this.refreshProfile("黑市状态已同步。");
       }
     });
   }
@@ -194,12 +184,70 @@ export class LobbyApp {
     }
   }
 
+  private async handleProfilePatch(
+    patch: Parameters<typeof patchServerProfile>[1],
+    optimistic: Partial<LobbyState>
+  ): Promise<void> {
+    const previousProfile = this.state.profile;
+    this.patchState({
+      ...optimistic,
+      errorMessage: null
+    });
+
+    try {
+      const nextProfile = await patchServerProfile(previousProfile.profileId, patch);
+      this.applyProfile(nextProfile);
+    } catch (error) {
+      this.patchState({
+        profile: previousProfile,
+        playerName: previousProfile.displayName,
+        botDifficulty: previousProfile.botDifficulty,
+        errorMessage: error instanceof Error ? error.message : "档案同步失败。"
+      });
+    }
+  }
+
+  private async handleStashMoveItem(payload: Parameters<typeof moveServerProfileItem>[1]): Promise<void> {
+    await this.runTask(async () => {
+      const nextProfile = await moveServerProfileItem(this.state.profile.profileId, payload);
+      this.applyProfile(nextProfile);
+      this.patchState({
+        errorMessage: null,
+        infoMessage: "行囊已整理。"
+      });
+    });
+  }
+
+  private async refreshProfile(infoMessage?: string): Promise<void> {
+    try {
+      const nextProfile = await getServerProfile(this.state.profile.profileId);
+      this.applyProfile(nextProfile);
+      if (infoMessage) {
+        this.patchState({ infoMessage });
+      }
+    } catch (error) {
+      this.patchState({
+        errorMessage: error instanceof Error ? error.message : "档案刷新失败。"
+      });
+    }
+  }
+
+  private applyProfile(profile: LobbyState["profile"]): void {
+    this.onProfileChange?.(profile);
+    this.patchState({
+      profile,
+      playerName: profile.displayName,
+      botDifficulty: profile.botDifficulty
+    });
+  }
+
   private async handleCreateRoom() {
     await this.runTask(async () => {
       const playerName = this.requirePlayerName();
       const roomState = await this.controller.createRoom(
         playerName,
         this.state.botDifficulty,
+        this.state.profile.profileId,
         buildProfileLoadoutSnapshot(this.state.profile)
       );
       this.consumeRoomState(roomState, "频道已创建，等待其他玩家加入。");
@@ -218,6 +266,7 @@ export class LobbyApp {
       const roomState = await this.controller.joinRoom(
         playerName,
         roomCode,
+        this.state.profile.profileId,
         buildProfileLoadoutSnapshot(this.state.profile)
       );
       this.consumeRoomState(roomState, `已加入频道 ${roomState.roomCode}。`);
@@ -270,6 +319,7 @@ export class LobbyApp {
         roomState.roomCode,
         roomState.localPlayerId,
         this.state.botDifficulty,
+        this.state.profile.profileId,
         buildProfileLoadoutSnapshot(this.state.profile)
       );
     });

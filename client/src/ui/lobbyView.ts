@@ -27,6 +27,7 @@ interface LobbyViewCallbacks {
   onBotDifficultyChange(difficulty: LobbyState["botDifficulty"]): void;
   onTabChange(activeTab: LobbyTab): void;
   onStashMoveItem(payload: LocalProfileMovePayload): void;
+  onMarketProfileChanged(): void;
 }
 
 const MAX_VISIBLE_SLOTS = 20;
@@ -370,7 +371,9 @@ export class LobbyView {
     this.stashView = createStashView({
       onMoveItem: (payload) => this.callbacks.onStashMoveItem(payload)
     });
-    this.marketView = createMarketView();
+    this.marketView = createMarketView({
+      onProfileChanged: () => this.callbacks.onMarketProfileChanged()
+    });
     viewStack.append(this.stashView.element, this.marketView.element);
   }
 

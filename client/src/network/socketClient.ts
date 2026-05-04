@@ -195,7 +195,7 @@ export class GameSocketClient {
     this.socket.emit(SocketEvent.RoomCreate, payload);
   }
 
-  joinRoom(payload: { code: string; playerName: string; loadout?: InventorySnapshotPayload }): void {
+  joinRoom(payload: { code: string; playerName: string; profileId?: string; loadout?: InventorySnapshotPayload }): void {
     this.socket.emit(SocketEvent.RoomJoin, payload);
   }
 

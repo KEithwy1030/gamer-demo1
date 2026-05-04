@@ -8,6 +8,10 @@ export interface MarketViewApi {
   render(profile: LocalProfile): void;
 }
 
+export interface MarketViewCallbacks {
+  onProfileChanged?(): void;
+}
+
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -15,7 +19,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
   return node;
 };
 
-export function createMarketView(): MarketViewApi {
+export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketViewApi {
   const element = el("section", "view-market");
   element.hidden = true;
 
@@ -89,6 +93,7 @@ export function createMarketView(): MarketViewApi {
       selectedItemId = null;
       priceInput.value = "";
       setStatus("已挂出，等待买家。");
+      callbacks.onProfileChanged?.();
       renderAll();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "挂单失败。", true);
@@ -185,6 +190,7 @@ export function createMarketView(): MarketViewApi {
           await cancelListing(profile.profileId, listing.listingId);
           listings = listings.filter((entry) => entry.listingId !== listing.listingId);
           setStatus("挂单已取消。");
+          callbacks.onProfileChanged?.();
           renderAll();
         } catch (error) {
           setStatus(error instanceof Error ? error.message : "取消失败。", true);
@@ -333,7 +339,7 @@ async function createListing(profileId: string, item: LocalProfileItem, price: n
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       playerId: profileId,
-      item: toMarketItem(item),
+      itemInstanceId: item.instanceId,
       price
     })
   });
@@ -356,20 +362,6 @@ async function cancelListing(profileId: string, listingId: string): Promise<void
     method: "DELETE"
   });
   if (!response.ok) throw new Error("取消失败。");
-}
-
-function toMarketItem(item: LocalProfileItem): MarketListingItem {
-  return {
-    instanceId: item.instanceId,
-    definitionId: item.definitionId,
-    name: item.name,
-    kind: item.kind,
-    rarity: item.rarity,
-    width: item.width,
-    height: item.height,
-    modifiers: item.modifiers ? { ...item.modifiers } : undefined,
-    affixes: item.affixes ? item.affixes.map((affix) => ({ ...affix })) : undefined
-  };
 }
 
 function resolveServerUrl(): string {
