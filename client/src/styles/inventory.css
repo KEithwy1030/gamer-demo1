@@ -434,3 +434,135 @@
 .tooltip-actions .btn-drop {
   color: #f85149;
 }
+
+.inventory-equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(72px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.inventory-equip-slot {
+  position: relative;
+  min-height: 112px;
+  background: linear-gradient(180deg, #211810 0%, #120e0b 100%);
+  border: 2px solid #3f382b;
+  padding: 20px 8px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inventory-equip-slot--empty::after {
+  content: '空位';
+  color: #6f6658;
+  font-size: 12px;
+}
+
+.inventory-equip-slot--candidate {
+  border-color: #e8b24d;
+  box-shadow: 0 0 0 2px rgba(232, 178, 77, 0.22) inset;
+}
+
+.inventory-backpack-surface {
+  position: relative;
+  min-width: max-content;
+}
+
+.inventory-backpack-cells,
+.inventory-backpack-items {
+  position: absolute;
+  inset: 0;
+}
+
+.inventory-backpack-items {
+  pointer-events: none;
+}
+
+.inventory-backpack-items .inventory-item {
+  pointer-events: auto;
+}
+
+.inventory-grid-cell {
+  position: absolute;
+  background: linear-gradient(180deg, #211810 0%, #120e0b 100%);
+  border: 1px solid #3f382b;
+  box-sizing: border-box;
+}
+
+.inventory-grid-highlight {
+  position: absolute;
+  z-index: 2;
+  border: 2px dashed #e8b24d;
+  background: rgba(232, 178, 77, 0.14);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.inventory-item {
+  position: absolute;
+  background: linear-gradient(180deg, rgba(33, 24, 16, 0.98), rgba(18, 14, 11, 0.98));
+  border: 2px solid #5f2a16;
+  color: #e8dfc8;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: grab;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.inventory-item:hover {
+  border-color: #e8602c;
+  background: linear-gradient(180deg, rgba(51, 31, 20, 0.98), rgba(22, 16, 11, 0.98));
+}
+
+.inventory-item--equipment {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 80px;
+}
+
+.inventory-item--dragging {
+  opacity: 0.35;
+}
+
+.inventory-drag-ghost {
+  position: fixed;
+  z-index: 5500;
+  pointer-events: none;
+  opacity: 0.9;
+  cursor: grabbing;
+}
+
+.inventory-item-name {
+  width: 100%;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  color: inherit;
+  word-break: break-word;
+}
+
+body.inventory-dragging,
+body.inventory-dragging * {
+  user-select: none;
+}
+
+@media (max-width: 767px) {
+  .inventory-equipment-grid {
+    grid-template-columns: repeat(2, minmax(110px, 1fr));
+  }
+
+  .inventory-equip-slot {
+    min-height: 102px;
+  }
+
+  .inventory-item-name {
+    font-size: 10px;
+  }
+}

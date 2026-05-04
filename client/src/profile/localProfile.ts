@@ -621,7 +621,7 @@ function createStarterWeapon(): LocalProfileItem {
     rarity: "common",
     slot: "weapon",
     equipmentSlot: "weapon",
-    width: 2,
+    width: 1,
     height: 3
   };
 }
@@ -637,7 +637,7 @@ function fallbackItemFromName(name: string, index: number, slot?: EquipmentSlot)
     rarity: isWeapon ? "common" : "uncommon",
     slot: normalizedSlot,
     equipmentSlot: normalizedSlot,
-    width: isWeapon ? 2 : 1,
+    width: isWeapon ? 1 : 1,
     height: isWeapon ? 3 : 1
   };
 }

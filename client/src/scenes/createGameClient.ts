@@ -1,5 +1,7 @@
 ﻿import Phaser from "phaser";
-import type {
+import {
+  INVENTORY_HEIGHT,
+  INVENTORY_WIDTH,
   CombatEventPayload,
   MatchStartedPayload,
   MonsterState,
@@ -384,8 +386,8 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
   const inventoryItems = Array.isArray(inventoryRoot.items) ? inventoryRoot.items : [];
   const rawEquipment = isRecord(inventoryRoot.equipment) ? inventoryRoot.equipment : {};
   return {
-    width: asNumber(inventoryRoot.width, 10),
-    height: asNumber(inventoryRoot.height, 6),
+    width: asNumber(inventoryRoot.width, INVENTORY_WIDTH),
+    height: asNumber(inventoryRoot.height, INVENTORY_HEIGHT),
     items: inventoryItems.flatMap((entry) => {
       if (!isRecord(entry) || !isRecord(entry.item)) return [];
       const item = entry.item;

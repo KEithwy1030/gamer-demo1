@@ -17,11 +17,10 @@ import {
   PLAYER_BASE_HP,
   PLAYER_BASE_MOVE_SPEED
 } from "../internal-constants.js";
+import { INVENTORY_HEIGHT, INVENTORY_WIDTH } from "@gamer/shared";
 import { setPlayerBaseStats } from "../combat/player-effects.js";
 import { getItemTemplate, listSeedDropTemplateIds } from "./catalog.js";
 
-const INVENTORY_WIDTH = 10;
-const INVENTORY_HEIGHT = 6;
 const PICKUP_RADIUS_PX = 140;
 const DROP_SPREAD_PX = 48;
 const DEATH_DROP_SPREAD_PX = 84;

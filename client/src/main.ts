@@ -71,6 +71,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
 
         gameController?.destroy();
         gameController = null;
+        inventoryPanel.destroy();
         inventoryPanel.render(null);
         setInventoryAvailable(false);
         resultsOverlay.hide();

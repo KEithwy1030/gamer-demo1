@@ -1,4 +1,4 @@
-import type { EquipmentSlot } from "@gamer/shared";
+import { INVENTORY_HEIGHT, INVENTORY_WIDTH, type EquipmentSlot } from "@gamer/shared";
 import type { LocalProfile, LocalProfileItem, LocalProfileMovePayload } from "../profile/localProfile";
 
 type SelectedItemRef =
@@ -312,7 +312,7 @@ class StashView {
 
   private renderLoadout(): void {
     const loadout = this.profile?.inventory;
-    this.loadoutSummary.textContent = `${countOccupiedCells(loadout?.items ?? [])} / ${(loadout?.width ?? 10) * (loadout?.height ?? 6)} 格`;
+    this.loadoutSummary.textContent = `${countOccupiedCells(loadout?.items ?? [])} / ${(loadout?.width ?? INVENTORY_WIDTH) * (loadout?.height ?? INVENTORY_HEIGHT)} 格`;
 
     this.equipmentRack.replaceChildren();
     for (const slot of EQUIPMENT_ORDER) {
@@ -348,7 +348,7 @@ class StashView {
       this.equipmentRack.append(slotEl);
     }
 
-    this.renderGridSurface(this.loadoutGrid, loadout?.width ?? 10, loadout?.height ?? 6);
+    this.renderGridSurface(this.loadoutGrid, loadout?.width ?? INVENTORY_WIDTH, loadout?.height ?? INVENTORY_HEIGHT);
     (loadout?.items ?? []).forEach((item) => {
       this.loadoutGrid.append(this.buildGridItem({ area: "inventory", item }, item.x, item.y, item.width ?? 1, item.height ?? 1));
     });
