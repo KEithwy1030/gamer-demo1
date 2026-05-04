@@ -112,11 +112,25 @@ export class GameSceneInteractions {
       extractState.y ?? 0
     );
 
-    if (distance <= (extractState.radius ?? 96) && !this.extractAutoStarted && !extractState.isExtracting) {
+    const insideExtractZone = distance <= (extractState.radius ?? 96);
+
+    if (!insideExtractZone) {
+      this.extractAutoStarted = false;
+      return;
+    }
+
+    if (extractState.phase === "interrupted") {
+      this.extractAutoStarted = false;
+    }
+
+    if (extractState.phase === "succeeded") {
+      this.extractAutoStarted = true;
+      return;
+    }
+
+    if (insideExtractZone && !this.extractAutoStarted && !extractState.isExtracting) {
       onStartExtract?.();
       this.extractAutoStarted = true;
-    } else if (distance > (extractState.radius ?? 96)) {
-      this.extractAutoStarted = false;
     }
   }
 

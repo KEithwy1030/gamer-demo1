@@ -26,6 +26,7 @@ export interface GameClientControllerOptions extends GameSocketClientOptions {
 }
 
 export interface ExtractUiState {
+  phase: "idle" | "extracting" | "interrupted" | "succeeded";
   isOpen: boolean;
   isExtracting: boolean;
   progress: number | null;
@@ -167,6 +168,7 @@ export function createGameClientController(
     network.onMatchTimer((secondsRemaining) => controller.setTimer(secondsRemaining)),
     network.onExtractOpened((payload) => {
       controller.setExtractState({
+        phase: "idle",
         isOpen: resolveExtractOpen(payload),
         isExtracting: false,
         progress: null,
@@ -188,6 +190,7 @@ export function createGameClientController(
       const selfPlayerId = controller.getSelfPlayerId();
       if (payload?.playerId && payload.playerId !== selfPlayerId) return;
       controller.setExtractState({
+        phase: "succeeded",
         isOpen: true,
         isExtracting: false,
         progress: 1,
@@ -205,6 +208,7 @@ export function createGameClientController(
 
       const settlement = normalizeSettlementPayload(payload);
       controller.setExtractState({
+        phase: settlement.result === "success" ? "succeeded" : "idle",
         isExtracting: false,
         progress: settlement.result === "success" ? 1 : null,
         secondsRemaining: 0,
@@ -303,6 +307,7 @@ export function createGameClientController(
 
 function createInitialExtractState(): ExtractUiState {
   return {
+    phase: "idle",
     isOpen: false,
     isExtracting: false,
     progress: null,
@@ -346,6 +351,7 @@ function buildExtractMessage(payload: ExtractOpenedPayload | undefined): string 
 function normalizeExtractProgress(payload: ExtractProgressPayload | number | undefined): Partial<ExtractUiState> {
   if (typeof payload === "number") {
       return {
+        phase: payload >= 1 ? "succeeded" : (payload > 0 && payload < 1 ? "extracting" : "idle"),
         isOpen: true,
         isExtracting: payload > 0 && payload < 1,
         progress: Phaser.Math.Clamp(payload, 0, 1),
@@ -363,6 +369,7 @@ function normalizeExtractProgress(payload: ExtractProgressPayload | number | und
   const active = !interrupted && (payload?.status === "started" || payload?.status === "progress");
 
   return {
+    phase: interrupted ? "interrupted" : (progress === 1 ? "succeeded" : (active ? "extracting" : "idle")),
     isOpen: true,
     isExtracting: active,
     progress: interrupted ? null : progress,

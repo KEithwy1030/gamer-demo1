@@ -59,6 +59,7 @@ export class GameScene extends Phaser.Scene {
   private worldSignature = "";
   private followedPlayerId: string | null = null;
   private extractState: ExtractUiState = {
+    phase: "idle",
     isOpen: false,
     isExtracting: false,
     progress: null,
