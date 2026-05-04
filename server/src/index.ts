@@ -8,6 +8,8 @@ import type {
   CreateMarketListingPayload,
   CreateRoomPayload,
   JoinRoomPayload,
+  ProfileMovePayload,
+  ProfilePatchPayload,
   PlayerInputMovePayload,
   RoomErrorPayload,
   RoomStartPayload,
@@ -47,6 +49,7 @@ import {
 } from "./monsters/monster-manager.js";
 import { RoomStore } from "./room-store.js";
 import { MarketStore } from "./market-store.js";
+import { ProfileStore } from "./profile-store.js";
 import { listChests, openChest, spawnChests } from "./chests/chest-manager.js";
 import type {
   ChestOpenedPayload,
@@ -59,6 +62,7 @@ import type {
   PlayerPickupPayload,
   PlayerUseItemPayload,
   RuntimeContext,
+  RuntimePlayer,
   RuntimeRoom,
   SocketSession
 } from "./types.js";
@@ -78,6 +82,30 @@ app.get("/health", (_request, response) => {
     uptimeSec: Math.round(process.uptime()),
     rooms: "in-memory"
   });
+});
+
+app.get("/profiles/:profileId", (request, response) => {
+  try {
+    response.json(profileStore.get(request.params.profileId));
+  } catch (error) {
+    response.status(400).json({ message: error instanceof Error ? error.message : "Failed to load profile." });
+  }
+});
+
+app.patch("/profiles/:profileId", (request, response) => {
+  try {
+    response.json(profileStore.patch(request.params.profileId, request.body as ProfilePatchPayload));
+  } catch (error) {
+    response.status(400).json({ message: error instanceof Error ? error.message : "Failed to patch profile." });
+  }
+});
+
+app.post("/profiles/:profileId/items/move", (request, response) => {
+  try {
+    response.json(profileStore.move(request.params.profileId, request.body as ProfileMovePayload));
+  } catch (error) {
+    response.status(400).json({ message: error instanceof Error ? error.message : "Failed to move profile item." });
+  }
 });
 
 app.get("/market/listings", (request, response) => {
@@ -130,9 +158,10 @@ const io = new Server(httpServer, {
   connectTimeout: serverConfig.socketConnectTimeoutMs
 });
 
+const profileStore = new ProfileStore();
 const roomStore = new RoomStore();
 const inventoryService = new InventoryService();
-const marketStore = new MarketStore();
+const marketStore = new MarketStore(profileStore);
 const CombatSocketEvent = {
   PlayerAttack: "player:attack",
   PlayerCastSkill: "player:castSkill",
@@ -173,12 +202,34 @@ function emitDrops(roomCode: string): void {
 function emitSettlement(roomCode: string, payload: MatchSettlementEnvelope): void {
   const context = roomStore.getRoomByCodeSnapshot(roomCode);
   const player = context.room.players.get(payload.playerId);
+  persistSettlement(player, payload.settlement);
   if (player?.socketId) {
     io.to(player.socketId).emit(SocketEvent.MatchSettlement, payload);
     return;
   }
 
   io.to(roomCode).emit(SocketEvent.MatchSettlement, payload);
+}
+
+function persistSettlement(
+  player: RuntimePlayer | undefined,
+  settlement: MatchSettlementEnvelope["settlement"]
+): void {
+  if (!player || player.isBot || !player.profileId || player.profileSettlementApplied) {
+    return;
+  }
+
+  profileStore.settleRun(player.profileId, settlement, player.inventory);
+  player.profileSettlementApplied = true;
+}
+
+function applyProfileLoadouts(room: RuntimeRoom): void {
+  for (const player of room.players.values()) {
+    if (player.isBot || !player.profileId) {
+      continue;
+    }
+    player.pendingLoadout = profileStore.buildLoadout(player.profileId, player.name);
+  }
 }
 
 function emitBotTickResult(roomCode: string, result: BotTickResult): void {
@@ -396,6 +447,15 @@ function startPlayerSyncLoop(roomCode: string): void {
       }
       const botResult = tickBots(context);
       emitBotTickResult(roomCode, botResult);
+      for (const event of botResult.chestOpenedEvents) {
+        io.to(roomCode).emit(SocketEvent.ChestOpened, event);
+      }
+      for (const event of botResult.lootPickedEvents) {
+        io.to(roomCode).emit(SocketEvent.LootPicked, event);
+      }
+      if (botResult.chestOpenedEvents.length > 0 || botResult.lootPickedEvents.length > 0) {
+        io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
+      }
       if (botResult.monsterStateChanged) {
         io.to(roomCode).emit(SocketEvent.StateMonsters, listMonsterStates(context.room));
         io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
@@ -490,6 +550,7 @@ function attachRoomHandlers(socket: GameSocket): void {
     try {
       const session = buildSession(socket);
       session.playerName = payload.playerName.trim() || "Player";
+      session.profileId = payload.profileId;
       const context = roomStore.createRoom(payload, session);
       ensureSocketInRoom(socket, context.room.code);
       emitRoomState(context.room.code, context);
@@ -502,6 +563,7 @@ function attachRoomHandlers(socket: GameSocket): void {
     try {
       const session = buildSession(socket);
       session.playerName = payload.playerName.trim() || "Player";
+      session.profileId = payload.profileId;
       const context = roomStore.joinRoom(payload, session);
       ensureSocketInRoom(socket, context.room.code);
       emitRoomState(context.room.code, context);
@@ -548,7 +610,11 @@ function attachRoomHandlers(socket: GameSocket): void {
   socket.on(SocketEvent.RoomStart, (payload?: RoomStartPayload) => {
     try {
       const session = buildSession(socket);
+      if (payload?.profileId) {
+        session.profileId = payload.profileId;
+      }
       const context = roomStore.startMatch(session, payload);
+      applyProfileLoadouts(context.room);
       inventoryService.initializeRoom(context.room);
       initializeExtractState(context.room);
       spawnInitialMonsters(context.room);

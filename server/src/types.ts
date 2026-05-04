@@ -22,6 +22,7 @@ export interface SocketSession {
   socketId: string;
   playerId: string;
   playerName: string;
+  profileId?: string;
   roomCode?: string;
 }
 
@@ -294,6 +295,8 @@ export interface RuntimePlayer extends LobbyPlayer {
   lastRiverDamageAt?: number;
   lastCorpseFogDamageAt?: number;
   pendingLoadout?: InventorySnapshotPayload;
+  profileId?: string;
+  profileSettlementApplied?: boolean;
 }
 
 export interface RuntimeMonster extends MonsterState {

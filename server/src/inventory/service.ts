@@ -654,7 +654,7 @@ function createItemFromSnapshot(
       instanceId: snapshot.instanceId || crypto.randomUUID(),
       templateId: template.templateId,
       name: snapshot.name || template.name,
-      kind: (snapshot.kind as InventoryItem["kind"] | undefined) ?? template.kind,
+      kind: normalizeInventoryItemKind(snapshot.kind) ?? template.kind,
       rarity: (snapshot.rarity as InventoryItem["rarity"] | undefined) ?? template.rarity,
       width: template.width,
       height: template.height,
@@ -669,6 +669,12 @@ function createItemFromSnapshot(
   } catch {
     return undefined;
   }
+}
+
+function normalizeInventoryItemKind(value: string | undefined): InventoryItem["kind"] | undefined {
+  return value === "weapon" || value === "equipment" || value === "treasure" || value === "currency" || value === "consumable"
+    ? value
+    : undefined;
 }
 
 function normalizeEquipmentSlot(value: string): EquipmentSlot | undefined {

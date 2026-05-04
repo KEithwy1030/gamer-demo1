@@ -137,6 +137,7 @@ export class RoomStore {
       squadType: "human",
       isBot: false,
       joinedAt: Date.now(),
+      profileId: payload.profileId,
       pendingLoadout: payload.loadout
     });
 
@@ -171,6 +172,7 @@ export class RoomStore {
       squadType: "human",
       isBot: false,
       joinedAt: Date.now(),
+      profileId: payload.profileId,
       pendingLoadout: payload.loadout
     });
 
@@ -222,6 +224,7 @@ export class RoomStore {
     options?: {
       botDifficulty?: RuntimeRoom["botDifficulty"];
       loadout?: RuntimePlayer["pendingLoadout"];
+      profileId?: string;
     }
   ): MatchStartContext {
     const room = this.getRoomForHost(session);
@@ -236,8 +239,13 @@ export class RoomStore {
 
     room.botDifficulty = options?.botDifficulty ?? room.botDifficulty;
     const hostPlayer = room.players.get(session.playerId);
-    if (hostPlayer && options?.loadout) {
-      hostPlayer.pendingLoadout = options.loadout;
+    if (hostPlayer) {
+      if (options?.profileId) {
+        hostPlayer.profileId = options.profileId;
+      }
+      if (options?.loadout) {
+        hostPlayer.pendingLoadout = options.loadout;
+      }
     }
     room.status = "started";
     room.startedAt = Date.now();

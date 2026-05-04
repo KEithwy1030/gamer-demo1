@@ -27,7 +27,7 @@ export interface MarketListingsPayload {
 
 export interface CreateMarketListingPayload {
   playerId: string;
-  item: MarketListingItem;
+  itemInstanceId: string;
   price: number;
 }
 

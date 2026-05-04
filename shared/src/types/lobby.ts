@@ -28,6 +28,7 @@ export interface RoomErrorPayload {
 
 export interface CreateRoomPayload {
   playerName: string;
+  profileId?: string;
   botDifficulty?: BotDifficulty;
   loadout?: InventorySnapshotPayload;
 }
@@ -35,6 +36,7 @@ export interface CreateRoomPayload {
 export interface JoinRoomPayload {
   code: string;
   playerName: string;
+  profileId?: string;
   loadout?: InventorySnapshotPayload;
 }
 
@@ -49,6 +51,7 @@ export interface LeaveRoomPayload {
 
 export interface RoomStartPayload {
   code?: string;
+  profileId?: string;
   botDifficulty?: BotDifficulty;
   loadout?: InventorySnapshotPayload;
 }
