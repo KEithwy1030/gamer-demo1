@@ -5,6 +5,7 @@ import {
   EXTRACT_OPEN_SEC,
   MATCH_DURATION_SEC
 } from "../internal-constants.js";
+import { InventoryService } from "../inventory/service.js";
 import type {
   ExtractOpenedPayload,
   ExtractProgressPayload,
@@ -26,6 +27,7 @@ interface ExtractUpdateResult {
 type ExtractInterruptReason = "damaged" | "left_zone" | "dead" | "timeout";
 
 const PROGRESS_BROADCAST_INTERVAL_MS = 250;
+const inventoryService = new InventoryService();
 
 export function initializeExtractState(room: RuntimeRoom): void {
   const layoutZones = room.matchLayout?.extractZones ?? [];
@@ -36,7 +38,11 @@ export function initializeExtractState(room: RuntimeRoom): void {
       channelDurationMs: zone.channelDurationMs ?? EXTRACT_CHANNEL_DURATION_MS,
       openAtSec: zone.openAtSec ?? EXTRACT_OPEN_SEC,
       isOpen: false
-    }))
+    })),
+    carrier: {
+      holderPlayerId: null,
+      holderSquadId: null
+    }
   };
 
   if (room.extract.zones.length === 0 && layoutZones.length > 0) {
@@ -48,6 +54,13 @@ export function initializeExtractState(room: RuntimeRoom): void {
       isOpen: false
     }));
   }
+
+  room.extract.carrier ??= {
+    holderPlayerId: null,
+    holderSquadId: null
+  };
+
+  syncExtractCarrier(room);
 
   for (const player of room.players.values()) {
     player.extract ??= {};
@@ -64,12 +77,31 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
   }
 
   const zone = resolveOccupiedExtractZone(room, player);
-  if (!zone?.isOpen) {
-    throw new Error("Extract is not open yet.");
-  }
-
   if (!player.state?.isAlive) {
     throw new Error("Dead players cannot extract.");
+  }
+
+  if (!inventoryService.playerHasExtractKey(player)) {
+    throw new Error("Need the extract torch to ignite camp.");
+  }
+
+  if (!zone) {
+    throw new Error("Player is not inside the extract zone.");
+  }
+
+  const sameSquadHolder = room.extract?.carrier?.holderPlayerId === player.id
+    || room.extract?.carrier?.holderSquadId === player.squadId;
+  if (room.extract?.zones.some((entry) => entry.isOpen) && !sameSquadHolder) {
+    throw new Error("Extract is keyed to another squad.");
+  }
+
+  if (!zone.isOpen) {
+    zone.isOpen = true;
+    zone.openedAt = now;
+    if (room.extract?.carrier) {
+      room.extract.carrier.holderPlayerId = player.id;
+      room.extract.carrier.holderSquadId = player.squadId;
+    }
   }
 
   if (player.extract?.settledAt) {
@@ -130,6 +162,7 @@ export function interruptPlayerExtract(
 
 export function advanceExtractState(room: RuntimeRoom, now = Date.now()): ExtractUpdateResult {
   initializeExtractState(room);
+  syncExtractCarrier(room);
 
   const opened = openExtractIfReady(room, now);
   const progressEvents: ExtractProgressPayload[] = [];
@@ -270,6 +303,10 @@ function openExtractIfReady(room: RuntimeRoom, now: number): ExtractOpenedPayloa
     return undefined;
   }
 
+  if (!room.extract.carrier?.holderPlayerId) {
+    return undefined;
+  }
+
   const elapsedSec = Math.floor((now - room.startedAt) / 1000);
   const zonesToOpen = room.extract.zones.filter((zone) => !zone.isOpen && elapsedSec >= zone.openAtSec);
   if (zonesToOpen.length === 0) {
@@ -283,6 +320,7 @@ function openExtractIfReady(room: RuntimeRoom, now: number): ExtractOpenedPayloa
 
   return {
     roomCode: room.code,
+    carrier: room.extract.carrier,
     zones: room.extract.zones.map((zone) => ({
       zoneId: zone.zoneId,
       x: zone.x,
@@ -362,6 +400,7 @@ function buildSettlement(
     : 0;
 
   if (outcome.result === "success") {
+    inventoryService.removeNonExtractableItems(player);
     const extractedItems = collectExtractedItems(player);
     return {
       result: "success",
@@ -407,6 +446,27 @@ function collectExtractedItems(player: RuntimePlayer): { gold: number; treasureV
     treasureValue: items.reduce((sum, item) => sum + item.treasureValue, 0),
     names: items.map((item) => item.name)
   };
+}
+
+function syncExtractCarrier(room: RuntimeRoom): void {
+  if (!room.extract?.carrier) {
+    return;
+  }
+
+  const holder = [...room.players.values()].find((player) => (
+    player.state?.isAlive
+    && inventoryService.playerHasExtractKey(player)
+  ));
+
+  room.extract.carrier.holderPlayerId = holder?.id ?? null;
+  room.extract.carrier.holderSquadId = holder?.squadId ?? null;
+
+  if (!holder) {
+    for (const zone of room.extract.zones) {
+      zone.isOpen = false;
+      zone.openedAt = undefined;
+    }
+  }
 }
 
 function collectAllItemNames(player: RuntimePlayer): string[] {

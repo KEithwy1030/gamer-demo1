@@ -507,6 +507,11 @@
   pointer-events: none;
 }
 
+.inventory-grid-highlight--invalid {
+  border-color: #b8371f;
+  background: rgba(184, 55, 31, 0.16);
+}
+
 .inventory-item {
   position: absolute;
   background: linear-gradient(180deg, rgba(33, 24, 16, 0.98), rgba(18, 14, 11, 0.98));

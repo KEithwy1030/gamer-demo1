@@ -134,3 +134,8 @@ export interface SettlementPayload {
   loadoutLost: boolean;
   profileGoldDelta: number;
 }
+
+export interface ExtractCarrierState {
+  holderPlayerId: string | null;
+  holderSquadId: SquadId | null;
+}

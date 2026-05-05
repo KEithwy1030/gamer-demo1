@@ -17,6 +17,7 @@ export const SocketEvent = {
   PlayerCastSkill: "player:castSkill",
   PlayerPickup: "player:pickup",
   PlayerDropItem: "player:dropItem",
+  PlayerMoveItem: "player:moveItem",
   PlayerEquipItem: "player:equipItem",
   PlayerUnequipItem: "player:unequipItem",
   PlayerUseItem: "player:useItem",

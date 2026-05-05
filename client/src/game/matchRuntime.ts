@@ -6,6 +6,7 @@ export interface MatchInventoryItem {
   name: string;
   kind?: string;
   rarity?: string;
+  tags?: string[];
   width?: number;
   height?: number;
   x?: number;

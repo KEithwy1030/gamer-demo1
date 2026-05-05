@@ -7,6 +7,7 @@ import type {
   InventoryState,
   InventoryUpdatePayload,
   LootPickedPayload,
+  PlayerMoveItemPayload,
   RuntimePlayer,
   RuntimeRoom
 } from "../types.js";
@@ -24,6 +25,7 @@ import { getItemTemplate, listSeedDropTemplateIds } from "./catalog.js";
 const PICKUP_RADIUS_PX = 140;
 const DROP_SPREAD_PX = 48;
 const DEATH_DROP_SPREAD_PX = 84;
+const EXTRACT_KEY_TEMPLATE_ID = "extract_torch";
 
 interface MutationResult {
   inventoryUpdate: InventoryUpdatePayload;
@@ -78,6 +80,7 @@ export class InventoryService {
     }
 
     this.applyDefaultLoadout(player);
+    this.applyDevelopmentExtractKey(player);
 
     player.deathLootDropped = false;
     this.applyEquipmentStats(player);
@@ -158,6 +161,95 @@ export class InventoryService {
     }
 
     inventory.equipment[slot] = cloneItem(entry.item);
+    this.applyEquipmentStats(player);
+
+    return {
+      inventoryUpdate: this.buildInventoryUpdate(player),
+      drops: this.listDrops(room)
+    };
+  }
+
+  move(room: RuntimeRoom, playerId: string, payload: PlayerMoveItemPayload): MutationResult {
+    const player = this.getPlayer(room, playerId);
+    const inventory = this.getInventory(player);
+    this.assertAlive(player);
+
+    const removed = removeInventoryItem(inventory, payload.itemInstanceId);
+    if (!removed) {
+      throw new Error("Item not found in inventory or equipment.");
+    }
+
+    const item = cloneItem(removed.item);
+    const swapRemoved = payload.swapItemInstanceId
+      ? removeInventoryItem(inventory, payload.swapItemInstanceId)
+      : undefined;
+
+    if (payload.swapItemInstanceId && !swapRemoved) {
+      restoreInventoryItem(inventory, removed);
+      throw new Error("Swap target not found.");
+    }
+
+    try {
+      if (payload.targetArea === "equipment") {
+        const slot = payload.slot ?? item.equipmentSlot;
+        if (!slot || item.equipmentSlot !== slot) {
+          throw new Error("Item cannot be equipped.");
+        }
+
+        const previousEquipped = inventory.equipment[slot];
+        inventory.equipment[slot] = item;
+        const displaced = swapRemoved?.item ?? previousEquipped;
+        if (displaced) {
+          const fallback = findFirstFit(inventory, displaced);
+          if (!fallback) {
+            throw new Error("Need free backpack space to swap equipment.");
+          }
+          inventory.items.push({
+            item: cloneItem(displaced),
+            x: fallback.x,
+            y: fallback.y
+          });
+        }
+      } else {
+        const x = Number.isFinite(payload.x) ? Math.floor(payload.x!) : undefined;
+        const y = Number.isFinite(payload.y) ? Math.floor(payload.y!) : undefined;
+        const placement = x != null && y != null
+          ? (canPlaceItem(inventory, item, x, y) ? { x, y } : undefined)
+          : findFirstFit(inventory, item);
+
+        if (!placement) {
+          throw new Error("Inventory is full.");
+        }
+
+        inventory.items.push({
+          item,
+          x: placement.x,
+          y: placement.y
+        });
+
+        if (swapRemoved) {
+          const swapPlacement = "x" in removed && "y" in removed
+            ? (canPlaceItem(inventory, swapRemoved.item, removed.x, removed.y) ? { x: removed.x, y: removed.y } : undefined)
+            : findFirstFit(inventory, swapRemoved.item);
+          if (!swapPlacement) {
+            throw new Error("Inventory is full.");
+          }
+
+          inventory.items.push({
+            item: cloneItem(swapRemoved.item),
+            x: swapPlacement.x,
+            y: swapPlacement.y
+          });
+        }
+      }
+    } catch (error) {
+      if (swapRemoved) {
+        restoreInventoryItem(inventory, swapRemoved);
+      }
+      restoreInventoryItem(inventory, removed);
+      throw error;
+    }
+
     this.applyEquipmentStats(player);
 
     return {
@@ -313,6 +405,34 @@ export class InventoryService {
     return this.buildInventoryUpdate(player);
   }
 
+  playerHasExtractKey(player: RuntimePlayer): boolean {
+    const inventory = this.getInventory(player);
+    return inventory.items.some((entry) => isExtractKeyItem(entry.item));
+  }
+
+  removeNonExtractableItems(player: RuntimePlayer): InventoryItem[] {
+    const inventory = this.getInventory(player);
+    const removed: InventoryItem[] = [];
+    inventory.items = inventory.items.filter((entry) => {
+      if (isNonExtractableItem(entry.item)) {
+        removed.push(cloneItem(entry.item));
+        return false;
+      }
+      return true;
+    });
+
+    for (const slot of Object.keys(inventory.equipment) as Array<keyof InventoryState["equipment"]>) {
+      const item = inventory.equipment[slot];
+      if (!item || !isNonExtractableItem(item)) {
+        continue;
+      }
+      removed.push(cloneItem(item));
+      delete inventory.equipment[slot];
+    }
+
+    return removed;
+  }
+
   listDrops(room: RuntimeRoom): DropState[] {
     return [...(room.drops?.values() ?? [])].map(cloneDrop);
   }
@@ -369,6 +489,7 @@ export class InventoryService {
       name: template.name,
       kind: template.kind,
       rarity: template.rarity,
+      tags: template.tags ? [...template.tags] : undefined,
       width: template.width,
       height: template.height,
       equipmentSlot: template.equipmentSlot,
@@ -415,6 +536,25 @@ export class InventoryService {
         inventory.equipment[item.equipmentSlot] = item;
       }
     }
+  }
+
+  private applyDevelopmentExtractKey(player: RuntimePlayer): void {
+    if (player.isBot || this.playerHasExtractKey(player)) {
+      return;
+    }
+
+    const inventory = this.getInventory(player);
+    const extractKey = this.createItem(EXTRACT_KEY_TEMPLATE_ID);
+    const placement = findFirstFit(inventory, extractKey);
+    if (!placement) {
+      return;
+    }
+
+    inventory.items.push({
+      item: extractKey,
+      x: placement.x,
+      y: placement.y
+    });
   }
 
   private applyEquipmentStats(player: RuntimePlayer): void {
@@ -507,6 +647,33 @@ function removeInventoryItem(inventory: InventoryState, itemInstanceId: string):
   return undefined;
 }
 
+function restoreInventoryItem(inventory: InventoryState, removed: InventoryEntry | { item: InventoryItem }): void {
+  if ("x" in removed && "y" in removed) {
+    inventory.items.push({
+      item: cloneItem(removed.item),
+      x: removed.x,
+      y: removed.y
+    });
+    return;
+  }
+
+  const slot = removed.item.equipmentSlot;
+  if (slot) {
+    inventory.equipment[slot] = cloneItem(removed.item);
+    return;
+  }
+
+  const placement = findFirstFit(inventory, removed.item);
+  if (!placement) {
+    throw new Error("Unable to restore inventory item.");
+  }
+  inventory.items.push({
+    item: cloneItem(removed.item),
+    x: placement.x,
+    y: placement.y
+  });
+}
+
 function findFirstFit(inventory: InventoryState, item: InventoryItem): { x: number; y: number } | undefined {
   return findFirstFitRect(inventory, getInventoryRects(inventory), {
     width: item.width,
@@ -544,6 +711,7 @@ function buildSpreadOffset(radius: number): { x: number; y: number } {
 function cloneItem(item: InventoryItem): InventoryItem {
   return {
     ...item,
+    tags: item.tags ? [...item.tags] : undefined,
     modifiers: item.modifiers ? { ...item.modifiers } : undefined,
     affixes: (item.affixes ?? []).map((affix) => ({ ...affix }))
   };
@@ -642,6 +810,7 @@ function createItemFromSnapshot(
       name: snapshot.name || template.name,
       kind: normalizeInventoryItemKind(snapshot.kind) ?? template.kind,
       rarity: (snapshot.rarity as InventoryItem["rarity"] | undefined) ?? template.rarity,
+      tags: template.tags ? [...template.tags] : undefined,
       width: template.width,
       height: template.height,
       equipmentSlot: forcedSlot ?? template.equipmentSlot,
@@ -658,9 +827,17 @@ function createItemFromSnapshot(
 }
 
 function normalizeInventoryItemKind(value: string | undefined): InventoryItem["kind"] | undefined {
-  return value === "weapon" || value === "equipment" || value === "treasure" || value === "currency" || value === "consumable"
+  return value === "weapon" || value === "equipment" || value === "treasure" || value === "currency" || value === "consumable" || value === "quest"
     ? value
     : undefined;
+}
+
+function isExtractKeyItem(item: InventoryItem): boolean {
+  return item.templateId === EXTRACT_KEY_TEMPLATE_ID || item.tags?.includes("extract_key") === true;
+}
+
+function isNonExtractableItem(item: InventoryItem): boolean {
+  return item.tags?.includes("non_extractable") === true;
 }
 
 function normalizeEquipmentSlot(value: string): EquipmentSlot | undefined {

@@ -41,6 +41,8 @@ export interface CombatEventPayload {
 
 export interface AttackRequestPayload {
   attackId: string;
+  direction?: Vector2;
+  targetId?: string;
 }
 
 export interface AttackConfirmedPayload {

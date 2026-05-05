@@ -1,6 +1,7 @@
 import type {
   BotDifficulty,
   CombatEventPayload,
+  ExtractCarrierState,
   LobbyPlayer,
   InventorySnapshotPayload,
   MatchLayout,
@@ -26,7 +27,7 @@ export interface SocketSession {
   roomCode?: string;
 }
 
-export type InventoryItemKind = "weapon" | "equipment" | "treasure" | "currency" | "consumable";
+export type InventoryItemKind = "weapon" | "equipment" | "treasure" | "currency" | "consumable" | "quest";
 export type EquipmentSlot = "weapon" | "head" | "chest" | "hands" | "shoes";
 
 export interface ItemStatModifiers {
@@ -47,6 +48,7 @@ export interface InventoryItem {
   name: string;
   rarity?: ItemRarity;
   kind: InventoryItemKind;
+  tags?: Array<"extract_key" | "non_extractable">;
   width: number;
   height: number;
   equipmentSlot?: EquipmentSlot;
@@ -113,6 +115,15 @@ export interface PlayerUnequipItemPayload {
 
 export interface PlayerDropItemPayload {
   itemInstanceId: string;
+}
+
+export interface PlayerMoveItemPayload {
+  itemInstanceId: string;
+  targetArea: "grid" | "equipment";
+  slot?: EquipmentSlot;
+  swapItemInstanceId?: string;
+  x?: number;
+  y?: number;
 }
 
 export interface PlayerUseItemPayload {
@@ -194,10 +205,12 @@ export interface RuntimeRoomExtractZone extends MatchLayoutExtractZone {
 export interface RuntimeRoomExtractState {
   zones: RuntimeRoomExtractZone[];
   matchEndedAt?: number;
+  carrier?: ExtractCarrierState;
 }
 
 export interface ExtractOpenedPayload {
   roomCode: string;
+  carrier?: ExtractCarrierState;
   zones: Array<{
     zoneId: string;
     x: number;

@@ -36,6 +36,7 @@ export class GameSceneInputBridge {
   private lastFacingDirection: Vector2 = { x: 0, y: 1 };
   private lastMoveSentAt = 0;
   private currentMoveDirection: Vector2 = { x: 0, y: 0 };
+  private facingLockDirection?: Vector2;
 
   constructor(scene: Phaser.Scene, options: GameSceneInputBridgeOptions) {
     this.scene = scene;
@@ -89,6 +90,21 @@ export class GameSceneInputBridge {
     return this.currentMoveDirection;
   }
 
+  setFacingLockDirection(direction?: Vector2): void {
+    if (!direction) {
+      this.facingLockDirection = undefined;
+      return;
+    }
+
+    const magnitude = Math.hypot(direction.x, direction.y);
+    if (magnitude <= 0.001) {
+      this.facingLockDirection = undefined;
+      return;
+    }
+
+    this.facingLockDirection = { x: direction.x / magnitude, y: direction.y / magnitude };
+  }
+
   private emitMoveInput(time: number): void {
     if (!this.options.onMoveInput) return;
 
@@ -113,8 +129,10 @@ export class GameSceneInputBridge {
 
     this.currentMoveDirection = direction;
     const magnitude = Math.sqrt(direction.x * direction.x + direction.y * direction.y);
-    if (magnitude > 0) {
+    if (magnitude > 0 && !this.facingLockDirection) {
       this.lastFacingDirection = { x: direction.x / magnitude, y: direction.y / magnitude };
+    } else if (this.facingLockDirection) {
+      this.lastFacingDirection = { ...this.facingLockDirection };
     }
 
     if (

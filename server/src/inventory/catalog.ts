@@ -12,6 +12,7 @@ interface ItemTemplate {
   name: string;
   kind: InventoryItemKind;
   rarity: ItemRarity;
+  tags?: Array<"extract_key" | "non_extractable">;
   width: number;
   height: number;
   equipmentSlot?: EquipmentSlot;
@@ -52,6 +53,7 @@ function definitionToTemplate(definition: ItemDefinition): ItemTemplate {
     name: definition.name,
     kind: toRuntimeKind(definition.category),
     rarity: definition.rarity,
+    tags: definition.tags ? [...definition.tags] : undefined,
     width: definition.size.width,
     height: definition.size.height,
     equipmentSlot: definition.slot,
@@ -66,6 +68,7 @@ function definitionToTemplate(definition: ItemDefinition): ItemTemplate {
 function toRuntimeKind(category: ItemDefinition["category"]): InventoryItemKind {
   if (category === "armor") return "equipment";
   if (category === "gold") return "currency";
+  if (category === "quest") return "quest";
   return category;
 }
 

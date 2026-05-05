@@ -208,5 +208,13 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
     rarity: "common",
     size: { width: 1, height: 1 },
     healAmount: 30
+  },
+  extract_torch: {
+    id: "extract_torch",
+    name: "归营火种",
+    category: "quest",
+    rarity: "common",
+    size: { width: 1, height: 3 },
+    tags: ["extract_key", "non_extractable"]
   }
 };

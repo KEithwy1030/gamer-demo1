@@ -1,5 +1,6 @@
 ﻿import type { CombatEventPayload, SkillId, Vector2, WeaponType } from "@gamer/shared";
 import Phaser from "phaser";
+import type { AttackRequestPayload } from "@gamer/shared";
 import { WEAPON_DEFINITIONS } from "@gamer/shared";
 import { DropMarker } from "../game/entities/DropMarker";
 import { MonsterMarker } from "../game/entities/MonsterMarker";
@@ -27,12 +28,12 @@ export interface GameSceneInitData {
   runtime: MatchRuntimeStore;
   extractState?: ExtractUiState;
   onMoveInput?: (direction: Vector2) => void;
-  onAttack?: () => void;
+  onAttack?: (payload: AttackRequestPayload) => void;
   onSkill?: (skillId: SkillId) => void;
   onPickup?: () => void;
   onStartExtract?: () => void;
   onCombatResult?: (payload: CombatEventPayload) => void;
-  onPlayerAttack?: (payload: { playerId: string; attackId: string }) => void;
+  onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
   onOpenChest?: (chestId: string) => void;
   onToggleInventory?: () => void;
   subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
@@ -65,16 +66,16 @@ export class GameScene extends Phaser.Scene {
     isExtracting: false,
     progress: null,
     secondsRemaining: null,
-    message: "8分钟后开放中心撤离点，先搜再收束。",
+    message: "携带归营火种前往中心归营火，点燃后开始撤离。",
     didSucceed: false
   };
   private onMoveInput?: (direction: Vector2) => void;
-  private onAttack?: () => void;
+  private onAttack?: (payload: AttackRequestPayload) => void;
   private onSkill?: (skillId: SkillId) => void;
   private onPickup?: () => void;
   private onStartExtract?: () => void;
   public onCombatResult?: (payload: CombatEventPayload) => void;
-  public onPlayerAttack?: (payload: { playerId: string; attackId: string }) => void;
+  public onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
   private onOpenChest?: (chestId: string) => void;
   private onToggleInventory?: () => void;
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
@@ -89,6 +90,13 @@ export class GameScene extends Phaser.Scene {
   ];
   private localBasicAttackEndsAt = 0;
   private pendingSkillCast?: Phaser.Time.TimerEvent;
+  private queuedAttack?: AttackRequestPayload;
+  private chaseAssist?: {
+    targetId: string;
+    targetKind: "player" | "monster";
+    startedAt: number;
+    expiresAt: number;
+  };
 
   constructor() {
     super(GameScene.KEY);
@@ -135,7 +143,7 @@ export class GameScene extends Phaser.Scene {
     // The in-game HUD carries objectives now; keep the first combat view unobstructed.
   }
 
-  private handleServerPlayerAttack(payload: { playerId: string; attackId: string }): void {
+  private handleServerPlayerAttack(payload: { playerId: string; attackId: string; targetId?: string }): void {
     const player = this.latestState?.players.find((entry) => entry.id === payload.playerId);
     this.playerMarkers.get(payload.playerId)?.playAction("attack", player?.direction);
     this.feedbackFx?.handleServerPlayerAttack(
@@ -231,7 +239,22 @@ export class GameScene extends Phaser.Scene {
 
     if (now < this.localBasicAttackEndsAt) return;
 
-    this.startLocalBasicAttack(self, cadence);
+    const assisted = this.resolveAttackAssist(self);
+    if (!assisted) {
+      this.clearChaseAssist();
+      return;
+    }
+
+    const attackPayload = this.buildAttackPayload(assisted.direction, assisted.targetId);
+    if (assisted.shouldChase && assisted.targetId && assisted.targetKind) {
+      this.startChaseAssist(assisted.targetId, assisted.targetKind);
+      this.queuedAttack = attackPayload;
+      return;
+    }
+
+    this.clearChaseAssist();
+    this.queuedAttack = undefined;
+    this.startLocalBasicAttack(self, cadence, attackPayload);
   }
 
   private handleSkill(slotIndex = 0): void {
@@ -281,15 +304,16 @@ export class GameScene extends Phaser.Scene {
 
   private startLocalBasicAttack(
     self: NonNullable<MatchViewState["players"]>[number],
-    cadence: ReturnType<typeof getBasicAttackCadence>
+    cadence: ReturnType<typeof getBasicAttackCadence>,
+    attackPayload: AttackRequestPayload
   ): void {
-    const direction = this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
+    const direction = attackPayload.direction ?? this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
     this.localBasicAttackEndsAt = Date.now() + cadence.repeatMs;
 
     this.playerMarkers.get(self.id)?.playAction("attack", direction);
     this.time.delayedCall(cadence.startupMs, () => {
       this.feedbackFx?.playLocalAttack(this.latestState, direction);
-      this.onAttack?.();
+      this.onAttack?.(attackPayload);
     });
   }
 
@@ -329,6 +353,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    this.updateChaseAssist();
     this.inputBridge?.update(time);
     this.tickExtractBeacon(time);
     if (this.latestState) {
@@ -379,6 +404,8 @@ export class GameScene extends Phaser.Scene {
     this.hudOverlay?.destroy();
     this.hudOverlay = undefined;
     this.localBasicAttackEndsAt = 0;
+    this.queuedAttack = undefined;
+    this.chaseAssist = undefined;
     this.corpseFogImage?.destroy();
     this.corpseFogImage = undefined;
     this.corpseFogTexture?.destroy();
@@ -434,6 +461,174 @@ export class GameScene extends Phaser.Scene {
     const ids = new Set(state.drops.map(d => d.id));
     state.drops.forEach(d => { if (!this.dropMarkers.has(d.id)) this.dropMarkers.set(d.id, new DropMarker(this, d)); });
     for (const [id, m] of this.dropMarkers.entries()) if (!ids.has(id)) { m.destroy(); this.dropMarkers.delete(id); }
+  }
+
+  private updateChaseAssist(): void {
+    if (!this.inputBridge) {
+      return;
+    }
+
+    const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
+    if (!self || !self.isAlive || !this.chaseAssist) {
+      this.clearChaseAssist();
+      return;
+    }
+
+    const target = this.findEntityById(this.chaseAssist.targetId, this.chaseAssist.targetKind);
+    if (!target || !target.isAlive) {
+      this.clearChaseAssist();
+      return;
+    }
+
+    const now = Date.now();
+    if (now > this.chaseAssist.expiresAt) {
+      this.clearChaseAssist();
+      return;
+    }
+
+    const delta = { x: target.x - self.x, y: target.y - self.y };
+    const distance = Math.hypot(delta.x, delta.y);
+    const facing = normalizeVector(delta, this.inputBridge.getLastFacingDirection());
+    this.inputBridge.setFacingLockDirection(facing);
+
+    const moveInput = this.inputBridge.getCurrentMoveDirection();
+    const moveMagnitude = Math.hypot(moveInput.x, moveInput.y);
+    if (moveMagnitude > 0.18) {
+      const moveNormalized = { x: moveInput.x / moveMagnitude, y: moveInput.y / moveMagnitude };
+      const retreatDot = (moveNormalized.x * facing.x) + (moveNormalized.y * facing.y);
+      if (retreatDot < -0.42) {
+        this.clearChaseAssist();
+        this.queuedAttack = undefined;
+        return;
+      }
+    }
+
+    const attackReach = getWeaponRange(self.weaponType) + LOCK_ASSIST_ACQUIRE_RANGE_BUFFER;
+    if (distance <= attackReach && this.queuedAttack) {
+      const cadence = getBasicAttackCadence(self.weaponType ?? "sword", self.attackSpeed ?? 0);
+      const attackPayload = this.buildAttackPayload(facing, this.queuedAttack.targetId);
+      this.queuedAttack = undefined;
+      this.clearChaseAssist();
+      this.startLocalBasicAttack(self, cadence, attackPayload);
+      return;
+    }
+
+    if (distance > getWeaponRange(self.weaponType) + LOCK_ASSIST_CHASE_RANGE_BUFFER || now - this.chaseAssist.startedAt > LOCK_ASSIST_CHASE_MAX_DURATION_MS) {
+      this.clearChaseAssist();
+      this.queuedAttack = undefined;
+      return;
+    }
+
+    this.onMoveInput?.({
+      x: facing.x * LOCK_ASSIST_CHASE_MOVE_SCALE,
+      y: facing.y * LOCK_ASSIST_CHASE_MOVE_SCALE
+    });
+  }
+
+  private resolveAttackAssist(self: NonNullable<MatchViewState["players"]>[number]): {
+    direction: Vector2;
+    targetId?: string;
+    targetKind?: "player" | "monster";
+    shouldChase: boolean;
+  } | null {
+    const fallbackDirection = this.inputBridge?.getLastFacingDirection() ?? self.direction ?? { x: 0, y: 1 };
+    const candidate = this.findBestAttackTarget(self, fallbackDirection);
+    if (!candidate) {
+      return {
+        direction: normalizeVector(fallbackDirection, { x: 0, y: 1 }),
+        shouldChase: false
+      };
+    }
+
+    return {
+      direction: candidate.direction,
+      targetId: candidate.id,
+      targetKind: candidate.kind,
+      shouldChase: candidate.distance > candidate.attackReach
+    };
+  }
+
+  private findBestAttackTarget(
+    self: NonNullable<MatchViewState["players"]>[number],
+    fallbackFacing: Vector2
+  ): {
+    id: string;
+    kind: "player" | "monster";
+    direction: Vector2;
+    distance: number;
+    attackReach: number;
+    score: number;
+  } | null {
+    const attackRange = getWeaponRange(self.weaponType);
+    const attackReach = attackRange + LOCK_ASSIST_ACQUIRE_RANGE_BUFFER;
+    const chaseReach = attackRange + LOCK_ASSIST_CHASE_RANGE_BUFFER;
+    const facing = normalizeVector(fallbackFacing, { x: 0, y: 1 });
+    const candidates: Array<{
+      id: string;
+      kind: "player" | "monster";
+      direction: Vector2;
+      distance: number;
+      attackReach: number;
+      score: number;
+    }> = [];
+
+    for (const player of this.latestState?.players ?? []) {
+      if (player.id === self.id || !player.isAlive || player.squadId === self.squadId) {
+        continue;
+      }
+      const candidate = buildAssistCandidate(self, player, "player", facing, attackReach + LOCK_ASSIST_PLAYER_CONTACT_RADIUS, chaseReach + LOCK_ASSIST_PLAYER_CONTACT_RADIUS);
+      if (candidate) candidates.push(candidate);
+    }
+
+    for (const monster of this.latestState?.monsters ?? []) {
+      if (!monster.isAlive) {
+        continue;
+      }
+      const candidate = buildAssistCandidate(self, monster, "monster", facing, attackReach + LOCK_ASSIST_MONSTER_CONTACT_RADIUS, chaseReach + LOCK_ASSIST_MONSTER_CONTACT_RADIUS);
+      if (candidate) candidates.push(candidate);
+    }
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    candidates.sort((a, b) => a.score - b.score);
+    return candidates[0] ?? null;
+  }
+
+  private buildAttackPayload(direction: Vector2, targetId?: string): AttackRequestPayload {
+    return {
+      attackId: `atk-${Date.now()}`,
+      direction,
+      targetId
+    };
+  }
+
+  private startChaseAssist(targetId: string, targetKind: "player" | "monster"): void {
+    const now = Date.now();
+    this.chaseAssist = {
+      targetId,
+      targetKind,
+      startedAt: now,
+      expiresAt: now + LOCK_ASSIST_CHASE_MAX_DURATION_MS
+    };
+  }
+
+  private clearChaseAssist(): void {
+    this.chaseAssist = undefined;
+    this.inputBridge?.setFacingLockDirection(undefined);
+  }
+
+  private findEntityById(targetId: string, kind: "player" | "monster"): { x: number; y: number; isAlive: boolean } | undefined {
+    if (!this.latestState) {
+      return undefined;
+    }
+
+    if (kind === "player") {
+      return this.latestState.players.find((player) => player.id === targetId);
+    }
+
+    return this.latestState.monsters.find((monster) => monster.id === targetId);
   }
 
   public showPickupFeedback(itemName: string): void {
@@ -541,6 +736,75 @@ function getBasicAttackCadence(weaponType: WeaponType, attackSpeedBonus: number)
 function getAttackAnimationFrameRate(weaponType: WeaponType): number {
   const attacksPerSecond = WEAPON_DEFINITIONS[weaponType]?.attacksPerSecond ?? 0.5;
   return Math.max(5, Math.round(attacksPerSecond * 12));
+}
+
+const LOCK_ASSIST_ACQUIRE_RANGE_BUFFER = 32;
+const LOCK_ASSIST_CHASE_RANGE_BUFFER = 108;
+const LOCK_ASSIST_CHASE_MOVE_SCALE = 1;
+const LOCK_ASSIST_CHASE_MAX_DURATION_MS = 650;
+const LOCK_ASSIST_PLAYER_CONTACT_RADIUS = 28;
+const LOCK_ASSIST_MONSTER_CONTACT_RADIUS = 30;
+const LOCK_ASSIST_FRONT_CONE_DEG = 130;
+const LOCK_ASSIST_REAR_CONE_DEG = 95;
+
+function getWeaponRange(weaponType: WeaponType | undefined): number {
+  return WEAPON_DEFINITIONS[weaponType ?? "sword"]?.range ?? WEAPON_DEFINITIONS.sword.range;
+}
+
+function buildAssistCandidate(
+  self: { x: number; y: number },
+  target: { id: string; x: number; y: number },
+  kind: "player" | "monster",
+  facing: Vector2,
+  attackReach: number,
+  chaseReach: number
+): {
+  id: string;
+  kind: "player" | "monster";
+  direction: Vector2;
+  distance: number;
+  attackReach: number;
+  score: number;
+} | null {
+  const delta = { x: target.x - self.x, y: target.y - self.y };
+  const distance = Math.hypot(delta.x, delta.y);
+  if (distance > chaseReach) {
+    return null;
+  }
+
+  const direction = normalizeVector(delta, facing);
+  const angleDeg = getAngleBetweenVectors(facing, direction);
+  const allowedAngle = distance <= attackReach ? LOCK_ASSIST_REAR_CONE_DEG : LOCK_ASSIST_FRONT_CONE_DEG;
+  if (angleDeg > allowedAngle) {
+    return null;
+  }
+
+  return {
+    id: target.id,
+    kind,
+    direction,
+    distance,
+    attackReach,
+    score: distance + (angleDeg * 0.9) + (kind === "player" ? -12 : 0)
+  };
+}
+
+function normalizeVector(direction: Vector2, fallback: Vector2): Vector2 {
+  const length = Math.hypot(direction.x, direction.y);
+  if (length <= 0.001) {
+    const fallbackLength = Math.hypot(fallback.x, fallback.y);
+    if (fallbackLength <= 0.001) {
+      return { x: 0, y: 1 };
+    }
+    return { x: fallback.x / fallbackLength, y: fallback.y / fallbackLength };
+  }
+
+  return { x: direction.x / length, y: direction.y / length };
+}
+
+function getAngleBetweenVectors(a: Vector2, b: Vector2): number {
+  const dot = Phaser.Math.Clamp((a.x * b.x) + (a.y * b.y), -1, 1);
+  return (Math.acos(dot) * 180) / Math.PI;
 }
 
 function resolveCorpseFogVisualState(startedAt: number): { visibilityPercent: number } {

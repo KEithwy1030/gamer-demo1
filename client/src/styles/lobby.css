@@ -1046,6 +1046,20 @@ button { font-family: inherit; cursor: pointer; }
     rgba(10, 8, 6, 0.45);
 }
 
+.stash-grid-highlight {
+  position: absolute;
+  z-index: 4;
+  border: 2px dashed var(--signal);
+  background: rgba(232, 96, 44, 0.14);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.stash-grid-highlight--invalid {
+  border-color: var(--danger);
+  background: rgba(184, 55, 31, 0.16);
+}
+
 .stash-slot {
   position: absolute;
   width: 52px;
@@ -1065,6 +1079,10 @@ button { font-family: inherit; cursor: pointer; }
   position: absolute;
   padding: 8px;
   text-align: left;
+}
+
+.stash-item.is-filter-dimmed {
+  opacity: 0.28;
 }
 
 .stash-item.selected,
@@ -1186,6 +1204,22 @@ button { font-family: inherit; cursor: pointer; }
   text-align: left;
 }
 
+.stash-item--dragging {
+  opacity: 0.35;
+}
+
+.stash-drag-ghost {
+  position: fixed;
+  z-index: 6000;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+body.stash-dragging,
+body.stash-dragging * {
+  user-select: none;
+}
+
 .pending-item-badge {
   color: var(--caution);
   font-family: var(--mono);
@@ -1199,6 +1233,12 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.stash-equip-slot--candidate .stash-equip-card,
+.stash-equip-slot--candidate .stash-equip-empty {
+  border-color: var(--signal);
+  box-shadow: inset 0 0 0 1px rgba(232, 96, 44, 0.36), 0 0 18px rgba(232, 96, 44, 0.18);
 }
 
 .stash-equip-slot--weapon { grid-area: weapon; }

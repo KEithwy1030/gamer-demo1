@@ -43,6 +43,7 @@ export interface ProfileMovePayload {
   targetArea: "grid" | "equipment" | "stash" | "discard";
   slot?: EquipmentSlot;
   pageIndex?: number;
+  swapItemInstanceId?: string;
   x?: number;
   y?: number;
 }

@@ -2,7 +2,8 @@ import type { WeaponType } from "./game";
 
 export type EquipmentSlot = "weapon" | "head" | "chest" | "hands" | "shoes";
 export type ItemRarity = "common" | "uncommon" | "rare" | "epic";
-export type ItemCategory = "weapon" | "armor" | "gold" | "treasure" | "consumable";
+export type ItemCategory = "weapon" | "armor" | "gold" | "treasure" | "consumable" | "quest";
+export type ItemTag = "extract_key" | "non_extractable";
 export type ArmorType = Exclude<EquipmentSlot, "weapon">;
 export type TreasureSize = "small" | "medium" | "large";
 export type AffixKey =
@@ -37,6 +38,7 @@ export interface ItemDefinition {
   goldAmount?: number;
   treasureSize?: TreasureSize;
   treasureValue?: number;
+  tags?: ItemTag[];
   healAmount?: number;
   stats?: Partial<{
     attackPower: number;
@@ -62,6 +64,7 @@ export interface InventoryItemInstance {
   kind?: ItemCategory;
   rarity?: ItemRarity;
   name?: string;
+  tags?: ItemTag[];
   healAmount?: number;
   affixes?: Affix[];
   modifiers?: Partial<{
@@ -110,6 +113,15 @@ export interface UnequipItemPayload {
 
 export interface DropItemPayload {
   itemInstanceId: string;
+}
+
+export interface MoveInventoryItemPayload {
+  itemInstanceId: string;
+  targetArea: "grid" | "equipment";
+  slot?: EquipmentSlot;
+  swapItemInstanceId?: string;
+  x?: number;
+  y?: number;
 }
 
 export interface InventorySnapshotPayload {

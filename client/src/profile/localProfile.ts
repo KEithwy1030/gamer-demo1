@@ -73,6 +73,7 @@ export interface LocalProfileMovePayload {
   targetArea: "grid" | "equipment" | "stash" | "discard";
   slot?: EquipmentSlot;
   pageIndex?: number;
+  swapItemInstanceId?: string;
   x?: number;
   y?: number;
 }
@@ -336,7 +337,10 @@ function normalizeSettlementItems(runtimeInventory: MatchInventoryState | null |
       }))
   ];
 
-  return items.length > 0 ? items : names.map((name, index) => fallbackItemFromName(name, index));
+  const extractableItems = items.filter((item) => !isNonExtractableItem(item));
+  return extractableItems.length > 0
+    ? extractableItems
+    : names.map((name, index) => fallbackItemFromName(name, index));
 }
 
 function normalizeInventoryGrid(raw: unknown, defaultWidth: number, defaultHeight: number): LocalInventoryGrid {
@@ -665,6 +669,11 @@ function stripGridPosition<T extends LocalProfileItem>(item: T): LocalProfileIte
     x: undefined,
     y: undefined
   };
+}
+
+function isNonExtractableItem(item: LocalProfileItem): boolean {
+  return item.definitionId === "extract_torch"
+    || item.tags?.includes("non_extractable") === true;
 }
 
 function createStarterWeapon(): LocalProfileItem {

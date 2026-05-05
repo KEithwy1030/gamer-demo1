@@ -8,6 +8,9 @@ import type { WeaponType } from "@gamer/shared";
 import { WEAPON_DEFINITIONS } from "@gamer/shared";
 import {
   ATTACK_CONE_BLADE_DEG,
+  LOCK_ASSIST_ACQUIRE_RANGE_BUFFER,
+  LOCK_ASSIST_FRONT_CONE_DEG,
+  LOCK_ASSIST_REAR_CONE_DEG,
   ATTACK_CONE_SPEAR_DEG,
   ATTACK_CONE_SWORD_DEG,
   ATTACK_RANGE_BUFFER,
@@ -76,6 +79,7 @@ export function resolvePlayerAttack(
   const combatState = ensureCombatState(attacker);
   syncPlayerCombatState(attacker, now);
   const attackerState = attacker.state!;
+  applyAttackIntentFacing(attackerState, payload.direction);
   const weapon = getWeaponDefinition(attackerState.weaponType);
   const baseInterval = Math.round(1000 / weapon.attacksPerSecond);
   const cooldownMs = Math.round(baseInterval / Math.max(1 + attackerState.attackSpeed, 0.1));
@@ -86,7 +90,7 @@ export function resolvePlayerAttack(
 
   combatState.lastAttackAt = now;
 
-  const target = selectAttackTarget(room, attacker, weapon.type, weapon.range);
+  const target = selectAttackTarget(room, attacker, weapon.type, weapon.range, payload.targetId);
   if (!target?.state) {
     return emptyResolution();
   }
@@ -153,7 +157,7 @@ export function resolvePlayerSkillCast(
     }
     case "blade_sweep": {
       requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
-      const targets = selectAttackTargets(room, caster, "blade", 148, 170);
+      const targets = selectAttackTargets(room, caster, "blade", 148, undefined, 170);
       movePlayerByDirection(caster.state!, -110);
       return applyDamageToTargets(room, caster, targets, scaleOutgoingDamage(caster, SKILL_DAMAGE.bladeSweep + attackPowerBonus, now), now);
     }
@@ -181,7 +185,7 @@ export function resolvePlayerSkillCast(
     }
     case "spear_heavyThrust": {
       requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
-      const target = selectAttackTarget(room, caster, "spear", 180, 50);
+      const target = selectAttackTarget(room, caster, "spear", 180, undefined, 50);
       return target
         ? applyDamage(
           room,
@@ -367,9 +371,10 @@ function selectAttackTarget(
   attacker: RuntimePlayer,
   weaponType: WeaponType,
   weaponRange: number,
+  requestedTargetId?: string,
   coneOverrideDeg?: number
 ): RuntimePlayer | undefined {
-  return selectAttackTargets(room, attacker, weaponType, weaponRange, coneOverrideDeg)[0];
+  return selectAttackTargets(room, attacker, weaponType, weaponRange, requestedTargetId, coneOverrideDeg)[0];
 }
 
 function selectAttackTargets(
@@ -377,32 +382,55 @@ function selectAttackTargets(
   attacker: RuntimePlayer,
   weaponType: WeaponType,
   weaponRange: number,
+  requestedTargetId?: string,
   coneOverrideDeg?: number
 ): RuntimePlayer[] {
   if (!attacker.state) {
     return [];
   }
 
-  const attackRange = weaponRange + ATTACK_RANGE_BUFFER + PLAYER_HIT_RADIUS;
+  const directRange = weaponRange + ATTACK_RANGE_BUFFER + PLAYER_HIT_RADIUS;
+  const attackRange = directRange + LOCK_ASSIST_ACQUIRE_RANGE_BUFFER;
   const facing = normalizeDirection(attacker.state.direction);
-  const maxAngleDeg = (coneOverrideDeg ?? getAttackConeDegrees(weaponType)) / 2;
+  const baseCone = getAttackConeDegrees(weaponType) / 2;
 
   return [...room.players.values()]
     .filter((target) => (
       target.id !== attacker.id
       && target.state?.isAlive
       && target.squadId !== attacker.squadId
+      && (!requestedTargetId || target.id === requestedTargetId)
     ))
     .map((target) => {
       const dx = target.state!.x - attacker.state!.x;
       const dy = target.state!.y - attacker.state!.y;
       const distance = Math.hypot(dx, dy);
       const angleDeg = getAngleBetween(facing, normalizeDirection({ x: dx, y: dy }));
-      return { target, distance, angleDeg };
+      const allowedAngleDeg = coneOverrideDeg ?? Math.max(
+        baseCone,
+        distance <= directRange ? LOCK_ASSIST_REAR_CONE_DEG : LOCK_ASSIST_FRONT_CONE_DEG
+      );
+      return { target, distance, angleDeg, allowedAngleDeg };
     })
-    .filter(({ distance, angleDeg }) => distance <= attackRange && angleDeg <= maxAngleDeg)
+    .filter(({ distance, angleDeg, allowedAngleDeg }) => distance <= attackRange && angleDeg <= allowedAngleDeg)
     .sort((a, b) => a.distance - b.distance)
     .map(({ target }) => target);
+}
+
+function applyAttackIntentFacing(
+  state: { direction: { x: number; y: number } },
+  direction: { x: number; y: number } | undefined
+): void {
+  if (!direction) {
+    return;
+  }
+
+  const normalized = normalizeDirection(direction);
+  if (normalized.x === 0 && normalized.y === 0) {
+    return;
+  }
+
+  state.direction = normalized;
 }
 
 function selectDashSlashTargets(

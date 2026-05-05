@@ -1,5 +1,7 @@
 ﻿import Phaser from "phaser";
 import {
+  AttackRequestPayload,
+  ExtractCarrierState,
   INVENTORY_HEIGHT,
   INVENTORY_WIDTH,
   CombatEventPayload,
@@ -35,6 +37,7 @@ export interface ExtractUiState {
   secondsRemaining: number | null;
   message: string | null;
   didSucceed: boolean;
+  carrier?: ExtractCarrierState;
   x?: number;
   y?: number;
   radius?: number;
@@ -52,7 +55,7 @@ export interface GameClientController {
   applyDrops(drops: WorldDrop[]): void;
   setInventory(payload: InventoryUpdateEvent): void;
   setCombatResult(payload: CombatEventPayload): void;
-  onPlayerAttack(payload: { playerId: string; attackId: string }): void;
+  onPlayerAttack(payload: { playerId: string; attackId: string; targetId?: string }): void;
   setTimer(secondsRemaining: number): void;
   setExtractState(payload: Partial<ExtractUiState>): void;
   toggleInventory(): void;
@@ -177,6 +180,7 @@ export function createGameClientController(
         secondsRemaining: resolveCountdownSeconds(payload),
         message: buildExtractMessage(payload),
         didSucceed: false,
+        carrier: payload?.carrier,
         ...resolvePrimaryExtractZone(payload)
       });
     }),
@@ -255,7 +259,7 @@ export function createGameClientController(
       runtime,
       extractState,
       onMoveInput: (direction: Vector2) => network.sendMoveInput({ direction }),
-      onAttack: () => network.sendAttack({ attackId: `atk-${Date.now()}` }),
+      onAttack: (payload: AttackRequestPayload) => network.sendAttack(payload),
       onSkill: (skillId: SkillId) => network.sendCastSkill({ skillId }),
       onPickup: () => {
         const state = runtime.getState();
@@ -314,7 +318,7 @@ function createInitialExtractState(): ExtractUiState {
     isExtracting: false,
     progress: null,
     secondsRemaining: null,
-    message: "8分钟后开放中心撤离点，先搜再收束。",
+    message: "携带归营火种前往中心归营火，点燃后开始撤离。",
     didSucceed: false
   };
 }
@@ -345,9 +349,15 @@ function resolvePrimaryExtractZone(payload: ExtractOpenedPayload | undefined): {
 function buildExtractMessage(payload: ExtractOpenedPayload | undefined): string {
   const zoneCount = payload?.zones.filter((zone) => zone.isOpen).length ?? 0;
   if (zoneCount > 1) {
-    return `撤离通道已开 ${zoneCount} 处，高价值携带者优先撤离。`;
+    return `归营火已点燃 ${zoneCount} 处，队伍进入后完成撤离。`;
   }
-  return "中心撤离点已开放，尸毒会持续加压。";
+  if (zoneCount === 1) {
+    return "归营火已点燃，留在圈内完成撤离。";
+  }
+  if (payload?.carrier?.holderPlayerId) {
+    return "有人携带归营火种，靠近中心归营火可点燃撤离。";
+  }
+  return "寻找归营火种；开发期真人开局会自动携带。";
 }
 
 function normalizeExtractProgress(payload: ExtractProgressPayload | number | undefined): Partial<ExtractUiState> {
@@ -400,6 +410,7 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
         ),
         kind: asOptionalStringValue(item.kind),
         rarity: asOptionalStringValue(item.rarity),
+        tags: normalizeStringArray(item.tags),
         width: asOptionalNumber(item.width),
         height: asOptionalNumber(item.height),
         x: asOptionalNumber(entry.x),
@@ -423,6 +434,7 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
           ),
           kind: asOptionalStringValue(item.kind),
           rarity: asOptionalStringValue(item.rarity),
+          tags: normalizeStringArray(item.tags),
           width: asOptionalNumber(item.width),
           height: asOptionalNumber(item.height),
           slot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot) ?? slot,
@@ -537,6 +549,14 @@ function asOptionalString(value: unknown): SettlementPayload["reason"] | undefin
 
 function asOptionalStringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function normalizeStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const entries = value.map(String).filter(Boolean);
+  return entries.length > 0 ? entries : undefined;
 }
 
 function cryptoId(): string {

@@ -557,7 +557,7 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
   }
 
   if (extractState.isOpen) {
-    return hasBackpackCargo(state) ? "带货状态，中心撤离点已开，优先走安全线" : "中心撤离点已开，抢线撤离或截击带货者";
+    return hasBackpackCargo(state) ? "归营火已点燃，带货者优先走安全线" : "归营火已点燃，进圈撤离或截击带货者";
   }
 
   if (isCorpseFogCounterattacking(state)) {
@@ -565,7 +565,7 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
   }
 
   if (state.secondsRemaining !== null && state.secondsRemaining <= 60) {
-    return "封锁将尽，立刻转向中心撤离点";
+    return "封锁将尽，立刻转向归营火";
   }
 
   return hasBackpackCargo(state) ? "背包已有收益，继续搜会抬高阵亡成本" : "先清外围资源，再向中圈高价值点靠拢";
@@ -574,7 +574,7 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
 function resolveExtractStateLabel(extractState: ExtractUiState): string {
   if (extractState.isExtracting) return "撤离 读条中";
   if (extractState.didSucceed) return "撤离 已完成";
-  return extractState.isOpen ? "撤离 已开放" : "撤离 8分钟开";
+  return extractState.isOpen ? "归营火 已点燃" : "归营火 待点燃";
 }
 
 function resolveInventoryLabel(state: MatchViewState): string {

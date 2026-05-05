@@ -2,6 +2,9 @@ import crypto from "node:crypto";
 import type { AttackRequestPayload, CombatEventPayload, MonsterSpawnDefinition, MonsterState, MonsterType, SkillCastPayload } from "@gamer/shared";
 import { WEAPON_DEFINITIONS } from "@gamer/shared";
 import {
+  LOCK_ASSIST_ACQUIRE_RANGE_BUFFER,
+  LOCK_ASSIST_FRONT_CONE_DEG,
+  LOCK_ASSIST_REAR_CONE_DEG,
   ELITE_MONSTER_AGGRO_RANGE,
   ELITE_MONSTER_ATTACK_COOLDOWN_MS,
   ELITE_MONSTER_ATTACK_DAMAGE,
@@ -206,7 +209,7 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
 export function handlePlayerAttack(
   context: RuntimeContext,
   playerId: string,
-  _payload: AttackRequestPayload
+  payload: AttackRequestPayload
 ): PlayerAttackOutcome | undefined {
   const room = context.room;
   const player = room.players.get(playerId);
@@ -217,12 +220,13 @@ export function handlePlayerAttack(
   const weapon = WEAPON_DEFINITIONS[player.state.weaponType];
   const now = Date.now();
   syncPlayerCombatState(player, now);
+  applyAttackIntentFacing(player.state, payload.direction);
   if (now < (player.attackCooldownEndsAt ?? 0)) {
     return undefined;
   }
 
   player.attackCooldownEndsAt = now + Math.round((1000 / Math.max(weapon.attacksPerSecond, 0.1)) / Math.max(1 + player.state.attackSpeed, 0.1));
-  const targetMonster = findAttackableMonster(room, player.state, weapon.range);
+  const targetMonster = findAttackableMonster(room, player.state, weapon.range, payload.targetId);
   if (!targetMonster) {
     return {
       monsters: listMonsterStates(room),
@@ -312,12 +316,12 @@ export function handlePlayerSkill(
     }
     case "blade_sweep":
       {
-        const targets = findAttackableMonsters(room, skillSourceState, 148, 170);
+        const targets = findAttackableMonsters(room, skillSourceState, 148, undefined, 170);
         movePlayerByDirection(player.state, -110);
         return applySkillDamageToMonsters(room, player, targets, scaleOutgoingDamage(player, SKILL_DAMAGE.bladeSweep + player.state.attackPower, now), now);
       }
     case "spear_heavyThrust": {
-      const target = findAttackableMonster(room, skillSourceState, 160, 50);
+      const target = findAttackableMonster(room, skillSourceState, 160, undefined, 50);
       return applySkillDamageToMonsters(
         room,
         player,
@@ -504,35 +508,58 @@ function findAttackableMonster(
   room: RuntimeRoom,
   playerState: CombatPlayerState,
   attackRange: number,
+  requestedTargetId?: string,
   coneOverrideDeg?: number
 ): RuntimeMonster | undefined {
-  return findAttackableMonsters(room, playerState, attackRange, coneOverrideDeg)[0];
+  return findAttackableMonsters(room, playerState, attackRange, requestedTargetId, coneOverrideDeg)[0];
 }
 
 function findAttackableMonsters(
   room: RuntimeRoom,
   playerState: CombatPlayerState,
   attackRange: number,
+  requestedTargetId?: string,
   coneOverrideDeg?: number
 ): RuntimeMonster[] {
   const facing = normalizeDirection(playerState.direction);
-  const maxAngleDeg = coneOverrideDeg == null ? 78 : coneOverrideDeg / 2;
+  const directRange = attackRange + MONSTER_CONTACT_RADIUS;
+  const effectiveRange = directRange + LOCK_ASSIST_ACQUIRE_RANGE_BUFFER;
+  const baseAngleDeg = coneOverrideDeg == null ? 78 : coneOverrideDeg / 2;
 
   return [...ensureMonsterState(room).values()]
-    .filter((monster) => monster.isAlive)
+    .filter((monster) => monster.isAlive && (!requestedTargetId || monster.id === requestedTargetId))
     .map((monster) => {
       const dx = monster.x - playerState.x;
       const dy = monster.y - playerState.y;
       const distance = Math.hypot(dx, dy);
       const angleDeg = getAngleBetween(facing, normalizeDirection({ x: dx, y: dy }));
-      return { monster, distance, angleDeg };
+      const maxAngleDeg = coneOverrideDeg == null
+        ? Math.max(baseAngleDeg, distance <= directRange ? LOCK_ASSIST_REAR_CONE_DEG : LOCK_ASSIST_FRONT_CONE_DEG)
+        : baseAngleDeg;
+      return { monster, distance, angleDeg, maxAngleDeg };
     })
-    .filter(({ distance, angleDeg }) => (
-      distance <= attackRange + MONSTER_CONTACT_RADIUS
+    .filter(({ distance, angleDeg, maxAngleDeg }) => (
+      distance <= effectiveRange
       && (facing.x === 0 && facing.y === 0 ? true : angleDeg <= maxAngleDeg)
     ))
     .sort((a, b) => a.distance - b.distance)
     .map(({ monster }) => monster);
+}
+
+function applyAttackIntentFacing(
+  state: CombatPlayerState,
+  direction: { x: number; y: number } | undefined
+): void {
+  if (!direction) {
+    return;
+  }
+
+  const normalized = normalizeDirection(direction);
+  if (normalized.x === 0 && normalized.y === 0) {
+    return;
+  }
+
+  state.direction = normalized;
 }
 
 function findDashSlashMonsters(

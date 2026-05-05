@@ -1,7 +1,9 @@
 ﻿import { io, type Socket } from "socket.io-client";
 import {
+  type AttackRequestPayload,
   type CombatEventPayload,
   type CreateRoomPayload,
+  type ExtractCarrierState,
   type InventorySnapshotPayload,
   type MatchStartedPayload,
   type MonsterState,
@@ -24,6 +26,7 @@ export type Unsubscribe = () => void;
 
 export interface ExtractOpenedPayload {
   roomCode: string;
+  carrier?: ExtractCarrierState;
   zones: Array<{
     zoneId: string;
     x: number;
@@ -159,7 +162,7 @@ export class GameSocketClient {
     return this.on(SocketEvent.InventoryUpdate, listener);
   }
 
-  onPlayerAttack(listener: (payload: { playerId: string; attackId: string }) => void): Unsubscribe {
+  onPlayerAttack(listener: (payload: { playerId: string; attackId: string; targetId?: string }) => void): Unsubscribe {
     return this.on(SocketEvent.PlayerAttack, listener);
   }
 
@@ -215,7 +218,7 @@ export class GameSocketClient {
     this.socket.emit(SocketEvent.PlayerInputMove, payload);
   }
 
-  sendAttack(payload: { attackId: string }): void {
+  sendAttack(payload: AttackRequestPayload): void {
     this.socket.emit(SocketEvent.PlayerAttack, payload);
   }
 
@@ -237,6 +240,10 @@ export class GameSocketClient {
 
   sendDropItem(payload: { itemInstanceId: string }): void {
     this.socket.emit(SocketEvent.PlayerDropItem, payload);
+  }
+
+  sendMoveItem(payload: { itemInstanceId: string; targetArea: "grid" | "equipment"; slot?: string; swapItemInstanceId?: string; x?: number; y?: number }): void {
+    this.socket.emit(SocketEvent.PlayerMoveItem, payload);
   }
 
   sendUseItem(payload: { itemInstanceId: string }): void {

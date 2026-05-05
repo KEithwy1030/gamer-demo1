@@ -11,6 +11,22 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
+function makeExtractTorch() {
+  return {
+    instanceId: "torch-1",
+    templateId: "extract_torch",
+    name: "归营火种",
+    kind: "quest" as const,
+    rarity: "rare" as const,
+    tags: ["extract_key" as const, "non_extractable" as const],
+    width: 1,
+    height: 3,
+    goldValue: 0,
+    treasureValue: 0,
+    affixes: []
+  };
+}
+
 function makeRoom(now: number): RuntimeRoom {
   const player = {
     id: "player-1",
@@ -103,6 +119,22 @@ function main(): void {
   assert(room.extract?.zones.length === 1, "initializeExtractState should clone layout zones");
   assert(room.extract.zones[0].isOpen === false, "extract zone should start closed");
 
+  try {
+    startPlayerExtract(room, "player-1", now);
+    throw new Error("startPlayerExtract should require the extract torch");
+  } catch (error) {
+    assert(
+      error instanceof Error && /extract torch/.test(error.message),
+      "startPlayerExtract should require the extract torch"
+    );
+  }
+
+  room.players.get("player-1")!.inventory!.items.push({
+    item: makeExtractTorch(),
+    x: 1,
+    y: 0
+  });
+
   const start = startPlayerExtract(room, "player-1", now);
   assert(start.opened?.zones[0].isOpen === true, "startPlayerExtract should open ready zone");
   assert(start.progressEvents[0]?.status === "started", "startPlayerExtract should emit started progress");
@@ -115,9 +147,13 @@ function main(): void {
   assert(settled.successEvents.length === 1, "advanceExtractState should emit one extract success");
   assert(settled.settlementEvents[0]?.settlement.result === "success", "settlement result should be success");
   assert(settled.settlementEvents[0]?.settlement.reason === "extracted", "settlement reason should be extracted");
+  assert(
+    !settled.settlementEvents[0]?.settlement.extractedItems.includes("归营火种"),
+    "extract torch should not be listed as extracted loot"
+  );
   assert(settled.shouldCloseRoom === true, "single-player room should close after settlement");
 
-  console.log("[extract-service] PASS deterministic open/start/progress/success settlement contract");
+  console.log("[extract-service] PASS torch-gated start/progress/success settlement contract");
 }
 
 main();

@@ -57,6 +57,7 @@ import type {
   MatchSettlementEnvelope,
   PlayerDropItemPayload,
   PlayerEquipItemPayload,
+  PlayerMoveItemPayload,
   PlayerOpenChestPayload,
   PlayerUnequipItemPayload,
   PlayerPickupPayload,
@@ -660,6 +661,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       if (context.room.extract?.zones?.length) {
         io.to(context.room.code).emit(SocketEvent.ExtractOpened, {
           roomCode: context.room.code,
+          carrier: context.room.extract.carrier,
           zones: context.room.extract.zones.map((zone) => ({
             zoneId: zone.zoneId,
             x: zone.x,
@@ -761,6 +763,26 @@ function attachRoomHandlers(socket: GameSocket): void {
     }
   });
 
+  socket.on(SocketEvent.PlayerMoveItem, (payload: PlayerMoveItemPayload) => {
+    try {
+      const session = buildSession(socket);
+      if (!session.roomCode) {
+        throw new Error("Player is not currently in a room.");
+      }
+
+      const context = roomStore.getRoomByCodeSnapshot(session.roomCode);
+      const result = inventoryService.move(context.room, session.playerId, payload);
+      const updatedContext = roomStore.getRoomByCodeSnapshot(session.roomCode);
+      io.to(socket.id).emit(SocketEvent.InventoryUpdate, result.inventoryUpdate);
+      io.to(session.roomCode).emit(
+        SocketEvent.StatePlayers,
+        roomStore.listPlayerStates(updatedContext.room)
+      );
+    } catch (error) {
+      emitRoomError(socket, error instanceof Error ? error.message : "Failed to move item.");
+    }
+  });
+
   socket.on(SocketEvent.PlayerUseItem, (payload: PlayerUseItemPayload) => {
     try {
       const session = buildSession(socket);
@@ -792,7 +814,8 @@ function attachRoomHandlers(socket: GameSocket): void {
       // Broadcast the attack event to all clients in the room to trigger VFX
       io.to(roomCode).emit(CombatSocketEvent.PlayerAttack, {
         playerId: session.playerId,
-        attackId: payload.attackId
+        attackId: payload.attackId,
+        targetId: payload.targetId
       });
 
       for (const event of resolution.combatEvents) {

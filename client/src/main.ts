@@ -94,6 +94,9 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
     });
 
     const inventoryPanel = createInventoryPanel({
+      onMove: (payload) => {
+        gameController?.network.sendMoveItem(payload);
+      },
       onEquip: (instanceId) => {
         gameController?.network.sendEquipItem({ itemInstanceId: instanceId });
       },
