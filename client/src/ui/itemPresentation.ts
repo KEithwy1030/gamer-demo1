@@ -12,6 +12,7 @@ type ItemPresentationCore = {
   categoryLabel: string;
   slotLabel?: string;
   variant: string;
+  assetPath?: string;
 };
 
 export type ItemPresentation = ItemPresentationCore & {
@@ -28,25 +29,25 @@ type ItemPresentationPreset = ItemPresentationCore & {
 };
 
 const ITEM_PRESETS: Record<string, ItemPresentationPreset> = {
-  starter_sword: { icon: "⚔", badge: "剑", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", names: ["制式长剑", "Starter Sword", "Sword"] },
-  weapon_sword_basic: { icon: "⚔", badge: "剑", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", names: ["锈蚀长剑", "锈剑", "Rust Sword"] },
-  raider_blade: { icon: "🗡", badge: "刃", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", names: ["突袭弯刃", "突击者之刃", "Raider Blade", "Blade"] },
-  weapon_blade_basic: { icon: "🗡", badge: "刃", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", names: ["突袭弯刃", "掠袭短刃", "Raider Blade"] },
-  hunter_spear: { icon: "✦", badge: "矛", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", names: ["猎人长矛", "Hunter Spear", "Spear"] },
-  weapon_spear_basic: { icon: "✦", badge: "矛", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", names: ["旧猎矛", "旧长矛", "Old Spear"] },
-  leather_hood: { icon: "⛑", badge: "头", categoryLabel: "护甲", slotLabel: "头部", variant: "armor", names: ["皮质兜帽", "Leather Hood"] },
-  armor_head_common: { icon: "⛑", badge: "头", categoryLabel: "护甲", slotLabel: "头部", variant: "armor", names: ["斥候兜帽", "Scout Hood"] },
-  scavenger_coat: { icon: "🜁", badge: "甲", categoryLabel: "护甲", slotLabel: "胸甲", variant: "armor", names: ["拾荒者外衣", "拾荒者大衣", "Scavenger Coat"] },
-  armor_chest_common: { icon: "🜁", badge: "甲", categoryLabel: "护甲", slotLabel: "胸甲", variant: "armor", names: ["拼接胸甲", "Patch Chestpiece"] },
-  armor_hands_common: { icon: "✊", badge: "手", categoryLabel: "护甲", slotLabel: "手部", variant: "armor", names: ["握柄手套", "Grip Gloves"] },
-  trail_greaves: { icon: "👢", badge: "靴", categoryLabel: "护甲", slotLabel: "鞋子", variant: "armor", names: ["径行胫甲", "径行腿甲", "Trail Greaves"] },
-  armor_feet_common: { icon: "👢", badge: "靴", categoryLabel: "护甲", slotLabel: "鞋子", variant: "armor", names: ["旅者短靴", "旅途皮靴", "Road Boots"] },
-  jade_idol: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", names: ["古玉偶像", "古玉像", "Jade Idol"] },
-  treasure_small_idol: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", names: ["小型偶像", "小型神像", "Small Idol"] },
-  treasure_medium_tablet: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", names: ["石刻碑板", "Stone Tablet"] },
-  treasure_large_statue: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", names: ["残破雕像", "残损雕像", "Broken Statue"] },
-  gold_pouch: { icon: "◎", badge: "金", categoryLabel: "金币", variant: "currency", names: ["金币袋", "Gold Pouch"] },
-  health_potion: { icon: "🧪", badge: "药", categoryLabel: "消耗品", variant: "consumable", names: ["回血药剂", "回血药", "Health Potion"] }
+  starter_sword: { icon: "⚔", badge: "剑", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_sword_v2.png", names: ["制式长剑", "Starter Sword", "Sword"] },
+  weapon_sword_basic: { icon: "⚔", badge: "剑", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_sword_v2.png", names: ["锈蚀长剑", "锈剑", "Rust Sword"] },
+  raider_blade: { icon: "🗡", badge: "刃", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_blade_v2.png", names: ["突袭弯刃", "突击者之刃", "Raider Blade", "Blade"] },
+  weapon_blade_basic: { icon: "🗡", badge: "刃", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_blade_v2.png", names: ["突袭弯刃", "掠袭短刃", "Raider Blade"] },
+  hunter_spear: { icon: "✦", badge: "矛", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_spear_v2.png", names: ["猎人长矛", "Hunter Spear", "Spear"] },
+  weapon_spear_basic: { icon: "✦", badge: "矛", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_spear_v2.png", names: ["旧猎矛", "旧长矛", "Old Spear"] },
+  leather_hood: { icon: "⛑", badge: "头", categoryLabel: "护甲", slotLabel: "头部", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_head_v2.png", names: ["皮质兜帽", "Leather Hood"] },
+  armor_head_common: { icon: "⛑", badge: "头", categoryLabel: "护甲", slotLabel: "头部", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_head_v2.png", names: ["斥候兜帽", "Scout Hood"] },
+  scavenger_coat: { icon: "🜁", badge: "甲", categoryLabel: "护甲", slotLabel: "胸甲", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_chest_v2.png", names: ["拾荒者外衣", "拾荒者大衣", "Scavenger Coat"] },
+  armor_chest_common: { icon: "🜁", badge: "甲", categoryLabel: "护甲", slotLabel: "胸甲", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_chest_v2.png", names: ["拼接胸甲", "Patch Chestpiece"] },
+  armor_hands_common: { icon: "✊", badge: "手", categoryLabel: "护甲", slotLabel: "手部", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_hands_v2.png", names: ["握柄手套", "Grip Gloves"] },
+  trail_greaves: { icon: "👢", badge: "靴", categoryLabel: "护甲", slotLabel: "鞋子", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_feet_v2.png", names: ["径行胫甲", "径行腿甲", "Trail Greaves"] },
+  armor_feet_common: { icon: "👢", badge: "靴", categoryLabel: "护甲", slotLabel: "鞋子", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_feet_v2.png", names: ["旅者短靴", "旅途皮靴", "Road Boots"] },
+  jade_idol: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_small_idol_v2.png", names: ["古玉偶像", "古玉像", "Jade Idol"] },
+  treasure_small_idol: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_small_idol_v2.png", names: ["小型偶像", "小型神像", "Small Idol"] },
+  treasure_medium_tablet: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_stone_tablet_v2.png", names: ["石刻碑板", "Stone Tablet"] },
+  treasure_large_statue: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_broken_statue_v2.png", names: ["残破雕像", "残损雕像", "Broken Statue"] },
+  gold_pouch: { icon: "◎", badge: "金", categoryLabel: "金币", variant: "currency", assetPath: "assets/generated/image2_processed/items/icon_gold_pouch_v2.png", names: ["金币袋", "Gold Pouch"] },
+  health_potion: { icon: "🧪", badge: "药", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_health_potion_v2.png", names: ["回血药剂", "回血药", "Health Potion"] }
 };
 
 const NAME_LOOKUP = new Map<string, string>();
@@ -81,7 +82,7 @@ export function getItemPresentation(input: ItemPresentationInput): ItemPresentat
       slotLabel: preset.slotLabel,
       variant: preset.variant,
       iconKey: preset.variant,
-      iconSvg: buildIconSvg(preset.icon),
+      iconSvg: buildIconHtml(preset.icon, preset.assetPath),
       shortLabel: preset.badge,
       detailLabel: preset.slotLabel ? `${preset.categoryLabel} · ${preset.slotLabel}` : preset.categoryLabel,
       rarityLabel
@@ -93,7 +94,7 @@ export function getItemPresentation(input: ItemPresentationInput): ItemPresentat
     displayName: input.name || input.definitionId || "未知物品",
     ...fallback,
     iconKey: fallback.variant,
-    iconSvg: buildIconSvg(fallback.icon),
+    iconSvg: buildIconHtml(fallback.icon, fallback.assetPath),
     shortLabel: fallback.badge,
     detailLabel: fallback.slotLabel ? `${fallback.categoryLabel} · ${fallback.slotLabel}` : fallback.categoryLabel,
     rarityLabel
@@ -154,6 +155,9 @@ function normalizeKey(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function buildIconSvg(glyph: string): string {
+function buildIconHtml(glyph: string, assetPath?: string): string {
+  if (assetPath) {
+    return `<img class="inventory-item-icon__image" src="${assetPath}" alt="" aria-hidden="true" loading="lazy" decoding="async">`;
+  }
   return `<span class="inventory-item-icon__glyph" aria-hidden="true">${glyph}</span>`;
 }
