@@ -100,6 +100,9 @@ const BOSS_CHARGE_RANGE_MAX = 360;
 const BOSS_CHARGE_DAMAGE = 20;
 const BOSS_CHARGE_DAMAGE_ENRAGED = 26;
 const BOSS_RECOVER_HP_PER_SECOND = 18;
+const MONSTER_ATTACK_WINDUP_MS = 280;
+const ELITE_ATTACK_WINDUP_MS = 420;
+const MONSTER_ATTACK_RECOVER_MS = 220;
 
 export interface PlayerAttackOutcome {
   monsters: MonsterState[];
@@ -158,9 +161,12 @@ export function listMonsterStates(room: RuntimeRoom): MonsterState[] {
     isAlive: monster.isAlive,
     deadAt: monster.deadAt,
     behaviorPhase: monster.behaviorPhase,
+    phaseEndsAt: monster.phaseEndsAt,
     skillState: monster.skillState,
     skillEndsAt: monster.skillEndsAt,
-    isEnraged: monster.isEnraged
+    isEnraged: monster.isEnraged,
+    lastAttackAt: monster.lastAttackAt,
+    lastDamagedAt: monster.lastDamagedAt
   }));
 }
 
@@ -209,7 +215,13 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
       continue;
     }
 
+    if (resolveNonBossAttackPhase(monster, room, now, combatEvents)) {
+      playerStateChanged = true;
+      continue;
+    }
+
     monster.behaviorPhase = "hunt";
+    monster.phaseEndsAt = undefined;
     monster.lastAggroAt = now;
     monster.returningUntil = undefined;
 
@@ -224,10 +236,7 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
       continue;
     }
 
-    monster.nextAttackAt = now + monster.attackCooldownMs;
-    const attackResult = applyMonsterDamage(monster, target, monster.attackDamage, now);
-    combatEvents.push(attackResult);
-    playerStateChanged = true;
+    startNonBossAttackWindup(monster, target.id, now);
   }
 
   return {
@@ -280,6 +289,7 @@ export function handlePlayerAttack(
     targetMonster.returningUntil = undefined;
   }
   targetMonster.hp = Math.max(0, targetMonster.hp - attackPower);
+  targetMonster.lastDamagedAt = now;
 
   const monsterDied = targetMonster.hp <= 0;
   if (monsterDied) {
@@ -402,6 +412,7 @@ function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
     guardRadius: stats.guardRadius,
     returnDelayMs: stats.returnDelayMs,
     behaviorPhase: "idle",
+    phaseEndsAt: undefined,
     skillState: undefined,
     skillEndsAt: undefined,
     recoverUntil: undefined,
@@ -420,7 +431,10 @@ function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
     recoverHpPerSecond: stats.recoverHpPerSecond,
     lastAggroAt: undefined,
     returningUntil: undefined,
-    idleUntil: Date.now() + randomBetween(MONSTER_IDLE_MIN_MS, MONSTER_IDLE_MAX_MS)
+    idleUntil: Date.now() + randomBetween(MONSTER_IDLE_MIN_MS, MONSTER_IDLE_MAX_MS),
+    pendingAttackTargetId: undefined,
+    lastAttackAt: undefined,
+    lastDamagedAt: undefined
   };
 }
 
@@ -533,6 +547,7 @@ function tickMonsterReturn(monster: RuntimeMonster, now: number): void {
   if (!monster.returningUntil) {
     monster.returningUntil = now + monster.returnDelayMs;
     monster.behaviorPhase = monster.type === "boss" ? "recover" : "idle";
+    monster.phaseEndsAt = undefined;
     return;
   }
 
@@ -545,6 +560,7 @@ function tickMonsterReturn(monster: RuntimeMonster, now: number): void {
     moveMonsterTowards(monster, { x: monster.patrolX, y: monster.patrolY, direction: { x: 0, y: 0 } }, monster.type === "boss" ? monster.moveSpeed + 40 : undefined);
     monster.idleUntil = undefined;
     monster.behaviorPhase = monster.type === "boss" ? "recover" : "idle";
+    monster.phaseEndsAt = undefined;
     if (monster.type === "boss" && monster.recoverHpPerSecond) {
       monster.hp = Math.min(monster.maxHp, monster.hp + Math.max(1, Math.round((monster.recoverHpPerSecond * MONSTER_TICK_MS) / 1000)));
     }
@@ -563,6 +579,7 @@ function tickMonsterReturn(monster: RuntimeMonster, now: number): void {
 
 function tickMonsterPatrol(monster: RuntimeMonster, now: number): void {
   monster.behaviorPhase = "idle";
+  monster.phaseEndsAt = undefined;
   if (monster.idleUntil && now < monster.idleUntil) {
     return;
   }
@@ -697,6 +714,7 @@ function applySkillDamageToMonsters(
   for (const monster of targets) {
     monster.targetPlayerId = player.id;
     monster.hp = Math.max(0, monster.hp - damage);
+    monster.lastDamagedAt = now;
     const monsterDied = monster.hp <= 0;
 
     if (monster.type === "boss") {
@@ -741,9 +759,11 @@ function markMonsterDead(room: RuntimeRoom, monster: RuntimeMonster, deadAt: num
   monster.respawnAt = deadAt + (monster.type === "boss" ? BOSS_RESPAWN_DELAY_MS : MONSTER_RESPAWN_DELAY_MS);
   monster.targetPlayerId = undefined;
   monster.behaviorPhase = "idle";
+  monster.phaseEndsAt = undefined;
   monster.skillState = undefined;
   monster.skillEndsAt = undefined;
   monster.recoverUntil = undefined;
+  monster.pendingAttackTargetId = undefined;
 
   room.pendingMonsterRespawns ??= [];
   if (!room.pendingMonsterRespawns.some((entry) => entry.spawnId === monster.spawnId)) {
@@ -1072,6 +1092,7 @@ function tickBossMonster(
 
   if (monster.skillState === "charge" && monster.skillEndsAt && now < monster.skillEndsAt) {
     monster.behaviorPhase = "charge";
+    monster.phaseEndsAt = monster.skillEndsAt;
     const impact = moveBossCharge(monster, room, now);
     if (impact) {
       combatEvents.push(...impact.combatEvents);
@@ -1103,6 +1124,7 @@ function tickBossMonster(
 
   if (monster.recoverUntil && now < monster.recoverUntil) {
     monster.behaviorPhase = "recover";
+    monster.phaseEndsAt = monster.recoverUntil;
     tickMonsterReturn(monster, now);
     return {
       monsters: listMonsterStates(room),
@@ -1128,6 +1150,7 @@ function tickBossMonster(
     monster.targetPlayerId = undefined;
     monster.recoverUntil = now + 1200;
     monster.behaviorPhase = "recover";
+    monster.phaseEndsAt = monster.recoverUntil;
     tickMonsterReturn(monster, now);
     return {
       monsters: listMonsterStates(room),
@@ -1138,6 +1161,7 @@ function tickBossMonster(
   }
 
   monster.behaviorPhase = "hunt";
+  monster.phaseEndsAt = undefined;
   monster.lastAggroAt = now;
   monster.returningUntil = undefined;
   syncPlayerCombatState(target, now);
@@ -1147,6 +1171,7 @@ function tickBossMonster(
     monster.skillState = "smash";
     monster.behaviorPhase = "windup";
     monster.skillEndsAt = now + BOSS_SMASH_WINDUP_MS;
+    monster.phaseEndsAt = monster.skillEndsAt;
     monster.windupTargetId = target.id;
     monster.nextSmashAt = now + getBossCooldown(monster, monster.smashCooldownMs ?? BOSS_SMASH_COOLDOWN_MS);
     return {
@@ -1161,6 +1186,7 @@ function tickBossMonster(
     monster.skillState = "charge";
     monster.behaviorPhase = "windup";
     monster.skillEndsAt = now + BOSS_CHARGE_WINDUP_MS;
+    monster.phaseEndsAt = monster.skillEndsAt;
     monster.windupTargetId = target.id;
     monster.chargeTargetX = target.state.x;
     monster.chargeTargetY = target.state.y;
@@ -1194,6 +1220,8 @@ function tickBossMonster(
 
   monster.nextAttackAt = now + getBossCooldown(monster, monster.attackCooldownMs);
   combatEvents.push(applyMonsterDamage(monster, target, getBossAttackDamage(monster), now));
+  monster.behaviorPhase = "recover";
+  monster.phaseEndsAt = now + MONSTER_ATTACK_RECOVER_MS;
   playerStateChanged = true;
   return {
     monsters: listMonsterStates(room),
@@ -1210,6 +1238,7 @@ function moveBossCharge(
 ): { combatEvents: CombatEventPayload[]; playerStateChanged: boolean } | undefined {
   if (monster.skillEndsAt && now < monster.skillEndsAt - BOSS_CHARGE_DURATION_MS) {
     monster.behaviorPhase = "windup";
+    monster.phaseEndsAt = monster.skillEndsAt - BOSS_CHARGE_DURATION_MS;
     return undefined;
   }
 
@@ -1217,6 +1246,7 @@ function moveBossCharge(
   const targetY = monster.chargeTargetY ?? monster.patrolY;
   moveMonsterTowards(monster, { x: targetX, y: targetY, direction: { x: 0, y: 0 } }, BOSS_CHARGE_SPEED + (monster.isEnraged ? 90 : 0));
   monster.behaviorPhase = "charge";
+  monster.phaseEndsAt = monster.skillEndsAt;
   const combatEvents: CombatEventPayload[] = [];
   let playerStateChanged = false;
 
@@ -1244,12 +1274,14 @@ function finishBossSkill(monster: RuntimeMonster, skill: RuntimeMonster["skillSt
   monster.chargeTargetX = undefined;
   monster.chargeTargetY = undefined;
   monster.behaviorPhase = "hunt";
+  monster.phaseEndsAt = undefined;
   if (skill === "charge") {
     monster.nextAttackAt = Math.max(monster.nextAttackAt, now + 450);
   }
 }
 
 function applyMonsterDamage(monster: RuntimeMonster, target: RuntimePlayer, baseDamage: number, now: number): CombatEventPayload {
+  monster.lastAttackAt = now;
   syncPlayerCombatState(target, now);
   if (target.state!.dodgeRate > 0 && Math.random() < target.state!.dodgeRate) {
     return {
@@ -1275,6 +1307,57 @@ function applyMonsterDamage(monster: RuntimeMonster, target: RuntimePlayer, base
     targetHp: target.state!.hp,
     targetAlive: target.state!.isAlive
   };
+}
+
+function getNonBossAttackWindupMs(monster: RuntimeMonster): number {
+  return monster.type === "elite" ? ELITE_ATTACK_WINDUP_MS : MONSTER_ATTACK_WINDUP_MS;
+}
+
+function startNonBossAttackWindup(monster: RuntimeMonster, targetId: string, now: number): void {
+  monster.behaviorPhase = "windup";
+  monster.pendingAttackTargetId = targetId;
+  monster.phaseEndsAt = now + getNonBossAttackWindupMs(monster);
+}
+
+function resolveNonBossAttackPhase(
+  monster: RuntimeMonster,
+  room: RuntimeRoom,
+  now: number,
+  combatEvents: CombatEventPayload[]
+): boolean {
+  if (monster.behaviorPhase === "recover") {
+    if ((monster.phaseEndsAt ?? 0) > now) {
+      return true;
+    }
+    monster.behaviorPhase = "hunt";
+    monster.phaseEndsAt = undefined;
+  }
+
+  if (monster.behaviorPhase !== "windup") {
+    return false;
+  }
+
+  if ((monster.phaseEndsAt ?? 0) > now) {
+    return true;
+  }
+
+  const target = monster.pendingAttackTargetId ? room.players.get(monster.pendingAttackTargetId) : undefined;
+  monster.pendingAttackTargetId = undefined;
+  monster.nextAttackAt = now + monster.attackCooldownMs;
+  monster.behaviorPhase = "recover";
+  monster.phaseEndsAt = now + MONSTER_ATTACK_RECOVER_MS;
+
+  if (!target?.state?.isAlive) {
+    return true;
+  }
+
+  const distance = distanceBetween(monster.x, monster.y, target.state.x, target.state.y);
+  if (distance > monster.attackRange + MONSTER_CONTACT_RADIUS + PLAYER_HIT_RADIUS + 14) {
+    return true;
+  }
+
+  combatEvents.push(applyMonsterDamage(monster, target, monster.attackDamage, now));
+  return true;
 }
 
 function getMonsterDisplayName(monster: RuntimeMonster): string | undefined {

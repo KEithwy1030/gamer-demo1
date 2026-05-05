@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { MonsterState } from "@gamer/shared";
+import { getMonsterLabel, getMonsterReadabilitySnapshot } from "./monsterReadability";
 
 const NORMAL_MONSTER_FRAME_SIZE = 120;
 const ELITE_MONSTER_FRAME_SIZE = 158;
@@ -15,13 +16,17 @@ export class MonsterMarker {
   private readonly hpFill: Phaser.GameObjects.Rectangle;
   private readonly label: Phaser.GameObjects.Text;
   private readonly telegraphRing: Phaser.GameObjects.Ellipse;
+  private readonly threatAura: Phaser.GameObjects.Ellipse;
   private readonly crown: Phaser.GameObjects.Text;
+  private readonly phaseBarTrack: Phaser.GameObjects.Rectangle;
+  private readonly phaseBarFill: Phaser.GameObjects.Rectangle;
+  private readonly impactFlash: Phaser.GameObjects.Ellipse;
   private targetX: number;
   private targetY: number;
   public isAlive = true;
-  private lastHp = 0;
   private lastAliveState: boolean | null = null;
   private lastHpWidth = -1;
+  private lastPhaseWidth = -1;
 
   constructor(scene: Phaser.Scene, monster: MonsterState) {
     this.id = monster.id;
@@ -31,60 +36,71 @@ export class MonsterMarker {
 
     const isBoss = monster.type === "boss";
     const isElite = monster.type === "elite";
+    const labelOffsetY = isBoss ? 112 : isElite ? 84 : 68;
+    const hpY = isBoss ? -126 : isElite ? -88 : -72;
+    const phaseY = hpY - 12;
+    const hpWidth = isBoss ? 104 : isElite ? 64 : 52;
 
-    this.shadow = scene.add.ellipse(0, isBoss ? 54 : 40, isBoss ? 136 : isElite ? 92 : 72, isBoss ? 36 : isElite ? 28 : 22, 0x0e0b08, 0.42);
-    
+    this.shadow = scene.add.ellipse(0, isBoss ? 56 : 40, isBoss ? 136 : isElite ? 92 : 72, isBoss ? 36 : isElite ? 28 : 22, 0x0e0b08, 0.42);
+    this.threatAura = scene.add.ellipse(0, 18, isBoss ? 182 : isElite ? 120 : 88, isBoss ? 136 : isElite ? 88 : 56, isBoss ? 0x7f1d1d : isElite ? 0x7c2d12 : 0x431407, isBoss ? 0.16 : isElite ? 0.12 : 0.08);
+
     const assetKey = isBoss || isElite ? "monster_elite_sheet" : "monster_normal_sheet";
     this.sprite = scene.add.sprite(0, 8, assetKey);
-    const displaySize = isBoss ? BOSS_MONSTER_FRAME_SIZE : isElite ? ELITE_MONSTER_FRAME_SIZE : NORMAL_MONSTER_FRAME_SIZE;
-    this.sprite.setDisplaySize(displaySize, displaySize);
-    if (isBoss) {
-      this.sprite.setTint(0xb91c1c);
-    }
+    this.sprite.setDisplaySize(isBoss ? BOSS_MONSTER_FRAME_SIZE : isElite ? ELITE_MONSTER_FRAME_SIZE : NORMAL_MONSTER_FRAME_SIZE, isBoss ? BOSS_MONSTER_FRAME_SIZE : isElite ? ELITE_MONSTER_FRAME_SIZE : NORMAL_MONSTER_FRAME_SIZE);
 
     const idleKey = isBoss || isElite ? "monster-elite-sway" : "monster-normal-sway";
     if (scene.anims.exists(idleKey)) {
       this.sprite.anims.play(idleKey, true);
     }
 
-    this.telegraphRing = scene.add.ellipse(0, 12, isBoss ? 174 : 0, isBoss ? 174 : 0, 0xef4444, isBoss ? 0.12 : 0);
-    this.telegraphRing.setStrokeStyle(isBoss ? 3 : 0, 0xfbbf24, 0.55);
+    this.telegraphRing = scene.add.ellipse(0, 16, isBoss ? 182 : isElite ? 124 : 88, isBoss ? 182 : isElite ? 124 : 88, 0xef4444, isBoss ? 0.10 : 0.06);
+    this.telegraphRing.setStrokeStyle(isBoss ? 3 : 2, isBoss ? 0xfbbf24 : 0xfb923c, 0.6);
 
-    this.hpTrack = scene.add.rectangle(0, isBoss ? -126 : isElite ? -88 : -72, isBoss ? 104 : isElite ? 64 : 52, 9, 0x16130f, 0.92);
-    this.hpFill = scene.add.rectangle(isBoss ? -52 : isElite ? -32 : -26, isBoss ? -126 : isElite ? -88 : -72, isBoss ? 104 : isElite ? 64 : 52, 9, isBoss ? 0xdc2626 : 0xb8371f, 1);
+    this.impactFlash = scene.add.ellipse(0, 6, isBoss ? 116 : isElite ? 92 : 70, isBoss ? 132 : isElite ? 106 : 84, 0xffffff, 0);
+
+    this.phaseBarTrack = scene.add.rectangle(0, phaseY, hpWidth, 5, 0x140f0c, 0.92);
+    this.phaseBarFill = scene.add.rectangle(-(hpWidth / 2), phaseY, hpWidth, 5, 0xf59e0b, 1);
+    this.phaseBarFill.setOrigin(0, 0.5);
+
+    this.hpTrack = scene.add.rectangle(0, hpY, hpWidth, 9, 0x16130f, 0.92);
+    this.hpFill = scene.add.rectangle(-(hpWidth / 2), hpY, hpWidth, 9, isBoss ? 0xdc2626 : isElite ? 0xf97316 : 0xb8371f, 1);
     this.hpFill.setOrigin(0, 0.5);
 
-    this.crown = scene.add.text(0, isBoss ? -164 : -120, isBoss ? "BOSS" : "", {
+    this.crown = scene.add.text(0, isBoss ? -164 : -120, isBoss ? "BOSS" : isElite ? "ELITE" : "", {
       fontFamily: "monospace",
-      fontSize: "12px",
+      fontSize: isBoss ? "12px" : "11px",
       fontStyle: "bold",
-      color: "#fef08a",
-      backgroundColor: "rgba(68,20,20,0.78)",
+      color: isBoss ? "#fef08a" : "#fdba74",
+      backgroundColor: isBoss ? "rgba(68,20,20,0.78)" : "rgba(74,22,12,0.78)",
       padding: { x: 5, y: 2 }
     });
     this.crown.setOrigin(0.5, 0.5);
-    this.crown.setVisible(isBoss);
+    this.crown.setVisible(isBoss || isElite);
 
-    this.label = scene.add.text(0, monster.type === "elite" ? 76 : 62, monster.type === "elite" ? "精英" : "游荡者", {
+    this.label = scene.add.text(0, labelOffsetY, getMonsterLabel(monster), {
       fontFamily: "monospace",
-      fontSize: "12px",
+      fontSize: isBoss ? "12px" : "11px",
       fontStyle: "bold",
-      color: "#e8dfc8",
-      backgroundColor: "rgba(69,10,10,0.82)",
+      color: "#f3ead6",
+      backgroundColor: "rgba(24,10,10,0.84)",
       padding: { x: 5, y: 2 }
     });
     this.label.setOrigin(0.5, 0);
 
     this.root = scene.add.container(monster.x, monster.y, [
       this.shadow,
+      this.threatAura,
       this.telegraphRing,
+      this.impactFlash,
+      this.phaseBarTrack,
+      this.phaseBarFill,
       this.hpTrack,
       this.hpFill,
       this.sprite,
       this.crown,
       this.label
     ]);
-    this.root.setDepth(isBoss ? 18 : isElite ? 16 : 14);
+    this.root.setDepth(monster.y);
 
     this.applyState(monster);
   }
@@ -102,62 +118,7 @@ export class MonsterMarker {
     this.applyState(monster);
   }
 
-  private emitDeathParticles(): void {
-    const scene = this.root.scene;
-    const color = this.crown.visible ? 0xdc2626 : this.sprite.texture.key === "monster_elite_sheet" ? 0xdc2626 : 0xf97316;
-    
-    const emitter = scene.add.particles(this.root.x, this.root.y, "drop", {
-      lifespan: 600,
-      speed: { min: 50, max: 150 },
-      scale: { start: 0.4, end: 0 },
-      tint: color,
-      blendMode: "ADD",
-      emitting: false
-    });
-    
-    emitter.explode(16);
-    scene.time.delayedCall(1000, () => emitter.destroy());
-
-    // 'X' Marker effect
-    const xMarker = scene.add.graphics();
-    xMarker.lineStyle(3, 0xffffff, 1);
-    xMarker.beginPath();
-    xMarker.moveTo(-8, -8);
-    xMarker.lineTo(8, 8);
-    xMarker.moveTo(8, -8);
-    xMarker.lineTo(-8, 8);
-    xMarker.strokePath();
-    xMarker.setPosition(this.root.x, this.root.y);
-    xMarker.setDepth(this.root.depth + 1);
-
-    scene.tweens.add({
-      targets: xMarker,
-      alpha: 0,
-      scale: 2,
-      duration: 400,
-      ease: "Cubic.out",
-      onComplete: () => xMarker.destroy()
-    });
-
-    // Impact flash
-    const flash = scene.add.circle(this.root.x, this.root.y, 30, 0xffffff, 0.8);
-    flash.setDepth(this.root.depth + 2);
-    scene.tweens.add({
-      targets: flash,
-      alpha: 0,
-      scale: 1.5,
-      duration: 150,
-      onComplete: () => flash.destroy()
-    });
-  }
-
   step(alpha: number): void {
-    if (!this.isAlive) {
-      if (Math.abs(this.root.depth - this.root.y) > 0.5) {
-        this.root.setDepth(this.root.y);
-      }
-      return;
-    }
     this.root.x = Phaser.Math.Linear(this.root.x, this.targetX, alpha);
     this.root.y = Phaser.Math.Linear(this.root.y, this.targetY, alpha);
     if (Math.abs(this.root.depth - this.root.y) > 0.5) {
@@ -170,70 +131,149 @@ export class MonsterMarker {
   }
 
   private applyState(monster: MonsterState): void {
-    const hpRatio = Phaser.Math.Clamp(monster.maxHp > 0 ? monster.hp / monster.maxHp : 0, 0, 1);
-    const isBoss = monster.type === "boss";
+    const now = Date.now();
+    const snapshot = getMonsterReadabilitySnapshot(monster, now);
+    const hpBaseWidth = snapshot.isBoss ? 104 : snapshot.isElite ? 64 : 52;
+    const hpWidth = Math.max(0, hpBaseWidth * snapshot.hpRatio);
+    const phaseRatio = snapshot.timeToPhaseEndMs == null
+      ? 0
+      : Phaser.Math.Clamp(snapshot.timeToPhaseEndMs / getPhaseDurationMs(monster), 0, 1);
+    const phaseWidth = snapshot.isWarning || snapshot.isRecovering || snapshot.isAttacking
+      ? hpBaseWidth * phaseRatio
+      : 0;
 
-    if (monster.hp < this.lastHp && monster.isAlive) {
-      (this.root.scene as any).flashEffect?.(this.sprite);
-    }
-
-    this.isAlive = monster.isAlive;
-    this.lastHp = monster.hp;
-
-    const hpWidth = Math.max(0, (isBoss ? 104 : monster.type === "elite" ? 64 : 52) * hpRatio);
     if (Math.abs(this.lastHpWidth - hpWidth) > 0.5) {
       this.hpFill.width = hpWidth;
       this.lastHpWidth = hpWidth;
     }
-    if (isBoss) {
-      const warn = monster.skillState === "smash" || monster.skillState === "charge";
-      this.telegraphRing.setVisible(monster.isAlive);
-      this.telegraphRing.setScale(warn ? 1.14 : 1);
-      this.telegraphRing.setFillStyle(monster.isEnraged ? 0xb91c1c : 0xef4444, warn ? 0.2 : 0.1);
-      this.telegraphRing.setStrokeStyle(warn ? 4 : 3, monster.skillState === "charge" ? 0xf59e0b : 0xfbbf24, warn ? 0.95 : 0.55);
-      this.crown.setText(monster.isEnraged ? "BOSS RAGE" : "BOSS");
-      this.crown.setVisible(monster.isAlive);
+    if (Math.abs(this.lastPhaseWidth - phaseWidth) > 0.5) {
+      this.phaseBarFill.width = phaseWidth;
+      this.lastPhaseWidth = phaseWidth;
     }
-    this.label.setText(monster.type === "elite" ? "精英" : "游荡者");
+
+    this.label.setText(getMonsterLabel(monster));
+    this.crown.setText(snapshot.isBoss ? (monster.isEnraged ? "BOSS RAGE" : "BOSS") : snapshot.isElite ? "ELITE" : "");
+    this.crown.setVisible(snapshot.isBoss || snapshot.isElite);
+
+    this.hpFill.setFillStyle(
+      snapshot.isBoss ? (monster.isEnraged ? 0xfb7185 : 0xdc2626) : snapshot.isElite ? 0xf97316 : 0xb8371f,
+      1
+    );
+    this.phaseBarTrack.setVisible(snapshot.isWarning || snapshot.isRecovering || snapshot.isAttacking);
+    this.phaseBarFill.setVisible(snapshot.isWarning || snapshot.isRecovering || snapshot.isAttacking);
+    this.phaseBarFill.setFillStyle(snapshot.isWarning ? 0xfbbf24 : snapshot.isAttacking ? 0xef4444 : 0x94a3b8, 1);
+
+    this.telegraphRing.setVisible(monster.isAlive);
+    this.telegraphRing.setScale(snapshot.isWarning ? 1.12 : snapshot.isAttacking ? 1.04 : 1);
+    this.telegraphRing.setFillStyle(
+      snapshot.isBoss ? (monster.isEnraged ? 0xb91c1c : 0xef4444) : snapshot.isElite ? 0xf97316 : 0x7f1d1d,
+      snapshot.isWarning ? (snapshot.isBoss ? 0.22 : 0.14) : snapshot.isAttacking ? 0.16 : snapshot.isElite ? 0.08 : 0.05
+    );
+    this.telegraphRing.setStrokeStyle(
+      snapshot.isBoss ? (snapshot.isWarning ? 4 : 3) : snapshot.isElite ? 2 : 1,
+      monster.skillState === "charge" ? 0xf59e0b : snapshot.isBoss ? 0xfbbf24 : 0xfb923c,
+      snapshot.isWarning ? 0.95 : snapshot.isElite || snapshot.isBoss ? 0.55 : 0.24
+    );
+
+    this.threatAura.setVisible(monster.isAlive);
+    this.threatAura.setFillStyle(
+      snapshot.isBoss ? (monster.isEnraged ? 0x991b1b : 0x7f1d1d) : snapshot.isElite ? 0x9a3412 : 0x431407,
+      snapshot.isWarning ? (snapshot.isBoss ? 0.24 : 0.16) : snapshot.isRecentlyHit ? 0.14 : snapshot.isElite ? 0.11 : 0.08
+    );
+    this.threatAura.setScale(snapshot.isWarning ? 1.12 : snapshot.isAttacking ? 1.04 : 1);
+
+    this.impactFlash.setVisible(monster.isAlive && snapshot.isRecentlyHit);
+    this.impactFlash.setAlpha(snapshot.isRecentlyHit ? 0.36 : 0);
 
     if (this.lastAliveState === monster.isAlive) {
+      this.applyVisualPose(monster, snapshot);
       return;
     }
-    this.lastAliveState = monster.isAlive;
 
+    this.lastAliveState = monster.isAlive;
     if (monster.isAlive) {
       this.root.setAlpha(1);
       this.sprite.setVisible(true);
-      if (isBoss) {
-        this.sprite.setTint(monster.isEnraged ? 0xfb7185 : 0xb91c1c);
-      } else {
-        this.sprite.clearTint();
-      }
-      this.sprite.setAngle(0);
-      this.sprite.setAlpha(1);
-      this.shadow.setAlpha(1);
+      this.applyVisualPose(monster, snapshot);
       this.label.setVisible(true);
-      this.telegraphRing.setVisible(isBoss);
-      this.crown.setVisible(isBoss);
       this.hpTrack.setVisible(true);
       this.hpFill.setVisible(true);
+      this.phaseBarTrack.setVisible(snapshot.isWarning || snapshot.isRecovering || snapshot.isAttacking);
+      this.phaseBarFill.setVisible(snapshot.isWarning || snapshot.isRecovering || snapshot.isAttacking);
     } else {
       this.sprite.anims.stop();
       this.sprite.setFrame(resolveCorpseFrame(monster.type));
       this.sprite.setVisible(true);
       this.sprite.setTint(0x5f5149);
-      this.sprite.setAngle(monster.type === "elite" ? -70 : 72);
-      this.sprite.setAlpha(0.62);
-      this.shadow.setAlpha(0.2);
-      this.label.setVisible(false);
+      this.sprite.setAngle(snapshot.isBoss ? -84 : snapshot.isElite ? -72 : 72);
+      this.sprite.setAlpha(snapshot.isRecentlyDead ? 0.7 : 0.58);
+      this.sprite.setScale(snapshot.isRecentlyDead ? 1.04 : 1);
+      this.shadow.setAlpha(0.18);
+      this.threatAura.setVisible(false);
       this.telegraphRing.setVisible(false);
+      this.impactFlash.setVisible(false);
+      this.label.setVisible(false);
       this.crown.setVisible(false);
       this.hpTrack.setVisible(false);
       this.hpFill.setVisible(false);
+      this.phaseBarTrack.setVisible(false);
+      this.phaseBarFill.setVisible(false);
     }
+  }
+
+  private applyVisualPose(monster: MonsterState, snapshot: ReturnType<typeof getMonsterReadabilitySnapshot>): void {
+    this.sprite.setAlpha(1);
+    this.shadow.setAlpha(snapshot.isBoss ? 0.95 : snapshot.isElite ? 0.82 : 0.74);
+    this.sprite.setScale(snapshot.isWarning ? 1.06 : snapshot.isAttacking ? 1.03 : 1);
+    this.sprite.setAngle(snapshot.isWarning ? -4 : snapshot.isAttacking ? 4 : 0);
+    this.sprite.setTint(snapshot.isBoss ? (monster.isEnraged ? 0xfb7185 : 0xc2410c) : snapshot.isElite ? 0xf59e0b : 0xffffff);
+
+    if (snapshot.isRecovering && !snapshot.isWarning) {
+      this.sprite.setTint(snapshot.isBoss ? 0xfca5a5 : snapshot.isElite ? 0xfdba74 : 0xe7d7bf);
+      this.sprite.setAlpha(0.88);
+    }
+
+    if (!snapshot.isBoss && !snapshot.isElite) {
+      this.crown.setVisible(false);
+    }
+  }
+
+  private emitDeathParticles(): void {
+    const scene = this.root.scene;
+    const color = this.crown.text.startsWith("BOSS") ? 0xdc2626 : this.crown.visible ? 0xf97316 : 0xb45309;
+
+    const emitter = scene.add.particles(this.root.x, this.root.y, "drop", {
+      lifespan: 620,
+      speed: { min: 50, max: 150 },
+      scale: { start: 0.4, end: 0 },
+      tint: color,
+      blendMode: "ADD",
+      emitting: false
+    });
+    emitter.explode(this.crown.text.startsWith("BOSS") ? 26 : 16);
+    scene.time.delayedCall(1000, () => emitter.destroy());
+
+    const flash = scene.add.circle(this.root.x, this.root.y, 30, 0xffffff, 0.8);
+    flash.setDepth(this.root.depth + 2);
+    scene.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scale: 1.6,
+      duration: 160,
+      onComplete: () => flash.destroy()
+    });
   }
 }
 
 function resolveCorpseFrame(type: MonsterState["type"]): number {
-  return type === "elite" ? 7 : 7;
+  return type === "boss" ? 10 : 7;
 }
+
+function getPhaseDurationMs(monster: MonsterState): number {
+  if (monster.skillState === "smash") return 1200;
+  if (monster.skillState === "charge") return monster.behaviorPhase === "charge" ? 650 : 900;
+  if (monster.behaviorPhase === "windup") return monster.type === "elite" ? 420 : 280;
+  if (monster.behaviorPhase === "recover") return 220;
+  return 220;
+}
+

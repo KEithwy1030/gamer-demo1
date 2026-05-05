@@ -15,9 +15,12 @@ export interface MonsterState {
   isAlive: boolean;
   deadAt?: number;
   behaviorPhase?: MonsterBehaviorPhase;
+  phaseEndsAt?: number;
   skillState?: MonsterSkillState;
   skillEndsAt?: number;
   isEnraged?: boolean;
+  lastAttackAt?: number;
+  lastDamagedAt?: number;
 }
 
 export interface MonsterSpawnDefinition {

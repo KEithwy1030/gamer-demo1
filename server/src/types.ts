@@ -332,6 +332,7 @@ export interface RuntimeMonster extends MonsterState {
   attackCooldownMs: number;
   nextAttackAt: number;
   behaviorPhase: MonsterBehaviorPhase;
+  phaseEndsAt?: number;
   skillState?: MonsterSkillState;
   skillEndsAt?: number;
   recoverUntil?: number;
@@ -353,6 +354,9 @@ export interface RuntimeMonster extends MonsterState {
   idleUntil?: number;
   deadAt?: number;
   respawnAt?: number;
+  pendingAttackTargetId?: string;
+  lastAttackAt?: number;
+  lastDamagedAt?: number;
 }
 
 export interface MonsterRespawnEntry {
