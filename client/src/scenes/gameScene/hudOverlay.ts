@@ -498,15 +498,15 @@ export class GameHudOverlay {
 
 function buildHudLayout(width: number, height: number, isTouchDevice: boolean): HudLayout {
   const margin = isTouchDevice ? 12 : 24;
-  const statusW = isTouchDevice ? Math.min(width - margin * 2, 430) : Math.min(540, Math.max(430, width * 0.28));
+  const statusW = isTouchDevice ? Math.min(width - margin * 2, 408) : Math.min(500, Math.max(410, width * 0.255));
   const statusH = Math.round(statusW / 4.05);
-  const timerW = isTouchDevice ? Math.min(width - margin * 2, 350) : 370;
+  const timerW = isTouchDevice ? Math.min(width - margin * 2, 332) : 344;
   const timerH = Math.round(timerW / 2.67);
-  const objectiveW = isTouchDevice ? Math.min(width - margin * 2, 420) : Math.min(470, Math.max(360, width - statusW - timerW - margin * 6));
+  const objectiveW = isTouchDevice ? Math.min(width - margin * 2, 398) : Math.min(430, Math.max(330, width - statusW - timerW - margin * 5));
   const objectiveH = Math.round(objectiveW / 2.65);
-  const skillsW = isTouchDevice ? Math.min(width - margin * 2, 440) : 520;
+  const skillsW = isTouchDevice ? Math.min(width - margin * 2, 430) : 500;
   const skillsH = Math.round(skillsW / 5.21);
-  const commandW = isTouchDevice ? Math.min(width - margin * 2, 560) : Math.min(700, width - 160);
+  const commandW = isTouchDevice ? Math.min(width - margin * 2, 520) : Math.min(620, width - 180);
   const commandH = Math.round(commandW / 6.28);
 
   const status = new Phaser.Geom.Rectangle(margin, margin, statusW, statusH);
@@ -549,32 +549,32 @@ function buildSkillSlotLabel(key: string, skillId: ReturnType<typeof resolveSkil
 function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewState): string {
   if (extractState.isExtracting) {
     const seconds = extractState.secondsRemaining == null ? "" : ` ${Math.ceil(extractState.secondsRemaining)}s`;
-    return `守住归营石阵，读条中${seconds}`;
+    return `守住撤离圈，读条${seconds}`;
   }
 
   if (extractState.didSucceed) {
-    return "已踏上归营路，等待清点";
+    return "已脱离封锁区，等待清点收益";
   }
 
   if (extractState.isOpen) {
-    return hasBackpackCargo(state) ? "中心归营石阵已点燃，带货会引来围堵，立刻撤出" : "中心归营石阵已点燃，立刻向中心撤出";
+    return hasBackpackCargo(state) ? "带货状态，中心撤离点已开，优先走安全线" : "中心撤离点已开，抢线撤离或截击带货者";
   }
 
   if (isCorpseFogCounterattacking(state)) {
-    return "尸毒反噬已起，生命正在被荒雾追债";
+    return "尸毒反噬已起，生命会持续流失";
   }
 
   if (state.secondsRemaining !== null && state.secondsRemaining <= 60) {
-    return "暮鼓将尽，立刻奔向中心归营石阵";
+    return "封锁将尽，立刻转向中心撤离点";
   }
 
-  return hasBackpackCargo(state) ? "背包已有收获，准备向中心撤离点收束" : "搜刮遗物，避开围杀，等待中心归营火起";
+  return hasBackpackCargo(state) ? "背包已有收益，继续搜会抬高阵亡成本" : "先清外围资源，再向中圈高价值点靠拢";
 }
 
 function resolveExtractStateLabel(extractState: ExtractUiState): string {
   if (extractState.isExtracting) return "撤离 读条中";
-  if (extractState.didSucceed) return "撤离 成功";
-  return extractState.isOpen ? "撤离 已开放" : "撤离 8分钟开放";
+  if (extractState.didSucceed) return "撤离 已完成";
+  return extractState.isOpen ? "撤离 已开放" : "撤离 8分钟开";
 }
 
 function resolveInventoryLabel(state: MatchViewState): string {
@@ -586,21 +586,30 @@ function resolveInventoryLabel(state: MatchViewState): string {
     return sum + Math.max(1, item.width ?? 1) * Math.max(1, item.height ?? 1);
   }, 0);
 
-  return hasBackpackCargo(state) ? `背包 ${used}/${total} 带货` : `背包 ${used}/${total}`;
+  return hasBackpackCargo(state) ? `载荷 ${used}/${total}` : `背包 ${used}/${total}`;
 }
 
 function resolvePressureHint(state: MatchViewState, extractState: ExtractUiState): string {
+  const player = state.players.find((entry) => entry.id === state.selfPlayerId);
+  const hpRatio = player && player.maxHp > 0 ? player.hp / player.maxHp : 1;
+
+  if (hpRatio <= 0.28) {
+    return extractState.isOpen
+      ? "低血高风险，优先脱战进撤离圈。"
+      : "低血状态，先拉开怪群与交战线。";
+  }
+
   if (isCorpseFogCounterattacking(state)) {
     return extractState.isOpen
-      ? "尸毒反噬开始扣血，中心撤离点已开放，别贪最后一箱。"
-      : "尸毒反噬正在逼近，准备向中心撤离点收束。";
+      ? "尸毒已开始扣血，继续贪收益会直接折损战利品。"
+      : "尸毒正在逼近，提前规划回撤路线。";
   }
 
   if (hasBackpackCargo(state)) {
-    return "背包有货，越靠近撤离窗口越容易被截，规划回中心的路线。";
+    return "高价值携带会吸引围堵，别带着满包硬换血。";
   }
 
-  return "穿过腐土荒岗，搜刮战利品，活着回营。";
+  return "压怪拿货，控制换血，给撤离留体力。";
 }
 
 function hasBackpackCargo(state: MatchViewState): boolean {

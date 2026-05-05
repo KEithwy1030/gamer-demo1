@@ -65,7 +65,7 @@ export class GameScene extends Phaser.Scene {
     isExtracting: false,
     progress: null,
     secondsRemaining: null,
-    message: "撤离点将在后期开启。",
+    message: "8分钟后开放中心撤离点，先搜再收束。",
     didSucceed: false
   };
   private onMoveInput?: (direction: Vector2) => void;

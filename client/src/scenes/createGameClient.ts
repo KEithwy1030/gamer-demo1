@@ -314,7 +314,7 @@ function createInitialExtractState(): ExtractUiState {
     isExtracting: false,
     progress: null,
     secondsRemaining: null,
-    message: "撤离点将在后期开启。",
+    message: "8分钟后开放中心撤离点，先搜再收束。",
     didSucceed: false
   };
 }
@@ -345,9 +345,9 @@ function resolvePrimaryExtractZone(payload: ExtractOpenedPayload | undefined): {
 function buildExtractMessage(payload: ExtractOpenedPayload | undefined): string {
   const zoneCount = payload?.zones.filter((zone) => zone.isOpen).length ?? 0;
   if (zoneCount > 1) {
-    return `撤离点已开启，当前开放 ${zoneCount} 处通道`;
+    return `撤离通道已开 ${zoneCount} 处，高价值携带者优先撤离。`;
   }
-  return "撤离点已开启，尽快带着物资撤离";
+  return "中心撤离点已开放，尸毒会持续加压。";
 }
 
 function normalizeExtractProgress(payload: ExtractProgressPayload | number | undefined): Partial<ExtractUiState> {
@@ -358,7 +358,7 @@ function normalizeExtractProgress(payload: ExtractProgressPayload | number | und
         isExtracting: payload > 0 && payload < 1,
         progress: Phaser.Math.Clamp(payload, 0, 1),
         secondsRemaining: null,
-        message: payload >= 1 ? "撤离完成" : "撤离中..."
+        message: payload >= 1 ? "撤离完成，收益结算中。" : "撤离读条中，受击会中断。"
       };
   }
 
@@ -376,7 +376,7 @@ function normalizeExtractProgress(payload: ExtractProgressPayload | number | und
     isExtracting: active,
     progress: interrupted ? null : progress,
     secondsRemaining,
-    message: interrupted ? "撤离被打断" : (active ? "撤离中..." : (progress === 1 ? "撤离完成" : "撤离点待命")),
+    message: interrupted ? "撤离被打断，立即拉开重进。" : (active ? "撤离读条中，受击会中断。" : (progress === 1 ? "撤离完成，收益结算中。" : "撤离点待命")),
     didSucceed: progress === 1
   };
 }

@@ -283,6 +283,8 @@ export interface RuntimePlayer extends LobbyPlayer {
   botHomeAnchor?: Vector2;
   botOpeningStage?: "staging" | "starter" | "contested";
   botOpeningReleasedAt?: number;
+  botLastSkillAt?: number;
+  botLastRetreatAt?: number;
   state?: ServerPlayerState;
   baseStats?: RuntimePlayerBaseStats;
   combat?: RuntimeCombatState;
@@ -303,6 +305,11 @@ export interface RuntimeMonster extends MonsterState {
   spawnId: string;
   spawnX: number;
   spawnY: number;
+  patrolX: number;
+  patrolY: number;
+  patrolRadius: number;
+  guardRadius: number;
+  returnDelayMs: number;
   aggroRange: number;
   leashRange: number;
   attackRange: number;
@@ -310,6 +317,9 @@ export interface RuntimeMonster extends MonsterState {
   moveSpeed: number;
   attackCooldownMs: number;
   nextAttackAt: number;
+  lastAggroAt?: number;
+  returningUntil?: number;
+  idleUntil?: number;
   deadAt?: number;
   respawnAt?: number;
 }

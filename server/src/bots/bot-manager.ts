@@ -14,6 +14,8 @@ interface BotDifficultyProfile {
   decisionMs: number;
   skillChance: number;
   extractChance: number;
+  skillCooldownMs: number;
+  monsterPressureRange: number;
 }
 
 interface ExtractPressureIntent {
@@ -32,9 +34,9 @@ export interface BotTickResult {
 }
 
 const BOT_PROFILE: Record<BotDifficulty, BotDifficultyProfile> = {
-  easy: { aggroRange: 360, fleeHpRatio: 0.24, decisionMs: 650, skillChance: 0.12, extractChance: 0.45 },
-  normal: { aggroRange: 520, fleeHpRatio: 0.34, decisionMs: 430, skillChance: 0.28, extractChance: 0.7 },
-  hard: { aggroRange: 720, fleeHpRatio: 0.46, decisionMs: 280, skillChance: 0.42, extractChance: 0.9 }
+  easy: { aggroRange: 320, fleeHpRatio: 0.22, decisionMs: 760, skillChance: 0.08, extractChance: 0.36, skillCooldownMs: 11_000, monsterPressureRange: 260 },
+  normal: { aggroRange: 450, fleeHpRatio: 0.3, decisionMs: 560, skillChance: 0.16, extractChance: 0.54, skillCooldownMs: 9_000, monsterPressureRange: 340 },
+  hard: { aggroRange: 620, fleeHpRatio: 0.4, decisionMs: 380, skillChance: 0.24, extractChance: 0.72, skillCooldownMs: 8_500, monsterPressureRange: 430 }
 };
 
 const OPENING_LEASH_DISTANCE = 1500;
@@ -44,7 +46,10 @@ const EXTRACT_PRESSURE_PLAYER_RADIUS = 380;
 const EXTRACT_PRESSURE_STAGING_DISTANCE = 54;
 const BOT_SCAVENGE_VISION_RANGE = 420;
 const BOT_SCAVENGE_INTERACT_RANGE = 86;
-const BOT_CARGO_EXTRACT_BONUS = 0.22;
+const BOT_CARGO_EXTRACT_BONUS = 0.12;
+const BOT_PRESSURE_CARGO_THRESHOLD = 2;
+const BOT_PRESSURE_MONSTER_THRESHOLD = 1;
+const BOT_RETREAT_RESET_MS = 2400;
 
 const botInventoryService = new InventoryService();
 
@@ -90,10 +95,13 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
   const extractZones = context.room.extract?.zones ?? [];
   const nearestOpenExtract = extractZones.filter((zone) => zone.isOpen).sort((a, b) => distance(botState, a) - distance(botState, b))[0];
   const hasCargo = hasBackpackCargo(bot);
+  const cargoCount = getBackpackCargoCount(bot);
+  const monsterThreat = findNearestMonster(context, bot, profile.monsterPressureRange);
+  const shouldRetreat = hpRatio <= profile.fleeHpRatio || (hasCargo && hpRatio <= profile.fleeHpRatio + 0.08);
 
   const extractPressure = resolveExtractPressureIntent(context, bot, hpRatio);
   if (extractPressure?.enemy?.state) {
-    bot.botGoal = hpRatio <= profile.fleeHpRatio ? "retreat" : "hunt";
+    bot.botGoal = shouldRetreat ? "retreat" : "hunt";
     bot.botTargetPlayerId = extractPressure.enemy.id;
     bot.botTargetDropId = undefined;
     bot.botPatrolPoint = undefined;
@@ -112,7 +120,7 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
     return;
   }
 
-  if (nearestOpenExtract && (hpRatio <= profile.fleeHpRatio || Math.random() < Math.min(0.98, profile.extractChance + (hasCargo ? BOT_CARGO_EXTRACT_BONUS : 0)))) {
+  if (nearestOpenExtract && (shouldRetreat || cargoCount >= BOT_PRESSURE_CARGO_THRESHOLD || Math.random() < Math.min(0.92, profile.extractChance + (hasCargo ? BOT_CARGO_EXTRACT_BONUS : 0)))) {
     bot.botGoal = "extract";
     bot.botTargetPlayerId = undefined;
     bot.botTargetDropId = undefined;
@@ -121,7 +129,7 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
     return;
   }
 
-  const scavengeTarget = findVisibleScavengeTarget(context, bot);
+  const scavengeTarget = shouldRetreat ? undefined : findVisibleScavengeTarget(context, bot);
   if (scavengeTarget) {
     bot.botGoal = "loot";
     bot.botTargetPlayerId = undefined;
@@ -137,7 +145,7 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
     : findNearestEnemyPlayer(context, bot, profile.aggroRange);
 
   if (enemy?.state) {
-    bot.botGoal = hpRatio <= profile.fleeHpRatio ? "retreat" : "hunt";
+    bot.botGoal = shouldRetreat ? "retreat" : "hunt";
     bot.botTargetPlayerId = enemy.id;
     bot.botTargetDropId = undefined;
     bot.botPatrolPoint = undefined;
@@ -145,13 +153,24 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
     return;
   }
 
-  const monster = findNearestMonster(context, bot, openingLocked ? Math.min(profile.aggroRange, 600) : profile.aggroRange * 0.85);
+  const monster = shouldRetreat
+    ? undefined
+    : findNearestMonster(context, bot, openingLocked ? Math.min(profile.aggroRange, 520) : profile.aggroRange * 0.72);
   if (monster) {
     bot.botGoal = "hunt";
     bot.botTargetPlayerId = monster.id;
     bot.botTargetDropId = undefined;
     bot.botPatrolPoint = undefined;
     bot.moveInput = getTravelDirection(context, botState, monster);
+    return;
+  }
+
+  if (nearestOpenExtract && (shouldRetreat || (hasCargo && monsterThreat && cargoCount >= BOT_PRESSURE_MONSTER_THRESHOLD))) {
+    bot.botGoal = "extract";
+    bot.botTargetPlayerId = undefined;
+    bot.botTargetDropId = undefined;
+    bot.botPatrolPoint = { x: nearestOpenExtract.x, y: nearestOpenExtract.y };
+    bot.moveInput = getTravelDirection(context, botState, bot.botPatrolPoint);
     return;
   }
 
@@ -172,6 +191,10 @@ function tryBotAction(
 ): boolean {
   if (!bot.state) {
     return false;
+  }
+
+  if (bot.botGoal === "retreat" && bot.botLastRetreatAt && now - bot.botLastRetreatAt > BOT_RETREAT_RESET_MS) {
+    bot.botGoal = "patrol";
   }
 
   const extractZones = context.room.extract?.zones ?? [];
@@ -273,10 +296,14 @@ function useBotPlayerAttack(
   }
 
   bot.state.direction = directionTo(bot.state, enemy.state);
+  if (bot.botGoal === "retreat") {
+    bot.botLastRetreatAt = Date.now();
+  }
   try {
-    if (Math.random() < profile.skillChance) {
+    if (canBotUseSkill(bot, profile) && Math.random() < profile.skillChance) {
       const skillPayload: SkillCastPayload = { skillId: resolveBotSkill(bot) };
       const skillResult = resolvePlayerSkillCast(context.room, bot.id, skillPayload);
+      bot.botLastSkillAt = Date.now();
       result.combatEvents.push(...skillResult.combatEvents);
       result.playerDeaths.push(...skillResult.deaths);
       return skillResult.combatEvents.length > 0 || skillResult.deaths.length > 0;
@@ -299,13 +326,15 @@ function useBotMonsterAttack(
   result: BotTickResult
 ): boolean {
   try {
-    if (Math.random() < profile.skillChance) {
+    if (canBotUseSkill(bot, profile) && Math.random() < profile.skillChance) {
       const skillPayload: SkillCastPayload = { skillId: resolveBotSkill(bot) };
       const skillResult = handleMonsterPlayerSkill(context, bot.id, skillPayload);
-      if (!skillResult) return false;
-      result.combatEvents.push(...skillResult.combatEvents);
-      result.monsterStateChanged = true;
-      return true;
+      if (skillResult) {
+        bot.botLastSkillAt = Date.now();
+        result.combatEvents.push(...skillResult.combatEvents);
+        result.monsterStateChanged = true;
+        return true;
+      }
     }
 
     const attackPayload: AttackRequestPayload = { attackId: `bot_attack_${bot.id}_${Date.now()}` };
@@ -444,6 +473,21 @@ function hasBackpackCargo(bot: RuntimePlayer): boolean {
     || entry.item.kind === "weapon"
     || entry.item.kind === "consumable"
   ));
+}
+
+function getBackpackCargoCount(bot: RuntimePlayer): number {
+  return (bot.inventory?.items ?? []).filter((entry) => (
+    entry.item.treasureValue > 0
+    || entry.item.goldValue > 0
+    || entry.item.kind === "equipment"
+    || entry.item.kind === "weapon"
+    || entry.item.kind === "consumable"
+  )).length;
+}
+
+function canBotUseSkill(bot: RuntimePlayer, profile: BotDifficultyProfile): boolean {
+  const now = Date.now();
+  return !bot.botLastSkillAt || now - bot.botLastSkillAt >= profile.skillCooldownMs;
 }
 
 function resolveExtractPressureIntent(

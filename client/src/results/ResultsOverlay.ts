@@ -128,8 +128,8 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
 export function buildSettlementCopy(settlement: SettlementPayload): SettlementCopy {
   const summaryReason = formatSettlementReason(settlement);
   const lobbySummary = settlement.result === "success"
-    ? `成功带出 ${settlement.extractedItems.length} 件物资，局外收益 ${formatSignedNumber(settlement.profileGoldDelta)}。`
-    : `本局失利，局外收益 ${formatSignedNumber(settlement.profileGoldDelta)}。`;
+    ? `成功带出 ${settlement.extractedItems.length} 件物资，局外净收益 ${formatSignedNumber(settlement.profileGoldDelta)}。`
+    : `本局失利，局外净收益 ${formatSignedNumber(settlement.profileGoldDelta)}。`;
   return {
     title: settlement.result === "success" ? "撤离成功" : "行动失败",
     subtitle: settlement.result === "success"
@@ -145,7 +145,7 @@ function formatSettlementReason(settlement: SettlementPayload): string {
     return "撤离通道已完成回收。";
   }
   if (settlement.reason === "timeout") {
-    return "封锁区关闭前未能完成撤离。";
+    return "封锁区关闭前未能完成撤离，已带收益清零。";
   }
   if (settlement.reason === "killed") {
     return "你在撤离前被击倒，携带物资全部遗落。";
@@ -162,8 +162,8 @@ function replaceStats(container: HTMLElement, settlement: SettlementPayload): vo
     createStatRow("击杀玩家", `${settlement.playerKills}`),
     createStatRow("击杀怪物", `${settlement.monsterKills}`),
     createStatRow("回收金币", `${settlement.extractedGold}`),
-    createStatRow("战利品估值", `${settlement.extractedTreasureValue}`),
-    createStatRow("局外收益", formatSignedNumber(settlement.profileGoldDelta))
+    createStatRow("高价值估值", `${settlement.extractedTreasureValue}`),
+    createStatRow("净收益", formatSignedNumber(settlement.profileGoldDelta))
   );
 }
 

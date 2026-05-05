@@ -47,6 +47,13 @@ const MONSTER_CORPSE_DURATION_MS = 10_000;
 const MONSTER_RESPAWN_DELAY_MS = 60_000;
 const MAP_MARGIN_PX = 96;
 const ELITE_RESOURCE_GUARD_OFFSET_PX = 150;
+const NORMAL_MONSTER_PATROL_RADIUS = 160;
+const ELITE_MONSTER_PATROL_RADIUS = 90;
+const NORMAL_MONSTER_GUARD_RADIUS = 180;
+const ELITE_MONSTER_GUARD_RADIUS = 240;
+const MONSTER_RETURN_DELAY_MS = 3000;
+const MONSTER_IDLE_MIN_MS = 1000;
+const MONSTER_IDLE_MAX_MS = 2000;
 const SKILL_DAMAGE = {
   swordDashSlash: 24,
   bladeSweep: 22,
@@ -132,8 +139,12 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
     monster.targetPlayerId = target?.id;
 
     if (!target?.state || !target.state.isAlive) {
+      tickMonsterReturn(monster, now);
       continue;
     }
+
+    monster.lastAggroAt = now;
+    monster.returningUntil = undefined;
 
     syncPlayerCombatState(target, now);
     const distance = distanceBetween(monster.x, monster.y, target.state.x, target.state.y);
@@ -335,7 +346,15 @@ function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
     attackDamage: stats.attackDamage,
     moveSpeed: stats.moveSpeed,
     attackCooldownMs: stats.attackCooldownMs,
-    nextAttackAt: 0
+    nextAttackAt: 0,
+    patrolX: spawn.x,
+    patrolY: spawn.y,
+    patrolRadius: stats.patrolRadius,
+    guardRadius: stats.guardRadius,
+    returnDelayMs: stats.returnDelayMs,
+    lastAggroAt: undefined,
+    returningUntil: undefined,
+    idleUntil: Date.now() + randomBetween(MONSTER_IDLE_MIN_MS, MONSTER_IDLE_MAX_MS)
   };
 }
 
@@ -348,7 +367,10 @@ function getMonsterStats(monsterType: MonsterType) {
       attackRange: ELITE_MONSTER_ATTACK_RANGE,
       attackDamage: ELITE_MONSTER_ATTACK_DAMAGE,
       moveSpeed: ELITE_MONSTER_MOVE_SPEED,
-      attackCooldownMs: ELITE_MONSTER_ATTACK_COOLDOWN_MS
+      attackCooldownMs: ELITE_MONSTER_ATTACK_COOLDOWN_MS,
+      patrolRadius: ELITE_MONSTER_PATROL_RADIUS,
+      guardRadius: ELITE_MONSTER_GUARD_RADIUS,
+      returnDelayMs: MONSTER_RETURN_DELAY_MS
     };
   }
 
@@ -359,20 +381,23 @@ function getMonsterStats(monsterType: MonsterType) {
     attackRange: NORMAL_MONSTER_ATTACK_RANGE,
     attackDamage: NORMAL_MONSTER_ATTACK_DAMAGE,
     moveSpeed: NORMAL_MONSTER_MOVE_SPEED,
-    attackCooldownMs: NORMAL_MONSTER_ATTACK_COOLDOWN_MS
+    attackCooldownMs: NORMAL_MONSTER_ATTACK_COOLDOWN_MS,
+    patrolRadius: NORMAL_MONSTER_PATROL_RADIUS,
+    guardRadius: NORMAL_MONSTER_GUARD_RADIUS,
+    returnDelayMs: MONSTER_RETURN_DELAY_MS
   };
 }
 
 function resolveTargetPlayer(room: RuntimeRoom, monster: RuntimeMonster): RuntimePlayer | undefined {
   const currentTarget = monster.targetPlayerId ? room.players.get(monster.targetPlayerId) : undefined;
   if (currentTarget?.state?.isAlive) {
-    const distanceFromSpawn = distanceBetween(
-      monster.spawnX,
-      monster.spawnY,
+    const distanceFromAnchor = distanceBetween(
+      monster.patrolX,
+      monster.patrolY,
       currentTarget.state.x,
       currentTarget.state.y
     );
-    if (distanceFromSpawn <= monster.leashRange) {
+    if (distanceFromAnchor <= monster.leashRange) {
       return currentTarget;
     }
   }
@@ -406,6 +431,65 @@ function moveMonsterTowards(monster: RuntimeMonster, target: CombatPlayerState):
   const step = (monster.moveSpeed * MONSTER_TICK_MS) / 1000;
   monster.x = clamp(monster.x + ((target.x - monster.x) / distance) * step, 48, MATCH_MAP_WIDTH - 48);
   monster.y = clamp(monster.y + ((target.y - monster.y) / distance) * step, 48, MATCH_MAP_HEIGHT - 48);
+}
+
+function tickMonsterReturn(monster: RuntimeMonster, now: number): void {
+  if (!monster.returningUntil) {
+    monster.returningUntil = now + monster.returnDelayMs;
+    return;
+  }
+
+  if (now < monster.returningUntil) {
+    return;
+  }
+
+  const anchorDistance = distanceBetween(monster.x, monster.y, monster.patrolX, monster.patrolY);
+  if (anchorDistance > monster.guardRadius) {
+    moveMonsterTowards(monster, { x: monster.patrolX, y: monster.patrolY, direction: { x: 0, y: 0 } });
+    monster.idleUntil = undefined;
+    return;
+  }
+
+  tickMonsterPatrol(monster, now);
+}
+
+function tickMonsterPatrol(monster: RuntimeMonster, now: number): void {
+  if (monster.idleUntil && now < monster.idleUntil) {
+    return;
+  }
+
+  const target = ensurePatrolTarget(monster);
+  const distance = distanceBetween(monster.x, monster.y, target.x, target.y);
+  if (distance <= 18) {
+    monster.spawnX = target.x;
+    monster.spawnY = target.y;
+    monster.idleUntil = now + randomBetween(MONSTER_IDLE_MIN_MS, MONSTER_IDLE_MAX_MS);
+    ensurePatrolTarget(monster, true);
+    return;
+  }
+
+  moveMonsterTowards(monster, { x: target.x, y: target.y, direction: { x: 0, y: 0 } });
+}
+
+function ensurePatrolTarget(monster: RuntimeMonster, reroll = false): { x: number; y: number } {
+  const current = { x: monster.spawnX, y: monster.spawnY };
+  if (!reroll && distanceBetween(current.x, current.y, monster.patrolX, monster.patrolY) > 0) {
+    return current;
+  }
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const angle = randomBetween(0, Math.PI * 2);
+    const radius = randomBetween(24, monster.patrolRadius);
+    const x = clamp(monster.patrolX + Math.cos(angle) * radius, MAP_MARGIN_PX, MATCH_MAP_WIDTH - MAP_MARGIN_PX);
+    const y = clamp(monster.patrolY + Math.sin(angle) * radius, MAP_MARGIN_PX, MATCH_MAP_HEIGHT - MAP_MARGIN_PX);
+    monster.spawnX = x;
+    monster.spawnY = y;
+    return { x, y };
+  }
+
+  monster.spawnX = monster.patrolX;
+  monster.spawnY = monster.patrolY;
+  return { x: monster.patrolX, y: monster.patrolY };
 }
 
 function findAttackableMonster(
