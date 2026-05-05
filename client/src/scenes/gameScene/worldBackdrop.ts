@@ -3,6 +3,8 @@ import type { MatchViewState } from "../../game";
 import type { ExtractUiState } from "../createGameClient";
 import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
 
+const EXTRACT_VISUAL_CLEARANCE_PADDING = 120;
+
 export interface WorldBackdropRefs {
   terrainLayer?: Phaser.GameObjects.TileSprite;
   detailLayer?: Phaser.GameObjects.Graphics;
@@ -139,42 +141,43 @@ function drawCorpseRiver(layer: Phaser.GameObjects.Graphics, state: MatchViewSta
   const hazards = state.layout?.riverHazards ?? [];
   if (hazards.length === 0) return;
 
-  layer.fillStyle(0x2d3423, 0.07);
+  const extractZone = state.layout?.extractZones[0];
+  const centerline = hazards.map((hazard) => ({
+    x: hazard.x + hazard.width / 2,
+    y: hazard.y + hazard.height / 2,
+    width: hazard.width,
+    height: hazard.height,
+    radius: Math.max(Math.min(hazard.width, hazard.height) * 0.42, 132)
+  }));
+
+  layer.fillStyle(0x2d3423, 0.06);
   layer.lineStyle(0, 0, 0);
-  const centerline: Array<{ x: number; y: number }> = [];
+  for (let index = 0; index < centerline.length - 1; index += 1) {
+    const from = centerline[index];
+    const to = centerline[index + 1];
+    const stroke = Math.max(Math.min(from.radius, to.radius) * 1.78, 196);
+    layer.lineStyle(stroke, 0x314028, 0.2);
+    layer.lineBetween(from.x, from.y, to.x, to.y);
+  }
 
-  for (const hazard of hazards) {
-    layer.fillRoundedRect(hazard.x, hazard.y, hazard.width, hazard.height, 70);
-    centerline.push({ x: hazard.x + (hazard.width / 2), y: hazard.y + (hazard.height / 2) });
-
-    layer.fillStyle(0x4f6330, 0.1);
-    layer.fillRoundedRect(
-      hazard.x + hazard.width * 0.16,
-      hazard.y + hazard.height * 0.06,
-      hazard.width * 0.68,
-      hazard.height * 0.88,
-      54
-    );
-    layer.lineStyle(3, GAMEPLAY_THEME.colors.caution, 0.16);
-    layer.strokeRoundedRect(hazard.x + 6, hazard.y + 6, hazard.width - 12, hazard.height - 12, 64);
-    layer.lineStyle(2, 0x9aa35a, 0.09);
-
-    if (hazard.width >= hazard.height) {
-      for (let x = hazard.x + 84; x < hazard.x + hazard.width - 48; x += 128) {
-        layer.lineBetween(x, hazard.y + 34, x + 38, hazard.y + hazard.height - 38);
-      }
-    } else {
-      for (let y = hazard.y + 92; y < hazard.y + hazard.height - 48; y += 148) {
-        layer.lineBetween(hazard.x + 34, y, hazard.x + hazard.width - 34, y + 34);
-      }
+  for (const node of centerline) {
+    layer.fillStyle(0x314028, 0.22);
+    layer.fillCircle(node.x, node.y, node.radius);
+    layer.fillStyle(0x4f6330, 0.12);
+    layer.fillCircle(node.x, node.y, node.radius * 0.68);
+    layer.lineStyle(6, GAMEPLAY_THEME.colors.caution, 0.14);
+    layer.strokeCircle(node.x, node.y, node.radius * 0.92);
+    layer.lineStyle(2, 0x9aa35a, 0.08);
+    for (let ripple = -node.radius * 0.58; ripple <= node.radius * 0.58; ripple += Math.max(28, node.radius * 0.22)) {
+      layer.lineBetween(node.x - node.radius * 0.46, node.y + ripple, node.x + node.radius * 0.46, node.y + ripple * 0.58);
     }
   }
 
-  if (centerline.length > 1) {
-    layer.lineStyle(12, 0x71833a, 0.08);
-    for (let index = 0; index < centerline.length - 1; index += 1) {
-      layer.lineBetween(centerline[index].x, centerline[index].y, centerline[index + 1].x, centerline[index + 1].y);
-    }
+  if (extractZone) {
+    layer.fillStyle(0x2a2118, 0.96);
+    layer.fillCircle(extractZone.x, extractZone.y, extractZone.radius + EXTRACT_VISUAL_CLEARANCE_PADDING);
+    layer.lineStyle(10, GAMEPLAY_THEME.colors.iron900, 0.24);
+    layer.strokeCircle(extractZone.x, extractZone.y, extractZone.radius + EXTRACT_VISUAL_CLEARANCE_PADDING - 8);
   }
 }
 

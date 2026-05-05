@@ -26,6 +26,8 @@ const STARTER_CHEST_OFFSET = 260;
 const RIVER_DAMAGE_PER_TICK = 3;
 const RIVER_TICK_INTERVAL_MS = 500;
 const HAZARD_POINT_PADDING = 110;
+const EXTRACT_CLEARANCE_PADDING = 120;
+const CROSSING_HAZARD_PADDING = 40;
 
 const TEMPLATE_IDS = ["A", "B", "C"] as const;
 const TEMPLATE_NODE_OFFSETS: Record<(typeof TEMPLATE_IDS)[number], number[]> = {
@@ -41,12 +43,12 @@ const SQUAD_DEPLOY_LABELS: Record<number, string[]> = {
 };
 
 const RIVER_SEGMENTS = [
-  { hazardId: "river_headwaters", x: 870, y: 0, width: 1080, height: 1240 },
-  { hazardId: "river_bend_north", x: 1250, y: 720, width: 980, height: 720 },
-  { hazardId: "river_mid_channel", x: 1690, y: 1110, width: 900, height: 1380 },
-  { hazardId: "river_extract_weir", x: 1940, y: 2140, width: 1040, height: 660 },
-  { hazardId: "river_south_basin", x: 2180, y: 2470, width: 760, height: 980 },
-  { hazardId: "river_tail_run", x: 2040, y: 3320, width: 960, height: 1480 }
+  { hazardId: "river_headwaters", x: 860, y: 0, width: 1040, height: 1220 },
+  { hazardId: "river_bend_north", x: 1280, y: 690, width: 960, height: 720 },
+  { hazardId: "river_mid_channel", x: 1750, y: 1180, width: 820, height: 760 },
+  { hazardId: "river_extract_weir", x: 2620, y: 1980, width: 760, height: 620 },
+  { hazardId: "river_south_basin", x: 2380, y: 2500, width: 760, height: 940 },
+  { hazardId: "river_tail_run", x: 2110, y: 3300, width: 920, height: 1460 }
 ] as const;
 
 const SAFE_CROSSINGS: Array<MatchLayoutSafeCrossing> = [
@@ -68,10 +70,10 @@ const SAFE_CROSSINGS: Array<MatchLayoutSafeCrossing> = [
   },
   {
     crossingId: "bridge_extract",
-    x: 2230,
-    y: 2270,
+    x: 2570,
+    y: 2260,
     width: 360,
-    height: 210,
+    height: 220,
     label: "Camp Span"
   },
   {
@@ -207,11 +209,11 @@ export function getBestSafeCrossing(layout: MatchLayout, from: Vector2, to: Vect
 }
 
 export function getRiverHazardAtPoint(layout: MatchLayout, x: number, y: number): MatchLayoutRiverHazard | undefined {
-  return layout.riverHazards.find((hazard) => pointInRect(x, y, hazard));
+  return layout.riverHazards.find((hazard) => pointInsideRiverHazardBounds(layout, hazard, x, y));
 }
 
 export function isPointInsideRiverHazard(layout: MatchLayout, x: number, y: number): boolean {
-  return Boolean(getRiverHazardAtPoint(layout, x, y)) && !isPointInsideSafeCrossing(layout, x, y);
+  return layout.riverHazards.some((hazard) => pointInsideRiverHazardShape(layout, hazard, x, y));
 }
 
 export function doesSegmentRequireSafeCrossing(layout: MatchLayout, from: Vector2, to: Vector2): boolean {
@@ -231,6 +233,36 @@ function buildExtractZone(zoneId: string): MatchLayoutExtractZone {
     openAtSec: EXTRACT_OPEN_SEC,
     channelDurationMs: EXTRACT_CHANNEL_DURATION_MS
   };
+}
+
+function pointInsideRiverHazardShape(
+  layout: MatchLayout,
+  hazard: MatchLayoutRiverHazard,
+  x: number,
+  y: number
+): boolean {
+  if (!pointInsideRiverHazardBounds(layout, hazard, x, y)) {
+    return false;
+  }
+
+  if (isPointInsideSafeCrossing(layout, x, y)) {
+    return false;
+  }
+
+  return true;
+}
+
+function pointInsideRiverHazardBounds(
+  layout: MatchLayout,
+  hazard: MatchLayoutRiverHazard,
+  x: number,
+  y: number
+): boolean {
+  if (!pointInRect(x, y, hazard)) {
+    return false;
+  }
+
+  return !layout.extractZones.some((zone) => distance(zone, { x, y }) < zone.radius + EXTRACT_CLEARANCE_PADDING);
 }
 
 function pointOnRing(radius: number, angleDeg: number): { x: number; y: number } {
@@ -257,6 +289,18 @@ function distance(a: { x: number; y: number }, b: { x: number; y: number }): num
 
 function pointInRect(x: number, y: number, rect: { x: number; y: number; width: number; height: number }): boolean {
   return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
+}
+
+function rectContainsCircle(
+  rect: { x: number; y: number; width: number; height: number },
+  x: number,
+  y: number,
+  radius: number
+): boolean {
+  return x - radius >= rect.x
+    && x + radius <= rect.x + rect.width
+    && y - radius >= rect.y
+    && y + radius <= rect.y + rect.height;
 }
 
 function rectCenter(rect: { x: number; y: number; width: number; height: number }): Vector2 {
@@ -350,6 +394,34 @@ function settleChestPoint(
   }
 
   return candidate;
+}
+
+export function getExtractClearRadius(zone: MatchLayoutExtractZone): number {
+  return zone.radius + EXTRACT_CLEARANCE_PADDING;
+}
+
+export function getRiverVisualBands(layout: MatchLayout): MatchLayoutRiverHazard[] {
+  return layout.riverHazards.filter((hazard) => {
+    const crossingProtected = layout.safeCrossings.some((crossing) => {
+      const padded = {
+        x: crossing.x - CROSSING_HAZARD_PADDING,
+        y: crossing.y - CROSSING_HAZARD_PADDING,
+        width: crossing.width + CROSSING_HAZARD_PADDING * 2,
+        height: crossing.height + CROSSING_HAZARD_PADDING * 2
+      };
+      return rectContainsCircle(padded, hazard.x + hazard.width / 2, hazard.y + hazard.height / 2, Math.min(hazard.width, hazard.height) * 0.22);
+    });
+
+    if (crossingProtected) {
+      return true;
+    }
+
+    return !layout.extractZones.some((zone) => {
+      const closestX = clamp(zone.x, hazard.x, hazard.x + hazard.width);
+      const closestY = clamp(zone.y, hazard.y, hazard.y + hazard.height);
+      return distance(zone, { x: closestX, y: closestY }) < getExtractClearRadius(zone);
+    });
+  });
 }
 
 function createSeededRandom(seed: string): () => number {
