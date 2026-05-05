@@ -103,7 +103,11 @@ export class GameSceneInteractions {
     extractState: ExtractUiState,
     onStartExtract?: () => void
   ): void {
-    const canTryExtract = extractState.isOpen || extractState.carrier?.holderPlayerId === playerMarker?.id;
+    const activeSquadId = extractState.squadStatus?.activeSquadId ?? extractState.carrier?.holderSquadId ?? null;
+    const selfMember = extractState.squadStatus?.members.find((member) => member.playerId === playerMarker?.id);
+    const canTryExtract = extractState.isOpen
+      ? Boolean(activeSquadId && selfMember)
+      : extractState.carrier?.holderPlayerId === playerMarker?.id;
     if (!playerMarker || !canTryExtract) return;
 
     const distance = Phaser.Math.Distance.Between(

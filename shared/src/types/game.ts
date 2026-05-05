@@ -139,3 +139,19 @@ export interface ExtractCarrierState {
   holderPlayerId: string | null;
   holderSquadId: SquadId | null;
 }
+
+export interface ExtractSquadMemberState {
+  playerId: string;
+  squadId: SquadId;
+  name: string;
+  isAlive: boolean;
+  isInsideZone: boolean;
+  isExtracting: boolean;
+  isSettled: boolean;
+}
+
+export interface ExtractSquadStatus {
+  activeSquadId: SquadId | null;
+  activeZoneId: string | null;
+  members: ExtractSquadMemberState[];
+}

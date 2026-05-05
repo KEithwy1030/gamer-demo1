@@ -2,6 +2,7 @@
 import {
   AttackRequestPayload,
   ExtractCarrierState,
+  ExtractSquadStatus,
   INVENTORY_HEIGHT,
   INVENTORY_WIDTH,
   CombatEventPayload,
@@ -38,6 +39,7 @@ export interface ExtractUiState {
   message: string | null;
   didSucceed: boolean;
   carrier?: ExtractCarrierState;
+  squadStatus?: ExtractSquadStatus;
   x?: number;
   y?: number;
   radius?: number;
@@ -181,6 +183,7 @@ export function createGameClientController(
         message: buildExtractMessage(payload),
         didSucceed: false,
         carrier: payload?.carrier,
+        squadStatus: payload?.squadStatus,
         ...resolvePrimaryExtractZone(payload)
       });
     }),
@@ -202,7 +205,8 @@ export function createGameClientController(
         progress: 1,
         secondsRemaining: 0,
         message: "撤离完成，正在结算",
-        didSucceed: true
+        didSucceed: true,
+        squadStatus: payload?.squadStatus
       });
     }),
     network.onSettlement((payload) => {
@@ -319,7 +323,12 @@ function createInitialExtractState(): ExtractUiState {
     progress: null,
     secondsRemaining: null,
     message: "携带归营火种前往中心归营火，点燃后开始撤离。",
-    didSucceed: false
+    didSucceed: false,
+    squadStatus: {
+      activeSquadId: null,
+      activeZoneId: null,
+      members: []
+    }
   };
 }
 
@@ -347,12 +356,16 @@ function resolvePrimaryExtractZone(payload: ExtractOpenedPayload | undefined): {
 }
 
 function buildExtractMessage(payload: ExtractOpenedPayload | undefined): string {
+  const activeMembers = payload?.squadStatus?.members ?? [];
+  const aliveMembers = activeMembers.filter((member) => member.isAlive && !member.isSettled);
+  const insideCount = aliveMembers.filter((member) => member.isInsideZone).length;
+  const aliveCount = aliveMembers.length;
   const zoneCount = payload?.zones.filter((zone) => zone.isOpen).length ?? 0;
   if (zoneCount > 1) {
-    return `归营火已点燃 ${zoneCount} 处，队伍进入后完成撤离。`;
+    return `队伍归营火已点燃 ${zoneCount} 处，圈内 ${insideCount}/${aliveCount} 人可撤离。`;
   }
   if (zoneCount === 1) {
-    return "归营火已点燃，留在圈内完成撤离。";
+    return `队伍归营火已点燃，圈内 ${insideCount}/${aliveCount} 人可一起撤离。`;
   }
   if (payload?.carrier?.holderPlayerId) {
     return "有人携带归营火种，靠近中心归营火可点燃撤离。";
@@ -387,7 +400,8 @@ function normalizeExtractProgress(payload: ExtractProgressPayload | number | und
     progress: interrupted ? null : progress,
     secondsRemaining,
     message: interrupted ? "撤离被打断，立即拉开重进。" : (active ? "撤离读条中，受击会中断。" : (progress === 1 ? "撤离完成，收益结算中。" : "撤离点待命")),
-    didSucceed: progress === 1
+    didSucceed: progress === 1,
+    squadStatus: payload?.squadStatus
   };
 }
 

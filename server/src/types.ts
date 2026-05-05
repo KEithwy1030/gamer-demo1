@@ -2,6 +2,7 @@ import type {
   BotDifficulty,
   CombatEventPayload,
   ExtractCarrierState,
+  ExtractSquadStatus,
   LobbyPlayer,
   InventorySnapshotPayload,
   MatchLayout,
@@ -207,11 +208,14 @@ export interface RuntimeRoomExtractState {
   zones: RuntimeRoomExtractZone[];
   matchEndedAt?: number;
   carrier?: ExtractCarrierState;
+  activeSquadId?: SquadId | null;
+  activeZoneId?: string | null;
 }
 
 export interface ExtractOpenedPayload {
   roomCode: string;
   carrier?: ExtractCarrierState;
+  squadStatus?: ExtractSquadStatus;
   zones: Array<{
     zoneId: string;
     x: number;
@@ -231,6 +235,7 @@ export interface ExtractProgressPayload {
   remainingMs: number;
   durationMs: number;
   reason?: "damaged" | "left_zone" | "dead" | "timeout";
+  squadStatus?: ExtractSquadStatus;
 }
 
 export interface ExtractSuccessPayload {
@@ -239,6 +244,7 @@ export interface ExtractSuccessPayload {
   zoneId: string;
   extractedAt: number;
   settlement: SettlementPayload;
+  squadStatus?: ExtractSquadStatus;
 }
 
 export interface MatchSettlementEnvelope {

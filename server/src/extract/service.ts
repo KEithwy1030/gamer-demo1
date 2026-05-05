@@ -1,4 +1,4 @@
-import type { SettlementPayload } from "@gamer/shared";
+import type { ExtractSquadStatus, SettlementPayload, SquadId } from "@gamer/shared";
 import {
   EXTRACT_CHANNEL_DURATION_MS,
   EXTRACT_CENTER_RADIUS,
@@ -42,7 +42,9 @@ export function initializeExtractState(room: RuntimeRoom): void {
     carrier: {
       holderPlayerId: null,
       holderSquadId: null
-    }
+    },
+    activeSquadId: null,
+    activeZoneId: null
   };
 
   if (room.extract.zones.length === 0 && layoutZones.length > 0) {
@@ -59,6 +61,8 @@ export function initializeExtractState(room: RuntimeRoom): void {
     holderPlayerId: null,
     holderSquadId: null
   };
+  room.extract.activeSquadId ??= null;
+  room.extract.activeZoneId ??= null;
 
   syncExtractCarrier(room);
 
@@ -76,36 +80,37 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
     throw new Error("Match is already settled.");
   }
 
-  const zone = resolveOccupiedExtractZone(room, player);
   if (!player.state?.isAlive) {
     throw new Error("Dead players cannot extract.");
   }
 
-  if (!inventoryService.playerHasExtractKey(player)) {
-    throw new Error("Need the extract torch to ignite camp.");
+  if (player.extract?.settledAt) {
+    throw new Error("Player already settled.");
   }
 
+  const zone = resolveOccupiedExtractZone(room, player);
   if (!zone) {
     throw new Error("Player is not inside the extract zone.");
   }
 
-  const sameSquadHolder = room.extract?.carrier?.holderPlayerId === player.id
-    || room.extract?.carrier?.holderSquadId === player.squadId;
-  if (room.extract?.zones.some((entry) => entry.isOpen) && !sameSquadHolder) {
+  const activeSquadId = room.extract?.activeSquadId ?? null;
+  const squadHolderId = room.extract?.carrier?.holderSquadId ?? null;
+  const playerHasTorch = inventoryService.playerHasExtractKey(player);
+  const canIgniteForSquad = playerHasTorch && (!activeSquadId || activeSquadId === player.squadId);
+
+  if (!zone.isOpen) {
+    if (!canIgniteForSquad) {
+      throw new Error("Need the extract torch to ignite camp.");
+    }
+    openZoneForSquad(room, zone, player, now);
+  }
+
+  if (activeSquadId && activeSquadId !== player.squadId) {
     throw new Error("Extract is keyed to another squad.");
   }
 
-  if (!zone.isOpen) {
-    zone.isOpen = true;
-    zone.openedAt = now;
-    if (room.extract?.carrier) {
-      room.extract.carrier.holderPlayerId = player.id;
-      room.extract.carrier.holderSquadId = player.squadId;
-    }
-  }
-
-  if (player.extract?.settledAt) {
-    throw new Error("Player already settled.");
+  if (squadHolderId && squadHolderId !== player.squadId) {
+    throw new Error("Extract is keyed to another squad.");
   }
 
   if (
@@ -114,7 +119,7 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
     && !player.extract.settledAt
   ) {
     return {
-      opened,
+      opened: buildOpenedPayload(room),
       progressEvents: [],
       successEvents: [],
       settlementEvents: [],
@@ -131,7 +136,7 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
   };
 
   return {
-    opened,
+    opened: buildOpenedPayload(room),
     progressEvents: [buildProgressPayload(room, player, zone.zoneId, "started", zone.channelDurationMs)],
     successEvents: [],
     settlementEvents: [],
@@ -189,7 +194,7 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
     }
 
     return {
-      opened,
+      opened: opened ?? buildOpenedPayload(room),
       progressEvents,
       successEvents,
       settlementEvents,
@@ -200,30 +205,6 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
   for (const player of room.players.values()) {
     if (player.extract?.settledAt) {
       continue;
-    }
-
-    if (player.extract?.completesAt && player.extract.zoneId) {
-      const activeZone = room.extract?.zones.find((entry) => entry.zoneId === player.extract?.zoneId);
-      if (activeZone && isInsideExtractZone(activeZone, player) && player.extract.completesAt <= now) {
-        const settlement = settlePlayer(room, player, {
-          now,
-          result: 'success',
-          reason: 'extracted'
-        });
-        if (!settlement) {
-          continue;
-        }
-
-        successEvents.push({
-          roomCode: room.code,
-          playerId: player.id,
-          zoneId: activeZone.zoneId,
-          extractedAt: now,
-          settlement: settlement.settlement
-        });
-        settlementEvents.push(settlement);
-        continue;
-      }
     }
 
     if (player.state && !player.state.isAlive) {
@@ -265,7 +246,39 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
       continue;
     }
 
-    const settlement = settlePlayer(room, player, {
+    const success = settleSquadExtraction(room, player, zone, now);
+    successEvents.push(...success.successEvents);
+    settlementEvents.push(...success.settlementEvents);
+  }
+
+  const shouldCloseRoom = room.extract!.matchEndedAt !== undefined || areAllPlayersSettled(room);
+  if (shouldCloseRoom && !room.extract?.matchEndedAt) {
+    room.extract!.matchEndedAt = now;
+  }
+
+  return {
+    opened: opened ?? buildOpenedPayload(room),
+    progressEvents,
+    successEvents,
+    settlementEvents,
+    shouldCloseRoom
+  };
+}
+
+function settleSquadExtraction(
+  room: RuntimeRoom,
+  triggeringPlayer: RuntimePlayer,
+  zone: RuntimeRoomExtractZone,
+  now: number
+): { successEvents: ExtractSuccessPayload[]; settlementEvents: MatchSettlementEnvelope[] } {
+  const successEvents: ExtractSuccessPayload[] = [];
+  const settlementEvents: MatchSettlementEnvelope[] = [];
+  const squadId = room.extract?.activeSquadId ?? triggeringPlayer.squadId;
+  const zoneId = room.extract?.activeZoneId ?? zone.zoneId;
+  const eligibleMembers = getExtractEligibleSquadMembers(room, squadId, zoneId);
+
+  for (const member of eligibleMembers) {
+    const settlement = settlePlayer(room, member, {
       now,
       result: "success",
       reason: "extracted"
@@ -276,26 +289,16 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
 
     successEvents.push({
       roomCode: room.code,
-      playerId: player.id,
-      zoneId: zone.zoneId,
+      playerId: member.id,
+      zoneId,
       extractedAt: now,
-      settlement: settlement.settlement
+      settlement: settlement.settlement,
+      squadStatus: buildSquadStatus(room)
     });
     settlementEvents.push(settlement);
   }
 
-  const shouldCloseRoom = room.extract!.matchEndedAt !== undefined || areAllPlayersSettled(room);
-  if (shouldCloseRoom && !room.extract?.matchEndedAt) {
-    room.extract!.matchEndedAt = now;
-  }
-
-  return {
-    opened,
-    progressEvents,
-    successEvents,
-    settlementEvents,
-    shouldCloseRoom
-  };
+  return { successEvents, settlementEvents };
 }
 
 function openExtractIfReady(room: RuntimeRoom, now: number): ExtractOpenedPayload | undefined {
@@ -303,7 +306,8 @@ function openExtractIfReady(room: RuntimeRoom, now: number): ExtractOpenedPayloa
     return undefined;
   }
 
-  if (!room.extract.carrier?.holderPlayerId) {
+  const activeSquadId = room.extract.carrier?.holderSquadId ?? null;
+  if (!activeSquadId) {
     return undefined;
   }
 
@@ -313,24 +317,14 @@ function openExtractIfReady(room: RuntimeRoom, now: number): ExtractOpenedPayloa
     return undefined;
   }
 
+  room.extract.activeSquadId = activeSquadId;
   for (const zone of zonesToOpen) {
     zone.isOpen = true;
     zone.openedAt = now;
+    room.extract.activeZoneId ??= zone.zoneId;
   }
 
-  return {
-    roomCode: room.code,
-    carrier: room.extract.carrier,
-    zones: room.extract.zones.map((zone) => ({
-      zoneId: zone.zoneId,
-      x: zone.x,
-      y: zone.y,
-      radius: zone.radius,
-      channelDurationMs: zone.channelDurationMs,
-      openAtSec: zone.openAtSec,
-      isOpen: zone.isOpen
-    }))
-  };
+  return buildOpenedPayload(room);
 }
 
 function shouldForceTimeout(room: RuntimeRoom, now: number): boolean {
@@ -461,12 +455,35 @@ function syncExtractCarrier(room: RuntimeRoom): void {
   room.extract.carrier.holderPlayerId = holder?.id ?? null;
   room.extract.carrier.holderSquadId = holder?.squadId ?? null;
 
-  if (!holder) {
-    for (const zone of room.extract.zones) {
-      zone.isOpen = false;
-      zone.openedAt = undefined;
-    }
+  if (holder) {
+    room.extract.activeSquadId ??= holder.squadId;
+    return;
   }
+
+  if (
+    room.extract.activeSquadId
+    && room.extract.activeZoneId
+    && hasActiveExtractingSquad(room, room.extract.activeSquadId, room.extract.activeZoneId)
+  ) {
+    return;
+  }
+
+  room.extract.activeSquadId = null;
+  room.extract.activeZoneId = null;
+  for (const zone of room.extract.zones) {
+    zone.isOpen = false;
+    zone.openedAt = undefined;
+  }
+}
+
+function hasActiveExtractingSquad(room: RuntimeRoom, squadId: SquadId, zoneId: string): boolean {
+  return [...room.players.values()].some((player) => (
+    player.squadId === squadId
+    && player.state?.isAlive
+    && !player.extract?.settledAt
+    && player.extract?.zoneId === zoneId
+    && Boolean(player.extract?.completesAt)
+  ));
 }
 
 function collectAllItemNames(player: RuntimePlayer): string[] {
@@ -494,8 +511,84 @@ function buildProgressPayload(
     status,
     remainingMs,
     durationMs: zone?.channelDurationMs ?? EXTRACT_CHANNEL_DURATION_MS,
-    reason
+    reason,
+    squadStatus: buildSquadStatus(room)
   };
+}
+
+function buildOpenedPayload(room: RuntimeRoom): ExtractOpenedPayload {
+  return {
+    roomCode: room.code,
+    carrier: room.extract?.carrier,
+    squadStatus: buildSquadStatus(room),
+    zones: (room.extract?.zones ?? []).map((zone) => ({
+      zoneId: zone.zoneId,
+      x: zone.x,
+      y: zone.y,
+      radius: zone.radius,
+      channelDurationMs: zone.channelDurationMs,
+      openAtSec: zone.openAtSec,
+      isOpen: zone.isOpen
+    }))
+  };
+}
+
+function buildSquadStatus(room: RuntimeRoom): ExtractSquadStatus {
+  const activeSquadId = room.extract?.activeSquadId ?? null;
+  const activeZoneId = room.extract?.activeZoneId ?? null;
+  const zone = activeZoneId
+    ? room.extract?.zones.find((entry) => entry.zoneId === activeZoneId)
+    : undefined;
+
+  const members = [...room.players.values()]
+    .filter((player) => activeSquadId !== null && player.squadId === activeSquadId)
+    .map((player) => ({
+      playerId: player.id,
+      squadId: player.squadId,
+      name: player.name,
+      isAlive: player.state?.isAlive === true,
+      isInsideZone: zone ? isInsideExtractZone(zone, player) : false,
+      isExtracting: player.extract?.zoneId === activeZoneId && Boolean(player.extract?.completesAt),
+      isSettled: Boolean(player.extract?.settledAt)
+    }));
+
+  return {
+    activeSquadId,
+    activeZoneId,
+    members
+  };
+}
+
+function getExtractEligibleSquadMembers(room: RuntimeRoom, squadId: SquadId, zoneId: string): RuntimePlayer[] {
+  const zone = room.extract?.zones.find((entry) => entry.zoneId === zoneId);
+  if (!zone) {
+    return [];
+  }
+
+  return [...room.players.values()].filter((player) => (
+    player.squadId === squadId
+    && player.state?.isAlive === true
+    && !player.extract?.settledAt
+    && isInsideExtractZone(zone, player)
+  ));
+}
+
+function openZoneForSquad(room: RuntimeRoom, zone: RuntimeRoomExtractZone, player: RuntimePlayer, now: number): void {
+  zone.isOpen = true;
+  zone.openedAt = now;
+
+  if (!room.extract) {
+    return;
+  }
+
+  room.extract.activeSquadId = player.squadId;
+  room.extract.activeZoneId = zone.zoneId;
+  room.extract.carrier ??= {
+    holderPlayerId: null,
+    holderSquadId: null
+  };
+  room.extract.carrier.holderPlayerId = player.id;
+  room.extract.carrier.holderSquadId = player.squadId;
 }
 
 function resolveOccupiedExtractZone(room: RuntimeRoom, player: RuntimePlayer): RuntimeRoomExtractZone | undefined {

@@ -117,7 +117,14 @@ export function syncExtractBackdrop(
       stroke: "#16130f",
       strokeThickness: 6
     }).setOrigin(0.5).setDepth(-4);
-  extractLabel.setText(extractState.isOpen ? "归营火已点燃" : "归营火未点燃");
+  const members = extractState.squadStatus?.members ?? [];
+  const aliveMembers = members.filter((member) => member.isAlive && !member.isSettled);
+  const insideCount = aliveMembers.filter((member) => member.isInsideZone).length;
+  extractLabel.setText(
+    extractState.isOpen
+      ? `队伍归营火 ${insideCount}/${aliveMembers.length || 0}`
+      : "归营火未点燃"
+  );
 
   return {
     ...refs,

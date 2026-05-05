@@ -547,9 +547,16 @@ function buildSkillSlotLabel(key: string, skillId: ReturnType<typeof resolveSkil
 }
 
 function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewState): string {
+  const members = extractState.squadStatus?.members ?? [];
+  const aliveMembers = members.filter((member) => member.isAlive && !member.isSettled);
+  const insideCount = aliveMembers.filter((member) => member.isInsideZone).length;
+  const waitingCount = Math.max(0, aliveMembers.length - insideCount);
+
   if (extractState.isExtracting) {
     const seconds = extractState.secondsRemaining == null ? "" : ` ${Math.ceil(extractState.secondsRemaining)}s`;
-    return `守住撤离圈，读条${seconds}`;
+    return waitingCount > 0
+      ? `守住撤离圈，读条${seconds}，等待 ${waitingCount} 名队友进圈`
+      : `守住撤离圈，队伍撤离读条${seconds}`;
   }
 
   if (extractState.didSucceed) {
@@ -557,7 +564,9 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
   }
 
   if (extractState.isOpen) {
-    return hasBackpackCargo(state) ? "归营火已点燃，带货者优先走安全线" : "归营火已点燃，进圈撤离或截击带货者";
+    return waitingCount > 0
+      ? `队伍归营火已点燃，圈内 ${insideCount}/${aliveMembers.length} 人，等待队友`
+      : (hasBackpackCargo(state) ? "队伍归营火已点燃，带货者进圈即可一起撤离" : "队伍归营火已点燃，进圈完成会合撤离");
   }
 
   if (isCorpseFogCounterattacking(state)) {
@@ -572,9 +581,12 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
 }
 
 function resolveExtractStateLabel(extractState: ExtractUiState): string {
-  if (extractState.isExtracting) return "撤离 读条中";
-  if (extractState.didSucceed) return "撤离 已完成";
-  return extractState.isOpen ? "归营火 已点燃" : "归营火 待点燃";
+  const members = extractState.squadStatus?.members ?? [];
+  const aliveMembers = members.filter((member) => member.isAlive && !member.isSettled);
+  const insideCount = aliveMembers.filter((member) => member.isInsideZone).length;
+  if (extractState.isExtracting) return `队撤 ${insideCount}/${aliveMembers.length || 0} 读条中`;
+  if (extractState.didSucceed) return "队撤 已完成";
+  return extractState.isOpen ? `队撤 ${insideCount}/${aliveMembers.length || 0} 可撤离` : "归营火 待点燃";
 }
 
 function resolveInventoryLabel(state: MatchViewState): string {
@@ -590,6 +602,11 @@ function resolveInventoryLabel(state: MatchViewState): string {
 }
 
 function resolvePressureHint(state: MatchViewState, extractState: ExtractUiState): string {
+  const members = extractState.squadStatus?.members ?? [];
+  const aliveMembers = members.filter((member) => member.isAlive && !member.isSettled);
+  const insideCount = aliveMembers.filter((member) => member.isInsideZone).length;
+  const waitingCount = Math.max(0, aliveMembers.length - insideCount);
+
   const player = state.players.find((entry) => entry.id === state.selfPlayerId);
   const hpRatio = player && player.maxHp > 0 ? player.hp / player.maxHp : 1;
 
@@ -607,6 +624,10 @@ function resolvePressureHint(state: MatchViewState, extractState: ExtractUiState
 
   if (hasBackpackCargo(state)) {
     return "高价值携带会吸引围堵，别带着满包硬换血。";
+  }
+
+  if (extractState.isOpen && waitingCount > 0) {
+    return `仍有 ${waitingCount} 名队友未进圈，别让别队拖住会合节奏。`;
   }
 
   return "压怪拿货，控制换血，给撤离留体力。";
