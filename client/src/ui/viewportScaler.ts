@@ -7,6 +7,7 @@ export interface ViewportScalerOptions {
   designWidth: number;
   designHeight: number;
   maxScale?: number;
+  centerY?: boolean;
 }
 
 export function attachViewportScaler(
@@ -15,6 +16,7 @@ export function attachViewportScaler(
   options: ViewportScalerOptions
 ): ViewportScaler {
   const maxScale = options.maxScale ?? 1;
+  const centerY = options.centerY ?? false;
   let rafId = 0;
 
   frame.classList.add("viewport-scale-frame");
@@ -31,13 +33,15 @@ export function attachViewportScaler(
     const scaledWidth = options.designWidth * scale;
     const scaledHeight = canvasHeight * scale;
     const offsetX = Math.max(0, (viewportWidth - scaledWidth) / 2);
+    const offsetY = centerY ? Math.max(0, (viewportHeight - scaledHeight) / 2) : 0;
 
     frame.style.setProperty("--viewport-scale", String(scale));
     frame.style.setProperty("--viewport-offset-x", `${offsetX}px`);
+    frame.style.setProperty("--viewport-offset-y", `${offsetY}px`);
     frame.style.setProperty("--viewport-canvas-width", `${options.designWidth}px`);
     frame.style.setProperty("--viewport-canvas-height", `${canvasHeight}px`);
     frame.style.width = "100vw";
-    frame.style.minHeight = `${Math.max(viewportHeight, scaledHeight)}px`;
+    frame.style.minHeight = `${Math.max(viewportHeight, scaledHeight + offsetY)}px`;
   };
 
   const requestSync = () => {
@@ -64,6 +68,7 @@ export function attachViewportScaler(
       canvas.classList.remove("viewport-scale-canvas");
       frame.style.removeProperty("--viewport-scale");
       frame.style.removeProperty("--viewport-offset-x");
+      frame.style.removeProperty("--viewport-offset-y");
       frame.style.removeProperty("--viewport-canvas-width");
       frame.style.removeProperty("--viewport-canvas-height");
       frame.style.width = "";

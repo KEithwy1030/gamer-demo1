@@ -1,0 +1,124 @@
+[
+  {
+    "label": "game-1280x720",
+    "screenshotPath": "E:\\CursorData\\gamer\\.codex-artifacts\\responsive-scaling\\game-1280x720.png",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "frame": {
+      "x": 0,
+      "y": 0,
+      "width": 1280,
+      "height": 720,
+      "top": 0,
+      "left": 0,
+      "right": 1280,
+      "bottom": 720
+    },
+    "gameViewport": {
+      "x": 0,
+      "y": 0,
+      "width": 1280,
+      "height": 720,
+      "top": 0,
+      "left": 0,
+      "right": 1280,
+      "bottom": 720
+    },
+    "scene": {
+      "x": 0,
+      "y": 0,
+      "width": 1280,
+      "height": 720,
+      "top": 0,
+      "left": 0,
+      "right": 1280,
+      "bottom": 720
+    },
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "width": 1280,
+      "height": 720,
+      "top": 0,
+      "left": 0,
+      "right": 1280,
+      "bottom": 720
+    },
+    "resultOverlay": {
+      "x": 0,
+      "y": 0,
+      "width": 0,
+      "height": 0,
+      "top": 0,
+      "left": 0,
+      "right": 0,
+      "bottom": 0
+    },
+    "transform": "matrix(1, 0, 0, 1, 0, 0)",
+    "computedLeft": "0px",
+    "computedTop": "0px"
+  },
+  {
+    "label": "game-1920x1080",
+    "screenshotPath": "E:\\CursorData\\gamer\\.codex-artifacts\\responsive-scaling\\game-1920x1080.png",
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "frame": {
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 1080,
+      "top": 0,
+      "left": 0,
+      "right": 1920,
+      "bottom": 1080
+    },
+    "gameViewport": {
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 1080,
+      "top": 0,
+      "left": 0,
+      "right": 1920,
+      "bottom": 1080
+    },
+    "scene": {
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 1080,
+      "top": 0,
+      "left": 0,
+      "right": 1920,
+      "bottom": 1080
+    },
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 1080,
+      "top": 0,
+      "left": 0,
+      "right": 1920,
+      "bottom": 1080
+    },
+    "resultOverlay": {
+      "x": 0,
+      "y": 0,
+      "width": 0,
+      "height": 0,
+      "top": 0,
+      "left": 0,
+      "right": 0,
+      "bottom": 0
+    },
+    "transform": "matrix(1.5, 0, 0, 1.5, 0, 0)",
+    "computedLeft": "0px",
+    "computedTop": "0px"
+  }
+]

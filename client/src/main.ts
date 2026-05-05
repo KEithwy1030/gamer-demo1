@@ -54,7 +54,9 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
     sceneRoot.className = "game-scene-root";
     const gameScaler = attachViewportScaler(gameRoot, gameViewport, {
       designWidth: 1280,
-      designHeight: 720
+      designHeight: 720,
+      maxScale: Number.POSITIVE_INFINITY,
+      centerY: true
     });
 
     const resultsOverlay = createResultsOverlay({

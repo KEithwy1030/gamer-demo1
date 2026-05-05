@@ -68,13 +68,13 @@ export interface GameClientController {
 export function createGameClientController(
   options: GameClientControllerOptions
 ): GameClientController {
+  const GAME_VIEW_WIDTH = 1280;
+  const GAME_VIEW_HEIGHT = 720;
   const runtime = new MatchRuntimeStore();
   const network = new GameSocketClient(options);
   const subscriptions: Unsubscribe[] = [];
 
   let game: Phaser.Game | null = null;
-  let lastViewportWidth = 0;
-  let lastViewportHeight = 0;
   let extractState = createInitialExtractState();
 
   const controller: GameClientController = {
@@ -240,8 +240,8 @@ export function createGameClientController(
     game = new Phaser.Game({
       type: Phaser.CANVAS,
       parent: options.parent,
-      width: 1280,
-      height: 720,
+      width: GAME_VIEW_WIDTH,
+      height: GAME_VIEW_HEIGHT,
       pixelArt: true,
       antialias: false,
       autoRound: true,
@@ -254,11 +254,10 @@ export function createGameClientController(
         }
       },
       scale: {
-        mode: Phaser.Scale.RESIZE,
+        mode: Phaser.Scale.NONE,
         autoCenter: Phaser.Scale.CENTER_BOTH
       }
     });
-    syncGameViewport();
     game.scene.start(GameScene.KEY, {
       runtime,
       extractState,
@@ -298,20 +297,7 @@ export function createGameClientController(
   }
 
   function syncGameViewport(): void {
-    if (!game) return;
-    const parent = typeof options.parent === "string" ? document.querySelector<HTMLElement>(options.parent) : options.parent;
-    if (!parent) return;
-    const resize = () => {
-      const width = Math.max(1, Math.round(parent.clientWidth));
-      const height = Math.max(1, Math.round(parent.clientHeight));
-      if (width === lastViewportWidth && height === lastViewportHeight) {
-        return;
-      }
-      lastViewportWidth = width;
-      lastViewportHeight = height;
-      game?.scale.resize(width, height);
-    };
-    resize();
+    return;
   }
 }
 
