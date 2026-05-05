@@ -4,6 +4,7 @@ import type {
   LobbyRuntimeApi,
   RoomState,
 } from "./lobbyTypes";
+import { DEFAULT_ROOM_CAPACITY, MAX_ROOM_CAPACITY, MIN_ROOM_CAPACITY } from "@gamer/shared";
 
 interface MockRoom {
   roomCode: string;
@@ -75,7 +76,7 @@ export class MockLobbyController implements LobbyController {
 
     mockRooms.set(roomCode, {
       roomCode,
-      capacity: 20,
+      capacity: DEFAULT_ROOM_CAPACITY,
       botDifficulty,
       players: [hostPlayer],
     });
@@ -157,7 +158,7 @@ export class MockLobbyController implements LobbyController {
       throw new Error("人数上限不能低于当前队伍人数。");
     }
 
-    room.capacity = capacity;
+    room.capacity = Math.max(MIN_ROOM_CAPACITY, Math.min(MAX_ROOM_CAPACITY, capacity));
     return cloneRoomState(room, playerId);
   }
 

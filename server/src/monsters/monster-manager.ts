@@ -126,6 +126,14 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
   const now = Date.now();
 
   processMonsterRespawns(room, now);
+  if (process.env.MONSTER_AI_DISABLED === "true") {
+    return {
+      monsters: listMonsterStates(room),
+      drops: listWorldDrops(room),
+      combatEvents,
+      playerStateChanged
+    };
+  }
 
   for (const monster of [...monsters.values()]) {
     if (!monster.isAlive) {

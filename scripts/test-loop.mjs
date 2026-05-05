@@ -8,8 +8,10 @@ const SERVER_PORT = Number.parseInt(process.env.TEST_SERVER_PORT ?? "3100", 10);
 const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 const SERVER_DIR = fileURLToPath(new URL("../server/", import.meta.url));
 const SERVER_SRC_DIR = fileURLToPath(new URL("../server/src/", import.meta.url));
+const SERVER_DIST_DIR = fileURLToPath(new URL("../server/dist/", import.meta.url));
 const SHARED_DIR = fileURLToPath(new URL("../shared/", import.meta.url));
 const SHARED_SRC_DIR = fileURLToPath(new URL("../shared/src/", import.meta.url));
+const SHARED_DIST_DIR = fileURLToPath(new URL("../shared/dist/", import.meta.url));
 const DIST_ENTRY = fileURLToPath(new URL("../server/dist/index.js", import.meta.url));
 const SHARED_DIST_ENTRY = fileURLToPath(new URL("../shared/dist/index.js", import.meta.url));
 const FORCE_SERVER_BUILD = process.env.TEST_LOOP_FORCE_BUILD === "1";
@@ -114,7 +116,7 @@ async function runCommand(command, args, options = {}) {
   const child = spawn(command, args, {
     cwd: options.cwd,
     env: { ...process.env, ...(options.env ?? {}) },
-    shell: false,
+    shell: process.platform === "win32" && command.endsWith(".cmd"),
     stdio: ["ignore", "pipe", "pipe"]
   });
 
@@ -180,8 +182,8 @@ async function ensureServerBuild() {
 
   const latestServerSrcMtimeMs = await getNewestMtimeMs(SERVER_SRC_DIR);
   const latestSharedSrcMtimeMs = await getNewestMtimeMs(SHARED_SRC_DIR);
-  const serverDistMtimeMs = await getBuildMtimeMs(DIST_ENTRY);
-  const sharedDistMtimeMs = await getBuildMtimeMs(SHARED_DIST_ENTRY);
+  const serverDistMtimeMs = Math.max(await getBuildMtimeMs(DIST_ENTRY), await getNewestMtimeMs(SERVER_DIST_DIR));
+  const sharedDistMtimeMs = Math.max(await getBuildMtimeMs(SHARED_DIST_ENTRY), await getNewestMtimeMs(SHARED_DIST_DIR));
 
   const buildReasons = [];
   if (FORCE_SERVER_BUILD) {
@@ -211,8 +213,8 @@ async function ensureServerBuild() {
     cwd: SERVER_DIR
   });
 
-  const verifiedSharedDistMtimeMs = await getBuildMtimeMs(SHARED_DIST_ENTRY);
-  const verifiedServerDistMtimeMs = await getBuildMtimeMs(DIST_ENTRY);
+  const verifiedSharedDistMtimeMs = Math.max(await getBuildMtimeMs(SHARED_DIST_ENTRY), await getNewestMtimeMs(SHARED_DIST_DIR));
+  const verifiedServerDistMtimeMs = Math.max(await getBuildMtimeMs(DIST_ENTRY), await getNewestMtimeMs(SERVER_DIST_DIR));
   if (verifiedSharedDistMtimeMs < latestSharedSrcMtimeMs) {
     throw new Error("shared build completed but shared/dist is still older than shared/src");
   }
@@ -294,6 +296,7 @@ function startServer() {
         ...process.env,
         PORT: String(SERVER_PORT),
         BOT_AI_DISABLED: "true",
+        MONSTER_AI_DISABLED: "true",
         EXTRACT_OPEN_SEC: "8",
         EXTRACT_CHANNEL_DURATION_MS: "1000",
         MATCH_DURATION_SEC: "60"
