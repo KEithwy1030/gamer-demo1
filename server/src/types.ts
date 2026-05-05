@@ -17,6 +17,7 @@ import type {
   WeaponType
 } from "@gamer/shared";
 import type { Affix, ItemRarity, MonsterState, MonsterType, SkillId, StatusEffectType } from "@gamer/shared";
+import type { MonsterBehaviorPhase, MonsterSkillState } from "@gamer/shared";
 import type { Socket } from "socket.io";
 
 export interface SocketSession {
@@ -330,6 +331,23 @@ export interface RuntimeMonster extends MonsterState {
   moveSpeed: number;
   attackCooldownMs: number;
   nextAttackAt: number;
+  behaviorPhase: MonsterBehaviorPhase;
+  skillState?: MonsterSkillState;
+  skillEndsAt?: number;
+  recoverUntil?: number;
+  isEnraged: boolean;
+  enrageThreshold: number;
+  enrageAttackDamageBonus: number;
+  enrageMoveSpeedBonus: number;
+  enrageCooldownMultiplier: number;
+  smashCooldownMs?: number;
+  chargeCooldownMs?: number;
+  nextSmashAt?: number;
+  nextChargeAt?: number;
+  windupTargetId?: string;
+  chargeTargetX?: number;
+  chargeTargetY?: number;
+  recoverHpPerSecond?: number;
   lastAggroAt?: number;
   returningUntil?: number;
   idleUntil?: number;

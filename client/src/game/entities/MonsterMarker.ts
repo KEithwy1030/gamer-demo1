@@ -3,6 +3,7 @@ import type { MonsterState } from "@gamer/shared";
 
 const NORMAL_MONSTER_FRAME_SIZE = 120;
 const ELITE_MONSTER_FRAME_SIZE = 158;
+const BOSS_MONSTER_FRAME_SIZE = 212;
 
 export class MonsterMarker {
   readonly id: string;
@@ -13,6 +14,8 @@ export class MonsterMarker {
   private readonly hpTrack: Phaser.GameObjects.Rectangle;
   private readonly hpFill: Phaser.GameObjects.Rectangle;
   private readonly label: Phaser.GameObjects.Text;
+  private readonly telegraphRing: Phaser.GameObjects.Ellipse;
+  private readonly crown: Phaser.GameObjects.Text;
   private targetX: number;
   private targetY: number;
   public isAlive = true;
@@ -26,21 +29,41 @@ export class MonsterMarker {
     this.targetY = monster.y;
     this.isAlive = monster.isAlive;
 
-    this.shadow = scene.add.ellipse(0, 40, monster.type === "elite" ? 92 : 72, monster.type === "elite" ? 28 : 22, 0x0e0b08, 0.42);
-    
-    const assetKey = monster.type === "elite" ? "monster_elite_sheet" : "monster_normal_sheet";
-    this.sprite = scene.add.sprite(0, 8, assetKey);
-    const displaySize = monster.type === "elite" ? ELITE_MONSTER_FRAME_SIZE : NORMAL_MONSTER_FRAME_SIZE;
-    this.sprite.setDisplaySize(displaySize, displaySize);
+    const isBoss = monster.type === "boss";
+    const isElite = monster.type === "elite";
 
-    const idleKey = monster.type === "elite" ? "monster-elite-sway" : "monster-normal-sway";
+    this.shadow = scene.add.ellipse(0, isBoss ? 54 : 40, isBoss ? 136 : isElite ? 92 : 72, isBoss ? 36 : isElite ? 28 : 22, 0x0e0b08, 0.42);
+    
+    const assetKey = isBoss || isElite ? "monster_elite_sheet" : "monster_normal_sheet";
+    this.sprite = scene.add.sprite(0, 8, assetKey);
+    const displaySize = isBoss ? BOSS_MONSTER_FRAME_SIZE : isElite ? ELITE_MONSTER_FRAME_SIZE : NORMAL_MONSTER_FRAME_SIZE;
+    this.sprite.setDisplaySize(displaySize, displaySize);
+    if (isBoss) {
+      this.sprite.setTint(0xb91c1c);
+    }
+
+    const idleKey = isBoss || isElite ? "monster-elite-sway" : "monster-normal-sway";
     if (scene.anims.exists(idleKey)) {
       this.sprite.anims.play(idleKey, true);
     }
 
-    this.hpTrack = scene.add.rectangle(0, monster.type === "elite" ? -88 : -72, monster.type === "elite" ? 64 : 52, 7, 0x16130f, 0.92);
-    this.hpFill = scene.add.rectangle(monster.type === "elite" ? -32 : -26, monster.type === "elite" ? -88 : -72, monster.type === "elite" ? 64 : 52, 7, 0xb8371f, 1);
+    this.telegraphRing = scene.add.ellipse(0, 12, isBoss ? 174 : 0, isBoss ? 174 : 0, 0xef4444, isBoss ? 0.12 : 0);
+    this.telegraphRing.setStrokeStyle(isBoss ? 3 : 0, 0xfbbf24, 0.55);
+
+    this.hpTrack = scene.add.rectangle(0, isBoss ? -126 : isElite ? -88 : -72, isBoss ? 104 : isElite ? 64 : 52, 9, 0x16130f, 0.92);
+    this.hpFill = scene.add.rectangle(isBoss ? -52 : isElite ? -32 : -26, isBoss ? -126 : isElite ? -88 : -72, isBoss ? 104 : isElite ? 64 : 52, 9, isBoss ? 0xdc2626 : 0xb8371f, 1);
     this.hpFill.setOrigin(0, 0.5);
+
+    this.crown = scene.add.text(0, isBoss ? -164 : -120, isBoss ? "BOSS" : "", {
+      fontFamily: "monospace",
+      fontSize: "12px",
+      fontStyle: "bold",
+      color: "#fef08a",
+      backgroundColor: "rgba(68,20,20,0.78)",
+      padding: { x: 5, y: 2 }
+    });
+    this.crown.setOrigin(0.5, 0.5);
+    this.crown.setVisible(isBoss);
 
     this.label = scene.add.text(0, monster.type === "elite" ? 76 : 62, monster.type === "elite" ? "精英" : "游荡者", {
       fontFamily: "monospace",
@@ -54,12 +77,14 @@ export class MonsterMarker {
 
     this.root = scene.add.container(monster.x, monster.y, [
       this.shadow,
+      this.telegraphRing,
       this.hpTrack,
       this.hpFill,
       this.sprite,
+      this.crown,
       this.label
     ]);
-    this.root.setDepth(monster.type === "elite" ? 16 : 14);
+    this.root.setDepth(isBoss ? 18 : isElite ? 16 : 14);
 
     this.applyState(monster);
   }
@@ -79,7 +104,7 @@ export class MonsterMarker {
 
   private emitDeathParticles(): void {
     const scene = this.root.scene;
-    const color = this.sprite.texture.key === "monster_elite_sheet" ? 0xdc2626 : 0xf97316;
+    const color = this.crown.visible ? 0xdc2626 : this.sprite.texture.key === "monster_elite_sheet" ? 0xdc2626 : 0xf97316;
     
     const emitter = scene.add.particles(this.root.x, this.root.y, "drop", {
       lifespan: 600,
@@ -146,6 +171,7 @@ export class MonsterMarker {
 
   private applyState(monster: MonsterState): void {
     const hpRatio = Phaser.Math.Clamp(monster.maxHp > 0 ? monster.hp / monster.maxHp : 0, 0, 1);
+    const isBoss = monster.type === "boss";
 
     if (monster.hp < this.lastHp && monster.isAlive) {
       (this.root.scene as any).flashEffect?.(this.sprite);
@@ -154,10 +180,19 @@ export class MonsterMarker {
     this.isAlive = monster.isAlive;
     this.lastHp = monster.hp;
 
-    const hpWidth = Math.max(0, (monster.type === "elite" ? 64 : 52) * hpRatio);
+    const hpWidth = Math.max(0, (isBoss ? 104 : monster.type === "elite" ? 64 : 52) * hpRatio);
     if (Math.abs(this.lastHpWidth - hpWidth) > 0.5) {
       this.hpFill.width = hpWidth;
       this.lastHpWidth = hpWidth;
+    }
+    if (isBoss) {
+      const warn = monster.skillState === "smash" || monster.skillState === "charge";
+      this.telegraphRing.setVisible(monster.isAlive);
+      this.telegraphRing.setScale(warn ? 1.14 : 1);
+      this.telegraphRing.setFillStyle(monster.isEnraged ? 0xb91c1c : 0xef4444, warn ? 0.2 : 0.1);
+      this.telegraphRing.setStrokeStyle(warn ? 4 : 3, monster.skillState === "charge" ? 0xf59e0b : 0xfbbf24, warn ? 0.95 : 0.55);
+      this.crown.setText(monster.isEnraged ? "BOSS RAGE" : "BOSS");
+      this.crown.setVisible(monster.isAlive);
     }
     this.label.setText(monster.type === "elite" ? "精英" : "游荡者");
 
@@ -169,11 +204,17 @@ export class MonsterMarker {
     if (monster.isAlive) {
       this.root.setAlpha(1);
       this.sprite.setVisible(true);
-      this.sprite.clearTint();
+      if (isBoss) {
+        this.sprite.setTint(monster.isEnraged ? 0xfb7185 : 0xb91c1c);
+      } else {
+        this.sprite.clearTint();
+      }
       this.sprite.setAngle(0);
       this.sprite.setAlpha(1);
       this.shadow.setAlpha(1);
       this.label.setVisible(true);
+      this.telegraphRing.setVisible(isBoss);
+      this.crown.setVisible(isBoss);
       this.hpTrack.setVisible(true);
       this.hpFill.setVisible(true);
     } else {
@@ -185,6 +226,8 @@ export class MonsterMarker {
       this.sprite.setAlpha(0.62);
       this.shadow.setAlpha(0.2);
       this.label.setVisible(false);
+      this.telegraphRing.setVisible(false);
+      this.crown.setVisible(false);
       this.hpTrack.setVisible(false);
       this.hpFill.setVisible(false);
     }

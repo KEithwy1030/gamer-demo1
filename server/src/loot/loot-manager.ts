@@ -39,6 +39,14 @@ const ELITE_DROP_TABLE: WeightedDefinition[] = [
   { definitionId: "health_potion", weight: 25 }
 ];
 
+const BOSS_DROP_TABLE: WeightedDefinition[] = [
+  { definitionId: "treasure_large_statue", weight: 28 },
+  { definitionId: "treasure_medium_tablet", weight: 18 },
+  { definitionId: "weapon_spear_basic", weight: 18 },
+  { definitionId: "armor_chest_common", weight: 16 },
+  { definitionId: "health_potion", weight: 20 }
+];
+
 const NORMAL_QUALITY_WEIGHTS: QualityWeight[] = [
   { rarity: "common", weight: 60 },
   { rarity: "uncommon", weight: 25 },
@@ -51,6 +59,12 @@ const ELITE_QUALITY_WEIGHTS: QualityWeight[] = [
   { rarity: "uncommon", weight: 35 },
   { rarity: "rare", weight: 25 },
   { rarity: "epic", weight: 10 }
+];
+
+const BOSS_QUALITY_WEIGHTS: QualityWeight[] = [
+  { rarity: "uncommon", weight: 22 },
+  { rarity: "rare", weight: 46 },
+  { rarity: "epic", weight: 32 }
 ];
 
 const AFFIX_COUNT_BY_RARITY: Record<ItemRarity, number> = {
@@ -120,8 +134,12 @@ function pickDropDefinitions(monsterType: MonsterType): string[] {
     return [];
   }
 
-  const table = monsterType === "elite" ? ELITE_DROP_TABLE : NORMAL_DROP_TABLE;
-  const dropCount = monsterType === "elite" ? 2 : 1;
+  const table = monsterType === "boss"
+    ? BOSS_DROP_TABLE
+    : monsterType === "elite"
+      ? ELITE_DROP_TABLE
+      : NORMAL_DROP_TABLE;
+  const dropCount = monsterType === "boss" ? 3 : monsterType === "elite" ? 2 : 1;
   const results: string[] = [];
 
   for (let index = 0; index < dropCount; index += 1) {
@@ -180,7 +198,11 @@ function shouldRollQuality(category: ItemCategory, equipmentSlot: EquipmentSlot 
 }
 
 function rollItemRarity(monsterType: MonsterType): ItemRarity {
-  const weights = monsterType === "elite" ? ELITE_QUALITY_WEIGHTS : NORMAL_QUALITY_WEIGHTS;
+  const weights = monsterType === "boss"
+    ? BOSS_QUALITY_WEIGHTS
+    : monsterType === "elite"
+      ? ELITE_QUALITY_WEIGHTS
+      : NORMAL_QUALITY_WEIGHTS;
   return pickWeighted(weights).rarity;
 }
 
