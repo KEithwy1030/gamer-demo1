@@ -47,6 +47,11 @@ const BOSS_DROP_TABLE: WeightedDefinition[] = [
   { definitionId: "health_potion", weight: 20 }
 ];
 
+const BOSS_HIGH_VALUE_DROP_TABLE: WeightedDefinition[] = [
+  { definitionId: "treasure_large_statue", weight: 3 },
+  { definitionId: "treasure_medium_tablet", weight: 2 }
+];
+
 const NORMAL_QUALITY_WEIGHTS: QualityWeight[] = [
   { rarity: "common", weight: 60 },
   { rarity: "uncommon", weight: 25 },
@@ -134,12 +139,16 @@ function pickDropDefinitions(monsterType: MonsterType): string[] {
     return [];
   }
 
-  const table = monsterType === "boss"
-    ? BOSS_DROP_TABLE
-    : monsterType === "elite"
-      ? ELITE_DROP_TABLE
-      : NORMAL_DROP_TABLE;
-  const dropCount = monsterType === "boss" ? 3 : monsterType === "elite" ? 2 : 1;
+  if (monsterType === "boss") {
+    return [
+      pickWeighted(BOSS_HIGH_VALUE_DROP_TABLE).definitionId,
+      pickWeighted(BOSS_DROP_TABLE).definitionId,
+      pickWeighted(BOSS_DROP_TABLE).definitionId
+    ];
+  }
+
+  const table = monsterType === "elite" ? ELITE_DROP_TABLE : NORMAL_DROP_TABLE;
+  const dropCount = monsterType === "elite" ? 2 : 1;
   const results: string[] = [];
 
   for (let index = 0; index < dropCount; index += 1) {
