@@ -82,15 +82,7 @@ export class ProfileStore {
     const item = stripGridPosition(source.item);
     const targetPageIndex = clamp(payload.pageIndex ?? 0, 0, profile.stash.pages.length - 1);
     const swapSource = payload.swapItemInstanceId
-      ? removeProfileItemFromAreas(
-        profile,
-        payload.swapItemInstanceId,
-        payload.targetArea === "grid"
-          ? ["grid"]
-          : payload.targetArea === "stash"
-            ? ["stash"]
-            : ["equipment"]
-      )
+      ? removeProfileSwapTarget(profile, payload.targetArea, targetPageIndex, payload.swapItemInstanceId)
       : undefined;
 
     if (payload.swapItemInstanceId && !swapSource) {
@@ -114,26 +106,22 @@ export class ProfileStore {
           throw new Error("Inventory is full.");
         }
       } else if (payload.targetArea === "grid") {
-        if (!placeInGrid(profile.inventory, item, payload.x, payload.y)) {
+        if (!placeInGridStrict(profile.inventory, item, payload.x, payload.y)) {
           throw new Error("Inventory is full.");
         }
 
         if (swapSource) {
-          const preferred = source.area === "grid" ? { x: source.item.x, y: source.item.y } : {};
-          if (!placeRemovedItemIntoGrid(profile.inventory, swapSource, preferred.x, preferred.y)) {
+          if (!placeSwapItemIntoSource(profile, source, swapSource)) {
             throw new Error("Inventory is full.");
           }
         }
       } else {
-        if (!placeInGrid(profile.stash.pages[targetPageIndex], item, payload.x, payload.y)) {
+        if (!placeInGridStrict(profile.stash.pages[targetPageIndex], item, payload.x, payload.y)) {
           throw new Error("Stash page is full.");
         }
 
         if (swapSource) {
-          const preferred = swapSource.area === "stash" && source.area === "stash" && swapSource.pageIndex === source.pageIndex
-            ? { x: source.item.x, y: source.item.y }
-            : {};
-          if (!placeInGrid(profile.stash.pages[swapSource.area === "stash" ? swapSource.pageIndex : targetPageIndex], swapSource.item, preferred.x, preferred.y)) {
+          if (!placeSwapItemIntoSource(profile, source, swapSource)) {
             throw new Error("Stash page is full.");
           }
         }
@@ -499,6 +487,31 @@ function removeProfileItemFromAreas(
   return undefined;
 }
 
+function removeProfileSwapTarget(
+  profile: ProfileSnapshot,
+  targetArea: ProfileMovePayload["targetArea"],
+  targetPageIndex: number,
+  itemInstanceId: string
+): ItemSource | undefined {
+  const source = removeProfileItem(profile, itemInstanceId);
+  if (!source) {
+    return undefined;
+  }
+
+  const allowed = targetArea === "grid"
+    ? source.area === "grid" || source.area === "pending" || source.area === "stash"
+    : targetArea === "stash"
+      ? source.area === "stash" && source.pageIndex === targetPageIndex
+      : source.area === "equipment";
+
+  if (allowed) {
+    return source;
+  }
+
+  restoreProfileItem(profile, source);
+  return undefined;
+}
+
 function restoreProfileItem(profile: ProfileSnapshot, source: ItemSource): void {
   if (source.area === "pending") {
     profile.pendingReturn = profile.pendingReturn ?? { items: [] };
@@ -534,6 +547,29 @@ function placeRemovedItemIntoGrid(
   return placeInGrid(grid, source.item, preferredX, preferredY);
 }
 
+function placeSwapItemIntoSource(profile: ProfileSnapshot, source: ItemSource, swapSource: ItemSource): boolean {
+  if (source.area === "pending") {
+    profile.pendingReturn = profile.pendingReturn ?? { items: [] };
+    profile.pendingReturn.items.push(stripGridPosition(swapSource.item));
+    return true;
+  }
+
+  if (source.area === "grid") {
+    return placeRemovedItemIntoGrid(profile.inventory, swapSource, source.item.x, source.item.y);
+  }
+
+  if (source.area === "stash") {
+    return placeInGrid(profile.stash.pages[source.pageIndex], swapSource.item, source.item.x, source.item.y);
+  }
+
+  if (inferEquipmentSlot(swapSource.item) === source.slot) {
+    profile.equipment[source.slot] = stripGridPosition(swapSource.item);
+    return true;
+  }
+
+  return placeInGrid(profile.inventory, swapSource.item);
+}
+
 function placeInGrid(grid: ProfileInventoryState, item: InventoryItemInstance, preferredX?: number, preferredY?: number): boolean {
   const size = getItemSize(item);
   const candidate = stripGridPosition(item);
@@ -549,6 +585,24 @@ function placeInGrid(grid: ProfileInventoryState, item: InventoryItemInstance, p
   }
 
   return false;
+}
+
+function placeInGridStrict(grid: ProfileInventoryState, item: InventoryItemInstance, preferredX?: number, preferredY?: number): boolean {
+  if (preferredX != null || preferredY != null) {
+    if (preferredX == null || preferredY == null) {
+      return false;
+    }
+
+    const candidate = stripGridPosition(item);
+    if (!canPlaceAt(grid, candidate, preferredX, preferredY)) {
+      return false;
+    }
+
+    grid.items.push({ ...candidate, x: preferredX, y: preferredY });
+    return true;
+  }
+
+  return placeInGrid(grid, item);
 }
 
 function canPlaceAt(grid: ProfileInventoryState, item: InventoryItemInstance, x: number, y: number): boolean {
