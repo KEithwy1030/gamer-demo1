@@ -13,6 +13,7 @@ server/server/data/
 artifacts/
 output/
 .codex-run/
+.codex-logs/
 gamer-*.png
 artifacts/*.log
 artifacts/*.err.log
