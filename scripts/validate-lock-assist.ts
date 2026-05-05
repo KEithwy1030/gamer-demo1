@@ -13,6 +13,7 @@ import {
   type LockAssistSelf,
   type LockAssistTarget
 } from "../client/src/scenes/gameScene/lockAssist.js";
+import { mapLockAssistFeedbackEvent } from "../client/src/scenes/gameScene/lockAssistFeedback.js";
 import type { RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
 const now = Date.now();
@@ -20,6 +21,7 @@ const now = Date.now();
 validateServerTargetRangeGuards();
 validateQueuedAttackFlow();
 validateChaseCancelAndReleaseContracts();
+validateFeedbackEventMappings();
 
 console.log("validate-lock-assist: ok");
 
@@ -189,6 +191,77 @@ function validateChaseCancelAndReleaseContracts(): void {
   });
   assert.equal(expired.kind, "clear", "expired chase window should release lock assist");
   assert.equal(expired.reason, "expired", "expiration should not silently continue forced movement");
+}
+
+function validateFeedbackEventMappings(): void {
+  const chaseAssist: ChaseAssistState = {
+    targetId: "monster-1",
+    targetKind: "monster",
+    startedAt: now,
+    expiresAt: now + LOCK_ASSIST_CHASE_MAX_DURATION_MS
+  };
+
+  const continueEvent = mapLockAssistFeedbackEvent({
+    result: {
+      kind: "continue",
+      clearQueuedAttack: false,
+      moveDirection: { x: 1, y: 0 },
+      facingDirection: { x: 1, y: 0 },
+      reason: "advance"
+    },
+    before: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId },
+    after: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId }
+  });
+  assert.deepEqual(continueEvent, {
+    key: `continue:${chaseAssist.targetId}`,
+    text: "锁定追击中",
+    tone: "info"
+  }, "continue steps should expose a throttled pursue feedback event");
+
+  const retreatEvent = mapLockAssistFeedbackEvent({
+    result: {
+      kind: "clear",
+      clearQueuedAttack: true,
+      facingDirection: { x: 1, y: 0 },
+      reason: "retreat-input"
+    },
+    before: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId },
+    after: { chaseAssist: undefined, queuedAttackTargetId: undefined }
+  });
+  assert.deepEqual(retreatEvent, {
+    key: "cancel:retreat-input",
+    text: "后撤已取消",
+    tone: "warn"
+  }, "retreat cancel should map to an explicit cancel feedback event");
+
+  const lostEvent = mapLockAssistFeedbackEvent({
+    result: {
+      kind: "clear",
+      clearQueuedAttack: false,
+      reason: "target-lost"
+    },
+    before: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId },
+    after: { chaseAssist: undefined, queuedAttackTargetId: chaseAssist.targetId }
+  });
+  assert.deepEqual(lostEvent, {
+    key: "clear:target-lost",
+    text: "目标丢失",
+    tone: "warn"
+  }, "target loss should map to visible release feedback");
+
+  const duplicateLostEvent = mapLockAssistFeedbackEvent({
+    result: {
+      kind: "clear",
+      clearQueuedAttack: false,
+      reason: "target-lost"
+    },
+    before: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId },
+    after: { chaseAssist: undefined, queuedAttackTargetId: chaseAssist.targetId }
+  }, {
+    activeTargetId: chaseAssist.targetId,
+    activeReason: "target-lost"
+  });
+  assert.equal(duplicateLostEvent, null, "repeating the same clear reason should not keep generating feedback events");
 }
 
 function createAssistSelf(): LockAssistSelf {

@@ -32,6 +32,7 @@ import {
   type ChaseAssistState,
   type LockAssistTarget
 } from "./gameScene/lockAssist";
+import { LockAssistFeedbackController } from "./gameScene/lockAssistFeedback";
 import {
   getPrimarySkillCooldownMs,
   getPrimarySkillWindupMs,
@@ -72,6 +73,7 @@ export class GameScene extends Phaser.Scene {
   private interactions?: GameSceneInteractions;
   private feedbackFx?: GameSceneFeedbackFx;
   private monsterSkillFx?: MonsterSkillFxController;
+  private lockAssistFeedback?: LockAssistFeedbackController;
   private latestState: MatchViewState | null = null;
   private worldSignature = "";
   private followedPlayerId: string | null = null;
@@ -229,6 +231,7 @@ export class GameScene extends Phaser.Scene {
     this.hudOverlay.mount();
     this.feedbackFx = new GameSceneFeedbackFx(this);
     this.monsterSkillFx = new MonsterSkillFxController(this);
+    this.lockAssistFeedback = new LockAssistFeedbackController(this);
     this.interactions = new GameSceneInteractions(this);
     this.interactions.mount(this.subscribeChestsInit, this.subscribeChestOpened);
     this.inputBridge = new GameSceneInputBridge(this, {
@@ -250,6 +253,13 @@ export class GameScene extends Phaser.Scene {
       this.syncMonsters(state);
       this.syncDrops(state);
       this.syncCorpseFog(state);
+      this.lockAssistFeedback?.sync({
+        state,
+        chaseAssist: this.chaseAssist,
+        queuedAttackTargetId: this.queuedAttack?.targetId,
+        playerMarkers: this.playerMarkers,
+        monsterMarkers: this.monsterMarkers
+      });
       this.hudOverlay?.sync({
         state,
         extractState: this.extractState,
@@ -437,6 +447,8 @@ export class GameScene extends Phaser.Scene {
     this.hudOverlay = undefined;
     this.monsterSkillFx?.destroy();
     this.monsterSkillFx = undefined;
+    this.lockAssistFeedback?.destroy();
+    this.lockAssistFeedback = undefined;
     this.localBasicAttackEndsAt = 0;
     this.queuedAttack = undefined;
     this.chaseAssist = undefined;
@@ -510,6 +522,10 @@ export class GameScene extends Phaser.Scene {
     const target = this.chaseAssist
       ? this.findEntityById(this.chaseAssist.targetId, this.chaseAssist.targetKind)
       : undefined;
+    const beforeFeedbackState = {
+      chaseAssist: this.chaseAssist ? { ...this.chaseAssist } : undefined,
+      queuedAttackTargetId: this.queuedAttack?.targetId
+    };
     const result = resolveChaseAssistStep({
       self,
       chaseAssist: this.chaseAssist,
@@ -527,6 +543,7 @@ export class GameScene extends Phaser.Scene {
       if (result.clearQueuedAttack) {
         this.queuedAttack = undefined;
       }
+      this.emitLockAssistFeedback(result, beforeFeedbackState);
       return;
     }
 
@@ -540,6 +557,7 @@ export class GameScene extends Phaser.Scene {
       const attackPayload = this.buildAttackPayload(result.attackDirection ?? this.inputBridge.getLastFacingDirection(), this.queuedAttack?.targetId);
       this.queuedAttack = undefined;
       this.clearChaseAssist();
+      this.emitLockAssistFeedback(result, beforeFeedbackState);
       this.startLocalBasicAttack(self, cadence, attackPayload);
       return;
     }
@@ -547,6 +565,7 @@ export class GameScene extends Phaser.Scene {
     if (result.moveDirection) {
       this.onMoveInput?.(result.moveDirection);
     }
+    this.emitLockAssistFeedback(result, beforeFeedbackState);
   }
 
   private resolveAttackAssist(self: NonNullable<MatchViewState["players"]>[number]): {
@@ -584,6 +603,23 @@ export class GameScene extends Phaser.Scene {
   private clearChaseAssist(): void {
     this.chaseAssist = undefined;
     this.inputBridge?.setFacingLockDirection(undefined);
+  }
+
+  private emitLockAssistFeedback(
+    result: ReturnType<typeof resolveChaseAssistStep>,
+    before: { chaseAssist?: ChaseAssistState; queuedAttackTargetId?: string }
+  ): void {
+    const event = this.lockAssistFeedback?.handleStepResult({
+      result,
+      before,
+      after: {
+        chaseAssist: this.chaseAssist ? { ...this.chaseAssist } : undefined,
+        queuedAttackTargetId: this.queuedAttack?.targetId
+      }
+    });
+    if (event) {
+      this.hudOverlay?.showLockAssistFeedback(event.text, event.tone, event.key);
+    }
   }
 
   private findEntityById(targetId: string, kind: "player" | "monster"): { id: string; x: number; y: number; isAlive: boolean } | undefined {

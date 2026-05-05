@@ -61,6 +61,10 @@ export class GameHudOverlay {
   private lowHpOverlay?: Phaser.GameObjects.Rectangle;
   private pickupToast?: Phaser.GameObjects.Container;
   private pickupToastTween?: Phaser.Tweens.Tween;
+  private lockAssistToast?: Phaser.GameObjects.Container;
+  private lockAssistToastTween?: Phaser.Tweens.Tween;
+  private lastLockAssistToastKey = "";
+  private lastLockAssistToastAt = 0;
 
   private lastSelfHpRatio = -1;
   private lastHudHpColor = -1;
@@ -377,11 +381,66 @@ export class GameHudOverlay {
     });
   }
 
+  showLockAssistFeedback(text: string, tone: "info" | "warn", key?: string): void {
+    const now = Date.now();
+    const dedupeKey = key ?? `${tone}:${text}`;
+    if (dedupeKey === this.lastLockAssistToastKey && now - this.lastLockAssistToastAt < 850) {
+      return;
+    }
+    this.lastLockAssistToastKey = dedupeKey;
+    this.lastLockAssistToastAt = now;
+
+    const { width, height } = this.scene.scale;
+    this.lockAssistToastTween?.stop();
+    this.lockAssistToast?.destroy();
+
+    const panelWidth = Math.min(360, width - 60);
+    const accent = tone === "warn" ? 0xb8371f : 0x28515b;
+    const background = tone === "warn" ? 0x24120f : 0x101919;
+    const panel = this.scene.add.graphics();
+    panel.fillStyle(background, 0.94);
+    panel.fillRoundedRect(-panelWidth / 2, -26, panelWidth, 52, 10);
+    panel.lineStyle(2, accent, 0.95);
+    panel.strokeRoundedRect(-panelWidth / 2, -26, panelWidth, 52, 10);
+
+    const textNode = this.scene.add.text(0, 0, text, {
+      fontFamily: GAMEPLAY_THEME.fonts.body,
+      fontSize: this.isTouchDevice ? "15px" : "16px",
+      color: tone === "warn" ? "#ffd2c3" : "#d7f2ef",
+      align: "center",
+      wordWrap: { width: panelWidth - 36, useAdvancedWrap: true }
+    }).setOrigin(0.5);
+
+    this.lockAssistToast = this.scene.add.container(width / 2, height - 228, [panel, textNode])
+      .setScrollFactor(0)
+      .setDepth(10030)
+      .setAlpha(0);
+
+    this.lockAssistToastTween = this.scene.tweens.add({
+      targets: this.lockAssistToast,
+      y: height - 246,
+      alpha: { from: 0, to: 1 },
+      duration: 150,
+      ease: "Cubic.out",
+      hold: tone === "warn" ? 900 : 700,
+      yoyo: true,
+      onComplete: () => {
+        this.lockAssistToast?.destroy();
+        this.lockAssistToast = undefined;
+        this.lockAssistToastTween = undefined;
+      }
+    });
+  }
+
   destroy(): void {
     this.pickupToastTween?.stop();
     this.pickupToastTween = undefined;
     this.pickupToast?.destroy();
     this.pickupToast = undefined;
+    this.lockAssistToastTween?.stop();
+    this.lockAssistToastTween = undefined;
+    this.lockAssistToast?.destroy();
+    this.lockAssistToast = undefined;
     this.lowHpOverlay?.destroy();
     this.lowHpOverlay = undefined;
     this.container?.destroy(true);
