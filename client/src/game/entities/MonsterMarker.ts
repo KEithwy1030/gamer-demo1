@@ -1,14 +1,18 @@
 import Phaser from "phaser";
 import type { MonsterState } from "@gamer/shared";
 import { getMonsterLabel, getMonsterReadabilitySnapshot } from "./monsterReadability";
-
-const NORMAL_MONSTER_FRAME_SIZE = 120;
-const ELITE_MONSTER_FRAME_SIZE = 158;
-const BOSS_MONSTER_FRAME_SIZE = 212;
+import {
+  getMonsterAction,
+  getMonsterAnimationKey,
+  getMonsterCorpseFrame,
+  getMonsterDisplaySize,
+  getMonsterTextureKey
+} from "./monsterVisuals";
 
 export class MonsterMarker {
   readonly id: string;
   readonly root: Phaser.GameObjects.Container;
+  private readonly monsterType: MonsterState["type"];
 
   private readonly shadow: Phaser.GameObjects.Ellipse;
   private readonly sprite: Phaser.GameObjects.Sprite;
@@ -30,6 +34,7 @@ export class MonsterMarker {
 
   constructor(scene: Phaser.Scene, monster: MonsterState) {
     this.id = monster.id;
+    this.monsterType = monster.type;
     this.targetX = monster.x;
     this.targetY = monster.y;
     this.isAlive = monster.isAlive;
@@ -44,11 +49,12 @@ export class MonsterMarker {
     this.shadow = scene.add.ellipse(0, isBoss ? 56 : 40, isBoss ? 136 : isElite ? 92 : 72, isBoss ? 36 : isElite ? 28 : 22, 0x0e0b08, 0.42);
     this.threatAura = scene.add.ellipse(0, 18, isBoss ? 182 : isElite ? 120 : 88, isBoss ? 136 : isElite ? 88 : 56, isBoss ? 0x7f1d1d : isElite ? 0x7c2d12 : 0x431407, isBoss ? 0.16 : isElite ? 0.12 : 0.08);
 
-    const assetKey = isBoss || isElite ? "monster_elite_sheet" : "monster_normal_sheet";
+    const assetKey = getMonsterTextureKey(monster.type);
     this.sprite = scene.add.sprite(0, 8, assetKey);
-    this.sprite.setDisplaySize(isBoss ? BOSS_MONSTER_FRAME_SIZE : isElite ? ELITE_MONSTER_FRAME_SIZE : NORMAL_MONSTER_FRAME_SIZE, isBoss ? BOSS_MONSTER_FRAME_SIZE : isElite ? ELITE_MONSTER_FRAME_SIZE : NORMAL_MONSTER_FRAME_SIZE);
+    const displaySize = getMonsterDisplaySize(monster.type);
+    this.sprite.setDisplaySize(displaySize, displaySize);
 
-    const idleKey = isBoss || isElite ? "monster-elite-sway" : "monster-normal-sway";
+    const idleKey = getMonsterAnimationKey(monster.type, "idle");
     if (scene.anims.exists(idleKey)) {
       this.sprite.anims.play(idleKey, true);
     }
@@ -164,10 +170,12 @@ export class MonsterMarker {
     this.phaseBarFill.setFillStyle(snapshot.isWarning ? 0xfbbf24 : snapshot.isAttacking ? 0xef4444 : 0x94a3b8, 1);
 
     this.telegraphRing.setVisible(monster.isAlive);
-    this.telegraphRing.setScale(snapshot.isWarning ? 1.12 : snapshot.isAttacking ? 1.04 : 1);
+    this.telegraphRing.setScale(snapshot.isWarning ? 1.08 : snapshot.isAttacking ? 1.03 : 1);
     this.telegraphRing.setFillStyle(
       snapshot.isBoss ? (monster.isEnraged ? 0xb91c1c : 0xef4444) : snapshot.isElite ? 0xf97316 : 0x7f1d1d,
-      snapshot.isWarning ? (snapshot.isBoss ? 0.22 : 0.14) : snapshot.isAttacking ? 0.16 : snapshot.isElite ? 0.08 : 0.05
+      snapshot.isBoss
+        ? (snapshot.isWarning ? 0.1 : snapshot.isAttacking ? 0.08 : 0.04)
+        : snapshot.isWarning ? 0.14 : snapshot.isAttacking ? 0.16 : snapshot.isElite ? 0.08 : 0.05
     );
     this.telegraphRing.setStrokeStyle(
       snapshot.isBoss ? (snapshot.isWarning ? 4 : 3) : snapshot.isElite ? 2 : 1,
@@ -178,7 +186,7 @@ export class MonsterMarker {
     this.threatAura.setVisible(monster.isAlive);
     this.threatAura.setFillStyle(
       snapshot.isBoss ? (monster.isEnraged ? 0x991b1b : 0x7f1d1d) : snapshot.isElite ? 0x9a3412 : 0x431407,
-      snapshot.isWarning ? (snapshot.isBoss ? 0.24 : 0.16) : snapshot.isRecentlyHit ? 0.14 : snapshot.isElite ? 0.11 : 0.08
+      snapshot.isWarning ? (snapshot.isBoss ? 0.16 : 0.16) : snapshot.isRecentlyHit ? 0.14 : snapshot.isElite ? 0.11 : 0.08
     );
     this.threatAura.setScale(snapshot.isWarning ? 1.12 : snapshot.isAttacking ? 1.04 : 1);
 
@@ -202,7 +210,7 @@ export class MonsterMarker {
       this.phaseBarFill.setVisible(snapshot.isWarning || snapshot.isRecovering || snapshot.isAttacking);
     } else {
       this.sprite.anims.stop();
-      this.sprite.setFrame(resolveCorpseFrame(monster.type));
+      this.sprite.setFrame(getMonsterCorpseFrame(monster.type));
       this.sprite.setVisible(true);
       this.sprite.setTint(0x5f5149);
       this.sprite.setAngle(snapshot.isBoss ? -84 : snapshot.isElite ? -72 : 72);
@@ -222,6 +230,7 @@ export class MonsterMarker {
   }
 
   private applyVisualPose(monster: MonsterState, snapshot: ReturnType<typeof getMonsterReadabilitySnapshot>): void {
+    this.playAction(getMonsterAction(monster, { isRecentlyHit: snapshot.isRecentlyHit }));
     this.sprite.setAlpha(1);
     this.shadow.setAlpha(snapshot.isBoss ? 0.95 : snapshot.isElite ? 0.82 : 0.74);
     this.sprite.setScale(snapshot.isWarning ? 1.06 : snapshot.isAttacking ? 1.03 : 1);
@@ -263,10 +272,20 @@ export class MonsterMarker {
       onComplete: () => flash.destroy()
     });
   }
-}
 
-function resolveCorpseFrame(type: MonsterState["type"]): number {
-  return type === "boss" ? 10 : 7;
+  private playAction(action: ReturnType<typeof getMonsterAction>): void {
+    const animationKey = getMonsterAnimationKey(this.monsterType, action);
+    if (!this.sprite.scene.anims.exists(animationKey)) {
+      return;
+    }
+
+    const currentKey = this.sprite.anims.currentAnim?.key;
+    if (currentKey === animationKey) {
+      return;
+    }
+
+    this.sprite.play(animationKey, true);
+  }
 }
 
 function getPhaseDurationMs(monster: MonsterState): number {
@@ -276,4 +295,3 @@ function getPhaseDurationMs(monster: MonsterState): number {
   if (monster.behaviorPhase === "recover") return 220;
   return 220;
 }
-

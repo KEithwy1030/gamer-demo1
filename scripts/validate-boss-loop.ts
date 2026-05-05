@@ -48,6 +48,10 @@ function assertBossChargeWindup(): void {
     const snapshot = result.monsters.find((monster) => monster.id === bossRuntime.id);
     return snapshot?.behaviorPhase === "windup" && snapshot.skillState === "charge";
   }, "boss should enter charge windup when target is in mid range");
+
+  const snapshot = tickMonsters(context).monsters.find((monster) => monster.id === bossRuntime.id);
+  assert.ok(snapshot?.telegraph?.chargeTarget, "boss charge windup should expose charge target");
+  assert.ok(snapshot?.telegraph?.aimDirection, "boss charge windup should expose charge direction");
 }
 
 function assertBossChargeDamage(): void {
@@ -77,6 +81,9 @@ function assertBossSmashDamage(): void {
     return result.monsters.find((monster) => monster.id === bossRuntime.id)?.skillState === "smash";
   }, "boss should wind up smash in close range");
 
+  const smashSnapshot = tickMonsters(context).monsters.find((monster) => monster.id === bossRuntime.id);
+  assert.ok((smashSnapshot?.telegraph?.smashRadius ?? 0) > 0, "boss smash should expose smash radius");
+
   bossRuntime.skillEndsAt = now - 1;
   const smashResult = tickMonsters(context);
   assert.ok(
@@ -95,6 +102,9 @@ function assertBossRecover(): void {
     const snapshot = result.monsters.find((monster) => monster.id === bossRuntime.id);
     return snapshot?.behaviorPhase === "recover";
   }, "boss should enter recover state after leashing out");
+
+  const recoverSnapshot = tickMonsters(context).monsters.find((monster) => monster.id === bossRuntime.id);
+  assert.ok(recoverSnapshot?.telegraph?.recoverAnchor, "boss recover should expose authoritative return anchor");
 
   const hpBeforeRecover = bossRuntime.hp;
   bossRuntime.returningUntil = now - 1;

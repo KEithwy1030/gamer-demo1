@@ -5,6 +5,12 @@ import { WEAPON_DEFINITIONS } from "@gamer/shared";
 import { DropMarker } from "../game/entities/DropMarker";
 import { MonsterMarker } from "../game/entities/MonsterMarker";
 import { PlayerMarker } from "../game/entities/PlayerMarker";
+import {
+  MONSTER_ASSET_CONTRACTS,
+  getMonsterActionFrames,
+  getMonsterAnimationKey,
+  getMonsterTextureKey
+} from "../game/entities/monsterVisuals";
 import { MatchRuntimeStore, type MatchViewState } from "../game";
 import type { ChestOpenedPayload, ChestState } from "../network/socketClient";
 import type { ExtractUiState } from "./createGameClient";
@@ -18,6 +24,7 @@ import { GameHudOverlay } from "./gameScene/hudOverlay";
 import { GameSceneInputBridge, shouldUseTouchLayout } from "./gameScene/inputBridge";
 import { GameSceneInteractions } from "./gameScene/interactions";
 import { GameSceneFeedbackFx } from "./gameScene/feedbackFx";
+import { MonsterSkillFxController } from "./gameScene/monsterSkillFx";
 import {
   LOCK_ASSIST_CHASE_MAX_DURATION_MS,
   resolveAttackAssist,
@@ -64,6 +71,7 @@ export class GameScene extends Phaser.Scene {
   private inputBridge?: GameSceneInputBridge;
   private interactions?: GameSceneInteractions;
   private feedbackFx?: GameSceneFeedbackFx;
+  private monsterSkillFx?: MonsterSkillFxController;
   private latestState: MatchViewState | null = null;
   private worldSignature = "";
   private followedPlayerId: string | null = null;
@@ -111,8 +119,12 @@ export class GameScene extends Phaser.Scene {
     this.load.spritesheet("unit_player_blade", "assets/generated/image2_processed/characters/unit_player_blade_sheet_8x4.png", { frameWidth: 222, frameHeight: 222 });
     this.load.spritesheet("unit_player_spear", "assets/generated/image2_processed/characters/unit_player_spear_sheet_8x4.png", { frameWidth: 222, frameHeight: 222 });
     this.load.spritesheet("unit_enemy_raider", "assets/generated/image2_processed/characters/unit_enemy_raider_sheet_4x4.png", { frameWidth: 314, frameHeight: 314 });
-    this.load.spritesheet("monster_normal_sheet", "assets/generated/image2_processed/monsters/monster_normal_sheet_4x4.png", { frameWidth: 314, frameHeight: 314 });
-    this.load.spritesheet("monster_elite_sheet", "assets/generated/image2_processed/monsters/monster_elite_sheet_4x4.png", { frameWidth: 314, frameHeight: 314 });
+    for (const contract of Object.values(MONSTER_ASSET_CONTRACTS)) {
+      this.load.spritesheet(contract.textureKey, contract.assetPath, {
+        frameWidth: contract.frameWidth,
+        frameHeight: contract.frameHeight
+      });
+    }
     this.load.spritesheet("world_structures", "assets/generated/image2_processed/atlases/atlas_world_structures_3x3.png", { frameWidth: 418, frameHeight: 418 });
     this.load.image("drop", "assets/generated/image2_processed/items/loot_drop_bag.png");
     this.load.image("chest_closed", "assets/generated/image2_processed/items/loot_chest_closed.png");
@@ -177,8 +189,24 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    this.createAnimation("monster-normal-sway", "monster_normal_sheet", [0, 1, 2, 3, 2, 1], 6, -1);
-    this.createAnimation("monster-elite-sway", "monster_elite_sheet", [0, 1, 2, 3, 2, 1], 5, -1);
+    const monsterFrameRates = {
+      idle: 5,
+      move: 7,
+      attack: 8,
+      charge: 10,
+      hurt: 10,
+      death: 1
+    } as const;
+
+    for (const monsterType of Object.keys(MONSTER_ASSET_CONTRACTS) as Array<keyof typeof MONSTER_ASSET_CONTRACTS>) {
+      const textureKey = getMonsterTextureKey(monsterType);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "idle"), textureKey, getMonsterActionFrames(monsterType, "idle"), monsterFrameRates.idle, -1);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "move"), textureKey, getMonsterActionFrames(monsterType, "move"), monsterFrameRates.move, -1);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "attack"), textureKey, getMonsterActionFrames(monsterType, "attack"), monsterFrameRates.attack, 0);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "charge"), textureKey, getMonsterActionFrames(monsterType, "charge"), monsterFrameRates.charge, 0);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "hurt"), textureKey, getMonsterActionFrames(monsterType, "hurt"), monsterFrameRates.hurt, 0);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "death"), textureKey, getMonsterActionFrames(monsterType, "death"), monsterFrameRates.death, 0);
+    }
   }
 
   private createAnimation(key: string, textureKey: string, frames: number[], frameRate: number, repeat: number): void {
@@ -200,6 +228,7 @@ export class GameScene extends Phaser.Scene {
     this.hudOverlay = new GameHudOverlay(this, touchLayout);
     this.hudOverlay.mount();
     this.feedbackFx = new GameSceneFeedbackFx(this);
+    this.monsterSkillFx = new MonsterSkillFxController(this);
     this.interactions = new GameSceneInteractions(this);
     this.interactions.mount(this.subscribeChestsInit, this.subscribeChestOpened);
     this.inputBridge = new GameSceneInputBridge(this, {
@@ -349,6 +378,7 @@ export class GameScene extends Phaser.Scene {
     const alpha = Phaser.Math.Clamp(delta / 120, 0.08, 0.22);
     for (const m of this.playerMarkers.values()) { m.step(alpha); }
     for (const m of this.monsterMarkers.values()) { m.step(alpha); }
+    this.monsterSkillFx?.step(this.monsterMarkers);
     for (const m of this.dropMarkers.values()) {
       if (Math.abs(m.root.depth - m.root.y) > 0.5) {
         m.root.setDepth(m.root.y);
@@ -405,6 +435,8 @@ export class GameScene extends Phaser.Scene {
     this.inputBridge = undefined;
     this.hudOverlay?.destroy();
     this.hudOverlay = undefined;
+    this.monsterSkillFx?.destroy();
+    this.monsterSkillFx = undefined;
     this.localBasicAttackEndsAt = 0;
     this.queuedAttack = undefined;
     this.chaseAssist = undefined;
@@ -445,14 +477,18 @@ export class GameScene extends Phaser.Scene {
       const existing = this.monsterMarkers.get(monster.id);
       if (existing) {
         existing.sync(monster);
+        this.monsterSkillFx?.sync(monster, existing);
       } else {
-        this.monsterMarkers.set(monster.id, new MonsterMarker(this, monster));
+        const marker = new MonsterMarker(this, monster);
+        this.monsterMarkers.set(monster.id, marker);
+        this.monsterSkillFx?.sync(monster, marker);
       }
     }
 
     // Remove monsters that are no longer in the state (corpses that have been cleaned up)
     for (const [id, marker] of this.monsterMarkers.entries()) {
       if (!currentIds.has(id)) {
+        this.monsterSkillFx?.destroy(id);
         marker.destroy();
         this.monsterMarkers.delete(id);
       }

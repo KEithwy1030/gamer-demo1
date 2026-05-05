@@ -1,7 +1,16 @@
+import type { Vector2 } from "./game.js";
+
 export type MonsterType = "normal" | "elite" | "boss";
 
 export type MonsterBehaviorPhase = "idle" | "hunt" | "windup" | "charge" | "recover";
 export type MonsterSkillState = "smash" | "charge";
+
+export interface MonsterTelegraphState {
+  aimDirection?: Vector2;
+  chargeTarget?: Vector2;
+  smashRadius?: number;
+  recoverAnchor?: Vector2;
+}
 
 export interface MonsterState {
   id: string;
@@ -21,6 +30,7 @@ export interface MonsterState {
   isEnraged?: boolean;
   lastAttackAt?: number;
   lastDamagedAt?: number;
+  telegraph?: MonsterTelegraphState;
 }
 
 export interface MonsterSpawnDefinition {

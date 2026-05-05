@@ -166,8 +166,38 @@ export function listMonsterStates(room: RuntimeRoom): MonsterState[] {
     skillEndsAt: monster.skillEndsAt,
     isEnraged: monster.isEnraged,
     lastAttackAt: monster.lastAttackAt,
-    lastDamagedAt: monster.lastDamagedAt
+    lastDamagedAt: monster.lastDamagedAt,
+    telegraph: getMonsterTelegraphState(monster)
   }));
+}
+
+function getMonsterTelegraphState(monster: RuntimeMonster): MonsterState["telegraph"] {
+  if (monster.type !== "boss") {
+    return undefined;
+  }
+
+  const chargeTarget = typeof monster.chargeTargetX === "number" && typeof monster.chargeTargetY === "number"
+    ? { x: Math.round(monster.chargeTargetX), y: Math.round(monster.chargeTargetY) }
+    : undefined;
+
+  let aimDirection;
+  if (chargeTarget) {
+    const dx = chargeTarget.x - monster.x;
+    const dy = chargeTarget.y - monster.y;
+    const direction = normalizeDirection({ x: dx, y: dy });
+    if (direction.x !== 0 || direction.y !== 0) {
+      aimDirection = direction;
+    }
+  }
+
+  return {
+    aimDirection,
+    chargeTarget,
+    smashRadius: monster.skillState === "smash" || monster.behaviorPhase === "windup" ? BOSS_SMASH_RADIUS : undefined,
+    recoverAnchor: monster.behaviorPhase === "recover"
+      ? { x: Math.round(monster.patrolX), y: Math.round(monster.patrolY) }
+      : undefined
+  };
 }
 
 export function tickMonsters(context: RuntimeContext): MonsterTickResult {

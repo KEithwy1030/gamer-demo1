@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { spawnInitialMonsters, tickMonsters, handlePlayerAttack } from "../server/src/monsters/monster-manager.js";
 import { ensureDropState } from "../server/src/loot/loot-manager.js";
 import { getMonsterLabel, getMonsterReadabilitySnapshot } from "../client/src/game/entities/monsterReadability";
+import { MONSTER_ASSET_CONTRACTS, getMonsterActionFrames, getMonsterTextureKey } from "../client/src/game/entities/monsterVisuals";
+import { assertBossFxCoverage, MonsterSkillFxController } from "../client/src/scenes/gameScene/monsterSkillFx";
 import type { RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
 const now = Date.now();
@@ -49,6 +51,21 @@ function assertVisualContracts(): void {
   const labelKinds = new Set([getMonsterLabel(normal!), getMonsterLabel(elite!), getMonsterLabel(boss!)]);
   assert.equal(labelKinds.size, 3, "normal, elite, and boss should expose distinct visual labels");
 
+  assert.equal(getMonsterTextureKey("boss"), "monster_boss_sheet", "boss should expose its dedicated texture key");
+  assert.notEqual(getMonsterTextureKey("boss"), getMonsterTextureKey("elite"), "boss should no longer share elite texture key");
+
+  assert.ok(Math.abs(MONSTER_ASSET_CONTRACTS.elite.displaySize - MONSTER_ASSET_CONTRACTS.normal.displaySize) <= 16, "normal and elite readability sizes should remain close");
+  assert.ok(MONSTER_ASSET_CONTRACTS.boss.displaySize >= MONSTER_ASSET_CONTRACTS.elite.displaySize + 32, "boss readability size should stay clearly larger than elite");
+
+  for (const action of ["idle", "move", "attack", "charge", "hurt", "death"] as const) {
+    assert.ok(getMonsterActionFrames("boss", action).length > 0, `boss ${action} mapping should exist`);
+  }
+
+  assertBossFxCoverage();
+  const fxCoverage = MonsterSkillFxController.getVisualCoverage();
+  assert.deepEqual(Object.keys(fxCoverage).sort(), ["charge", "enrage", "recover", "smash"], "boss readability fx should cover all boss states");
+  assert.ok(Object.values(fxCoverage).every((entry) => entry.requiresGeometry && entry.labelOnly === false), "boss readability fx cannot fall back to labels only");
+
   const bossSnapshot = getMonsterReadabilitySnapshot(boss!);
   assert.equal(bossSnapshot.isBoss, true, "boss readability snapshot should expose boss tier");
   assert.equal(typeof boss!.phaseEndsAt, "undefined", "fresh boss should not start with phase countdown");
@@ -85,6 +102,10 @@ function assertBossTelegraph(): void {
     const state = result.monsters.find((monster) => monster.id === bossRuntime.id);
     return state?.skillState === "charge" && state.behaviorPhase === "windup" && typeof state.phaseEndsAt === "number";
   }, "boss charge should expose telegraph state");
+
+  const chargeState = tickMonsters(context).monsters.find((monster) => monster.id === bossRuntime.id);
+  assert.ok(chargeState?.telegraph?.chargeTarget, "boss charge should expose authoritative charge target to the client");
+  assert.ok(chargeState?.telegraph?.aimDirection, "boss charge should expose authoritative charge direction to the client");
 
   bossRuntime.hp = Math.ceil(bossRuntime.maxHp * 0.3);
   const enragedState = tickMonsters(context).monsters.find((monster) => monster.id === bossRuntime.id);
@@ -238,4 +259,3 @@ function createPlayer(
     }
   };
 }
-
