@@ -1,0 +1,39 @@
+.inventory-drag-ghost {
+  position: fixed;
+  z-index: 6000;
+  pointer-events: none;
+  opacity: 0.92;
+  cursor: grabbing;
+  transform: scale(1.02);
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.38));
+}
+
+.inventory-grid-drop-preview {
+  position: absolute;
+  z-index: 4;
+  border: 2px dashed var(--inventory-drag-accent, #e8b24d);
+  background: var(--inventory-drag-accent-fill, rgba(232, 178, 77, 0.14));
+  box-sizing: border-box;
+  pointer-events: none;
+  transition: border-color 80ms ease, background-color 80ms ease, transform 80ms ease;
+}
+
+.inventory-grid-drop-preview--invalid {
+  border-color: var(--inventory-drag-danger, #b8371f);
+  background: var(--inventory-drag-danger-fill, rgba(184, 55, 31, 0.16));
+}
+
+.inventory-drop-target--candidate {
+  border-color: var(--inventory-drag-accent, #e8b24d) !important;
+  box-shadow: 0 0 0 2px var(--inventory-drag-accent-outline, rgba(232, 178, 77, 0.22)) inset;
+}
+
+.inventory-drop-target--invalid {
+  border-color: var(--inventory-drag-danger, #b8371f) !important;
+  box-shadow: 0 0 0 2px var(--inventory-drag-danger-outline, rgba(184, 55, 31, 0.22)) inset;
+}
+
+body.inventory-dragging,
+body.inventory-dragging * {
+  user-select: none;
+}

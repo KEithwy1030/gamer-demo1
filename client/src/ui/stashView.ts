@@ -1,6 +1,18 @@
-import { canPlaceRect, INVENTORY_HEIGHT, INVENTORY_WIDTH, type EquipmentSlot } from "@gamer/shared";
+import { INVENTORY_HEIGHT, INVENTORY_WIDTH, type EquipmentSlot } from "@gamer/shared";
 import type { LocalProfile, LocalProfileItem, LocalProfileMovePayload } from "../profile/localProfile";
 import { getItemPresentation } from "./itemPresentation";
+import "../styles/inventoryDrag.css";
+import {
+  createDragGhost,
+  formatHighlightRect,
+  resolveEquipmentCandidate,
+  resolveGridCandidate,
+  toDragOccupants,
+  updateDragGhostPosition,
+  isPointWithinRect,
+  type DragGridCandidate,
+  type DragPointerOffset
+} from "./inventoryDrag/shared";
 
 type SelectedItemRef =
   | { area: "inventory"; item: LocalProfile["inventory"]["items"][number] }
@@ -16,18 +28,11 @@ type ActionItem = { label: string; payload: LocalProfileMovePayload };
 type DragState = {
   source: SelectedItemRef;
   ghost: HTMLElement;
-  offsetX: number;
-  offsetY: number;
+  offset: DragPointerOffset;
 };
 
-type GridCandidate = {
+type GridCandidate = DragGridCandidate & {
   targetArea: GridTargetArea;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  valid: boolean;
-  swapItemInstanceId?: string;
   pageIndex?: number;
 };
 
@@ -44,6 +49,8 @@ export interface StashViewCallbacks {
 }
 
 const GRID_CELL_SIZE = 52;
+const GRID_GAP = 0;
+const GRID_METRICS = { cellSize: GRID_CELL_SIZE, gap: GRID_GAP };
 const EQUIPMENT_ORDER: readonly EquipmentSlot[] = ["weapon", "head", "chest", "hands", "shoes"];
 const EQUIPMENT_LABELS: Record<EquipmentSlot, string> = {
   weapon: "武器",
@@ -171,7 +178,7 @@ class StashView {
     this.stashGrid = document.createElement("div");
     this.stashGrid.className = "stash-grid";
     this.stashHighlight = document.createElement("div");
-    this.stashHighlight.className = "stash-grid-highlight";
+    this.stashHighlight.className = "inventory-grid-drop-preview";
     this.stashHighlight.hidden = true;
     mainPanel.append(this.pendingBanner, this.pendingTray, topRow, this.stashGrid);
 
@@ -188,7 +195,7 @@ class StashView {
     this.loadoutGrid = document.createElement("div");
     this.loadoutGrid.className = "stash-grid stash-grid--loadout";
     this.loadoutHighlight = document.createElement("div");
-    this.loadoutHighlight.className = "stash-grid-highlight";
+    this.loadoutHighlight.className = "inventory-grid-drop-preview";
     this.loadoutHighlight.hidden = true;
     loadoutPanel.append(loadoutHead, this.equipmentRack, this.loadoutGrid);
 
@@ -461,7 +468,7 @@ class StashView {
       }
     }
     highlight.hidden = true;
-    highlight.classList.remove("stash-grid-highlight--invalid");
+    highlight.classList.remove("inventory-grid-drop-preview--invalid");
   }
 
   private buildGridItem(ref: SelectedItemRef, x: number, y: number, width: number, height: number, dimmed: boolean): HTMLElement {
@@ -489,32 +496,26 @@ class StashView {
 
   private startDrag(event: PointerEvent, source: SelectedItemRef, sourceEl: HTMLElement): void {
     if (event.button !== 0 || this.element.hidden) return;
-    const rect = sourceEl.getBoundingClientRect();
-    const ghost = sourceEl.cloneNode(true) as HTMLElement;
-    ghost.classList.add("stash-drag-ghost");
-    ghost.style.width = `${rect.width}px`;
-    ghost.style.height = `${rect.height}px`;
-    ghost.style.left = `${rect.left}px`;
-    ghost.style.top = `${rect.top}px`;
-    document.body.append(ghost);
+    const { ghost, offset } = createDragGhost(sourceEl, event);
     sourceEl.classList.add("stash-item--dragging");
     document.body.classList.add("stash-dragging");
-    this.activeDrag = { source, ghost, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top };
+    this.activeDrag = { source, ghost, offset };
   }
 
   private updateDrag(event: PointerEvent): void {
     if (!this.activeDrag || !this.profile) return;
-    this.activeDrag.ghost.style.left = `${event.clientX - this.activeDrag.offsetX}px`;
-    this.activeDrag.ghost.style.top = `${event.clientY - this.activeDrag.offsetY}px`;
+    updateDragGhostPosition(this.activeDrag.ghost, { x: event.clientX, y: event.clientY }, this.activeDrag.offset);
     this.clearDropFeedback();
 
     const equipmentSlot = this.resolveEquipmentHover(event.clientX, event.clientY);
-    if (equipmentSlot && this.activeDrag.source.item.equipmentSlot === equipmentSlot) {
-      const equipped = this.profile.equipment[equipmentSlot];
-      if (!equipped || equipped.instanceId !== this.activeDrag.source.item.instanceId) {
-        this.currentEquipmentCandidate = equipmentSlot;
-        this.applyDropFeedback();
-      }
+    if (equipmentSlot) {
+      const candidate = resolveEquipmentCandidate({
+        slot: equipmentSlot,
+        item: this.activeDrag.source.item,
+        occupant: this.profile.equipment[equipmentSlot] ?? null
+      });
+      this.currentEquipmentCandidate = equipmentSlot;
+      this.applyDropFeedback(candidate.valid);
       return;
     }
 
@@ -526,14 +527,20 @@ class StashView {
   private finishDrag(): void {
     if (!this.activeDrag) return;
     const source = this.activeDrag.source;
-    if (this.currentEquipmentCandidate && source.item.equipmentSlot === this.currentEquipmentCandidate) {
-      const equipped = this.profile?.equipment[this.currentEquipmentCandidate];
-      this.callbacks.onMoveItem({
-        itemInstanceId: source.item.instanceId,
-        targetArea: "equipment",
+    if (this.currentEquipmentCandidate && this.profile) {
+      const candidate = resolveEquipmentCandidate({
         slot: this.currentEquipmentCandidate,
-        swapItemInstanceId: equipped?.instanceId && equipped.instanceId !== source.item.instanceId ? equipped.instanceId : undefined
+        item: source.item,
+        occupant: this.profile.equipment[this.currentEquipmentCandidate] ?? null
       });
+      if (candidate.valid) {
+        this.callbacks.onMoveItem({
+          itemInstanceId: source.item.instanceId,
+          targetArea: "equipment",
+          slot: this.currentEquipmentCandidate,
+          swapItemInstanceId: candidate.swapItemInstanceId
+        });
+      }
     } else if (this.currentGridCandidate?.valid) {
       this.callbacks.onMoveItem({
         itemInstanceId: source.item.instanceId,
@@ -561,62 +568,55 @@ class StashView {
     this.currentEquipmentCandidate = null;
     this.stashHighlight.hidden = true;
     this.loadoutHighlight.hidden = true;
-    this.stashHighlight.classList.remove("stash-grid-highlight--invalid");
-    this.loadoutHighlight.classList.remove("stash-grid-highlight--invalid");
-    this.equipmentSlotElements.forEach((slotEl) => slotEl.classList.remove("stash-equip-slot--candidate"));
+    this.stashHighlight.classList.remove("inventory-grid-drop-preview--invalid");
+    this.loadoutHighlight.classList.remove("inventory-grid-drop-preview--invalid");
+    this.equipmentSlotElements.forEach((slotEl) => slotEl.classList.remove("inventory-drop-target--candidate", "inventory-drop-target--invalid"));
   }
 
-  private applyDropFeedback(): void {
+  private applyDropFeedback(equipmentValid = true): void {
     if (this.currentEquipmentCandidate) {
-      this.equipmentSlotElements.get(this.currentEquipmentCandidate)?.classList.add("stash-equip-slot--candidate");
+      const slotEl = this.equipmentSlotElements.get(this.currentEquipmentCandidate);
+      slotEl?.classList.add(equipmentValid ? "inventory-drop-target--candidate" : "inventory-drop-target--invalid");
     }
     if (!this.currentGridCandidate) return;
     const highlight = this.currentGridCandidate.targetArea === "stash" ? this.stashHighlight : this.loadoutHighlight;
+    const styles = formatHighlightRect(this.currentGridCandidate, GRID_METRICS);
     highlight.hidden = false;
-    highlight.classList.toggle("stash-grid-highlight--invalid", !this.currentGridCandidate.valid);
-    highlight.style.left = `${this.currentGridCandidate.x * GRID_CELL_SIZE}px`;
-    highlight.style.top = `${this.currentGridCandidate.y * GRID_CELL_SIZE}px`;
-    highlight.style.width = `${this.currentGridCandidate.width * GRID_CELL_SIZE}px`;
-    highlight.style.height = `${this.currentGridCandidate.height * GRID_CELL_SIZE}px`;
+    highlight.classList.toggle("inventory-grid-drop-preview--invalid", !this.currentGridCandidate.valid);
+    highlight.style.left = styles.left;
+    highlight.style.top = styles.top;
+    highlight.style.width = styles.width;
+    highlight.style.height = styles.height;
   }
 
   private resolveGridCandidate(targetArea: GridTargetArea, clientX: number, clientY: number): GridCandidate | null {
     if (!this.profile || !this.activeDrag) return null;
     const container = targetArea === "stash" ? this.stashGrid : this.loadoutGrid;
     const rect = container.getBoundingClientRect();
-    if (!(clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom)) return null;
+    if (!isPointWithinRect(clientX, clientY, rect)) return null;
     const grid = targetArea === "stash" ? this.profile.stash.pages[this.currentPageIndex] : this.profile.inventory;
-    const width = Math.max(1, this.activeDrag.source.item.width ?? 1);
-    const height = Math.max(1, this.activeDrag.source.item.height ?? 1);
-    const x = clamp(Math.floor((clientX - rect.left) / GRID_CELL_SIZE), 0, Math.max(0, grid.width - width));
-    const y = clamp(Math.floor((clientY - rect.top) / GRID_CELL_SIZE), 0, Math.max(0, grid.height - height));
     const activeId = this.activeDrag.source.item.instanceId;
     const relevantItems = grid.items.filter((entry) => {
       if (entry.instanceId !== activeId) return true;
       return !(targetArea === "stash" && this.activeDrag!.source.area === "stash" && this.activeDrag!.source.pageIndex === this.currentPageIndex)
         && !(targetArea === "inventory" && this.activeDrag!.source.area === "inventory");
     });
-    const overlaps = relevantItems.filter((entry) => rectanglesOverlap({ x, y, width, height }, { x: entry.x, y: entry.y, width: entry.width ?? 1, height: entry.height ?? 1 }));
-    if (overlaps.length === 0) {
-      return { targetArea, pageIndex: targetArea === "stash" ? this.currentPageIndex : undefined, x, y, width, height, valid: canPlaceRect(grid, toGridRects(relevantItems), { x, y, width, height }) };
-    }
-    if (overlaps.length === 1) {
-      const swapTarget = overlaps[0];
-      if ((swapTarget.width ?? 1) === width && (swapTarget.height ?? 1) === height) {
-        const remaining = relevantItems.filter((entry) => entry.instanceId !== swapTarget.instanceId);
-        return {
-          targetArea,
-          pageIndex: targetArea === "stash" ? this.currentPageIndex : undefined,
-          x,
-          y,
-          width,
-          height,
-          valid: canPlaceRect(grid, toGridRects(remaining), { x, y, width, height }),
-          swapItemInstanceId: swapTarget.instanceId
-        };
+    const candidate = resolveGridCandidate({
+      grid,
+      pointer: { x: clientX, y: clientY },
+      surfaceRect: rect,
+      metrics: GRID_METRICS,
+      item: this.activeDrag.source.item,
+      occupants: toDragOccupants(relevantItems),
+      ignoreInstanceIds: []
+    });
+    return candidate
+      ? {
+        ...candidate,
+        targetArea,
+        pageIndex: targetArea === "stash" ? this.currentPageIndex : undefined
       }
-    }
-    return { targetArea, pageIndex: targetArea === "stash" ? this.currentPageIndex : undefined, x, y, width, height, valid: false };
+      : null;
   }
 
   private resolveEquipmentHover(clientX: number, clientY: number): EquipmentSlot | null {
@@ -743,10 +743,4 @@ function matchesCategory(item: LocalProfileItem, category: CategoryFilter): bool
 function rarityLabel(rarity: string | undefined): string { if (rarity === "epic") return "S"; if (rarity === "rare") return "A"; if (rarity === "uncommon") return "B"; return "C"; }
 function kindLabel(kind: string): string { if (kind === "weapon") return "武器"; if (kind === "treasure") return "战利品"; if (kind === "consumable") return "消耗"; return "材料"; }
 function formatCompactNumber(value: number): string { return new Intl.NumberFormat("zh-CN").format(Math.max(0, Math.round(value))); }
-function toGridRects(items: Array<{ x: number; y: number; width?: number; height?: number }>): Array<{ x: number; y: number; width: number; height: number }> {
-  return items.map((item) => ({ x: item.x, y: item.y, width: item.width ?? 1, height: item.height ?? 1 }));
-}
-function rectanglesOverlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }): boolean {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-}
 function clamp(value: number, min: number, max: number): number { return Math.max(min, Math.min(max, value)); }

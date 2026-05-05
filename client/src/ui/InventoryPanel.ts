@@ -1,7 +1,19 @@
-import { canPlaceRect, findFirstFitRect } from "@gamer/shared";
+import { findFirstFitRect } from "@gamer/shared";
 import type { MatchInventoryItem, MatchInventoryState } from "../game/matchRuntime";
 import "../styles/inventory.css";
+import "../styles/inventoryDrag.css";
 import { getItemPresentation, getSlotLabel } from "./itemPresentation";
+import {
+  createDragGhost,
+  formatHighlightRect,
+  resolveEquipmentCandidate,
+  resolveGridCandidate,
+  toDragOccupants,
+  updateDragGhostPosition,
+  isPointWithinRect,
+  type DragGridCandidate,
+  type DragPointerOffset
+} from "./inventoryDrag/shared";
 
 export interface InventoryPanelApi {
   readonly element: HTMLElement;
@@ -23,17 +35,7 @@ type DragState = {
   item: MatchInventoryItem;
   area: ItemArea;
   ghost: HTMLElement;
-  offsetX: number;
-  offsetY: number;
-};
-
-type BackpackPlacementCandidate = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  swapItemInstanceId?: string;
-  valid: boolean;
+  offset: DragPointerOffset;
 };
 
 const SLOT_ORDER: EquipmentSlotKey[] = ["weapon", "head", "chest", "hands", "shoes"];
@@ -67,12 +69,13 @@ const STAT_LABELS: Record<string, string> = {
 
 const GRID_CELL_SIZE = 34;
 const GRID_GAP = 4;
+const GRID_METRICS = { cellSize: GRID_CELL_SIZE, gap: GRID_GAP };
 
 export function createInventoryPanel(options: InventoryPanelOptions): InventoryPanelApi {
   let inventoryState: MatchInventoryState | null = null;
   let activeTooltip: HTMLElement | null = null;
   let activeDrag: DragState | null = null;
-  let currentBackpackCandidate: BackpackPlacementCandidate | null = null;
+  let currentBackpackCandidate: DragGridCandidate | null = null;
   let currentEquipCandidate: EquipmentSlotKey | null = null;
   const cleanup: Array<() => void> = [];
 
@@ -126,7 +129,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   const backpackCells = document.createElement("div");
   backpackCells.className = "inventory-backpack-cells";
   const backpackHighlight = document.createElement("div");
-  backpackHighlight.className = "inventory-grid-highlight";
+  backpackHighlight.className = "inventory-grid-drop-preview";
   backpackHighlight.hidden = true;
   const backpackItems = document.createElement("div");
   backpackItems.className = "inventory-backpack-items";
@@ -304,35 +307,40 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   function clearHighlights(): void {
     currentBackpackCandidate = null;
     backpackHighlight.hidden = true;
+    backpackHighlight.classList.remove("inventory-grid-drop-preview--invalid");
     if (currentEquipCandidate) {
-      equipmentSlotElements.get(currentEquipCandidate)?.classList.remove("inventory-equip-slot--candidate");
+      const slotElement = equipmentSlotElements.get(currentEquipCandidate);
+      slotElement?.classList.remove("inventory-drop-target--candidate", "inventory-drop-target--invalid");
       currentEquipCandidate = null;
     }
   }
 
-  function renderBackpackHighlight(candidate: BackpackPlacementCandidate | null): void {
+  function renderBackpackHighlight(candidate: DragGridCandidate | null): void {
     currentBackpackCandidate = candidate;
     if (!candidate) {
       backpackHighlight.hidden = true;
-      backpackHighlight.classList.remove("inventory-grid-highlight--invalid");
+      backpackHighlight.classList.remove("inventory-grid-drop-preview--invalid");
       return;
     }
 
+    const styles = formatHighlightRect(candidate, GRID_METRICS);
     backpackHighlight.hidden = false;
-    backpackHighlight.classList.toggle("inventory-grid-highlight--invalid", !candidate.valid);
-    backpackHighlight.style.left = `${candidate.x * (GRID_CELL_SIZE + GRID_GAP)}px`;
-    backpackHighlight.style.top = `${candidate.y * (GRID_CELL_SIZE + GRID_GAP)}px`;
-    backpackHighlight.style.width = `${candidate.width * GRID_CELL_SIZE + (candidate.width - 1) * GRID_GAP}px`;
-    backpackHighlight.style.height = `${candidate.height * GRID_CELL_SIZE + (candidate.height - 1) * GRID_GAP}px`;
+    backpackHighlight.classList.toggle("inventory-grid-drop-preview--invalid", !candidate.valid);
+    backpackHighlight.style.left = styles.left;
+    backpackHighlight.style.top = styles.top;
+    backpackHighlight.style.width = styles.width;
+    backpackHighlight.style.height = styles.height;
   }
 
-  function renderEquipmentCandidate(slot: EquipmentSlotKey | null): void {
+  function renderEquipmentCandidate(slot: EquipmentSlotKey | null, valid = true): void {
     if (currentEquipCandidate && currentEquipCandidate !== slot) {
-      equipmentSlotElements.get(currentEquipCandidate)?.classList.remove("inventory-equip-slot--candidate");
+      equipmentSlotElements.get(currentEquipCandidate)?.classList.remove("inventory-drop-target--candidate", "inventory-drop-target--invalid");
     }
     currentEquipCandidate = slot;
     for (const [slotKey, slotElement] of equipmentSlotElements.entries()) {
-      slotElement.classList.toggle("inventory-equip-slot--candidate", slotKey === slot);
+      const active = slotKey === slot;
+      slotElement.classList.toggle("inventory-drop-target--candidate", active && valid);
+      slotElement.classList.toggle("inventory-drop-target--invalid", active && !valid);
     }
   }
 
@@ -343,21 +351,13 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
     hideTooltip();
 
-    const rect = sourceEl.getBoundingClientRect();
-    const ghost = sourceEl.cloneNode(true) as HTMLElement;
-    ghost.classList.add("inventory-drag-ghost");
-    ghost.style.width = `${rect.width}px`;
-    ghost.style.height = `${rect.height}px`;
-    ghost.style.left = `${rect.left}px`;
-    ghost.style.top = `${rect.top}px`;
-    document.body.append(ghost);
+    const { ghost, offset } = createDragGhost(sourceEl, event);
 
     activeDrag = {
       item,
       area,
       ghost,
-      offsetX: event.clientX - rect.left,
-      offsetY: event.clientY - rect.top
+      offset
     };
     sourceEl.classList.add("inventory-item--dragging");
     document.body.classList.add("inventory-dragging");
@@ -368,29 +368,24 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
       return;
     }
 
-    activeDrag.ghost.style.left = `${event.clientX - activeDrag.offsetX}px`;
-    activeDrag.ghost.style.top = `${event.clientY - activeDrag.offsetY}px`;
+    updateDragGhostPosition(activeDrag.ghost, { x: event.clientX, y: event.clientY }, activeDrag.offset);
 
     clearHighlights();
 
     const slot = resolveEquipmentHover(event.clientX, event.clientY);
     if (slot) {
       const occupant = inventoryState.equipment[slot];
-      const canEquip = activeDrag.item.equipmentSlot === slot;
-      const validSwap = !occupant || occupant.instanceId !== activeDrag.item.instanceId;
-      renderEquipmentCandidate(canEquip && validSwap ? slot : null);
+      const candidate = resolveEquipmentCandidate({
+        slot,
+        item: activeDrag.item,
+        occupant: occupant ?? null
+      });
+      renderEquipmentCandidate(slot, candidate.valid);
       return;
     }
 
-    if (activeDrag.area === "backpack") {
-    }
-
     const backpackRect = backpackSurface.getBoundingClientRect();
-    const insideBackpack = event.clientX >= backpackRect.left
-      && event.clientX <= backpackRect.right
-      && event.clientY >= backpackRect.top
-      && event.clientY <= backpackRect.bottom;
-    if (!insideBackpack) {
+    if (!isPointWithinRect(event.clientX, event.clientY, backpackRect)) {
       return;
     }
 
@@ -408,14 +403,21 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     document.querySelectorAll(".inventory-item--dragging").forEach((node) => node.classList.remove("inventory-item--dragging"));
     document.body.classList.remove("inventory-dragging");
 
-    if (currentEquipCandidate && activeDrag.item.equipmentSlot === currentEquipCandidate) {
-      const equipped = inventoryState?.equipment[currentEquipCandidate];
-      options.onMove({
-        itemInstanceId: sourceInstanceId,
-        targetArea: "equipment",
+    if (currentEquipCandidate && inventoryState) {
+      const equipped = inventoryState.equipment[currentEquipCandidate];
+      const candidate = resolveEquipmentCandidate({
         slot: currentEquipCandidate,
-        swapItemInstanceId: equipped?.instanceId && equipped.instanceId !== sourceInstanceId ? equipped.instanceId : undefined
+        item: activeDrag.item,
+        occupant: equipped ?? null
       });
+      if (candidate.valid) {
+        options.onMove({
+          itemInstanceId: sourceInstanceId,
+          targetArea: "equipment",
+          slot: currentEquipCandidate,
+          swapItemInstanceId: candidate.swapItemInstanceId
+        });
+      }
     } else if (currentBackpackCandidate?.valid) {
       options.onMove({
         itemInstanceId: sourceInstanceId,
@@ -595,82 +597,25 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     ) ?? null;
   }
 
-  function resolveBackpackCandidate(clientX: number, clientY: number): BackpackPlacementCandidate | null {
+  function resolveBackpackCandidate(clientX: number, clientY: number): DragGridCandidate | null {
     if (!inventoryState || !activeDrag) {
       return null;
     }
-    const drag = activeDrag;
-
-    const rect = backpackSurface.getBoundingClientRect();
-    const rawX = Math.floor((clientX - rect.left) / (GRID_CELL_SIZE + GRID_GAP));
-    const rawY = Math.floor((clientY - rect.top) / (GRID_CELL_SIZE + GRID_GAP));
-    const width = Math.max(1, drag.item.width ?? 1);
-    const height = Math.max(1, drag.item.height ?? 1);
-    const x = clamp(rawX, 0, Math.max(0, inventoryState.width - width));
-    const y = clamp(rawY, 0, Math.max(0, inventoryState.height - height));
-    const overlaps = inventoryState.items.filter((entry) => {
-      if (entry.instanceId === drag.item.instanceId) {
-        return false;
-      }
-      return rectanglesOverlap(
-        { x, y, width, height },
-        {
+    return resolveGridCandidate({
+      grid: { width: inventoryState.width, height: inventoryState.height },
+      pointer: { x: clientX, y: clientY },
+      surfaceRect: backpackSurface.getBoundingClientRect(),
+      metrics: GRID_METRICS,
+      item: activeDrag.item,
+      occupants: toDragOccupants(
+        inventoryState.items.map((entry) => ({
+          ...entry,
           x: Number.isFinite(entry.x) ? Number(entry.x) : 0,
-          y: Number.isFinite(entry.y) ? Number(entry.y) : 0,
-          width: Math.max(1, entry.width ?? 1),
-          height: Math.max(1, entry.height ?? 1)
-        }
-      );
+          y: Number.isFinite(entry.y) ? Number(entry.y) : 0
+        }))
+      ),
+      ignoreInstanceIds: [activeDrag.item.instanceId]
     });
-
-    if (overlaps.length === 0) {
-      const existing = toGridRects(inventoryState.items.filter((entry) => entry.instanceId !== drag.item.instanceId));
-      return {
-        x,
-        y,
-        width,
-        height,
-        valid: canPlaceRect({ width: inventoryState.width, height: inventoryState.height }, existing, { x, y, width, height })
-      };
-    }
-
-    if (overlaps.length === 1) {
-      const swapTarget = overlaps[0];
-      const swapWidth = Math.max(1, swapTarget.width ?? 1);
-      const swapHeight = Math.max(1, swapTarget.height ?? 1);
-      if (swapWidth === width && swapHeight === height) {
-        const remaining = inventoryState.items.filter((entry) => entry.instanceId !== drag.item.instanceId && entry.instanceId !== swapTarget.instanceId);
-        const valid = canPlaceRect(
-          { width: inventoryState.width, height: inventoryState.height },
-          toGridRects(remaining),
-          { x, y, width, height }
-        );
-        return {
-          x,
-          y,
-          width,
-          height,
-          swapItemInstanceId: swapTarget.instanceId,
-          valid
-        };
-      }
-    }
-
-    return { x, y, width, height, valid: false };
-  }
-
-  function rectanglesOverlap(
-    a: { x: number; y: number; width: number; height: number },
-    b: { x: number; y: number; width: number; height: number }
-  ): boolean {
-    return a.x < b.x + b.width
-      && a.x + a.width > b.x
-      && a.y < b.y + b.height
-      && a.y + a.height > b.y;
-  }
-
-  function clamp(value: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, value));
   }
 
   function toGridRects(items: MatchInventoryItem[]): Array<{ x: number; y: number; width: number; height: number }> {
