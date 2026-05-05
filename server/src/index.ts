@@ -39,6 +39,7 @@ import {
   interruptPlayerExtract,
   startPlayerExtract
 } from "./extract/index.js";
+import { getRiverHazardAtPoint, isPointInsideSafeCrossing } from "./match-layout.js";
 import { InventoryService } from "./inventory/index.js";
 import {
   handlePlayerAttack as handleMonsterPlayerAttack,
@@ -278,19 +279,8 @@ function applyRiverHazardTick(roomCode: string, now = Date.now()): void {
       continue;
     }
 
-    const inCrossing = layout.safeCrossings.some((crossing) => (
-      state.x >= crossing.x
-      && state.x <= crossing.x + crossing.width
-      && state.y >= crossing.y
-      && state.y <= crossing.y + crossing.height
-    ));
-
-    const hazard = layout.riverHazards.find((entry) => (
-      state.x >= entry.x
-      && state.x <= entry.x + entry.width
-      && state.y >= entry.y
-      && state.y <= entry.y + entry.height
-    ));
+    const inCrossing = isPointInsideSafeCrossing(layout, state.x, state.y);
+    const hazard = getRiverHazardAtPoint(layout, state.x, state.y);
 
     if (!hazard || inCrossing) {
       continue;

@@ -17,6 +17,7 @@
     "validate:profile-carry": "tsx scripts/validate-profile-carry.ts",
     "validate:extract-service": "tsx scripts/validate-extract-service.ts",
     "validate:boss-loop": "tsx scripts/validate-boss-loop.ts",
+    "validate:map-hazards": "tsx scripts/validate-map-hazards.ts",
     "validate:lock-assist": "tsx scripts/validate-lock-assist.ts",
     "validate:room-loadout-contract": "tsx scripts/validate-room-loadout-contract.ts",
     "validate:market-lifecycle": "tsx scripts/validate-market-lifecycle.ts"

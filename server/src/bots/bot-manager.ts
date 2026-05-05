@@ -3,7 +3,7 @@ import { openChest } from "../chests/chest-manager.js";
 import { startPlayerExtract } from "../extract/index.js";
 import { InventoryService } from "../inventory/service.js";
 import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "../internal-constants.js";
-import { getBestSafeCrossing, getNearestContestedChestZone, getRiverHazardAtPoint, getSquadSpawnZone, getStarterChestZone, isPointInsideSafeCrossing } from "../match-layout.js";
+import { doesSegmentRequireSafeCrossing, getBestSafeCrossing, getNearestContestedChestZone, getSquadSpawnZone, getStarterChestZone, isPointInsideRiverHazard } from "../match-layout.js";
 import { handlePlayerAttack as handleMonsterPlayerAttack, handlePlayerSkill as handleMonsterPlayerSkill } from "../monsters/monster-manager.js";
 import { resolvePlayerAttack, resolvePlayerSkillCast, type PlayerDeathPayload } from "../combat/combat-service.js";
 import type { ChestOpenedPayload, ExtractProgressPayload, LootPickedPayload, RuntimeContext, RuntimeMonster, RuntimePlayer } from "../types.js";
@@ -603,12 +603,9 @@ function getTravelDirection(context: RuntimeContext, from: Vector2, to: Vector2)
     return directionTo(from, to);
   }
 
-  const hazard = layout.riverHazards[0];
-  const leftEdge = hazard.x;
-  const rightEdge = hazard.x + hazard.width;
-  const fromInRiver = Boolean(getRiverHazardAtPoint(layout, from.x, from.y)) && !isPointInsideSafeCrossing(layout, from.x, from.y);
-  const toInRiver = Boolean(getRiverHazardAtPoint(layout, to.x, to.y)) && !isPointInsideSafeCrossing(layout, to.x, to.y);
-  const crossesRiver = (from.x < leftEdge && to.x > rightEdge) || (to.x < leftEdge && from.x > rightEdge);
+  const fromInRiver = isPointInsideRiverHazard(layout, from.x, from.y);
+  const toInRiver = isPointInsideRiverHazard(layout, to.x, to.y);
+  const crossesRiver = doesSegmentRequireSafeCrossing(layout, from, to);
 
   if (!fromInRiver && !toInRiver && !crossesRiver) {
     return directionTo(from, to);

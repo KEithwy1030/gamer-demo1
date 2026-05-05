@@ -132,17 +132,41 @@ function drawCorpseRiver(layer: Phaser.GameObjects.Graphics, state: MatchViewSta
   const hazards = state.layout?.riverHazards ?? [];
   if (hazards.length === 0) return;
 
+  layer.fillStyle(0x2d3423, 0.07);
+  layer.lineStyle(0, 0, 0);
+  const centerline: Array<{ x: number; y: number }> = [];
+
   for (const hazard of hazards) {
-    layer.fillStyle(0x26331e, 0.08);
-    layer.fillRect(hazard.x, hazard.y, hazard.width, hazard.height);
-    layer.fillStyle(0x5d6a36, 0.06);
-    layer.fillRect(hazard.x + hazard.width * 0.18, hazard.y, hazard.width * 0.64, hazard.height);
+    layer.fillRoundedRect(hazard.x, hazard.y, hazard.width, hazard.height, 70);
+    centerline.push({ x: hazard.x + (hazard.width / 2), y: hazard.y + (hazard.height / 2) });
+
+    layer.fillStyle(0x4f6330, 0.1);
+    layer.fillRoundedRect(
+      hazard.x + hazard.width * 0.16,
+      hazard.y + hazard.height * 0.06,
+      hazard.width * 0.68,
+      hazard.height * 0.88,
+      54
+    );
     layer.lineStyle(3, GAMEPLAY_THEME.colors.caution, 0.16);
-    layer.lineBetween(hazard.x + 8, hazard.y, hazard.x + 8, hazard.y + hazard.height);
-    layer.lineBetween(hazard.x + hazard.width - 8, hazard.y, hazard.x + hazard.width - 8, hazard.y + hazard.height);
-    layer.lineStyle(2, 0x9aa35a, 0.08);
-    for (let y = hazard.y + 120; y < hazard.y + hazard.height; y += 180) {
-      layer.lineBetween(hazard.x + 44, y, hazard.x + hazard.width - 44, y + 48);
+    layer.strokeRoundedRect(hazard.x + 6, hazard.y + 6, hazard.width - 12, hazard.height - 12, 64);
+    layer.lineStyle(2, 0x9aa35a, 0.09);
+
+    if (hazard.width >= hazard.height) {
+      for (let x = hazard.x + 84; x < hazard.x + hazard.width - 48; x += 128) {
+        layer.lineBetween(x, hazard.y + 34, x + 38, hazard.y + hazard.height - 38);
+      }
+    } else {
+      for (let y = hazard.y + 92; y < hazard.y + hazard.height - 48; y += 148) {
+        layer.lineBetween(hazard.x + 34, y, hazard.x + hazard.width - 34, y + 34);
+      }
+    }
+  }
+
+  if (centerline.length > 1) {
+    layer.lineStyle(12, 0x71833a, 0.08);
+    for (let index = 0; index < centerline.length - 1; index += 1) {
+      layer.lineBetween(centerline[index].x, centerline[index].y, centerline[index + 1].x, centerline[index + 1].y);
     }
   }
 }
@@ -165,12 +189,26 @@ function drawSafeCrossings(scene: Phaser.Scene, state: MatchViewState): Phaser.G
       return graphics;
     }
 
-    const padX = Math.min(86, crossing.width * 0.12);
-    const padY = Math.min(64, crossing.height * 0.2);
+    const isFord = crossing.crossingId.includes("ford");
+    const padX = isFord ? Math.min(52, crossing.width * 0.1) : Math.min(86, crossing.width * 0.12);
+    const padY = isFord ? Math.min(44, crossing.height * 0.12) : Math.min(64, crossing.height * 0.2);
     const x = crossing.x + padX;
     const y = crossing.y + padY;
     const width = crossing.width - padX * 2;
     const height = crossing.height - padY * 2;
+
+    if (isFord) {
+      graphics.fillStyle(0x8b7e57, 0.42);
+      graphics.fillRoundedRect(x, y, width, height, 28);
+      graphics.lineStyle(4, 0xc9ba88, 0.24);
+      graphics.strokeRoundedRect(x, y, width, height, 28);
+      graphics.lineStyle(2, 0x6e6548, 0.22);
+      for (let offset = 18; offset < height; offset += 26) {
+        graphics.lineBetween(x + 22, y + offset, x + width - 22, y + offset + 8);
+      }
+      return graphics;
+    }
+
     graphics.fillStyle(0x5b5346, 0.58);
     graphics.fillRoundedRect(x, y, width, height, 14);
     graphics.lineStyle(5, 0xd4b24c, 0.3);

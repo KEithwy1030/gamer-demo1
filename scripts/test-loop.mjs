@@ -578,14 +578,12 @@ function getPreferredExtractZone(clientState) {
 
 function getBridgeAwareWaypoints(clientState, from, to) {
   const layout = clientState.matchStarted?.room?.layout;
-  const hazard = layout?.riverHazards?.[0];
   const safeCrossings = layout?.safeCrossings ?? [];
-  if (!hazard || safeCrossings.length === 0) {
+  const hazards = layout?.riverHazards ?? [];
+  if (hazards.length === 0 || safeCrossings.length === 0) {
     return [to];
   }
 
-  const leftEdge = hazard.x;
-  const rightEdge = hazard.x + hazard.width;
   const pointInRect = (point, rect) => (
     point.x >= rect.x
     && point.x <= rect.x + rect.width
@@ -593,9 +591,61 @@ function getBridgeAwareWaypoints(clientState, from, to) {
     && point.y <= rect.y + rect.height
   );
 
-  const fromInRiver = pointInRect(from, hazard) && !safeCrossings.some((crossing) => pointInRect(from, crossing));
-  const toInRiver = pointInRect(to, hazard) && !safeCrossings.some((crossing) => pointInRect(to, crossing));
-  const crossesRiver = (from.x < leftEdge && to.x > rightEdge) || (to.x < leftEdge && from.x > rightEdge);
+  const pointInHazard = (point) => (
+    hazards.some((hazard) => pointInRect(point, hazard))
+    && !safeCrossings.some((crossing) => pointInRect(point, crossing))
+  );
+
+  const segmentIntersectsSegment = (a1, a2, b1, b2) => {
+    const subtract = (left, right) => ({ x: left.x - right.x, y: left.y - right.y });
+    const cross = (left, right) => (left.x * right.y) - (left.y * right.x);
+    const pointOnSegment = (start, point, end) => (
+      point.x >= Math.min(start.x, end.x)
+      && point.x <= Math.max(start.x, end.x)
+      && point.y >= Math.min(start.y, end.y)
+      && point.y <= Math.max(start.y, end.y)
+    );
+
+    const d1 = cross(subtract(a2, a1), subtract(b1, a1));
+    const d2 = cross(subtract(a2, a1), subtract(b2, a1));
+    const d3 = cross(subtract(b2, b1), subtract(a1, b1));
+    const d4 = cross(subtract(b2, b1), subtract(a2, b1));
+
+    if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+      return true;
+    }
+
+    return (d1 === 0 && pointOnSegment(a1, b1, a2))
+      || (d2 === 0 && pointOnSegment(a1, b2, a2))
+      || (d3 === 0 && pointOnSegment(b1, a1, b2))
+      || (d4 === 0 && pointOnSegment(b1, a2, b2));
+  };
+
+  const segmentIntersectsRect = (start, end, rect, padding = 110) => {
+    const expanded = {
+      x: rect.x - padding,
+      y: rect.y - padding,
+      width: rect.width + padding * 2,
+      height: rect.height + padding * 2
+    };
+
+    if (pointInRect(start, expanded) || pointInRect(end, expanded)) {
+      return true;
+    }
+
+    const minX = expanded.x;
+    const maxX = expanded.x + expanded.width;
+    const minY = expanded.y;
+    const maxY = expanded.y + expanded.height;
+    return segmentIntersectsSegment(start, end, { x: minX, y: minY }, { x: maxX, y: minY })
+      || segmentIntersectsSegment(start, end, { x: maxX, y: minY }, { x: maxX, y: maxY })
+      || segmentIntersectsSegment(start, end, { x: maxX, y: maxY }, { x: minX, y: maxY })
+      || segmentIntersectsSegment(start, end, { x: minX, y: maxY }, { x: minX, y: minY });
+  };
+
+  const fromInRiver = pointInHazard(from);
+  const toInRiver = pointInHazard(to);
+  const crossesRiver = hazards.some((hazard) => segmentIntersectsRect(from, to, hazard));
 
   if (!fromInRiver && !toInRiver && !crossesRiver) {
     return [to];

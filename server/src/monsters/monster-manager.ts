@@ -46,6 +46,7 @@ import {
   scaleOutgoingDamage,
   syncPlayerCombatState
 } from "../combat/player-effects.js";
+import { isPointInsideRiverHazard } from "../match-layout.js";
 import type { DropState, RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../types.js";
 
 interface CombatPlayerState {
@@ -888,10 +889,15 @@ function resolveBossArenaPoint(room: RuntimeRoom): { x: number; y: number } {
     }
   }
 
-  return {
+  const fallback = {
     x: MATCH_MAP_WIDTH / 2,
     y: MATCH_MAP_HEIGHT / 2 + 360
   };
+  if (isValidSpawnPoint(room, fallback.x, fallback.y)) {
+    return fallback;
+  }
+
+  return randomMidRingPoint(room);
 }
 
 function randomValidPoint(room: RuntimeRoom): { x: number; y: number } {
@@ -934,6 +940,10 @@ function isValidSpawnPoint(room: RuntimeRoom, x: number, y: number): boolean {
   }
 
   if (layout.extractZones.some((zone) => distanceBetween(x, y, zone.x, zone.y) < EXTRACT_ZONE_EXCLUSION_RADIUS)) {
+    return false;
+  }
+
+  if (isPointInsideRiverHazard(layout, x, y)) {
     return false;
   }
 
