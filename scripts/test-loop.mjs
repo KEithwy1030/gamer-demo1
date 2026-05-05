@@ -299,7 +299,7 @@ function startServer() {
         MONSTER_AI_DISABLED: "true",
         EXTRACT_OPEN_SEC: "8",
         EXTRACT_CHANNEL_DURATION_MS: "1000",
-        MATCH_DURATION_SEC: "60"
+        MATCH_DURATION_SEC: "180"
       },
       shell: false,
       stdio: ["ignore", "pipe", "pipe"]
