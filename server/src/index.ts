@@ -52,6 +52,7 @@ import { RoomStore } from "./room-store.js";
 import { MarketStore } from "./market-store.js";
 import { ProfileStore } from "./profile-store.js";
 import { listChests, openChest, spawnChests } from "./chests/chest-manager.js";
+import { applyDevRoomPreset, resolveEnabledDevRoomPreset } from "./dev-test-hooks.js";
 import type {
   ChestOpenedPayload,
   GameSocket,
@@ -610,6 +611,10 @@ function attachRoomHandlers(socket: GameSocket): void {
       initializeExtractState(context.room);
       spawnInitialMonsters(context.room);
       spawnChests(context.room);
+      const devRoomPreset = resolveEnabledDevRoomPreset(payload?.devRoomPreset);
+      if (devRoomPreset) {
+        applyDevRoomPreset(context.room, devRoomPreset);
+      }
       io.to(context.room.code).emit(SocketEvent.RoomState, context.roomState);
       startPlayerSyncLoop(context.room.code);
       startMatchTimerLoop(context.room.code);

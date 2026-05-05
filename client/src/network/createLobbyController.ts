@@ -6,6 +6,17 @@ import type {
 import type { LobbyRuntimeApi } from "../app/lobbyTypes";
 import { GameSocketClient } from "./socketClient";
 
+function resolveDevRoomPreset(): "boss" | "extract" | "inventory" | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  const preset = new URLSearchParams(window.location.search).get("devRoomPreset");
+  return preset === "boss" || preset === "extract" || preset === "inventory"
+    ? preset
+    : undefined;
+}
+
 type PendingRoomAction = {
   resolve: (room: RoomState) => void;
   reject: (error: Error) => void;
@@ -20,6 +31,7 @@ export function createNetworkLobbyController(
   socket: GameSocketClient,
   onMatchStarted?: (payload: MatchStartedPayload) => void
 ): LobbyController {
+  const devRoomPreset = resolveDevRoomPreset();
   let runtimeApi: LobbyRuntimeApi | null = null;
   let localPlayerId = "";
   let pendingRoomAction: PendingRoomAction | null = null;
@@ -78,7 +90,7 @@ export function createNetworkLobbyController(
     },
     startMatch(roomCode, _playerId, botDifficulty, profileId, loadout) {
       return waitForVoid(() => {
-        socket.startRoom({ code: roomCode, botDifficulty, profileId, loadout });
+        socket.startRoom({ code: roomCode, botDifficulty, profileId, loadout, devRoomPreset });
       });
     }
   };

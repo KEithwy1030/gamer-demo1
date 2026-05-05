@@ -54,4 +54,5 @@ export interface RoomStartPayload {
   profileId?: string;
   botDifficulty?: BotDifficulty;
   loadout?: InventorySnapshotPayload;
+  devRoomPreset?: "boss" | "extract" | "inventory";
 }
