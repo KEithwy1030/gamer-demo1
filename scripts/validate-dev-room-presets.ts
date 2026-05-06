@@ -4,6 +4,7 @@ import { InventoryService } from "../server/src/inventory/service.js";
 import { applyDevRoomPreset } from "../server/src/dev-test-hooks.js";
 import { spawnInitialMonsters } from "../server/src/monsters/monster-manager.js";
 import { initializeExtractState } from "../server/src/extract/index.js";
+import { RoomStore } from "../server/src/room-store.js";
 import type { RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
 const now = Date.now();
@@ -23,6 +24,7 @@ function assertBossPreset(): void {
   assert.ok(player.state, "boss preset requires human state");
   const distance = Math.hypot(player.state!.x - boss.x, player.state!.y - boss.y);
   assert.ok(distance >= 180 && distance <= 260, `boss preset should stage player near boss at safe screenshot distance, got ${distance}`);
+  assertMatchPayloadIncludesPlayerPosition(room, player);
 }
 
 function assertExtractPreset(): void {
@@ -33,6 +35,7 @@ function assertExtractPreset(): void {
   assert.ok(player.state, "extract preset requires human state");
   const distance = Math.hypot(player.state!.x - extract.x, player.state!.y - extract.y);
   assert.ok(distance < 420, `extract preset should place player near extract bridge, got ${distance}`);
+  assertMatchPayloadIncludesPlayerPosition(room, player);
 }
 
 function assertInventoryPreset(): void {
@@ -48,6 +51,17 @@ function assertInventoryPreset(): void {
   ))[0]!;
   const distance = Math.hypot(player.state!.x - nearest.x, player.state!.y - nearest.y);
   assert.ok(distance <= 100, `inventory preset drop should be within pickup/drag showcase range, got ${distance}`);
+  assertMatchPayloadIncludesPlayerPosition(room, player);
+}
+
+function assertMatchPayloadIncludesPlayerPosition(room: RuntimeRoom, player: RuntimePlayer): void {
+  assert.ok(player.state, "preset payload assertion requires human state");
+  const payload = new RoomStore().buildMatchPayloadByPlayerId(room).get(player.id);
+  const payloadPlayer = payload?.room.players.find((entry) => entry.id === player.id);
+  assert.ok(payloadPlayer, "match:started payload should include the human player");
+  assert.equal(payloadPlayer.x, player.state.x, "match:started payload should use preset-adjusted player x");
+  assert.equal(payloadPlayer.y, player.state.y, "match:started payload should use preset-adjusted player y");
+  assert.equal(payloadPlayer.isLocalPlayer, true, "match:started payload should mark the receiver as local player");
 }
 
 function createRoom(): RuntimeRoom {

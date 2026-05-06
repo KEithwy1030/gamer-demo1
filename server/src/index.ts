@@ -614,6 +614,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       const devRoomPreset = resolveEnabledDevRoomPreset(payload?.devRoomPreset);
       if (devRoomPreset) {
         applyDevRoomPreset(context.room, devRoomPreset);
+        context.matchPayloadByPlayerId = roomStore.buildMatchPayloadByPlayerId(context.room);
       }
       io.to(context.room.code).emit(SocketEvent.RoomState, context.roomState);
       startPlayerSyncLoop(context.room.code);

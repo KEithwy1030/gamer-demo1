@@ -1,0 +1,7 @@
+npm error Lifecycle script `dev` failed with error:
+npm error code 4294967295
+npm error path E:\CursorData\gamer\server
+npm error workspace @gamer/server@0.1.0
+npm error location E:\CursorData\gamer\server
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c tsx watch src/index.ts

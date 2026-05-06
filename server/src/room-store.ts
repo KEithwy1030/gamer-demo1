@@ -258,6 +258,18 @@ export class RoomStore {
     this.assignInitialStates(room);
 
     const roomState = this.toRoomState(room);
+    return {
+      room,
+      roomState,
+      matchPayloadByPlayerId: this.buildMatchPayloadByPlayerId(room)
+    };
+  }
+
+  buildMatchPayloadByPlayerId(room: RuntimeRoom): Map<string, MatchStartedPayload> {
+    if (!room.startedAt) {
+      throw new Error("Cannot build match payload before room start.");
+    }
+
     const matchPayloadByPlayerId = new Map<string, MatchStartedPayload>();
     const players = this.getPlayerStatesFromRoom(room);
 
@@ -278,11 +290,7 @@ export class RoomStore {
       });
     }
 
-    return {
-      room,
-      roomState,
-      matchPayloadByPlayerId
-    };
+    return matchPayloadByPlayerId;
   }
 
   getRoomStateBySession(session: SocketSession): RoomStateEnvelope | undefined {
