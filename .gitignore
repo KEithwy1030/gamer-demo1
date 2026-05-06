@@ -27,3 +27,5 @@ tmp-*.err.log
 tmp/
 Microsoft/
 *.tsbuildinfo
+
+.codex-artifacts/final-acceptance-live/server-3401.*
