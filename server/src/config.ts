@@ -5,6 +5,7 @@ import {
   MIN_ROOM_CAPACITY,
   SERVER_PLAYER_SYNC_HZ
 } from "./internal-constants.js";
+import { createCorsOriginResolver } from "./cors.js";
 
 dotenv.config();
 
@@ -34,10 +35,19 @@ function parseOrigins(value: string | undefined): string[] | boolean {
     .filter(Boolean);
 }
 
+function shouldAllowLoopbackOrigins(): boolean {
+  return process.env.ENABLE_TEST_HOOKS === "1"
+    || process.env.NODE_ENV === "development"
+    || process.env.NODE_ENV === "test";
+}
+
 export const serverConfig = {
   port: parseInteger(process.env.PORT, DEFAULT_PORT),
   host: process.env.HOST?.trim() || DEFAULT_HOST,
-  corsOrigin: parseOrigins(process.env.CLIENT_ORIGIN),
+  corsOrigin: createCorsOriginResolver(
+    parseOrigins(process.env.CLIENT_ORIGIN),
+    shouldAllowLoopbackOrigins()
+  ),
   socketPingIntervalMs: parseInteger(
     process.env.SOCKET_PING_INTERVAL_MS,
     DEFAULT_SOCKET_PING_INTERVAL_MS

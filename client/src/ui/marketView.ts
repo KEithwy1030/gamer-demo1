@@ -1,5 +1,6 @@
 import type { MarketListing, MarketListingItem } from "@gamer/shared";
 import type { LocalProfile, LocalProfileItem } from "../profile/localProfile";
+import { resolveServerUrl } from "../network/serverUrl";
 
 export interface MarketViewApi {
   readonly element: HTMLElement;
@@ -362,14 +363,6 @@ async function cancelListing(profileId: string, listingId: string): Promise<void
     method: "DELETE"
   });
   if (!response.ok) throw new Error("取消失败。");
-}
-
-function resolveServerUrl(): string {
-  const explicit = import.meta.env.VITE_SERVER_URL;
-  if (explicit) return explicit;
-  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-  const hostname = window.location.hostname || "localhost";
-  return `${protocol}//${hostname}:3000`;
 }
 
 function stamp(text: string) {

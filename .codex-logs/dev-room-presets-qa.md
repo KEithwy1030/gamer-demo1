@@ -6,7 +6,8 @@
 
 1. 启动 server 时显式带上 `ENABLE_TEST_HOOKS=1`。
 2. 浏览器地址显式带上 query：`?devRoomPreset=boss|extract|inventory`。
-3. 仍然通过正常大厅流程创建频道并点击“立即出征”。
+3. 推荐把 client 绑定到 `http://localhost:5180`，server 绑定到 `http://127.0.0.1:3300`，避免页面 origin 和 API host 不一致。
+4. 仍然通过正常大厅流程创建频道并点击“立即出征”。
 
 只有同时满足上面条件时，preset 才会生效。
 
@@ -24,6 +25,8 @@ PowerShell:
 
 ```powershell
 $env:ENABLE_TEST_HOOKS='1'
+$env:PORT='3300'
+$env:CLIENT_ORIGIN='http://localhost:5180,http://127.0.0.1:5180'
 npm run dev:server
 ```
 
@@ -37,16 +40,17 @@ npm run dev:server
 ### client
 
 ```powershell
+$env:VITE_SERVER_URL='http://127.0.0.1:3300'
 npm run dev:client
 ```
 
 ### 浏览器 URL
 
-- `http://localhost:5173/?devRoomPreset=boss`
-- `http://localhost:5173/?devRoomPreset=extract`
-- `http://localhost:5173/?devRoomPreset=inventory`
+- `http://localhost:5180/?devRoomPreset=boss`
+- `http://localhost:5180/?devRoomPreset=extract`
+- `http://localhost:5180/?devRoomPreset=inventory`
 
-如果 `5173` 被占用，使用 Vite 实际输出的端口。
+如果 `5180` 被占用，使用实际输出的端口，但 client 和 server 的 origin / base URL 仍然要保持同机同协议。
 
 ## Preset 用途
 

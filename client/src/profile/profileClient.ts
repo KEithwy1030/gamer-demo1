@@ -16,9 +16,9 @@ import type {
   LocalProfileItem
 } from "./localProfile";
 import { saveLocalProfile } from "./localProfile";
+import { resolveServerUrl } from "../network/serverUrl";
 
 const PROFILE_ID_STORAGE_KEY = "liuhuang.serverProfileId.v1";
-const DEFAULT_SERVER_PORT = "3000";
 
 export function getOrCreateServerProfileId(): string {
   const existing = localStorage.getItem(PROFILE_ID_STORAGE_KEY);
@@ -75,15 +75,6 @@ export async function moveServerProfileItem(
   }
 
   return persistServerProfile(await response.json() as ProfileSnapshot);
-}
-
-export function resolveServerUrl(): string {
-  const explicit = import.meta.env.VITE_SERVER_URL;
-  if (explicit) return explicit;
-
-  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-  const hostname = window.location.hostname || "localhost";
-  return `${protocol}//${hostname}:${DEFAULT_SERVER_PORT}`;
 }
 
 function toLocalProfile(snapshot: ProfileSnapshot): LocalProfile {

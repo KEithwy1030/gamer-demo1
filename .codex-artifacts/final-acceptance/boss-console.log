@@ -1,0 +1,7 @@
+Total messages: 5 (Errors: 1, Warnings: 1)
+
+[WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:3311/?devRoomPreset=boss:0
+[ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3311/favicon.ico:0
+[WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:5180/?devRoomPreset=boss:0
+[ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5180/favicon.ico:0
+[LOG] %c %c %c %c %c Phaser v3.90.0 (Canvas | Web Audio) %c https://phaser.io/v390 background: #ff0000 background: #ffff00 background: #00ff00 background: #00ffff color: #ffffff; background: #000000 background: transparent @ http://localhost:5180/node_modules/.vite/deps/phaser.js?v=4896e0d8:8455

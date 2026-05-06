@@ -17,6 +17,7 @@ import {
   SocketEvent,
   type WorldDrop
 } from "@gamer/shared";
+import { resolveServerUrl } from "./serverUrl";
 
 export interface GameSocketClientOptions {
   serverUrl?: string;
@@ -268,19 +269,4 @@ export class GameSocketClient {
       this.socket.off(event, listener);
     };
   }
-}
-
-function resolveServerUrl(): string {
-  const explicit = import.meta.env.VITE_SERVER_URL;
-  if (explicit) {
-    return explicit;
-  }
-
-  if (typeof window === "undefined") {
-    return `http://localhost:${DEFAULT_SERVER_PORT}`;
-  }
-
-  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
-  const hostname = window.location.hostname || "localhost";
-  return `${protocol}//${hostname}:${DEFAULT_SERVER_PORT}`;
 }
