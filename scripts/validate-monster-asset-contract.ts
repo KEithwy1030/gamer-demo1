@@ -11,7 +11,7 @@ const normal = MONSTER_ASSET_CONTRACTS.normal;
 const elite = MONSTER_ASSET_CONTRACTS.elite;
 const boss = MONSTER_ASSET_CONTRACTS.boss;
 const TARGET_DISPLAY_SIZE = {
-  normal: 34,
+  normal: 88,
   elite: 38,
   boss: 45
 } as const;
@@ -23,7 +23,7 @@ assert.equal(elite.frameHeight, 314, "elite monster frameHeight should stay at 3
 assert.equal(boss.frameWidth, 314, "boss monster frameWidth should stay at 314");
 assert.equal(boss.frameHeight, 314, "boss monster frameHeight should stay at 314");
 
-assert.equal(normal.displaySize, TARGET_DISPLAY_SIZE.normal, "normal display size should be reduced to 34");
+assert.equal(normal.displaySize, TARGET_DISPLAY_SIZE.normal, "normal display size should be raised to 88 for player-comparable readability");
 assert.equal(elite.displaySize, TARGET_DISPLAY_SIZE.elite, "elite display size should be reduced to 38");
 assert.equal(boss.displaySize, TARGET_DISPLAY_SIZE.boss, "boss display size should be reduced to 45");
 
@@ -43,13 +43,13 @@ const normalProfile = getMonsterVisualProfile("normal");
 const eliteProfile = getMonsterVisualProfile("elite");
 const bossProfile = getMonsterVisualProfile("boss");
 
-assert.equal(normalProfile.shadow.width, 26, "normal shadow width should scale down with the sprite");
+assert.equal(normalProfile.shadow.width, 68, "normal shadow width should scale up with the sprite");
 assert.equal(eliteProfile.shadow.width, 30, "elite shadow width should scale down with the sprite");
 assert.equal(bossProfile.shadow.width, 38, "boss shadow width should scale down with the sprite");
-assert.equal(normalProfile.hpWidth, 30, "normal hp bar width should scale down with the sprite");
+assert.equal(normalProfile.hpWidth, 78, "normal hp bar width should scale up with the sprite");
 assert.equal(eliteProfile.hpWidth, 33, "elite hp bar width should scale down with the sprite");
 assert.equal(bossProfile.hpWidth, 40, "boss hp bar width should scale down with the sprite");
-assert.equal(normalProfile.telegraphRing.width, 38, "normal telegraph ring should follow the reduced visual size");
+assert.equal(normalProfile.telegraphRing.width, 96, "normal telegraph ring should follow the larger visual size");
 assert.equal(eliteProfile.telegraphRing.width, 44, "elite telegraph ring should follow the reduced visual size");
 assert.equal(bossProfile.telegraphRing.width, 58, "boss telegraph ring should follow the reduced visual size");
 

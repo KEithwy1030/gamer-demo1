@@ -37,15 +37,15 @@ export interface MonsterVisualProfile {
 
 const MONSTER_VISUAL_PROFILES: Record<MonsterState["type"], MonsterVisualProfile> = {
   normal: {
-    displaySize: 34,
-    shadow: { width: 26, height: 8, y: 14, alpha: 0.72 },
-    threatAura: { width: 34, height: 20, y: 6 },
-    telegraphRing: { width: 38, height: 38, y: 6 },
-    impactFlash: { width: 28, height: 34, y: 3 },
-    labelOffsetY: 24,
-    hpY: -23,
-    crownY: -40,
-    hpWidth: 30
+    displaySize: 88,
+    shadow: { width: 68, height: 20, y: 36, alpha: 0.72 },
+    threatAura: { width: 88, height: 52, y: 16 },
+    telegraphRing: { width: 96, height: 96, y: 16 },
+    impactFlash: { width: 72, height: 88, y: 8 },
+    labelOffsetY: 60,
+    hpY: -58,
+    crownY: -100,
+    hpWidth: 78
   },
   elite: {
     displaySize: 38,

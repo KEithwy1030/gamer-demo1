@@ -9,7 +9,7 @@ import { assertBossFxCoverage, MonsterSkillFxController } from "../client/src/sc
 import type { RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
 const TARGET_DISPLAY_SIZE = {
-  normal: 34,
+  normal: 88,
   elite: 38,
   boss: 45
 } as const;
@@ -63,17 +63,17 @@ function assertVisualContracts(): void {
   assert.equal(getMonsterTextureKey("boss"), "monster_boss_sheet", "boss should expose its dedicated texture key");
   assert.notEqual(getMonsterTextureKey("boss"), getMonsterTextureKey("elite"), "boss should no longer share elite texture key");
 
-  assert.equal(MONSTER_ASSET_CONTRACTS.normal.displaySize, TARGET_DISPLAY_SIZE.normal, "normal readability size should be reduced to 34");
+  assert.equal(MONSTER_ASSET_CONTRACTS.normal.displaySize, TARGET_DISPLAY_SIZE.normal, "normal readability size should be raised to 88");
   assert.equal(MONSTER_ASSET_CONTRACTS.elite.displaySize, TARGET_DISPLAY_SIZE.elite, "elite readability size should be reduced to 38");
   assert.equal(MONSTER_ASSET_CONTRACTS.boss.displaySize, TARGET_DISPLAY_SIZE.boss, "boss readability size should be reduced to 45");
 
   const normalProfile = getMonsterVisualProfile("normal");
   const eliteProfile = getMonsterVisualProfile("elite");
   const bossProfile = getMonsterVisualProfile("boss");
-  assert.equal(normalProfile.hpWidth, 30, "normal hp bar should scale down with the monster");
+  assert.equal(normalProfile.hpWidth, 78, "normal hp bar should scale up with the monster");
   assert.equal(eliteProfile.hpWidth, 33, "elite hp bar should scale down with the monster");
   assert.equal(bossProfile.hpWidth, 40, "boss hp bar should scale down with the monster");
-  assert.equal(normalProfile.crownY, -40, "normal crown anchor contract should stay compact");
+  assert.equal(normalProfile.crownY, -100, "normal crown anchor contract should move with the larger monster silhouette");
   assert.equal(eliteProfile.crownY, -45, "elite crown anchor contract should stay compact");
   assert.equal(bossProfile.crownY, -54, "boss crown anchor contract should stay compact");
 
