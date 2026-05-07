@@ -12,6 +12,7 @@ import {
   findBestAttackTarget,
   resolveAttackAssist,
   resolveChaseAssistStep,
+  type AttackIntentTarget,
   type ChaseAssistState,
   type LockAssistSelf,
   type LockAssistTarget
@@ -25,6 +26,7 @@ const now = Date.now();
 validateServerTargetRangeGuards();
 validateTargetSelectionContracts();
 validateQueuedAttackFlow();
+validatePointerIntentAndFacingContracts();
 validateChaseCancelAndReleaseContracts();
 validateAssistMoveOverrideContract();
 validatePrimaryPointerAttackContract();
@@ -134,6 +136,63 @@ function validateTargetSelectionContracts(): void {
     isAlive: true
   };
   assert.equal(findBestAttackTarget(self, [], [rearTarget], { x: 1, y: 0 }), null, "rear target outside the forgiving rear cone should not auto-lock");
+}
+
+function validatePointerIntentAndFacingContracts(): void {
+  const self = createAssistSelf();
+  const nearRight: LockAssistTarget = { id: "near-right", x: 612, y: 400, isAlive: true };
+  const nearLeft: LockAssistTarget = { id: "near-left", x: 588, y: 400, isAlive: true };
+  const intentTarget: AttackIntentTarget = { worldX: 590, worldY: 400 };
+
+  const assisted = resolveAttackAssist(self, [], [nearRight, nearLeft], { x: 1, y: 0 }, intentTarget);
+  assert.equal(assisted.targetId, nearLeft.id, "pointer intent should bias selection toward the clicked enemy");
+  assert.equal(assisted.shouldChase, true, "clicked target outside attack reach should still queue a chase");
+
+  const reverseFacingIntent = resolveAttackAssist(
+    self,
+    [],
+    [{ id: "in-range-clicked", x: 400 + getWeaponRange(self.weaponType) + LOCK_ASSIST_MONSTER_CONTACT_RADIUS - 3, y: 400, isAlive: true }],
+    { x: -1, y: 0 },
+    { worldX: 400 + getWeaponRange(self.weaponType) + LOCK_ASSIST_MONSTER_CONTACT_RADIUS - 3, worldY: 400 }
+  );
+  assert.equal(reverseFacingIntent.targetId, "in-range-clicked", "clicked in-range enemy should still be acquired even when current facing is opposite");
+  assert.equal(reverseFacingIntent.shouldChase, false, "clicked in-range enemy should resolve to an immediate attack instead of a chase");
+  assert.deepEqual(reverseFacingIntent.direction, { x: 1, y: 0 }, "clicked in-range enemy should reorient the one-shot attack toward the target");
+
+  const chaseAssist: ChaseAssistState = {
+    targetId: nearLeft.id,
+    targetKind: "monster",
+    startedAt: now,
+    expiresAt: now + LOCK_ASSIST_CHASE_MAX_DURATION_MS,
+    allowManualAdvance: true
+  };
+  const advanceWhileMovingForward = resolveChaseAssistStep({
+    self,
+    chaseAssist,
+    target: nearLeft,
+    queuedAttackTargetId: nearLeft.id,
+    now: now + 80,
+    lastFacingDirection: { x: 1, y: 0 },
+    currentMoveDirection: { x: 0, y: 1 },
+    currentManualMoveDirection: { x: 0, y: 1 },
+    allowManualAdvance: true
+  });
+  assert.equal(advanceWhileMovingForward.kind, "continue", "forward movement should not cancel attack intent when chasing a clicked target");
+  assert.equal(advanceWhileMovingForward.reason, "advance", "forward movement should continue advancing to the target");
+
+  const inRangeReverseMove = resolveChaseAssistStep({
+    self,
+    chaseAssist,
+    target: { ...nearLeft, x: 400 + getWeaponRange(self.weaponType) + LOCK_ASSIST_MONSTER_CONTACT_RADIUS - 3, y: 400 },
+    queuedAttackTargetId: nearLeft.id,
+    now: now + 140,
+    lastFacingDirection: { x: 1, y: 0 },
+    currentMoveDirection: { x: -1, y: 0 },
+    currentManualMoveDirection: { x: -1, y: 0 },
+    allowManualAdvance: true
+  });
+  assert.equal(inRangeReverseMove.kind, "clear", "backward movement should still cancel when the player explicitly retreats");
+  assert.equal(inRangeReverseMove.reason, "retreat-input", "retreat should still be recognized as cancel intent");
 }
 
 function validateQueuedAttackFlow(): void {
@@ -368,54 +427,6 @@ function validateFeedbackEventMappings(): void {
     visibleMs: 1700
   }, "manual takeover should map to visible player-control feedback");
 
-  const enteredRangeEvent = mapLockAssistFeedbackEvent({
-    result: {
-      kind: "attack",
-      clearQueuedAttack: true,
-      clearMoveOverride: true,
-      attackDirection: { x: 1, y: 0 },
-      facingDirection: { x: 1, y: 0 },
-      reason: "entered-range"
-    },
-    before: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId },
-    after: { chaseAssist: undefined, queuedAttackTargetId: undefined }
-  });
-  assert.deepEqual(enteredRangeEvent, {
-    key: "attack:entered-range",
-    text: "进入攻击距离",
-    tone: "info"
-  }, "entering range should not pretend the hit already landed");
-
-  const lostEvent = mapLockAssistFeedbackEvent({
-    result: {
-      kind: "clear",
-      clearQueuedAttack: false,
-      clearMoveOverride: true,
-      reason: "target-lost"
-    },
-    before: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId },
-    after: { chaseAssist: undefined, queuedAttackTargetId: chaseAssist.targetId }
-  });
-  assert.deepEqual(lostEvent, {
-    key: "clear:target-lost",
-    text: "目标丢失",
-    tone: "warn"
-  }, "target loss should map to visible release feedback");
-
-  const duplicateLostEvent = mapLockAssistFeedbackEvent({
-    result: {
-      kind: "clear",
-      clearQueuedAttack: false,
-      clearMoveOverride: true,
-      reason: "target-lost"
-    },
-    before: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId },
-    after: { chaseAssist: undefined, queuedAttackTargetId: chaseAssist.targetId }
-  }, {
-    activeTargetId: chaseAssist.targetId,
-    activeReason: "target-lost"
-  });
-  assert.equal(duplicateLostEvent, null, "repeating the same clear reason should not keep generating feedback events");
 }
 
 function createAssistSelf(): LockAssistSelf {

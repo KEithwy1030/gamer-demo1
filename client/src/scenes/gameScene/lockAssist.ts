@@ -9,6 +9,8 @@ export const LOCK_ASSIST_PLAYER_CONTACT_RADIUS = 56;
 export const LOCK_ASSIST_MONSTER_CONTACT_RADIUS = 30;
 export const LOCK_ASSIST_FRONT_CONE_DEG = 130;
 export const LOCK_ASSIST_REAR_CONE_DEG = 95;
+const LOCK_ASSIST_POINTER_TARGET_SNAP_RADIUS = 72;
+const LOCK_ASSIST_POINTER_TARGET_SCORE_BONUS = 220;
 const LOCK_ASSIST_RETREAT_CANCEL_DOT = -0.42;
 const LOCK_ASSIST_MOVE_CANCEL_THRESHOLD = 0.18;
 
@@ -29,6 +31,12 @@ export interface LockAssistTarget {
   y: number;
   isAlive: boolean;
   squadId?: string;
+  type?: "normal" | "elite" | "boss";
+}
+
+export interface AttackIntentTarget {
+  worldX?: number;
+  worldY?: number;
 }
 
 export interface LockAssistCandidate {
@@ -52,6 +60,7 @@ export interface ChaseAssistState {
   targetKind: "player" | "monster";
   startedAt: number;
   expiresAt: number;
+  allowManualAdvance: boolean;
 }
 
 export interface ChaseAssistStepResult {
@@ -82,10 +91,11 @@ export function resolveAttackAssist(
   self: LockAssistSelf,
   players: LockAssistTarget[],
   monsters: LockAssistTarget[],
-  fallbackFacing: Vector2
+  fallbackFacing: Vector2,
+  intentTarget?: AttackIntentTarget
 ): ResolvedAttackAssist {
   const facing = normalizeVector(fallbackFacing, self.direction ?? { x: 0, y: 1 });
-  const candidate = findBestAttackTarget(self, players, monsters, facing);
+  const candidate = findBestAttackTarget(self, players, monsters, facing, intentTarget);
   if (!candidate) {
     return {
       direction: facing,
@@ -105,7 +115,8 @@ export function findBestAttackTarget(
   self: LockAssistSelf,
   players: LockAssistTarget[],
   monsters: LockAssistTarget[],
-  fallbackFacing: Vector2
+  fallbackFacing: Vector2,
+  intentTarget?: AttackIntentTarget
 ): LockAssistCandidate | null {
   const attackRange = getWeaponRange(self.weaponType);
   const attackReach = attackRange + LOCK_ASSIST_ACQUIRE_RANGE_BUFFER;
@@ -123,7 +134,8 @@ export function findBestAttackTarget(
       "player",
       facing,
       attackReach + LOCK_ASSIST_PLAYER_CONTACT_RADIUS,
-      chaseReach + LOCK_ASSIST_PLAYER_CONTACT_RADIUS
+      chaseReach + LOCK_ASSIST_PLAYER_CONTACT_RADIUS,
+      intentTarget
     );
     if (candidate) candidates.push(candidate);
   }
@@ -138,7 +150,8 @@ export function findBestAttackTarget(
       "monster",
       facing,
       attackReach + LOCK_ASSIST_MONSTER_CONTACT_RADIUS,
-      chaseReach + LOCK_ASSIST_MONSTER_CONTACT_RADIUS
+      chaseReach + resolveMonsterContactRadius(monster),
+      intentTarget
     );
     if (candidate) candidates.push(candidate);
   }
@@ -160,6 +173,7 @@ export function resolveChaseAssistStep(params: {
   lastFacingDirection: Vector2;
   currentMoveDirection: Vector2;
   currentManualMoveDirection?: Vector2;
+  allowManualAdvance?: boolean;
 }): ChaseAssistStepResult {
   const {
     self,
@@ -169,7 +183,8 @@ export function resolveChaseAssistStep(params: {
     now,
     lastFacingDirection,
     currentMoveDirection,
-    currentManualMoveDirection
+    currentManualMoveDirection,
+    allowManualAdvance
   } = params;
 
   if (!self || !self.isAlive) {
@@ -207,6 +222,20 @@ export function resolveChaseAssistStep(params: {
         clearQueuedAttack: true,
         clearMoveOverride: true,
         reason: "retreat-input"
+      };
+    }
+
+    if (allowManualAdvance && retreatDot >= 0) {
+      return {
+        kind: "continue",
+        facingDirection,
+        moveDirection: {
+          x: facingDirection.x * LOCK_ASSIST_CHASE_MOVE_SCALE,
+          y: facingDirection.y * LOCK_ASSIST_CHASE_MOVE_SCALE
+        },
+        clearQueuedAttack: false,
+        clearMoveOverride: false,
+        reason: "advance"
       };
     }
 
@@ -277,7 +306,8 @@ function buildAssistCandidate(
   kind: "player" | "monster",
   facing: Vector2,
   attackReach: number,
-  chaseReach: number
+  chaseReach: number,
+  intentTarget?: AttackIntentTarget
 ): LockAssistCandidate | null {
   const delta = { x: target.x - self.x, y: target.y - self.y };
   const distance = Math.hypot(delta.x, delta.y);
@@ -287,8 +317,10 @@ function buildAssistCandidate(
 
   const direction = normalizeVector(delta, facing);
   const angleDeg = getAngleBetweenVectors(facing, direction);
+  const intentDistance = getIntentDistance(target, intentTarget);
+  const hasExplicitPointerIntent = intentDistance != null && intentDistance <= LOCK_ASSIST_POINTER_TARGET_SNAP_RADIUS;
   const allowedAngle = distance <= attackReach ? LOCK_ASSIST_REAR_CONE_DEG : LOCK_ASSIST_FRONT_CONE_DEG;
-  if (angleDeg > allowedAngle) {
+  if (!hasExplicitPointerIntent && angleDeg > allowedAngle) {
     return null;
   }
 
@@ -298,12 +330,41 @@ function buildAssistCandidate(
     direction,
     distance,
     attackReach,
-    score: distance + (angleDeg * 0.9) + (kind === "player" ? -12 : 0)
+    score: distance + (angleDeg * 0.9) + (kind === "player" ? -12 : 0) + getIntentBias(intentDistance)
   };
 }
 
 function getTargetContactRadius(kind: "player" | "monster"): number {
   return kind === "player" ? LOCK_ASSIST_PLAYER_CONTACT_RADIUS : LOCK_ASSIST_MONSTER_CONTACT_RADIUS;
+}
+
+function resolveMonsterContactRadius(target: Pick<LockAssistTarget, "type">): number {
+  if (target.type === "boss") return 38;
+  if (target.type === "elite") return 34;
+  return LOCK_ASSIST_MONSTER_CONTACT_RADIUS;
+}
+
+function getIntentBias(intentDistance?: number): number {
+  if (typeof intentDistance !== "number") {
+    return 0;
+  }
+
+  if (intentDistance <= LOCK_ASSIST_POINTER_TARGET_SNAP_RADIUS) {
+    return -LOCK_ASSIST_POINTER_TARGET_SCORE_BONUS;
+  }
+
+  return Math.min(intentDistance, 240) * 0.45;
+}
+
+function getIntentDistance(
+  target: Pick<LockAssistTarget, "x" | "y">,
+  intentTarget?: AttackIntentTarget
+): number | undefined {
+  if (typeof intentTarget?.worldX !== "number" || typeof intentTarget?.worldY !== "number") {
+    return undefined;
+  }
+
+  return Math.hypot(target.x - intentTarget.worldX, target.y - intentTarget.worldY);
 }
 
 function getAngleBetweenVectors(a: Vector2, b: Vector2): number {

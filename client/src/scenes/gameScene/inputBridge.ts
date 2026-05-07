@@ -19,6 +19,7 @@ export function shouldUseTouchLayout(): boolean {
 export interface GameSceneInputBridgeOptions {
   touchLayout: boolean;
   onMoveInput?: (direction: Vector2) => void;
+  onPrimaryPointerAttack?: (pointer: Phaser.Input.Pointer) => void;
   onAttack: () => void;
   onSkill: (slotIndex: number) => void;
   onDodge: () => void;
@@ -42,6 +43,7 @@ export class GameSceneInputBridge {
   private assistMoveOverride?: Vector2;
   private readonly handlePrimaryPointerDown = (pointer: Phaser.Input.Pointer): void => {
     if (isPrimaryPointerAttack(pointer)) {
+      this.options.onPrimaryPointerAttack?.(pointer);
       this.options.onAttack();
     }
   };

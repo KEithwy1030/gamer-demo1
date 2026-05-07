@@ -6,6 +6,7 @@ import {
   getMonsterAnimationKey,
   getMonsterCorpseFrame,
   getMonsterDisplaySize,
+  getMonsterVisualProfile,
   getMonsterTextureKey
 } from "./monsterVisuals";
 
@@ -41,13 +42,28 @@ export class MonsterMarker {
 
     const isBoss = monster.type === "boss";
     const isElite = monster.type === "elite";
-    const labelOffsetY = isBoss ? 112 : isElite ? 84 : 68;
-    const hpY = isBoss ? -126 : isElite ? -88 : -72;
+    const profile = getMonsterVisualProfile(monster.type);
+    const labelOffsetY = profile.labelOffsetY;
+    const hpY = profile.hpY;
     const phaseY = hpY - 12;
-    const hpWidth = isBoss ? 104 : isElite ? 64 : 52;
+    const hpWidth = profile.hpWidth;
 
-    this.shadow = scene.add.ellipse(0, isBoss ? 56 : 40, isBoss ? 136 : isElite ? 92 : 72, isBoss ? 36 : isElite ? 28 : 22, 0x0e0b08, 0.42);
-    this.threatAura = scene.add.ellipse(0, 18, isBoss ? 182 : isElite ? 120 : 88, isBoss ? 136 : isElite ? 88 : 56, isBoss ? 0x7f1d1d : isElite ? 0x7c2d12 : 0x431407, isBoss ? 0.16 : isElite ? 0.12 : 0.08);
+    this.shadow = scene.add.ellipse(
+      0,
+      profile.shadow.y,
+      profile.shadow.width,
+      profile.shadow.height,
+      0x0e0b08,
+      0.42
+    );
+    this.threatAura = scene.add.ellipse(
+      0,
+      profile.threatAura.y,
+      profile.threatAura.width,
+      profile.threatAura.height,
+      isBoss ? 0x7f1d1d : isElite ? 0x7c2d12 : 0x431407,
+      isBoss ? 0.16 : isElite ? 0.12 : 0.08
+    );
 
     const assetKey = getMonsterTextureKey(monster.type);
     this.sprite = scene.add.sprite(0, 8, assetKey);
@@ -59,10 +75,24 @@ export class MonsterMarker {
       this.sprite.anims.play(idleKey, true);
     }
 
-    this.telegraphRing = scene.add.ellipse(0, 16, isBoss ? 182 : isElite ? 124 : 88, isBoss ? 182 : isElite ? 124 : 88, 0xef4444, isBoss ? 0.10 : 0.06);
+    this.telegraphRing = scene.add.ellipse(
+      0,
+      profile.telegraphRing.y,
+      profile.telegraphRing.width,
+      profile.telegraphRing.height,
+      0xef4444,
+      isBoss ? 0.10 : 0.06
+    );
     this.telegraphRing.setStrokeStyle(isBoss ? 3 : 2, isBoss ? 0xfbbf24 : 0xfb923c, 0.6);
 
-    this.impactFlash = scene.add.ellipse(0, 6, isBoss ? 116 : isElite ? 92 : 70, isBoss ? 132 : isElite ? 106 : 84, 0xffffff, 0);
+    this.impactFlash = scene.add.ellipse(
+      0,
+      profile.impactFlash.y,
+      profile.impactFlash.width,
+      profile.impactFlash.height,
+      0xffffff,
+      0
+    );
 
     this.phaseBarTrack = scene.add.rectangle(0, phaseY, hpWidth, 5, 0x140f0c, 0.92);
     this.phaseBarFill = scene.add.rectangle(-(hpWidth / 2), phaseY, hpWidth, 5, 0xf59e0b, 1);
@@ -72,7 +102,7 @@ export class MonsterMarker {
     this.hpFill = scene.add.rectangle(-(hpWidth / 2), hpY, hpWidth, 9, isBoss ? 0xdc2626 : isElite ? 0xf97316 : 0xb8371f, 1);
     this.hpFill.setOrigin(0, 0.5);
 
-    this.crown = scene.add.text(0, isBoss ? -164 : -120, isBoss ? "BOSS" : isElite ? "ELITE" : "", {
+    this.crown = scene.add.text(0, profile.crownY, isBoss ? "BOSS" : isElite ? "ELITE" : "", {
       fontFamily: "monospace",
       fontSize: isBoss ? "12px" : "11px",
       fontStyle: "bold",
@@ -139,7 +169,7 @@ export class MonsterMarker {
   private applyState(monster: MonsterState): void {
     const now = Date.now();
     const snapshot = getMonsterReadabilitySnapshot(monster, now);
-    const hpBaseWidth = snapshot.isBoss ? 104 : snapshot.isElite ? 64 : 52;
+    const hpBaseWidth = getMonsterVisualProfile(monster.type).hpWidth;
     const hpWidth = Math.max(0, hpBaseWidth * snapshot.hpRatio);
     const phaseRatio = snapshot.timeToPhaseEndMs == null
       ? 0
@@ -232,7 +262,7 @@ export class MonsterMarker {
   private applyVisualPose(monster: MonsterState, snapshot: ReturnType<typeof getMonsterReadabilitySnapshot>): void {
     this.playAction(getMonsterAction(monster, { isRecentlyHit: snapshot.isRecentlyHit }));
     this.sprite.setAlpha(1);
-    this.shadow.setAlpha(snapshot.isBoss ? 0.95 : snapshot.isElite ? 0.82 : 0.74);
+    this.shadow.setAlpha(getMonsterVisualProfile(monster.type).shadow.alpha);
     this.sprite.setScale(snapshot.isWarning ? 1.06 : snapshot.isAttacking ? 1.03 : 1);
     this.sprite.setAngle(snapshot.isWarning ? -4 : snapshot.isAttacking ? 4 : 0);
     this.sprite.setTint(snapshot.isBoss ? (monster.isEnraged ? 0xfb7185 : 0xc2410c) : snapshot.isElite ? 0xf59e0b : 0xffffff);

@@ -29,6 +29,7 @@ import {
   LOCK_ASSIST_CHASE_MAX_DURATION_MS,
   resolveAttackAssist,
   resolveChaseAssistStep,
+  type AttackIntentTarget,
   type ChaseAssistState,
   type LockAssistTarget
 } from "./gameScene/lockAssist";
@@ -97,7 +98,6 @@ export class GameScene extends Phaser.Scene {
   private onToggleInventory?: () => void;
   private lastLocalAttackAt = 0;
   private lastLocalAttackTargetId?: string;
-  private lastCombatResultAt = 0;
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
   private localSkillCooldownEndsAt = 0;
@@ -112,6 +112,7 @@ export class GameScene extends Phaser.Scene {
   private pendingSkillCast?: Phaser.Time.TimerEvent;
   private queuedAttack?: AttackRequestPayload;
   private chaseAssist?: ChaseAssistState;
+  private attackIntentTarget?: AttackIntentTarget;
 
   constructor() {
     super(GameScene.KEY);
@@ -172,28 +173,14 @@ export class GameScene extends Phaser.Scene {
       this.playerMarkers
     );
 
-    if (payload.playerId === this.latestState?.selfPlayerId) {
-      const attackAge = Date.now() - this.lastLocalAttackAt;
-      const resultAge = Date.now() - this.lastCombatResultAt;
-      if (attackAge < 1200 && resultAge > 450) {
-        const feedback = payload.targetId ? "攻击已出手，等待命中判定" : "攻击已出手";
-        this.hudOverlay?.showLockAssistFeedback(feedback, "info", `attack:${payload.attackId}`);
-      }
-    }
   }
 
   private handleCombatResult(payload: CombatEventPayload): void {
-    this.lastCombatResultAt = Date.now();
     this.feedbackFx?.handleCombatResult(payload, this.latestState, this.playerMarkers, this.monsterMarkers);
     if (
       payload.attackerId === this.latestState?.selfPlayerId
       && (!this.lastLocalAttackTargetId || payload.targetId === this.lastLocalAttackTargetId)
     ) {
-      this.hudOverlay?.showLockAssistFeedback(
-        `命中 ${payload.amount}`,
-        payload.isCritical ? "warn" : "info",
-        `hit:${payload.attackerId}:${payload.targetId}:${payload.amount}:${payload.targetHp}`
-      );
       this.lastLocalAttackTargetId = undefined;
     }
   }
@@ -261,6 +248,10 @@ export class GameScene extends Phaser.Scene {
     this.inputBridge = new GameSceneInputBridge(this, {
       touchLayout,
       onMoveInput: this.onMoveInput,
+      onPrimaryPointerAttack: (pointer) => {
+        const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        this.attackIntentTarget = { worldX: worldPoint.x, worldY: worldPoint.y };
+      },
       onAttack: () => this.handleAttack(),
       onSkill: (slotIndex) => this.handleSkill(slotIndex),
       onDodge: () => this.handleDodge(),
@@ -306,19 +297,22 @@ export class GameScene extends Phaser.Scene {
 
     const assisted = this.resolveAttackAssist(self);
     if (!assisted) {
+      this.attackIntentTarget = undefined;
       this.clearChaseAssist();
       return;
     }
 
     const attackPayload = this.buildAttackPayload(assisted.direction, assisted.targetId);
     if (assisted.shouldChase && assisted.targetId && assisted.targetKind) {
-      this.startChaseAssist(assisted.targetId, assisted.targetKind);
+      this.startChaseAssist(assisted.targetId, assisted.targetKind, Boolean(this.attackIntentTarget));
       this.queuedAttack = attackPayload;
+      this.attackIntentTarget = undefined;
       return;
     }
 
     this.clearChaseAssist();
     this.queuedAttack = undefined;
+    this.attackIntentTarget = undefined;
     this.startLocalBasicAttack(self, cadence, attackPayload);
   }
 
@@ -561,7 +555,8 @@ export class GameScene extends Phaser.Scene {
       now: Date.now(),
       lastFacingDirection: this.inputBridge.getLastFacingDirection(),
       currentMoveDirection: this.inputBridge.getCurrentMoveDirection(),
-      currentManualMoveDirection: this.inputBridge.getCurrentManualMoveDirection()
+      currentManualMoveDirection: this.inputBridge.getCurrentManualMoveDirection(),
+      allowManualAdvance: this.chaseAssist?.allowManualAdvance
     });
 
     this.inputBridge.setFacingLockDirection(result.facingDirection);
@@ -609,7 +604,8 @@ export class GameScene extends Phaser.Scene {
       self,
       (this.latestState?.players ?? []) as LockAssistTarget[],
       (this.latestState?.monsters ?? []) as LockAssistTarget[],
-      this.inputBridge?.getLastFacingDirection() ?? self.direction ?? { x: 0, y: 1 }
+      this.inputBridge?.getLastFacingDirection() ?? self.direction ?? { x: 0, y: 1 },
+      this.attackIntentTarget
     );
   }
 
@@ -621,13 +617,14 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
-  private startChaseAssist(targetId: string, targetKind: "player" | "monster"): void {
+  private startChaseAssist(targetId: string, targetKind: "player" | "monster", allowManualAdvance: boolean): void {
     const now = Date.now();
     this.chaseAssist = {
       targetId,
       targetKind,
       startedAt: now,
-      expiresAt: now + LOCK_ASSIST_CHASE_MAX_DURATION_MS
+      expiresAt: now + LOCK_ASSIST_CHASE_MAX_DURATION_MS,
+      allowManualAdvance
     };
   }
 

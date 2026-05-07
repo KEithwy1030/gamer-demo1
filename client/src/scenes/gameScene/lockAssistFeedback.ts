@@ -181,7 +181,7 @@ export function mapLockAssistFeedbackEvent(params: {
     case "expired":
       return { key: "clear:expired", text: "锁定结束", tone: "info" };
     case "entered-range":
-      return { key: "attack:entered-range", text: "进入攻击距离", tone: "info" };
+      return null;
     default:
       return null;
   }

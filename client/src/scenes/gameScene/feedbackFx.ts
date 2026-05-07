@@ -53,17 +53,17 @@ export class GameSceneFeedbackFx {
     const color = payload.isCritical ? "#d4b24c" : (isBleedTick ? "#8f1d1d" : "#b8371f");
     const text = this.scene.add.text(target.root.x, target.root.y - 30, `-${payload.amount}`, {
       fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: payload.isCritical ? "30px" : (isBleedTick ? "15px" : "18px"),
+      fontSize: payload.isCritical ? "40px" : (isBleedTick ? "18px" : "26px"),
       fontStyle: "bold",
       color,
       stroke: "#16130f",
-      strokeThickness: payload.isCritical ? 6 : (isBleedTick ? 3 : 4)
+      strokeThickness: payload.isCritical ? 8 : (isBleedTick ? 4 : 6)
     }).setOrigin(0.5).setDepth(3000);
     this.scene.tweens.add({
       targets: text,
-      y: text.y - (payload.isCritical ? 58 : (isBleedTick ? 30 : 40)),
+      y: text.y - (payload.isCritical ? 70 : (isBleedTick ? 34 : 52)),
       alpha: 0,
-      duration: payload.isCritical ? 980 : (isBleedTick ? 620 : 760),
+      duration: payload.isCritical ? 1080 : (isBleedTick ? 700 : 860),
       ease: "Cubic.out",
       onComplete: () => text.destroy()
     });
