@@ -26,6 +26,7 @@ type HudLayout = {
   timer: Phaser.Geom.Rectangle;
   command: Phaser.Geom.Rectangle;
   skills: Phaser.Geom.Rectangle;
+  commandAnchorY: number;
   skillSlots: Array<{ x: number; y: number; width: number; height: number }>;
 };
 
@@ -109,14 +110,14 @@ export class GameHudOverlay {
     });
     this.weaponText = this.scene.add.text(status.x + status.width * 0.29, status.y + status.height * 0.61, "武器 --", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "12px" : "13px",
+      fontSize: this.isTouchDevice ? "12px" : "14px",
       color: "#4e2c18"
     });
     this.skillStateText = this.scene.add.text(status.x + status.width * 0.66, status.y + status.height * 0.61, "技能 待命", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "12px" : "13px",
+      fontSize: this.isTouchDevice ? "12px" : "14px",
       color: "#284854"
-    });
+      }).setOrigin(0.5, 0);
     this.hpFill = this.scene.add.graphics();
 
     const objective = this.layout.objective;
@@ -125,6 +126,7 @@ export class GameHudOverlay {
       fontSize: this.isTouchDevice ? "15px" : "17px",
       color: "#2a1d13",
       align: "center",
+      lineSpacing: 4,
       wordWrap: { width: Math.max(180, objective.width - 92), useAdvancedWrap: true }
     }).setOrigin(0.5);
 
@@ -163,6 +165,7 @@ export class GameHudOverlay {
       fontSize: this.isTouchDevice ? "15px" : "17px",
       color: "#2a1d13",
       align: "center",
+      lineSpacing: 4,
       wordWrap: { width: Math.max(240, command.width - 130), useAdvancedWrap: true }
     }).setOrigin(0.5);
 
@@ -556,24 +559,26 @@ export class GameHudOverlay {
 }
 
 function buildHudLayout(width: number, height: number, isTouchDevice: boolean): HudLayout {
-  const margin = isTouchDevice ? 12 : 24;
-  const statusW = isTouchDevice ? Math.min(width - margin * 2, 408) : Math.min(500, Math.max(410, width * 0.255));
-  const statusH = Math.round(statusW / 4.05);
-  const timerW = isTouchDevice ? Math.min(width - margin * 2, 332) : 344;
-  const timerH = Math.round(timerW / 2.67);
-  const objectiveW = isTouchDevice ? Math.min(width - margin * 2, 398) : Math.min(430, Math.max(330, width - statusW - timerW - margin * 5));
-  const objectiveH = Math.round(objectiveW / 2.65);
-  const skillsW = isTouchDevice ? Math.min(width - margin * 2, 430) : 500;
-  const skillsH = Math.round(skillsW / 5.21);
-  const commandW = isTouchDevice ? Math.min(width - margin * 2, 520) : Math.min(620, width - 180);
-  const commandH = Math.round(commandW / 6.28);
+  const margin = isTouchDevice ? 12 : 22;
+  const topGap = isTouchDevice ? 8 : 14;
+  const statusW = isTouchDevice ? Math.min(width - margin * 2, 396) : Math.min(468, Math.max(412, width * 0.25));
+  const statusH = Math.round(statusW / 4.16);
+  const timerW = isTouchDevice ? Math.min(width - margin * 2, 320) : 332;
+  const timerH = Math.round(timerW / 2.82);
+  const objectiveW = isTouchDevice ? Math.min(width - margin * 2, 388) : Math.min(408, Math.max(332, width - statusW - timerW - margin * 4));
+  const objectiveH = Math.round(objectiveW / 2.72);
+  const skillsW = isTouchDevice ? Math.min(width - margin * 2, 420) : 492;
+  const skillsH = Math.round(skillsW / 5.46);
+  const commandW = isTouchDevice ? Math.min(width - margin * 2, 500) : Math.min(560, width - 220);
+  const commandH = Math.round(commandW / 7.2);
 
   const status = new Phaser.Geom.Rectangle(margin, margin, statusW, statusH);
   const timer = new Phaser.Geom.Rectangle(width - timerW - margin, margin, timerW, timerH);
-  const objectiveY = width < 1180 ? status.bottom + 8 : margin;
+  const objectiveY = width < 1180 ? status.bottom + topGap : margin;
   const objective = new Phaser.Geom.Rectangle(Math.round(width / 2 - objectiveW / 2), objectiveY, objectiveW, objectiveH);
-  const command = new Phaser.Geom.Rectangle(Math.round(width / 2 - commandW / 2), height - commandH - margin, commandW, commandH);
-  const skills = new Phaser.Geom.Rectangle(margin, Math.max(status.bottom + 16, height - skillsH - margin), skillsW, skillsH);
+  const commandAnchorY = isTouchDevice ? height - margin - 132 : height - margin - 126;
+  const command = new Phaser.Geom.Rectangle(Math.round(width / 2 - commandW / 2), commandAnchorY, commandW, commandH);
+  const skills = new Phaser.Geom.Rectangle(margin, height - skillsH - margin, skillsW, skillsH);
 
   const slotW = Math.round(skills.width * 0.096);
   const slotH = Math.round(skills.height * 0.56);
@@ -585,6 +590,7 @@ function buildHudLayout(width: number, height: number, isTouchDevice: boolean): 
     timer,
     command,
     skills,
+    commandAnchorY,
     skillSlots: [
       { x: skills.x + skills.width * 0.26, y: skills.y + skills.height * 0.54, width: slotW, height: slotH },
       { x: skills.x + skills.width * 0.43, y: skills.y + skills.height * 0.54, width: slotW, height: slotH },
@@ -614,7 +620,7 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
   if (extractState.isExtracting) {
     const seconds = extractState.secondsRemaining == null ? "" : ` ${Math.ceil(extractState.secondsRemaining)}s`;
     return waitingCount > 0
-      ? `守住撤离圈，读条${seconds}，等待 ${waitingCount} 名队友进圈`
+      ? `守住撤离圈，读条${seconds}\n等待 ${waitingCount} 名队友进圈`
       : `守住撤离圈，队伍撤离读条${seconds}`;
   }
 
@@ -624,8 +630,8 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
 
   if (extractState.isOpen) {
     return waitingCount > 0
-      ? `队伍归营火已点燃，圈内 ${insideCount}/${aliveMembers.length} 人，等待队友`
-      : (hasBackpackCargo(state) ? "队伍归营火已点燃，带货者进圈即可一起撤离" : "队伍归营火已点燃，进圈完成会合撤离");
+      ? `队伍归营火已点燃\n圈内 ${insideCount}/${aliveMembers.length} 人，等待队友`
+      : (hasBackpackCargo(state) ? "队伍归营火已点燃\n带货者进圈即可一起撤离" : "队伍归营火已点燃\n进圈完成会合撤离");
   }
 
   if (isCorpseFogCounterattacking(state)) {
@@ -671,25 +677,25 @@ function resolvePressureHint(state: MatchViewState, extractState: ExtractUiState
 
   if (hpRatio <= 0.28) {
     return extractState.isOpen
-      ? "低血高风险，优先脱战进撤离圈。"
-      : "低血状态，先拉开怪群与交战线。";
+      ? "低血高风险，优先脱战\n进入撤离圈。"
+      : "低血状态，先拉开怪群\n稳住交战线。";
   }
 
   if (isCorpseFogCounterattacking(state)) {
     return extractState.isOpen
-      ? "尸毒已开始扣血，继续贪收益会直接折损战利品。"
-      : "尸毒正在逼近，提前规划回撤路线。";
+      ? "尸毒已开始扣血\n继续贪收益会折损战利品。"
+      : "尸毒正在逼近\n提前规划回撤路线。";
   }
 
   if (hasBackpackCargo(state)) {
-    return "高价值携带会吸引围堵，别带着满包硬换血。";
+    return "高价值携带会吸引围堵\n别带着满包硬换血。";
   }
 
   if (extractState.isOpen && waitingCount > 0) {
-    return `仍有 ${waitingCount} 名队友未进圈，别让别队拖住会合节奏。`;
+    return `仍有 ${waitingCount} 名队友未进圈\n别让敌队拖住会合节奏。`;
   }
 
-  return "压怪拿货，控制换血，给撤离留体力。";
+  return "压怪拿货，控制换血\n给撤离留体力。";
 }
 
 function hasBackpackCargo(state: MatchViewState): boolean {

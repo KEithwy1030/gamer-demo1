@@ -8,13 +8,14 @@
   background: rgba(18, 14, 11, 0.96);
   border: 2px solid #5f2a16;
   color: #e8dfc8;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: "Noto Sans SC", "Inter Tight", system-ui, sans-serif;
   box-shadow: 0 18px 46px rgba(0,0,0,0.58), inset 0 0 0 1px rgba(232, 96, 44, 0.16);
   z-index: 1000;
-  transition: all 0.2s steps(4);
+  transition: opacity 0.18s ease, transform 0.18s ease;
   display: flex;
   flex-direction: column;
-  image-rendering: pixelated;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
 }
 
 .inventory-panel--collapsed {
@@ -24,7 +25,7 @@
 }
 
 .inventory-panel__header {
-  padding: 12px 16px;
+  padding: 14px 16px;
   border-bottom: 1px solid rgba(232, 96, 44, 0.42);
   display: flex;
   justify-content: space-between;
@@ -35,15 +36,14 @@
 .inventory-panel__title {
   margin: 0;
   font-size: 16px;
-  color: #e8602c;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-weight: bold;
+  color: #f0e1c3;
+  font-weight: 700;
 }
 
 .inventory-panel__summary {
   margin: 4px 0 0;
   font-size: 12px;
+  line-height: 1.4;
   color: #b8ae96;
 }
 
@@ -53,22 +53,22 @@
 
 .inventory-panel__toggle {
   background: #3a1d12;
-  border: 2px solid #e8602c;
+  border: 1px solid rgba(232, 96, 44, 0.7);
   color: #e8dfc8;
-  padding: 8px 16px;
-  font-size: 14px;
+  padding: 8px 14px;
+  font-size: 13px;
   cursor: pointer;
-  box-shadow: 2px 2px 0px rgba(0,0,0,0.5);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.22);
   min-width: 44px;
   min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 6px;
 }
 
 .inventory-panel__toggle:active {
-  box-shadow: none;
-  transform: translate(2px, 2px);
+  transform: translateY(1px);
 }
 
 .inventory-panel__body {
@@ -174,10 +174,10 @@
   height: 48px;
   padding: 0 14px;
   background: #3a1d12;
-  border: 2px solid #e8602c;
+  border: 1px solid rgba(232, 96, 44, 0.7);
   border-radius: 8px;
   color: #e8dfc8;
-  font-weight: bold;
+  font-weight: 700;
   font-size: 13px;
   z-index: 4000;
   display: flex;
@@ -185,7 +185,7 @@
   justify-content: center;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
   cursor: pointer;
-  transition: transform 0.1s active;
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
 }
 
 .inventory-mobile-toggle:active {
@@ -226,9 +226,9 @@
   margin: 0 0 12px;
   font-size: 14px;
   color: #e8dfc8;
-  text-transform: uppercase;
   border-left: 4px solid #e8602c;
   padding-left: 8px;
+  font-weight: 700;
 }
 
 .inventory-grid {
@@ -355,7 +355,8 @@
   width: 220px;
   z-index: 1100;
   font-size: 12px;
-  box-shadow: 4px 4px 0px rgba(0,0,0,0.8);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.48);
+  border-radius: 8px;
   pointer-events: auto;
 }
 
@@ -392,9 +393,9 @@
 
 .tooltip-rarity {
   font-size: 10px;
-  padding: 1px 4px;
+  padding: 2px 6px;
   border: 1px solid currentColor;
-  text-transform: uppercase;
+  border-radius: 999px;
 }
 
 .tooltip-slot {
@@ -433,6 +434,7 @@
   cursor: pointer;
   font-family: inherit;
   min-height: 40px;
+  border-radius: 6px;
 }
 
 .tooltip-actions button:hover {
@@ -454,11 +456,12 @@
   position: relative;
   min-height: 112px;
   background: linear-gradient(180deg, #211810 0%, #120e0b 100%);
-  border: 2px solid #3f382b;
+  border: 1px solid rgba(95, 42, 22, 0.9);
   padding: 20px 8px 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 8px;
 }
 
 .inventory-equip-slot--empty::after {
@@ -475,6 +478,10 @@
 .inventory-backpack-surface {
   position: relative;
   min-width: max-content;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(10, 8, 6, 0.42);
+  border: 1px solid rgba(95, 42, 22, 0.55);
 }
 
 .inventory-backpack-cells,
@@ -494,7 +501,8 @@
 .inventory-grid-cell {
   position: absolute;
   background: linear-gradient(180deg, #211810 0%, #120e0b 100%);
-  border: 1px solid #3f382b;
+  border: 1px solid rgba(63, 56, 43, 0.95);
+  border-radius: 6px;
   box-sizing: border-box;
 }
 
@@ -515,7 +523,7 @@
 .inventory-item {
   position: absolute;
   background: linear-gradient(180deg, rgba(33, 24, 16, 0.98), rgba(18, 14, 11, 0.98));
-  border: 2px solid #5f2a16;
+  border: 1px solid rgba(95, 42, 22, 0.95);
   color: #e8dfc8;
   padding: 6px;
   display: flex;
@@ -526,6 +534,8 @@
   cursor: grab;
   overflow: hidden;
   box-sizing: border-box;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(232, 223, 200, 0.04);
 }
 
 .inventory-item:hover {
@@ -559,6 +569,10 @@
   text-align: center;
   color: inherit;
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 body.inventory-dragging,

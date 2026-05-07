@@ -70,6 +70,7 @@ const STAT_LABELS: Record<string, string> = {
 const GRID_CELL_SIZE = 34;
 const GRID_GAP = 4;
 const GRID_METRICS = { cellSize: GRID_CELL_SIZE, gap: GRID_GAP };
+const STABLE_BACKPACK_WIDTH = 376;
 
 export function createInventoryPanel(options: InventoryPanelOptions): InventoryPanelApi {
   let inventoryState: MatchInventoryState | null = null;
@@ -90,11 +91,11 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
   const title = document.createElement("h3");
   title.className = "inventory-panel__title";
-  title.textContent = "背包";
+  title.textContent = "携行背包";
 
   const summary = document.createElement("p");
   summary.className = "inventory-panel__summary";
-  summary.textContent = "正在获取背包信息...";
+  summary.textContent = "正在同步携行状态...";
   titleWrap.append(title, summary);
 
   const toggle = document.createElement("button");
@@ -116,14 +117,14 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   const equipmentSection = document.createElement("section");
   equipmentSection.className = "inventory-section inventory-section--equipment";
   const equipmentTitle = document.createElement("h4");
-  equipmentTitle.textContent = "已装备";
+  equipmentTitle.textContent = "当前装备";
   const equipmentGrid = document.createElement("div");
   equipmentGrid.className = "inventory-equipment-grid";
 
   const backpackSection = document.createElement("section");
   backpackSection.className = "inventory-section inventory-section--backpack";
   const backpackTitle = document.createElement("h4");
-  backpackTitle.textContent = "背包";
+  backpackTitle.textContent = "携行格";
   const backpackSurface = document.createElement("div");
   backpackSurface.className = "inventory-backpack-surface";
   const backpackCells = document.createElement("div");
@@ -157,7 +158,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
       return;
     }
 
-    mobileToggle.textContent = collapsed ? "背包(I)" : "收起背包";
+    mobileToggle.textContent = collapsed ? "背包 I" : "收起背包";
     toggle.textContent = collapsed ? "打开" : "关闭";
   }
 
@@ -516,7 +517,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
   function renderBackpackGrid(width: number, height: number): void {
     backpackCells.replaceChildren();
-    backpackSurface.style.width = `${width * GRID_CELL_SIZE + (width - 1) * GRID_GAP}px`;
+    backpackSurface.style.width = `${STABLE_BACKPACK_WIDTH}px`;
     backpackSurface.style.height = `${height * GRID_CELL_SIZE + (height - 1) * GRID_GAP}px`;
 
     for (let y = 0; y < height; y += 1) {
@@ -555,7 +556,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     clearHighlights();
 
     if (!inventory) {
-      summary.textContent = "正在获取背包信息...";
+      summary.textContent = "正在同步携行状态...";
       equipmentGrid.replaceChildren();
       backpackCells.replaceChildren();
       backpackItems.replaceChildren();
@@ -569,7 +570,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     const weaponName = inventory.equipment.weapon ? getItemPresentation(inventory.equipment.weapon).displayName : "空手";
 
     summary.textContent = `${weaponName} · ${used}/${total} 格已占用`;
-    backpackTitle.textContent = `背包 (${width}x${height})`;
+    backpackTitle.textContent = `携行格 ${width}x${height}`;
 
     equipmentGrid.replaceChildren();
     for (const slotKey of SLOT_ORDER) {
