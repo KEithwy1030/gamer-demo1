@@ -33,6 +33,7 @@ export class MonsterMarker {
   private lastHpWidth = -1;
   private lastPhaseWidth = -1;
   private readonly profile: ReturnType<typeof getMonsterVisualProfile>;
+  private readonly displaySize: number;
 
   constructor(scene: Phaser.Scene, monster: MonsterState) {
     this.id = monster.id;
@@ -69,8 +70,8 @@ export class MonsterMarker {
 
     const assetKey = getMonsterTextureKey(monster.type);
     this.sprite = scene.add.sprite(0, 8, assetKey);
-    const displaySize = getMonsterDisplaySize(monster.type);
-    this.sprite.setDisplaySize(displaySize, displaySize);
+    this.displaySize = getMonsterDisplaySize(monster.type);
+    this.setSpriteDisplayScale(1);
 
     const idleKey = getMonsterAnimationKey(monster.type, "idle");
     if (scene.anims.exists(idleKey)) {
@@ -247,7 +248,7 @@ export class MonsterMarker {
       this.sprite.setTint(0x5f5149);
       this.sprite.setAngle(snapshot.isBoss ? -84 : snapshot.isElite ? -72 : 72);
       this.sprite.setAlpha(snapshot.isRecentlyDead ? 0.7 : 0.58);
-      this.sprite.setScale(snapshot.isRecentlyDead ? 1.04 : 1);
+      this.setSpriteDisplayScale(snapshot.isRecentlyDead ? 1.04 : 1);
       this.shadow.setAlpha(0.18);
       this.threatAura.setVisible(false);
       this.telegraphRing.setVisible(false);
@@ -265,7 +266,7 @@ export class MonsterMarker {
     this.playAction(getMonsterAction(monster, { isRecentlyHit: snapshot.isRecentlyHit }));
     this.sprite.setAlpha(1);
     this.shadow.setAlpha(this.profile.shadow.alpha);
-    this.sprite.setScale(snapshot.isWarning ? 1.04 : snapshot.isAttacking ? 1.02 : 1);
+    this.setSpriteDisplayScale(snapshot.isWarning ? 1.04 : snapshot.isAttacking ? 1.02 : 1);
     this.sprite.setAngle(snapshot.isWarning ? -3 : snapshot.isAttacking ? 3 : 0);
     this.sprite.setTint(snapshot.isBoss ? (monster.isEnraged ? 0xfb7185 : 0xc2410c) : snapshot.isElite ? 0xf59e0b : 0xffffff);
 
@@ -277,6 +278,11 @@ export class MonsterMarker {
     if (!snapshot.isBoss && !snapshot.isElite) {
       this.crown.setVisible(false);
     }
+  }
+
+  private setSpriteDisplayScale(multiplier: number): void {
+    const size = this.displaySize * multiplier;
+    this.sprite.setDisplaySize(size, size);
   }
 
   private emitDeathParticles(): void {

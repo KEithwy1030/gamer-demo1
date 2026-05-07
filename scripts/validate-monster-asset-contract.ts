@@ -27,6 +27,18 @@ assert.equal(normal.displaySize, TARGET_DISPLAY_SIZE.normal, "normal display siz
 assert.equal(elite.displaySize, TARGET_DISPLAY_SIZE.elite, "elite display size should be reduced to 38");
 assert.equal(boss.displaySize, TARGET_DISPLAY_SIZE.boss, "boss display size should be reduced to 45");
 
+const monsterMarkerSource = fs.readFileSync(path.join(repoRoot, "client", "src", "game", "entities", "MonsterMarker.ts"), "utf8");
+assert.equal(
+  monsterMarkerSource.includes("this.sprite.setScale("),
+  false,
+  "monster sprite pose must not reset displaySize back to source-frame scale"
+);
+assert.match(
+  monsterMarkerSource,
+  /private setSpriteDisplayScale\(multiplier: number\): void \{[\s\S]*?this\.sprite\.setDisplaySize\(size, size\);[\s\S]*?\}/,
+  "monster marker should preserve contract display size through pose multipliers"
+);
+
 const normalProfile = getMonsterVisualProfile("normal");
 const eliteProfile = getMonsterVisualProfile("elite");
 const bossProfile = getMonsterVisualProfile("boss");
