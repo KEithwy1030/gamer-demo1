@@ -8,6 +8,45 @@ import { getPrimarySkillWindupMs } from "./skillHelpers";
 
 type MarkerMap = Map<string, PlayerMarker> | Map<string, MonsterMarker>;
 
+export const DAMAGE_NUMBER_STYLE = {
+  normal: {
+    fontSize: 34,
+    strokeThickness: 8,
+    rise: 74,
+    duration: 920,
+    color: "#ff8a5b",
+    glowColor: 0xffb089,
+    startScale: 0.92,
+    peakScale: 1.12,
+    xJitter: 12,
+    yOffset: -38
+  },
+  critical: {
+    fontSize: 52,
+    strokeThickness: 10,
+    rise: 108,
+    duration: 1180,
+    color: "#ffe08a",
+    glowColor: 0xffd24d,
+    startScale: 0.84,
+    peakScale: 1.2,
+    xJitter: 16,
+    yOffset: -46
+  },
+  bleed: {
+    fontSize: 24,
+    strokeThickness: 5,
+    rise: 48,
+    duration: 760,
+    color: "#c62828",
+    glowColor: 0x7f1d1d,
+    startScale: 0.96,
+    peakScale: 1.04,
+    xJitter: 8,
+    yOffset: -34
+  }
+} as const;
+
 export class GameSceneFeedbackFx {
   private readonly scene: Phaser.Scene;
 
@@ -50,20 +89,28 @@ export class GameSceneFeedbackFx {
     if (!target) return;
 
     const isBleedTick = payload.damageType === "bleed";
-    const color = payload.isCritical ? "#d4b24c" : (isBleedTick ? "#8f1d1d" : "#b8371f");
-    const text = this.scene.add.text(target.root.x, target.root.y - 30, `-${payload.amount}`, {
+    const style = payload.isCritical
+      ? DAMAGE_NUMBER_STYLE.critical
+      : (isBleedTick ? DAMAGE_NUMBER_STYLE.bleed : DAMAGE_NUMBER_STYLE.normal);
+    const text = this.scene.add.text(
+      target.root.x + Phaser.Math.Between(-style.xJitter, style.xJitter),
+      target.root.y + style.yOffset,
+      `-${payload.amount}`,
+      {
       fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: payload.isCritical ? "40px" : (isBleedTick ? "18px" : "26px"),
+      fontSize: `${style.fontSize}px`,
       fontStyle: "bold",
-      color,
+      color: style.color,
       stroke: "#16130f",
-      strokeThickness: payload.isCritical ? 8 : (isBleedTick ? 4 : 6)
-    }).setOrigin(0.5).setDepth(3000);
+      strokeThickness: style.strokeThickness
+    }).setOrigin(0.5).setDepth(3000).setScale(style.startScale);
+    text.setShadow(0, 0, Phaser.Display.Color.IntegerToColor(style.glowColor).rgba, 18, false, true);
     this.scene.tweens.add({
       targets: text,
-      y: text.y - (payload.isCritical ? 70 : (isBleedTick ? 34 : 52)),
+      y: text.y - style.rise,
+      scale: style.peakScale,
       alpha: 0,
-      duration: payload.isCritical ? 1080 : (isBleedTick ? 700 : 860),
+      duration: style.duration,
       ease: "Cubic.out",
       onComplete: () => text.destroy()
     });

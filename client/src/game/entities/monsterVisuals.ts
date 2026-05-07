@@ -47,26 +47,26 @@ const MONSTER_VISUAL_PROFILES: Record<MonsterState["type"], MonsterVisualProfile
     hpWidth: 44
   },
   elite: {
-    displaySize: 82,
-    shadow: { width: 64, height: 18, y: 31, alpha: 0.8 },
-    threatAura: { width: 84, height: 52, y: 14 },
-    telegraphRing: { width: 92, height: 92, y: 14 },
-    impactFlash: { width: 62, height: 76, y: 6 },
-    labelOffsetY: 58,
-    hpY: -56,
-    crownY: -92,
-    hpWidth: 54
+    displaySize: 76,
+    shadow: { width: 60, height: 17, y: 30, alpha: 0.78 },
+    threatAura: { width: 78, height: 48, y: 13 },
+    telegraphRing: { width: 86, height: 86, y: 13 },
+    impactFlash: { width: 58, height: 72, y: 6 },
+    labelOffsetY: 54,
+    hpY: -52,
+    crownY: -86,
+    hpWidth: 52
   },
   boss: {
-    displaySize: 106,
-    shadow: { width: 86, height: 24, y: 38, alpha: 0.93 },
-    threatAura: { width: 116, height: 78, y: 16 },
-    telegraphRing: { width: 126, height: 126, y: 15 },
-    impactFlash: { width: 84, height: 98, y: 7 },
-    labelOffsetY: 74,
-    hpY: -78,
-    crownY: -114,
-    hpWidth: 76
+    displaySize: 90,
+    shadow: { width: 76, height: 22, y: 34, alpha: 0.9 },
+    threatAura: { width: 100, height: 68, y: 16 },
+    telegraphRing: { width: 112, height: 112, y: 14 },
+    impactFlash: { width: 74, height: 88, y: 7 },
+    labelOffsetY: 66,
+    hpY: -70,
+    crownY: -104,
+    hpWidth: 70
   }
 };
 

@@ -5,13 +5,15 @@ import { applyDevRoomPreset } from "../server/src/dev-test-hooks.js";
 import { spawnInitialMonsters } from "../server/src/monsters/monster-manager.js";
 import { initializeExtractState } from "../server/src/extract/index.js";
 import { RoomStore } from "../server/src/room-store.js";
+import {
+  LOCK_ASSIST_ACQUIRE_RANGE_BUFFER,
+  LOCK_ASSIST_CHASE_RANGE_BUFFER,
+  LOCK_ASSIST_MONSTER_CONTACT_RADIUS
+} from "../client/src/scenes/gameScene/lockAssist";
 import type { RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
 const now = Date.now();
 const SWORD_RANGE = 116;
-const LOCK_ASSIST_ACQUIRE_RANGE_BUFFER = 32;
-const LOCK_ASSIST_CHASE_RANGE_BUFFER = 108;
-const LOCK_ASSIST_MONSTER_CONTACT_RADIUS = 30;
 const LOCK_ATTACK_REACH = SWORD_RANGE + LOCK_ASSIST_ACQUIRE_RANGE_BUFFER + LOCK_ASSIST_MONSTER_CONTACT_RADIUS;
 const LOCK_CHASE_REACH = SWORD_RANGE + LOCK_ASSIST_CHASE_RANGE_BUFFER + LOCK_ASSIST_MONSTER_CONTACT_RADIUS;
 const EXTRACT_START_INSET_MIN = 10;

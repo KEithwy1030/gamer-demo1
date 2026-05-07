@@ -4,9 +4,10 @@ import { WEAPON_DEFINITIONS } from "@gamer/shared";
 export const LOCK_ASSIST_ACQUIRE_RANGE_BUFFER = 32;
 export const LOCK_ASSIST_CHASE_RANGE_BUFFER = 108;
 export const LOCK_ASSIST_CHASE_MOVE_SCALE = 1;
-export const LOCK_ASSIST_CHASE_MAX_DURATION_MS = 650;
+export const LOCK_ASSIST_CHASE_MAX_DURATION_MS = 850;
 export const LOCK_ASSIST_PLAYER_CONTACT_RADIUS = 56;
-export const LOCK_ASSIST_MONSTER_CONTACT_RADIUS = 30;
+export const LOCK_ASSIST_MONSTER_CONTACT_RADIUS = 26;
+export const LOCK_ASSIST_IN_RANGE_CONE_DEG = 180;
 export const LOCK_ASSIST_FRONT_CONE_DEG = 130;
 export const LOCK_ASSIST_REAR_CONE_DEG = 95;
 const LOCK_ASSIST_POINTER_TARGET_SNAP_RADIUS = 72;
@@ -207,6 +208,9 @@ export function resolveChaseAssistStep(params: {
   const distance = Math.hypot(delta.x, delta.y);
   const facingDirection = normalizeVector(delta, lastFacingDirection);
 
+  const contactRadius = getTargetContactRadius(chaseAssist.targetKind);
+  const attackReach = getWeaponRange(self.weaponType) + contactRadius + LOCK_ASSIST_ACQUIRE_RANGE_BUFFER;
+
   const manualMove = currentManualMoveDirection ?? currentMoveDirection;
   const moveMagnitude = Math.hypot(manualMove.x, manualMove.y);
   if (moveMagnitude > LOCK_ASSIST_MOVE_CANCEL_THRESHOLD) {
@@ -214,6 +218,18 @@ export function resolveChaseAssistStep(params: {
       x: manualMove.x / moveMagnitude,
       y: manualMove.y / moveMagnitude
     };
+
+    if (distance <= attackReach && queuedAttackTargetId) {
+      return {
+        kind: "attack",
+        facingDirection,
+        attackDirection: facingDirection,
+        clearQueuedAttack: true,
+        clearMoveOverride: true,
+        reason: "entered-range"
+      };
+    }
+
     const retreatDot = (moveNormalized.x * facingDirection.x) + (moveNormalized.y * facingDirection.y);
     if (retreatDot < LOCK_ASSIST_RETREAT_CANCEL_DOT) {
       return {
@@ -248,8 +264,6 @@ export function resolveChaseAssistStep(params: {
     };
   }
 
-  const contactRadius = getTargetContactRadius(chaseAssist.targetKind);
-  const attackReach = getWeaponRange(self.weaponType) + contactRadius + LOCK_ASSIST_ACQUIRE_RANGE_BUFFER;
   if (distance <= attackReach && queuedAttackTargetId) {
     return {
       kind: "attack",
@@ -319,7 +333,7 @@ function buildAssistCandidate(
   const angleDeg = getAngleBetweenVectors(facing, direction);
   const intentDistance = getIntentDistance(target, intentTarget);
   const hasExplicitPointerIntent = intentDistance != null && intentDistance <= LOCK_ASSIST_POINTER_TARGET_SNAP_RADIUS;
-  const allowedAngle = distance <= attackReach ? LOCK_ASSIST_REAR_CONE_DEG : LOCK_ASSIST_FRONT_CONE_DEG;
+  const allowedAngle = distance <= attackReach ? LOCK_ASSIST_IN_RANGE_CONE_DEG : LOCK_ASSIST_FRONT_CONE_DEG;
   if (!hasExplicitPointerIntent && angleDeg > allowedAngle) {
     return null;
   }
@@ -338,9 +352,7 @@ function getTargetContactRadius(kind: "player" | "monster"): number {
   return kind === "player" ? LOCK_ASSIST_PLAYER_CONTACT_RADIUS : LOCK_ASSIST_MONSTER_CONTACT_RADIUS;
 }
 
-function resolveMonsterContactRadius(target: Pick<LockAssistTarget, "type">): number {
-  if (target.type === "boss") return 38;
-  if (target.type === "elite") return 34;
+function resolveMonsterContactRadius(_target: Pick<LockAssistTarget, "type">): number {
   return LOCK_ASSIST_MONSTER_CONTACT_RADIUS;
 }
 

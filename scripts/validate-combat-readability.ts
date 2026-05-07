@@ -6,6 +6,12 @@ import { MONSTER_ASSET_CONTRACTS, getMonsterActionFrames, getMonsterTextureKey }
 import { assertBossFxCoverage, MonsterSkillFxController } from "../client/src/scenes/gameScene/monsterSkillFx";
 import type { RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
+const BOSS_ELITE_MIN_GAP = 10;
+const BOSS_ELITE_MAX_GAP = 22;
+const NORMAL_DISPLAY_SIZE_MAX = 72;
+const ELITE_DISPLAY_SIZE_MAX = 82;
+const BOSS_DISPLAY_SIZE_MAX = 104;
+
 const now = Date.now();
 const room = createRoom();
 ensureDropState(room);
@@ -55,7 +61,15 @@ function assertVisualContracts(): void {
   assert.notEqual(getMonsterTextureKey("boss"), getMonsterTextureKey("elite"), "boss should no longer share elite texture key");
 
   assert.ok(Math.abs(MONSTER_ASSET_CONTRACTS.elite.displaySize - MONSTER_ASSET_CONTRACTS.normal.displaySize) <= 16, "normal and elite readability sizes should remain close");
-  assert.ok(MONSTER_ASSET_CONTRACTS.boss.displaySize >= MONSTER_ASSET_CONTRACTS.elite.displaySize + 32, "boss readability size should stay clearly larger than elite");
+  assert.ok(MONSTER_ASSET_CONTRACTS.normal.displaySize <= NORMAL_DISPLAY_SIZE_MAX, "normal readability size should stay under the tightened ceiling");
+  assert.ok(MONSTER_ASSET_CONTRACTS.elite.displaySize <= ELITE_DISPLAY_SIZE_MAX, "elite readability size should stay under the tightened ceiling");
+  assert.ok(MONSTER_ASSET_CONTRACTS.boss.displaySize > MONSTER_ASSET_CONTRACTS.elite.displaySize, "boss readability size should stay larger than elite");
+  assert.ok(
+    MONSTER_ASSET_CONTRACTS.boss.displaySize - MONSTER_ASSET_CONTRACTS.elite.displaySize >= BOSS_ELITE_MIN_GAP
+      && MONSTER_ASSET_CONTRACTS.boss.displaySize - MONSTER_ASSET_CONTRACTS.elite.displaySize <= BOSS_ELITE_MAX_GAP,
+    `boss readability size gap should stay within ${BOSS_ELITE_MIN_GAP}-${BOSS_ELITE_MAX_GAP} pixels over elite`
+  );
+  assert.ok(MONSTER_ASSET_CONTRACTS.boss.displaySize <= BOSS_DISPLAY_SIZE_MAX, "boss readability size should stay under the tightened ceiling");
 
   for (const action of ["idle", "move", "attack", "charge", "hurt", "death"] as const) {
     assert.ok(getMonsterActionFrames("boss", action).length > 0, `boss ${action} mapping should exist`);

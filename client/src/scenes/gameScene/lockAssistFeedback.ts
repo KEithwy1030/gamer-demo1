@@ -149,42 +149,9 @@ export function mapLockAssistFeedbackEvent(params: {
   activeTargetId?: string;
   activeReason?: string;
 }): LockAssistToastEvent | null {
-  const { result, before, after } = params;
-
-  if (after.chaseAssist && after.chaseAssist.targetId !== context?.activeTargetId) {
-    context = { ...context, activeReason: undefined };
-  }
-
-  if (after.chaseAssist && result.kind === "continue") {
-    return {
-      key: `continue:${after.chaseAssist.targetId}`,
-      text: "锁定追击中",
-      tone: "info"
-    };
-  }
-
-  if (!before.chaseAssist || result.reason === context?.activeReason) {
-    return null;
-  }
-
-  switch (result.reason) {
-    case "retreat-input":
-      return { key: "cancel:retreat-input", text: "锁定取消：后撤", tone: "warn", visibleMs: 1700 };
-    case "manual-input":
-      return { key: "cancel:manual-input", text: "锁定取消：手动接管", tone: "warn", visibleMs: 1700 };
-    case "target-lost":
-      return { key: "clear:target-lost", text: "目标丢失", tone: "warn" };
-    case "target-dead":
-      return { key: "clear:target-dead", text: "目标已倒下", tone: "info" };
-    case "target-out-of-range":
-      return { key: "clear:target-out-of-range", text: "目标脱离追击", tone: "warn" };
-    case "expired":
-      return { key: "clear:expired", text: "锁定结束", tone: "info" };
-    case "entered-range":
-      return null;
-    default:
-      return null;
-  }
+  void params;
+  void context;
+  return null;
 }
 
 function findLockAssistTarget(

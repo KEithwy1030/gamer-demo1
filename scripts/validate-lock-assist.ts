@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { WEAPON_DEFINITIONS } from "@gamer/shared";
 import { resolvePlayerAttack } from "../server/src/combat/combat-service.js";
 import { handlePlayerAttack as handleMonsterPlayerAttack, ensureMonsterState } from "../server/src/monsters/monster-manager.js";
@@ -22,6 +25,7 @@ import { mapLockAssistFeedbackEvent } from "../client/src/scenes/gameScene/lockA
 import type { RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
 const now = Date.now();
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 validateServerTargetRangeGuards();
 validateTargetSelectionContracts();
@@ -31,6 +35,7 @@ validateChaseCancelAndReleaseContracts();
 validateAssistMoveOverrideContract();
 validatePrimaryPointerAttackContract();
 validateFeedbackEventMappings();
+validateDamageNumberStyleContract();
 
 console.log("validate-lock-assist: ok");
 
@@ -135,7 +140,9 @@ function validateTargetSelectionContracts(): void {
     y: self.y,
     isAlive: true
   };
-  assert.equal(findBestAttackTarget(self, [], [rearTarget], { x: 1, y: 0 }), null, "rear target outside the forgiving rear cone should not auto-lock");
+  const rearCandidate = findBestAttackTarget(self, [], [rearTarget], { x: 1, y: 0 });
+  assert.equal(rearCandidate?.id, rearTarget.id, "in-range rear target should still be eligible for a directed attack assist");
+  assert.equal(rearCandidate?.distance <= (rearCandidate?.attackReach ?? 0), true, "rear target lock should only happen while already inside legal attack reach");
 }
 
 function validatePointerIntentAndFacingContracts(): void {
@@ -191,8 +198,9 @@ function validatePointerIntentAndFacingContracts(): void {
     currentManualMoveDirection: { x: -1, y: 0 },
     allowManualAdvance: true
   });
-  assert.equal(inRangeReverseMove.kind, "clear", "backward movement should still cancel when the player explicitly retreats");
-  assert.equal(inRangeReverseMove.reason, "retreat-input", "retreat should still be recognized as cancel intent");
+  assert.equal(inRangeReverseMove.kind, "attack", "in-range queued attack should resolve even if the current move input points away from the target");
+  assert.equal(inRangeReverseMove.reason, "entered-range", "in-range queued attack should take precedence over retreat/manual cancel");
+  assert.deepEqual(inRangeReverseMove.attackDirection, { x: 1, y: 0 }, "reverse-move attack should still face the target at release time");
 }
 
 function validateQueuedAttackFlow(): void {
@@ -385,11 +393,11 @@ function validateFeedbackEventMappings(): void {
     before: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId },
     after: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId }
   });
-  assert.deepEqual(continueEvent, {
-    key: `continue:${chaseAssist.targetId}`,
-    text: "锁定追击中",
-    tone: "info"
-  }, "continue steps should expose a throttled pursue feedback event");
+  assert.equal(
+    continueEvent,
+    null,
+    "lock assist should not emit noisy toast for continue; ring/label is enough, combat feedback comes from damage numbers"
+  );
 
   const retreatEvent = mapLockAssistFeedbackEvent({
     result: {
@@ -402,12 +410,11 @@ function validateFeedbackEventMappings(): void {
     before: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId },
     after: { chaseAssist: undefined, queuedAttackTargetId: undefined }
   });
-  assert.deepEqual(retreatEvent, {
-    key: "cancel:retreat-input",
-    text: "锁定取消：后撤",
-    tone: "warn",
-    visibleMs: 1700
-  }, "retreat cancel should map to an explicit cancel feedback event");
+  assert.equal(
+    retreatEvent,
+    null,
+    "lock assist should not emit noisy toast for retreat cancel; ring/label is enough, combat feedback comes from damage numbers"
+  );
 
   const manualEvent = mapLockAssistFeedbackEvent({
     result: {
@@ -420,13 +427,52 @@ function validateFeedbackEventMappings(): void {
     before: { chaseAssist, queuedAttackTargetId: chaseAssist.targetId },
     after: { chaseAssist: undefined, queuedAttackTargetId: undefined }
   });
-  assert.deepEqual(manualEvent, {
-    key: "cancel:manual-input",
-    text: "锁定取消：手动接管",
-    tone: "warn",
-    visibleMs: 1700
-  }, "manual takeover should map to visible player-control feedback");
+  assert.equal(
+    manualEvent,
+    null,
+    "lock assist should not emit noisy toast for manual takeover; ring/label is enough, combat feedback comes from damage numbers"
+  );
+}
 
+function validateDamageNumberStyleContract(): void {
+  const feedbackFxPath = path.resolve(currentDir, "../client/src/scenes/gameScene/feedbackFx.ts");
+  const feedbackFxSource = fs.readFileSync(feedbackFxPath, "utf8");
+
+  assert.equal(
+    /normal:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1] ? Number(/normal:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1]) >= 34 : false,
+    true,
+    "normal hit damage numbers should stay at or above 34px"
+  );
+  assert.equal(
+    /critical:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1] ? Number(/critical:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1]) >= 48 : false,
+    true,
+    "critical hit damage numbers should stay at or above 48px"
+  );
+  assert.equal(
+    /bleed:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1]
+      && /normal:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1]
+      ? Number(/bleed:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1])
+        < Number(/normal:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1])
+      : false,
+    true,
+    "bleed tick numbers should remain visually smaller than normal hits"
+  );
+  assert.equal(
+    /normal:\s*\{[\s\S]*?strokeThickness:\s*(\d+)/.exec(feedbackFxSource)?.[1]
+      ? Number(/normal:\s*\{[\s\S]*?strokeThickness:\s*(\d+)/.exec(feedbackFxSource)?.[1]) >= 8
+      : false,
+    true,
+    "normal hit damage numbers should keep a stronger outline"
+  );
+  assert.equal(
+    /critical:\s*\{[\s\S]*?rise:\s*(\d+)/.exec(feedbackFxSource)?.[1]
+      && /normal:\s*\{[\s\S]*?rise:\s*(\d+)/.exec(feedbackFxSource)?.[1]
+      ? Number(/critical:\s*\{[\s\S]*?rise:\s*(\d+)/.exec(feedbackFxSource)?.[1])
+        > Number(/normal:\s*\{[\s\S]*?rise:\s*(\d+)/.exec(feedbackFxSource)?.[1])
+      : false,
+    true,
+    "critical hit damage numbers should float higher than normal hits"
+  );
 }
 
 function createAssistSelf(): LockAssistSelf {

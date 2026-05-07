@@ -10,6 +10,11 @@ const repoRoot = path.resolve(__dirname, "..");
 const normal = MONSTER_ASSET_CONTRACTS.normal;
 const elite = MONSTER_ASSET_CONTRACTS.elite;
 const boss = MONSTER_ASSET_CONTRACTS.boss;
+const BOSS_ELITE_MIN_GAP = 10;
+const BOSS_ELITE_MAX_GAP = 22;
+const NORMAL_DISPLAY_SIZE_MAX = 72;
+const ELITE_DISPLAY_SIZE_MAX = 82;
+const BOSS_DISPLAY_SIZE_MAX = 104;
 
 assert.equal(normal.frameWidth, 314, "normal monster frameWidth should stay at 314");
 assert.equal(normal.frameHeight, 314, "normal monster frameHeight should stay at 314");
@@ -19,8 +24,14 @@ assert.equal(boss.frameWidth, 314, "boss monster frameWidth should stay at 314")
 assert.equal(boss.frameHeight, 314, "boss monster frameHeight should stay at 314");
 
 assert.ok(Math.abs(elite.displaySize - normal.displaySize) <= 16, "normal and elite display sizes should remain close");
-assert.ok(boss.displaySize >= elite.displaySize + 32, "boss display size should stay clearly larger than elite");
-assert.ok(boss.displaySize <= 180, "boss display size should not grow large enough to dominate the viewport");
+assert.ok(normal.displaySize <= NORMAL_DISPLAY_SIZE_MAX, "normal display size should stay under the tightened readability ceiling");
+assert.ok(elite.displaySize <= ELITE_DISPLAY_SIZE_MAX, "elite display size should stay under the tightened readability ceiling");
+assert.ok(boss.displaySize > elite.displaySize, "boss display size should stay larger than elite");
+assert.ok(
+  boss.displaySize - elite.displaySize >= BOSS_ELITE_MIN_GAP && boss.displaySize - elite.displaySize <= BOSS_ELITE_MAX_GAP,
+  `boss display size gap should stay within ${BOSS_ELITE_MIN_GAP}-${BOSS_ELITE_MAX_GAP} pixels over elite`
+);
+assert.ok(boss.displaySize <= BOSS_DISPLAY_SIZE_MAX, "boss display size should stay under the tightened readability ceiling");
 
 assert.equal(getMonsterTextureKey("boss"), "monster_boss_sheet", "boss should resolve to independent texture key");
 assert.notEqual(getMonsterTextureKey("boss"), getMonsterTextureKey("elite"), "boss should not reuse elite texture key");
