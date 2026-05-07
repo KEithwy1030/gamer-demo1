@@ -29,6 +29,7 @@
     "validate:inventory-drag-contract": "tsx scripts/validate-inventory-drag-contract.ts",
     "validate:profile-drag-contract": "tsx scripts/validate-profile-drag-contract.ts",
     "validate:inventory-drag-ui": "tsx scripts/validate-inventory-drag-ui.ts",
+    "validate:visual-clarity": "tsx scripts/validate-visual-clarity.ts",
     "validate:drag-contracts": "npm run validate:inventory-drag-contract && npm run validate:profile-drag-contract && npm run validate:inventory-drag-ui"
   },
   "devDependencies": {

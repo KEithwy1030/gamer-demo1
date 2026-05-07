@@ -2,12 +2,14 @@ import Phaser from "phaser";
 import type { MatchViewState } from "../../game";
 import type { ExtractUiState } from "../createGameClient";
 import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
+import { buildRiverVisualPlan } from "./riverVisualPlan";
 
 const EXTRACT_VISUAL_CLEARANCE_PADDING = 120;
 
 export interface WorldBackdropRefs {
   terrainLayer?: Phaser.GameObjects.TileSprite;
   detailLayer?: Phaser.GameObjects.Graphics;
+  riverLayer?: Phaser.GameObjects.Graphics;
   atmosphereLayer?: Phaser.GameObjects.Graphics;
   extractOuterRing?: Phaser.GameObjects.Arc;
   extractInnerRing?: Phaser.GameObjects.Arc;
@@ -31,6 +33,7 @@ export function rebuildWorldBackdrop(
 ): WorldBackdropRefs {
   refs.terrainLayer?.destroy();
   refs.detailLayer?.destroy();
+  refs.riverLayer?.destroy();
   refs.atmosphereLayer?.destroy();
   refs.extractOuterRing?.destroy();
   refs.extractInnerRing?.destroy();
@@ -56,7 +59,9 @@ export function rebuildWorldBackdrop(
   detailLayer.lineStyle(3, GAMEPLAY_THEME.colors.signal, 0.16);
   detailLayer.strokeCircle(centerX, centerY, 154);
 
-  drawCorpseRiver(detailLayer, state);
+  const riverLayer = scene.add.graphics();
+  riverLayer.setDepth(-33);
+  drawCorpseRiver(detailLayer, riverLayer, state);
   const crossingSprites = drawSafeCrossings(scene, state);
 
   const atmosphereLayer = scene.add.graphics();
@@ -67,6 +72,7 @@ export function rebuildWorldBackdrop(
   return {
     terrainLayer,
     detailLayer,
+    riverLayer,
     atmosphereLayer,
     extractOuterRing: undefined,
     extractInnerRing: undefined,
@@ -137,47 +143,88 @@ export function syncExtractBackdrop(
   };
 }
 
-function drawCorpseRiver(layer: Phaser.GameObjects.Graphics, state: MatchViewState): void {
+function drawCorpseRiver(
+  detailLayer: Phaser.GameObjects.Graphics,
+  riverLayer: Phaser.GameObjects.Graphics,
+  state: MatchViewState
+): void {
   const hazards = state.layout?.riverHazards ?? [];
   if (hazards.length === 0) return;
 
   const extractZone = state.layout?.extractZones[0];
-  const centerline = hazards.map((hazard) => ({
-    x: hazard.x + hazard.width / 2,
-    y: hazard.y + hazard.height / 2,
-    width: hazard.width,
-    height: hazard.height,
-    radius: Math.max(Math.min(hazard.width, hazard.height) * 0.42, 132)
-  }));
+  const plan = buildRiverVisualPlan({
+    riverHazards: hazards,
+    safeCrossings: state.layout?.safeCrossings ?? [],
+    extractZones: state.layout?.extractZones ?? []
+  });
 
-  layer.fillStyle(0x2d3423, 0.06);
-  layer.lineStyle(0, 0, 0);
-  for (let index = 0; index < centerline.length - 1; index += 1) {
-    const from = centerline[index];
-    const to = centerline[index + 1];
-    const stroke = Math.max(Math.min(from.radius, to.radius) * 1.78, 196);
-    layer.lineStyle(stroke, 0x314028, 0.2);
-    layer.lineBetween(from.x, from.y, to.x, to.y);
+  detailLayer.fillStyle(0x2d3423, 0.05);
+  detailLayer.lineStyle(0, 0, 0);
+  for (const stroke of plan.flowStrokes) {
+    detailLayer.lineStyle(stroke.shorelineWidth, 0x201b14, 0.34);
+    detailLayer.lineBetween(stroke.fromX, stroke.fromY, stroke.toX, stroke.toY);
+  }
+  for (const patch of plan.shorelinePatches) {
+    detailLayer.fillStyle(0x271f17, 0.32);
+    detailLayer.fillEllipse(patch.x, patch.y, patch.radiusX * 2.1, patch.radiusY * 2.15);
+    detailLayer.lineStyle(10, 0x514536, 0.18);
+    detailLayer.strokeEllipse(patch.x, patch.y, patch.radiusX * 1.86, patch.radiusY * 1.92);
   }
 
-  for (const node of centerline) {
-    layer.fillStyle(0x314028, 0.22);
-    layer.fillCircle(node.x, node.y, node.radius);
-    layer.fillStyle(0x4f6330, 0.12);
-    layer.fillCircle(node.x, node.y, node.radius * 0.68);
-    layer.lineStyle(6, GAMEPLAY_THEME.colors.caution, 0.14);
-    layer.strokeCircle(node.x, node.y, node.radius * 0.92);
-    layer.lineStyle(2, 0x9aa35a, 0.08);
-    for (let ripple = -node.radius * 0.58; ripple <= node.radius * 0.58; ripple += Math.max(28, node.radius * 0.22)) {
-      layer.lineBetween(node.x - node.radius * 0.46, node.y + ripple, node.x + node.radius * 0.46, node.y + ripple * 0.58);
+  for (const stroke of plan.flowStrokes) {
+    riverLayer.lineStyle(stroke.bodyWidth, 0x304c53, 0.58);
+    riverLayer.lineBetween(stroke.fromX, stroke.fromY, stroke.toX, stroke.toY);
+    riverLayer.lineStyle(stroke.bodyWidth * 0.72, 0x3a6773, 0.4);
+    riverLayer.lineBetween(stroke.fromX, stroke.fromY, stroke.toX, stroke.toY);
+    riverLayer.lineStyle(stroke.highlightWidth, 0x8fb8c4, 0.12);
+    riverLayer.lineBetween(stroke.fromX, stroke.fromY, stroke.toX, stroke.toY);
+  }
+
+  for (const node of plan.nodes) {
+    riverLayer.fillStyle(0x2f5962, 0.56);
+    riverLayer.fillEllipse(node.centerX, node.centerY, node.radiusX * 1.78, node.radiusY * 1.82);
+    riverLayer.fillStyle(0x3f7483, 0.3);
+    riverLayer.fillEllipse(node.centerX, node.centerY, node.radiusX * 1.18, node.radiusY * 1.24);
+    riverLayer.lineStyle(8, 0x9ec7d3, 0.14);
+    riverLayer.strokeEllipse(node.centerX, node.centerY, node.radiusX * 1.22, node.radiusY * 1.26);
+  }
+
+  riverLayer.lineStyle(3, 0xb9d6dd, 0.12);
+  for (const ripple of plan.rippleLines) {
+    riverLayer.lineBetween(ripple.x1, ripple.y1, ripple.x2, ripple.y2);
+  }
+
+  for (const shoal of plan.shoals) {
+    riverLayer.fillStyle(0xd1c39a, 0.12);
+    riverLayer.fillEllipse(shoal.x, shoal.y, shoal.radiusX * 2, shoal.radiusY * 2);
+    riverLayer.lineStyle(5, 0xe3d4ac, 0.1);
+    riverLayer.strokeEllipse(shoal.x, shoal.y, shoal.radiusX * 1.44, shoal.radiusY * 1.44);
+  }
+
+  for (const accent of plan.crossingAccents) {
+    const cx = accent.x + accent.width / 2;
+    const cy = accent.y + accent.height / 2;
+    if (accent.kind === "ford") {
+      riverLayer.lineStyle(6, 0xe6ddbc, 0.08);
+      riverLayer.lineBetween(accent.x + 14, cy - accent.height * 0.1, accent.x + accent.width - 14, cy + accent.height * 0.08);
+      riverLayer.lineBetween(accent.x + 22, cy + accent.height * 0.16, accent.x + accent.width - 22, cy + accent.height * 0.3);
+      continue;
+    }
+
+    if (accent.kind === "bridge") {
+      riverLayer.lineStyle(8, 0xebe0b8, 0.09);
+      riverLayer.lineBetween(cx, accent.y - 10, cx, accent.y + accent.height + 10);
+      riverLayer.lineStyle(4, 0xc5b690, 0.08);
+      riverLayer.lineBetween(cx - accent.width * 0.18, accent.y, cx - accent.width * 0.18, accent.y + accent.height);
+      riverLayer.lineBetween(cx + accent.width * 0.18, accent.y, cx + accent.width * 0.18, accent.y + accent.height);
     }
   }
 
   if (extractZone) {
-    layer.fillStyle(0x2a2118, 0.96);
-    layer.fillCircle(extractZone.x, extractZone.y, extractZone.radius + EXTRACT_VISUAL_CLEARANCE_PADDING);
-    layer.lineStyle(10, GAMEPLAY_THEME.colors.iron900, 0.24);
-    layer.strokeCircle(extractZone.x, extractZone.y, extractZone.radius + EXTRACT_VISUAL_CLEARANCE_PADDING - 8);
+    detailLayer.fillStyle(0x2a2118, 0.96);
+    detailLayer.fillCircle(extractZone.x, extractZone.y, extractZone.radius + EXTRACT_VISUAL_CLEARANCE_PADDING);
+    detailLayer.lineStyle(10, GAMEPLAY_THEME.colors.iron900, 0.24);
+    detailLayer.strokeCircle(extractZone.x, extractZone.y, extractZone.radius + EXTRACT_VISUAL_CLEARANCE_PADDING - 8);
   }
 }
 

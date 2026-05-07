@@ -34,6 +34,7 @@ import {
   type LockAssistTarget
 } from "./gameScene/lockAssist";
 import { LockAssistFeedbackController } from "./gameScene/lockAssistFeedback";
+import { GAME_CAMERA_CONFIG } from "./gameScene/renderTuning";
 import {
   getPrimarySkillCooldownMs,
   getPrimarySkillWindupMs,
@@ -235,7 +236,8 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor("#0e0b08");
     const touchLayout = shouldUseTouchLayout();
-    this.cameras.main.setZoom(touchLayout ? 0.86 : 0.96);
+    this.cameras.main.setZoom(touchLayout ? GAME_CAMERA_CONFIG.touchZoom : GAME_CAMERA_CONFIG.desktopZoom);
+    this.cameras.main.roundPixels = GAME_CAMERA_CONFIG.roundPixels;
     this.createUnitAnimations();
 
     this.hudOverlay = new GameHudOverlay(this, touchLayout);

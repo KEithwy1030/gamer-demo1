@@ -19,6 +19,7 @@ import { MatchRuntimeStore, type MatchInventoryState } from "../game";
 import type { MatchInventoryItem } from "../game/matchRuntime";
 import { translateItemName } from "../ui/itemPresentation";
 import { GameScene } from "./GameScene";
+import { applySmoothTextureSampling, GAME_RENDER_CONFIG } from "./gameScene/renderTuning";
 import {
   createInitialExtractState,
   normalizeExtractOpened,
@@ -237,9 +238,9 @@ export function createGameClientController(
       parent: options.parent,
       width: GAME_VIEW_WIDTH,
       height: GAME_VIEW_HEIGHT,
-      pixelArt: true,
-      antialias: false,
-      autoRound: true,
+      pixelArt: GAME_RENDER_CONFIG.pixelArt,
+      antialias: GAME_RENDER_CONFIG.antialias,
+      autoRound: GAME_RENDER_CONFIG.autoRound,
       backgroundColor: "#020617",
       scene: [GameScene],
       physics: {
@@ -253,6 +254,7 @@ export function createGameClientController(
         autoCenter: Phaser.Scale.CENTER_BOTH
       }
     });
+    applySmoothTextureSampling(game);
     game.scene.start(GameScene.KEY, {
       runtime,
       extractState,
