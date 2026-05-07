@@ -7,6 +7,7 @@ import { MonsterMarker } from "../game/entities/MonsterMarker";
 import { PlayerMarker } from "../game/entities/PlayerMarker";
 import {
   MONSTER_ASSET_CONTRACTS,
+  getMonsterActionFrameRate,
   getMonsterActionFrames,
   getMonsterAnimationKey,
   getMonsterTextureKey
@@ -203,23 +204,14 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    const monsterFrameRates = {
-      idle: 5,
-      move: 7,
-      attack: 8,
-      charge: 10,
-      hurt: 10,
-      death: 1
-    } as const;
-
     for (const monsterType of Object.keys(MONSTER_ASSET_CONTRACTS) as Array<keyof typeof MONSTER_ASSET_CONTRACTS>) {
       const textureKey = getMonsterTextureKey(monsterType);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "idle"), textureKey, getMonsterActionFrames(monsterType, "idle"), monsterFrameRates.idle, -1);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "move"), textureKey, getMonsterActionFrames(monsterType, "move"), monsterFrameRates.move, -1);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "attack"), textureKey, getMonsterActionFrames(monsterType, "attack"), monsterFrameRates.attack, 0);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "charge"), textureKey, getMonsterActionFrames(monsterType, "charge"), monsterFrameRates.charge, 0);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "hurt"), textureKey, getMonsterActionFrames(monsterType, "hurt"), monsterFrameRates.hurt, 0);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "death"), textureKey, getMonsterActionFrames(monsterType, "death"), monsterFrameRates.death, 0);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "idle"), textureKey, getMonsterActionFrames(monsterType, "idle"), getMonsterActionFrameRate(monsterType, "idle"), -1);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "move"), textureKey, getMonsterActionFrames(monsterType, "move"), getMonsterActionFrameRate(monsterType, "move"), -1);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "attack"), textureKey, getMonsterActionFrames(monsterType, "attack"), getMonsterActionFrameRate(monsterType, "attack"), 0);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "charge"), textureKey, getMonsterActionFrames(monsterType, "charge"), getMonsterActionFrameRate(monsterType, "charge"), 0);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "hurt"), textureKey, getMonsterActionFrames(monsterType, "hurt"), getMonsterActionFrameRate(monsterType, "hurt"), 0);
+      this.createAnimation(getMonsterAnimationKey(monsterType, "death"), textureKey, getMonsterActionFrames(monsterType, "death"), getMonsterActionFrameRate(monsterType, "death"), 0);
     }
   }
 
@@ -693,7 +685,8 @@ export class GameScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const fogState = resolveCorpseFogVisualState(state.startedAt);
     const bucket = Math.round(fogState.visibilityPercent * 1000);
-    const signature = `${width}x${height}:${bucket}`;
+    const phase = Math.floor(this.time.now / 650) % 8;
+    const signature = `${width}x${height}:${bucket}:${phase}`;
     if (this.corpseFogSignature === signature && this.corpseFogImage) {
       return;
     }
@@ -710,12 +703,34 @@ export class GameScene extends Phaser.Scene {
     context.clearRect(0, 0, width, height);
 
     const density = Phaser.Math.Clamp(1 - fogState.visibilityPercent, 0, 0.92);
-    context.fillStyle = `rgba(74, 93, 58, ${0.10 + density * 0.46})`;
+    const edgeGradient = context.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, Math.max(width, height) * 0.78);
+    edgeGradient.addColorStop(0, `rgba(74, 93, 58, ${0.05 + density * 0.16})`);
+    edgeGradient.addColorStop(0.54, `rgba(91, 92, 49, ${0.12 + density * 0.34})`);
+    edgeGradient.addColorStop(1, `rgba(6, 8, 5, ${0.18 + density * 0.56})`);
+    context.fillStyle = edgeGradient;
     context.fillRect(0, 0, width, height);
-    context.fillStyle = `rgba(107, 91, 58, ${0.06 + density * 0.28})`;
-    context.fillRect(0, 0, width, height);
-    context.fillStyle = `rgba(6, 8, 5, ${Math.max(0, density - 0.45) * 0.55})`;
-    context.fillRect(0, 0, width, height);
+
+    context.fillStyle = `rgba(107, 91, 58, ${0.04 + density * 0.18})`;
+    for (let index = 0; index < 18; index += 1) {
+      const seed = index * 97 + phase * 23;
+      const x = ((seed * 37) % (width + 220)) - 110;
+      const y = ((seed * 61) % (height + 160)) - 80;
+      const radiusX = 70 + ((seed * 11) % 120);
+      const radiusY = 18 + ((seed * 7) % 42);
+      context.beginPath();
+      context.ellipse(x, y, radiusX, radiusY, (seed % 7) * 0.18, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    context.fillStyle = `rgba(19, 27, 16, ${Math.max(0, density - 0.38) * 0.36})`;
+    for (let index = 0; index < 12; index += 1) {
+      const seed = index * 131 + phase * 41;
+      const x = ((seed * 29) % (width + 260)) - 130;
+      const y = ((seed * 43) % (height + 180)) - 90;
+      context.beginPath();
+      context.ellipse(x, y, 90 + ((seed * 5) % 160), 24 + ((seed * 3) % 58), (seed % 9) * -0.16, 0, Math.PI * 2);
+      context.fill();
+    }
 
     const radius = Math.max(80, Math.max(width, height) * 0.78 * fogState.visibilityPercent);
     const gradient = context.createRadialGradient(width / 2, height / 2, radius * 0.48, width / 2, height / 2, radius);

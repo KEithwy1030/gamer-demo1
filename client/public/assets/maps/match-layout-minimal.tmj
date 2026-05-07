@@ -1,0 +1,175 @@
+{
+  "compressionlevel": -1,
+  "height": 150,
+  "infinite": false,
+  "layers": [
+    {
+      "name": "meta",
+      "type": "objectgroup",
+      "objects": [
+        {
+          "id": 1,
+          "name": "layout",
+          "type": "meta",
+          "x": 0,
+          "y": 0,
+          "properties": [
+            { "name": "templateId", "type": "string", "value": "A" }
+          ]
+        }
+      ],
+      "opacity": 1,
+      "visible": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "name": "squad_spawns",
+      "type": "objectgroup",
+      "objects": [
+        {
+          "id": 2,
+          "name": "player",
+          "type": "spawn",
+          "x": 420,
+          "y": 420,
+          "properties": [
+            { "name": "squadId", "type": "string", "value": "player" },
+            { "name": "facingX", "type": "float", "value": 0.71 },
+            { "name": "facingY", "type": "float", "value": 0.71 },
+            { "name": "safeRadius", "type": "int", "value": 340 },
+            { "name": "deploymentLabel", "type": "string", "value": "北线缓坡" }
+          ]
+        }
+      ],
+      "opacity": 1,
+      "visible": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "name": "safe_zones",
+      "type": "objectgroup",
+      "objects": [
+        {
+          "id": 3,
+          "name": "player_safe",
+          "type": "safe_zone",
+          "x": 420,
+          "y": 420,
+          "properties": [
+            { "name": "squadId", "type": "string", "value": "player" },
+            { "name": "radius", "type": "int", "value": 340 }
+          ]
+        }
+      ],
+      "opacity": 1,
+      "visible": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "name": "extract_zones",
+      "type": "objectgroup",
+      "objects": [
+        {
+          "id": 4,
+          "name": "extract_center",
+          "type": "extract_zone",
+          "x": 2400,
+          "y": 2400,
+          "properties": [
+            { "name": "zoneId", "type": "string", "value": "extract_center" },
+            { "name": "radius", "type": "int", "value": 96 },
+            { "name": "openAtSec", "type": "int", "value": 480 },
+            { "name": "channelDurationMs", "type": "int", "value": 5000 }
+          ]
+        }
+      ],
+      "opacity": 1,
+      "visible": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "name": "chest_zones",
+      "type": "objectgroup",
+      "objects": [
+        {
+          "id": 5,
+          "name": "starter_1",
+          "type": "chest_zone",
+          "x": 700,
+          "y": 700,
+          "properties": [
+            { "name": "chestId", "type": "string", "value": "starter_1" },
+            { "name": "lane", "type": "string", "value": "starter" },
+            { "name": "squadId", "type": "string", "value": "player" }
+          ]
+        }
+      ],
+      "opacity": 1,
+      "visible": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "name": "river_hazards",
+      "type": "objectgroup",
+      "objects": [
+        {
+          "id": 6,
+          "name": "river_headwaters",
+          "type": "river_hazard",
+          "x": 860,
+          "y": 0,
+          "width": 1040,
+          "height": 1220,
+          "properties": [
+            { "name": "hazardId", "type": "string", "value": "river_headwaters" },
+            { "name": "damagePerTick", "type": "int", "value": 3 },
+            { "name": "tickIntervalMs", "type": "int", "value": 500 }
+          ]
+        }
+      ],
+      "opacity": 1,
+      "visible": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "name": "safe_crossings",
+      "type": "objectgroup",
+      "objects": [
+        {
+          "id": 7,
+          "name": "ford_north",
+          "type": "safe_crossing",
+          "x": 1490,
+          "y": 540,
+          "width": 250,
+          "height": 200,
+          "properties": [
+            { "name": "crossingId", "type": "string", "value": "ford_north" },
+            { "name": "label", "type": "string", "value": "North Ford" }
+          ]
+        }
+      ],
+      "opacity": 1,
+      "visible": true,
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "nextlayerid": 8,
+  "nextobjectid": 8,
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "tiledversion": "1.11.0",
+  "tileheight": 32,
+  "tilesets": [],
+  "tilewidth": 32,
+  "type": "map",
+  "version": "1.10",
+  "width": 150
+}

@@ -22,6 +22,8 @@ assert.ok(plan.nodes.length >= 4, "river visual plan should keep multiple water 
 assert.ok(plan.flowStrokes.length >= plan.nodes.length - 1, "river visual plan should connect nodes with body strokes");
 assert.ok(plan.rippleLines.length >= plan.nodes.length * 3, "river visual plan should create layered ripple lines");
 assert.ok(plan.shoals.length >= layout.safeCrossings.length, "river visual plan should add shoals around crossings");
+assert.ok(plan.foamPatches.length >= plan.nodes.length * 2, "river visual plan should add foam patches instead of bare strokes");
+assert.ok(plan.corpseSlicks.length >= plan.nodes.length, "river visual plan should add corpse slicks for poisoned river readability");
 assert.ok(plan.crossingAccents.length === layout.safeCrossings.length, "river visual plan should accent every safe crossing");
 
 for (const crossing of layout.safeCrossings) {

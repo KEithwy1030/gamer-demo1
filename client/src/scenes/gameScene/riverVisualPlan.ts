@@ -40,6 +40,8 @@ export interface RiverVisualPlan {
   rippleLines: RiverRippleLine[];
   shoals: Array<{ x: number; y: number; radiusX: number; radiusY: number }>;
   shorelinePatches: Array<{ x: number; y: number; radiusX: number; radiusY: number }>;
+  foamPatches: Array<{ x: number; y: number; radiusX: number; radiusY: number; alpha: number }>;
+  corpseSlicks: Array<{ x: number; y: number; radiusX: number; radiusY: number; rotation: number }>;
   crossingAccents: RiverCrossingAccent[];
 }
 
@@ -75,6 +77,8 @@ export function buildRiverVisualPlan(layout: Pick<MatchLayout, "riverHazards" | 
     radiusX: node.radiusX * 1.14,
     radiusY: node.radiusY * 1.18
   }));
+  const foamPatches = nodes.flatMap((node) => buildFoamPatches(node));
+  const corpseSlicks = nodes.flatMap((node, index) => buildCorpseSlicks(node, index));
   const shoals = safeCrossings.flatMap((crossing) => buildCrossingShoals(crossing));
   const crossingAccents: RiverCrossingAccent[] = safeCrossings.map((crossing) => ({
     crossingId: crossing.crossingId,
@@ -95,6 +99,8 @@ export function buildRiverVisualPlan(layout: Pick<MatchLayout, "riverHazards" | 
     rippleLines,
     shoals,
     shorelinePatches,
+    foamPatches,
+    corpseSlicks,
     crossingAccents
   };
 }
@@ -121,6 +127,38 @@ function buildRippleLines(node: RiverPlanNode): RiverRippleLine[] {
     });
   }
   return lines;
+}
+
+function buildFoamPatches(node: RiverPlanNode): Array<{ x: number; y: number; radiusX: number; radiusY: number; alpha: number }> {
+  return [
+    {
+      x: node.centerX - node.radiusX * 0.36,
+      y: node.centerY - node.radiusY * 0.24,
+      radiusX: node.radiusX * 0.18,
+      radiusY: node.radiusY * 0.08,
+      alpha: 0.16
+    },
+    {
+      x: node.centerX + node.radiusX * 0.28,
+      y: node.centerY + node.radiusY * 0.18,
+      radiusX: node.radiusX * 0.14,
+      radiusY: node.radiusY * 0.07,
+      alpha: 0.12
+    }
+  ];
+}
+
+function buildCorpseSlicks(node: RiverPlanNode, index: number): Array<{ x: number; y: number; radiusX: number; radiusY: number; rotation: number }> {
+  const direction = index % 2 === 0 ? 1 : -1;
+  return [
+    {
+      x: node.centerX + direction * node.radiusX * 0.18,
+      y: node.centerY - direction * node.radiusY * 0.12,
+      radiusX: node.radiusX * 0.26,
+      radiusY: node.radiusY * 0.1,
+      rotation: direction * 0.32
+    }
+  ];
 }
 
 function buildCrossingShoals(crossing: MatchLayoutSafeCrossing): Array<{ x: number; y: number; radiusX: number; radiusY: number }> {

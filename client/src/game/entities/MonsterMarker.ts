@@ -32,6 +32,7 @@ export class MonsterMarker {
   private lastAliveState: boolean | null = null;
   private lastHpWidth = -1;
   private lastPhaseWidth = -1;
+  private readonly profile: ReturnType<typeof getMonsterVisualProfile>;
 
   constructor(scene: Phaser.Scene, monster: MonsterState) {
     this.id = monster.id;
@@ -42,7 +43,8 @@ export class MonsterMarker {
 
     const isBoss = monster.type === "boss";
     const isElite = monster.type === "elite";
-    const profile = getMonsterVisualProfile(monster.type);
+    this.profile = getMonsterVisualProfile(monster.type);
+    const profile = this.profile;
     const labelOffsetY = profile.labelOffsetY;
     const hpY = profile.hpY;
     const phaseY = hpY - 12;
@@ -104,22 +106,22 @@ export class MonsterMarker {
 
     this.crown = scene.add.text(0, profile.crownY, isBoss ? "BOSS" : isElite ? "ELITE" : "", {
       fontFamily: "monospace",
-      fontSize: isBoss ? "12px" : "11px",
+      fontSize: isBoss ? "10px" : "9px",
       fontStyle: "bold",
       color: isBoss ? "#fef08a" : "#fdba74",
       backgroundColor: isBoss ? "rgba(68,20,20,0.78)" : "rgba(74,22,12,0.78)",
-      padding: { x: 5, y: 2 }
+      padding: { x: 4, y: 1 }
     });
     this.crown.setOrigin(0.5, 0.5);
     this.crown.setVisible(isBoss || isElite);
 
     this.label = scene.add.text(0, labelOffsetY, getMonsterLabel(monster), {
       fontFamily: "monospace",
-      fontSize: isBoss ? "12px" : "11px",
+      fontSize: isBoss ? "10px" : "9px",
       fontStyle: "bold",
       color: "#f3ead6",
       backgroundColor: "rgba(24,10,10,0.84)",
-      padding: { x: 5, y: 2 }
+      padding: { x: 4, y: 1 }
     });
     this.label.setOrigin(0.5, 0);
 
@@ -169,7 +171,7 @@ export class MonsterMarker {
   private applyState(monster: MonsterState): void {
     const now = Date.now();
     const snapshot = getMonsterReadabilitySnapshot(monster, now);
-    const hpBaseWidth = getMonsterVisualProfile(monster.type).hpWidth;
+    const hpBaseWidth = this.profile.hpWidth;
     const hpWidth = Math.max(0, hpBaseWidth * snapshot.hpRatio);
     const phaseRatio = snapshot.timeToPhaseEndMs == null
       ? 0
@@ -200,7 +202,7 @@ export class MonsterMarker {
     this.phaseBarFill.setFillStyle(snapshot.isWarning ? 0xfbbf24 : snapshot.isAttacking ? 0xef4444 : 0x94a3b8, 1);
 
     this.telegraphRing.setVisible(monster.isAlive);
-    this.telegraphRing.setScale(snapshot.isWarning ? 1.08 : snapshot.isAttacking ? 1.03 : 1);
+    this.telegraphRing.setScale(snapshot.isWarning ? 1.12 : snapshot.isAttacking ? 1.04 : 1);
     this.telegraphRing.setFillStyle(
       snapshot.isBoss ? (monster.isEnraged ? 0xb91c1c : 0xef4444) : snapshot.isElite ? 0xf97316 : 0x7f1d1d,
       snapshot.isBoss
@@ -218,7 +220,7 @@ export class MonsterMarker {
       snapshot.isBoss ? (monster.isEnraged ? 0x991b1b : 0x7f1d1d) : snapshot.isElite ? 0x9a3412 : 0x431407,
       snapshot.isWarning ? (snapshot.isBoss ? 0.16 : 0.16) : snapshot.isRecentlyHit ? 0.14 : snapshot.isElite ? 0.11 : 0.08
     );
-    this.threatAura.setScale(snapshot.isWarning ? 1.12 : snapshot.isAttacking ? 1.04 : 1);
+    this.threatAura.setScale(snapshot.isWarning ? 1.08 : snapshot.isAttacking ? 1.02 : 1);
 
     this.impactFlash.setVisible(monster.isAlive && snapshot.isRecentlyHit);
     this.impactFlash.setAlpha(snapshot.isRecentlyHit ? 0.36 : 0);
@@ -262,9 +264,9 @@ export class MonsterMarker {
   private applyVisualPose(monster: MonsterState, snapshot: ReturnType<typeof getMonsterReadabilitySnapshot>): void {
     this.playAction(getMonsterAction(monster, { isRecentlyHit: snapshot.isRecentlyHit }));
     this.sprite.setAlpha(1);
-    this.shadow.setAlpha(getMonsterVisualProfile(monster.type).shadow.alpha);
-    this.sprite.setScale(snapshot.isWarning ? 1.06 : snapshot.isAttacking ? 1.03 : 1);
-    this.sprite.setAngle(snapshot.isWarning ? -4 : snapshot.isAttacking ? 4 : 0);
+    this.shadow.setAlpha(this.profile.shadow.alpha);
+    this.sprite.setScale(snapshot.isWarning ? 1.04 : snapshot.isAttacking ? 1.02 : 1);
+    this.sprite.setAngle(snapshot.isWarning ? -3 : snapshot.isAttacking ? 3 : 0);
     this.sprite.setTint(snapshot.isBoss ? (monster.isEnraged ? 0xfb7185 : 0xc2410c) : snapshot.isElite ? 0xf59e0b : 0xffffff);
 
     if (snapshot.isRecovering && !snapshot.isWarning) {

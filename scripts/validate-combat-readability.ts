@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { spawnInitialMonsters, tickMonsters, handlePlayerAttack } from "../server/src/monsters/monster-manager.js";
 import { ensureDropState } from "../server/src/loot/loot-manager.js";
+import { applyEnvironmentalDamage, drainPendingCombatEvents } from "../server/src/combat/player-effects.js";
 import { getMonsterLabel, getMonsterReadabilitySnapshot } from "../client/src/game/entities/monsterReadability";
-import { MONSTER_ASSET_CONTRACTS, getMonsterActionFrames, getMonsterTextureKey } from "../client/src/game/entities/monsterVisuals";
+import { MONSTER_ASSET_CONTRACTS, getMonsterActionFrameRate, getMonsterActionFrames, getMonsterTextureKey, getMonsterVisualProfile } from "../client/src/game/entities/monsterVisuals";
 import { assertBossFxCoverage, MonsterSkillFxController } from "../client/src/scenes/gameScene/monsterSkillFx";
 import type { RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
-const BOSS_ELITE_MIN_GAP = 10;
-const BOSS_ELITE_MAX_GAP = 22;
-const NORMAL_DISPLAY_SIZE_MAX = 72;
-const ELITE_DISPLAY_SIZE_MAX = 82;
-const BOSS_DISPLAY_SIZE_MAX = 104;
+const TARGET_DISPLAY_SIZE = {
+  normal: 34,
+  elite: 38,
+  boss: 45
+} as const;
 
 const now = Date.now();
 const room = createRoom();
@@ -50,6 +52,7 @@ assertVisualContracts();
 assertNormalAndEliteTelegraph();
 assertBossTelegraph();
 assertHitAndDeathReadable();
+assertUnifiedDamageFeedback();
 
 console.log("validate-combat-readability: ok");
 
@@ -60,20 +63,28 @@ function assertVisualContracts(): void {
   assert.equal(getMonsterTextureKey("boss"), "monster_boss_sheet", "boss should expose its dedicated texture key");
   assert.notEqual(getMonsterTextureKey("boss"), getMonsterTextureKey("elite"), "boss should no longer share elite texture key");
 
-  assert.ok(Math.abs(MONSTER_ASSET_CONTRACTS.elite.displaySize - MONSTER_ASSET_CONTRACTS.normal.displaySize) <= 16, "normal and elite readability sizes should remain close");
-  assert.ok(MONSTER_ASSET_CONTRACTS.normal.displaySize <= NORMAL_DISPLAY_SIZE_MAX, "normal readability size should stay under the tightened ceiling");
-  assert.ok(MONSTER_ASSET_CONTRACTS.elite.displaySize <= ELITE_DISPLAY_SIZE_MAX, "elite readability size should stay under the tightened ceiling");
-  assert.ok(MONSTER_ASSET_CONTRACTS.boss.displaySize > MONSTER_ASSET_CONTRACTS.elite.displaySize, "boss readability size should stay larger than elite");
-  assert.ok(
-    MONSTER_ASSET_CONTRACTS.boss.displaySize - MONSTER_ASSET_CONTRACTS.elite.displaySize >= BOSS_ELITE_MIN_GAP
-      && MONSTER_ASSET_CONTRACTS.boss.displaySize - MONSTER_ASSET_CONTRACTS.elite.displaySize <= BOSS_ELITE_MAX_GAP,
-    `boss readability size gap should stay within ${BOSS_ELITE_MIN_GAP}-${BOSS_ELITE_MAX_GAP} pixels over elite`
-  );
-  assert.ok(MONSTER_ASSET_CONTRACTS.boss.displaySize <= BOSS_DISPLAY_SIZE_MAX, "boss readability size should stay under the tightened ceiling");
+  assert.equal(MONSTER_ASSET_CONTRACTS.normal.displaySize, TARGET_DISPLAY_SIZE.normal, "normal readability size should be reduced to 34");
+  assert.equal(MONSTER_ASSET_CONTRACTS.elite.displaySize, TARGET_DISPLAY_SIZE.elite, "elite readability size should be reduced to 38");
+  assert.equal(MONSTER_ASSET_CONTRACTS.boss.displaySize, TARGET_DISPLAY_SIZE.boss, "boss readability size should be reduced to 45");
+
+  const normalProfile = getMonsterVisualProfile("normal");
+  const eliteProfile = getMonsterVisualProfile("elite");
+  const bossProfile = getMonsterVisualProfile("boss");
+  assert.equal(normalProfile.hpWidth, 30, "normal hp bar should scale down with the monster");
+  assert.equal(eliteProfile.hpWidth, 33, "elite hp bar should scale down with the monster");
+  assert.equal(bossProfile.hpWidth, 40, "boss hp bar should scale down with the monster");
+  assert.equal(normalProfile.crownY, -40, "normal crown anchor contract should stay compact");
+  assert.equal(eliteProfile.crownY, -45, "elite crown anchor contract should stay compact");
+  assert.equal(bossProfile.crownY, -54, "boss crown anchor contract should stay compact");
 
   for (const action of ["idle", "move", "attack", "charge", "hurt", "death"] as const) {
     assert.ok(getMonsterActionFrames("boss", action).length > 0, `boss ${action} mapping should exist`);
+    assert.ok(getMonsterActionFrameRate("boss", action) >= 1, `boss ${action} frame rate should stay positive`);
   }
+
+  assert.deepEqual(getMonsterActionFrames("normal", "idle"), [0, 0, 1, 2, 1], "normal idle should include a hold frame to soften the loop");
+  assert.deepEqual(getMonsterActionFrames("elite", "move"), [4, 5, 6, 7, 6, 5], "elite move should use a mirrored return loop");
+  assert.deepEqual(getMonsterActionFrames("boss", "attack"), [8, 9, 10, 9], "boss attack should include a recovery frame");
 
   assertBossFxCoverage();
   const fxCoverage = MonsterSkillFxController.getVisualCoverage();
@@ -147,6 +158,21 @@ function assertHitAndDeathReadable(): void {
   assert.equal(hitState?.isAlive, false, "monster should die from lethal hit");
   assert.equal(typeof hitState?.deadAt, "number", "monster death should expose deadAt");
   assert.equal(deathSnapshot.isRecentlyDead, true, "death readability snapshot should expose corpse fade window");
+}
+
+function assertUnifiedDamageFeedback(): void {
+  const hazardVictim = createPlayer("hazard", { x: 140, y: 160, direction: { x: 0, y: 1 }, squadId: "player" });
+  const event = applyEnvironmentalDamage(hazardVictim, 7, "corpse_fog", now);
+  assert.equal(event?.damageType, "environment", "environment damage should emit a combat payload");
+  assert.equal(event?.attackerId, "corpse_fog", "environment damage should preserve source id");
+  assert.equal(drainPendingCombatEvents(hazardVictim).length, 0, "environment damage should not rely on a separate pending queue");
+  const feedbackFxSource = fs.readFileSync(new URL("../client/src/scenes/gameScene/feedbackFx.ts", import.meta.url), "utf8");
+  const bleedFontSize = Number(/bleed:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1] ?? 0);
+  const environmentFontSize = Number(/environment:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1] ?? 0);
+  assert.ok(environmentFontSize >= bleedFontSize, "environment damage numbers should remain readable and distinct");
+  const weaponVfxBody = /private createWeaponVfx[\s\S]*?\n  private createSkillVfx/.exec(feedbackFxSource)?.[0] ?? "";
+  assert.equal(weaponVfxBody.includes("lineTo("), false, "basic attack feedback should not draw demo-style judgement lines");
+  assert.ok(feedbackFxSource.includes("showHitImpact"), "confirmed hits should use impact feedback instead of attack-line readability");
 }
 
 function tickUntil(check: () => boolean, message: string): void {

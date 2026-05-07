@@ -30,12 +30,6 @@ import {
 
 export type { ExtractUiState } from "./extractUiState";
 
-const COMBAT_LOG_LABELS = {
-  hit: "命中",
-  bleed: "流血",
-  environment: "侵蚀"
-} as const;
-
 export interface GameClientControllerOptions extends GameSocketClientOptions {
   parent: HTMLElement | string;
   onSettlement?: (payload: SettlementPayload) => void;
@@ -118,7 +112,6 @@ export function createGameClientController(
       options.onInventoryChange?.(normalized);
     },
     setCombatResult(payload) {
-      runtime.setCombatText(formatCombatLog(payload));
       getScene()?.onCombatResult?.(payload);
     },
     onPlayerAttack(payload) {
@@ -472,11 +465,4 @@ function normalizeStringArray(value: unknown): string[] | undefined {
 
 function cryptoId(): string {
   return `local-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function formatCombatLog(payload: CombatEventPayload): string {
-  const action = COMBAT_LOG_LABELS[payload.damageType ?? "hit"];
-  const crit = payload.isCritical ? " 暴击" : "";
-  const finisher = payload.targetAlive ? "" : " · 已压制";
-  return `${action}${crit} -${payload.amount}${finisher}`;
 }

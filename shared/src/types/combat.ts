@@ -33,6 +33,7 @@ export interface CombatEventPayload {
   amount: number;
   isCritical?: boolean;
   damageType?: "hit" | "bleed" | "environment";
+  damageSourceId?: string;
   interruptsExtract?: boolean;
   statusApplied?: StatusEffectType[];
   targetHp: number;

@@ -275,6 +275,9 @@ function applyRiverHazardTick(roomCode: string, now = Date.now()): void {
     return;
   }
 
+  const combatEvents: CombatEventPayload[] = [];
+  const deaths: Array<{ playerId: string; killerId: string; roomCode: string; timestamp: number }> = [];
+
   for (const player of context.room.players.values()) {
     const state = player.state;
     if (!state?.isAlive) {
@@ -294,8 +297,30 @@ function applyRiverHazardTick(roomCode: string, now = Date.now()): void {
     }
 
     player.lastRiverDamageAt = now;
-    state.hp = Math.max(0, state.hp - hazard.damagePerTick);
-    state.isAlive = state.hp > 0;
+    const event = applyEnvironmentalDamage(player, hazard.damagePerTick, hazard.hazardId, now);
+    if (!event) {
+      continue;
+    }
+
+    combatEvents.push(event);
+    if (!event.targetAlive) {
+      player.deathReason = "riverHazard";
+      deaths.push({
+        playerId: player.id,
+        killerId: hazard.hazardId,
+        roomCode,
+        timestamp: now
+      });
+    }
+  }
+
+  for (const event of combatEvents) {
+    emitExtractInterruptForCombatEvent(roomCode, context.room, event);
+    io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
+  }
+
+  for (const death of deaths) {
+    io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
   }
 }
 
@@ -312,6 +337,7 @@ function applyCorpseFogTick(roomCode: string, now = Date.now()): Array<{ playerI
   }
 
   const deaths: Array<{ playerId: string; killerId: string; roomCode: string; timestamp: number }> = [];
+  const combatEvents: CombatEventPayload[] = [];
   for (const player of room.players.values()) {
     if (!player.state?.isAlive || player.extract?.settledAt) {
       continue;
@@ -323,7 +349,10 @@ function applyCorpseFogTick(roomCode: string, now = Date.now()): Array<{ playerI
     }
 
     player.lastCorpseFogDamageAt = now;
-    applyEnvironmentalDamage(player, fogState.damagePerSecond, "corpse_fog", now);
+    const event = applyEnvironmentalDamage(player, fogState.damagePerSecond, "corpse_fog", now);
+    if (event) {
+      combatEvents.push(event);
+    }
     if (!player.state.isAlive) {
       player.deathReason = "corpseFog";
       deaths.push({
@@ -333,6 +362,11 @@ function applyCorpseFogTick(roomCode: string, now = Date.now()): Array<{ playerI
         timestamp: now
       });
     }
+  }
+
+  for (const event of combatEvents) {
+    emitExtractInterruptForCombatEvent(roomCode, room, event);
+    io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
   }
 
   return deaths;
@@ -796,7 +830,6 @@ function attachRoomHandlers(socket: GameSocket): void {
       const resolution = resolvePlayerAttack(context.room, session.playerId, payload);
       const monsterOutcome = handleMonsterPlayerAttack(context, session.playerId, payload);
 
-      // Broadcast the attack event to all clients in the room to trigger VFX
       io.to(roomCode).emit(CombatSocketEvent.PlayerAttack, {
         playerId: session.playerId,
         attackId: payload.attackId,

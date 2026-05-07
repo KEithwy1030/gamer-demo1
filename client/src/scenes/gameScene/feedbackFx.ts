@@ -44,6 +44,18 @@ export const DAMAGE_NUMBER_STYLE = {
     peakScale: 1.04,
     xJitter: 8,
     yOffset: -34
+  },
+  environment: {
+    fontSize: 30,
+    strokeThickness: 7,
+    rise: 64,
+    duration: 860,
+    color: "#c8e07f",
+    glowColor: 0x6d7f35,
+    startScale: 0.94,
+    peakScale: 1.08,
+    xJitter: 10,
+    yOffset: -40
   }
 } as const;
 
@@ -89,9 +101,12 @@ export class GameSceneFeedbackFx {
     if (!target) return;
 
     const isBleedTick = payload.damageType === "bleed";
+    const isEnvironmental = payload.damageType === "environment";
     const style = payload.isCritical
       ? DAMAGE_NUMBER_STYLE.critical
-      : (isBleedTick ? DAMAGE_NUMBER_STYLE.bleed : DAMAGE_NUMBER_STYLE.normal);
+      : (isBleedTick
+        ? DAMAGE_NUMBER_STYLE.bleed
+        : (isEnvironmental ? DAMAGE_NUMBER_STYLE.environment : DAMAGE_NUMBER_STYLE.normal));
     const text = this.scene.add.text(
       target.root.x + Phaser.Math.Between(-style.xJitter, style.xJitter),
       target.root.y + style.yOffset,
@@ -130,6 +145,9 @@ export class GameSceneFeedbackFx {
 
     if (!isBleedTick) {
       this.flashEffect(target.root);
+    }
+    if (!isBleedTick && !isEnvironmental) {
+      this.showHitImpact(target.root.x, target.root.y, target.root.depth);
     }
     if (!isBleedTick && payload.targetId === latestState?.selfPlayerId) {
       this.scene.cameras.main.shake(150, 4 / this.scene.scale.width);
@@ -260,16 +278,32 @@ export class GameSceneFeedbackFx {
   private createWeaponVfx(x: number, y: number, type: WeaponType, direction: Vector2): void {
     const angle = Math.atan2(direction.y, direction.x);
     const graphics = this.scene.add.graphics().setPosition(x, y).setDepth(y + 100);
-    if (type === "sword") {
-      graphics.lineStyle(3, 0xe2e8f0).beginPath().moveTo(0, 0).lineTo(Math.cos(angle) * 80, Math.sin(angle) * 80).strokePath();
-    } else if (type === "blade") {
-      [angle - 0.5, angle, angle + 0.5].forEach((value) => {
-        graphics.lineStyle(3, 0xf97316).beginPath().moveTo(0, 0).lineTo(Math.cos(value) * 60, Math.sin(value) * 60).strokePath();
-      });
-    } else {
-      graphics.lineStyle(4, 0xef4444).strokeCircle(0, 0, 40);
-    }
-    this.scene.tweens.add({ targets: graphics, alpha: 0, duration: 250, onComplete: () => graphics.destroy() });
+    const reach = type === "spear" ? 58 : type === "blade" ? 44 : 38;
+    const width = type === "spear" ? 24 : type === "blade" ? 42 : 34;
+    const color = type === "spear" ? 0xd7c27a : type === "blade" ? 0xb86b2d : 0xd8d1b5;
+    const dustColor = type === "spear" ? 0x8a7a49 : type === "blade" ? 0x6f2d1d : 0x4c4637;
+    const forwardX = Math.cos(angle) * reach;
+    const forwardY = Math.sin(angle) * reach;
+
+    graphics.save();
+    graphics.translateCanvas(forwardX * 0.48, forwardY * 0.48);
+    graphics.rotateCanvas(angle);
+    graphics.fillStyle(color, 0.22);
+    graphics.fillEllipse(0, 0, reach, width);
+    graphics.fillStyle(0xf4e6bd, 0.18);
+    graphics.fillEllipse(reach * 0.18, 0, reach * 0.54, Math.max(10, width * 0.38));
+    graphics.fillStyle(dustColor, 0.18);
+    graphics.fillEllipse(-reach * 0.2, width * 0.28, reach * 0.48, Math.max(8, width * 0.22));
+    graphics.restore();
+    this.scene.tweens.add({
+      targets: graphics,
+      alpha: 0,
+      scaleX: 1.18,
+      scaleY: 0.84,
+      duration: 160,
+      ease: "Cubic.out",
+      onComplete: () => graphics.destroy()
+    });
   }
 
   private createSkillVfx(x: number, y: number, color: number): void {
@@ -285,6 +319,26 @@ export class GameSceneFeedbackFx {
     danger.fillCircle(0, 0, 24);
     danger.setPosition(x, y).setDepth(depth + 5);
     this.scene.tweens.add({ targets: danger, alpha: 0, scale: 1.6, duration: 280, onComplete: () => danger.destroy() });
+  }
+
+  private showHitImpact(x: number, y: number, depth: number): void {
+    const impact = this.scene.add.graphics().setPosition(x, y - 18).setDepth(depth + 8);
+    impact.fillStyle(0x7f1d1d, 0.54);
+    impact.fillEllipse(0, 0, 34, 18);
+    impact.fillStyle(0xef4444, 0.36);
+    impact.fillCircle(-14, -4, 7);
+    impact.fillCircle(12, 4, 5);
+    impact.fillStyle(0xf8d7a3, 0.34);
+    impact.fillEllipse(4, -8, 20, 7);
+    this.scene.tweens.add({
+      targets: impact,
+      alpha: 0,
+      y: y - 28,
+      scale: 1.38,
+      duration: 260,
+      ease: "Cubic.out",
+      onComplete: () => impact.destroy()
+    });
   }
 
   private showDamageWash(): void {

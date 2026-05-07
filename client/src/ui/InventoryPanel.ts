@@ -385,7 +385,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
       return;
     }
 
-    const backpackRect = backpackSurface.getBoundingClientRect();
+    const backpackRect = backpackCells.getBoundingClientRect();
     if (!isPointWithinRect(event.clientX, event.clientY, backpackRect)) {
       return;
     }
@@ -605,7 +605,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     return resolveGridCandidate({
       grid: { width: inventoryState.width, height: inventoryState.height },
       pointer: { x: clientX, y: clientY },
-      surfaceRect: backpackSurface.getBoundingClientRect(),
+      surfaceRect: backpackCells.getBoundingClientRect(),
       metrics: GRID_METRICS,
       item: activeDrag.item,
       occupants: toDragOccupants(

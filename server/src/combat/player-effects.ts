@@ -148,9 +148,9 @@ export function applyEnvironmentalDamage(
   amount: number,
   sourceId: string,
   now = Date.now()
-): number {
+): CombatEventPayload | undefined {
   if (!player.state?.isAlive) {
-    return 0;
+    return undefined;
   }
 
   syncPlayerCombatState(player, now);
@@ -158,7 +158,15 @@ export function applyEnvironmentalDamage(
   player.state.hp = Math.max(0, player.state.hp - mitigatedAmount);
   player.state.isAlive = player.state.hp > 0;
   ensureCombatState(player).lastDamageSourceId = sourceId;
-  return mitigatedAmount;
+  return {
+    attackerId: sourceId,
+    targetId: player.id,
+    amount: mitigatedAmount,
+    damageType: "environment",
+    damageSourceId: sourceId,
+    targetHp: player.state.hp,
+    targetAlive: player.state.isAlive
+  };
 }
 
 function emptyTotals(): CombatModifierTotals {
@@ -194,6 +202,7 @@ function applyBleedTicks(player: RuntimePlayer, now: number): void {
         targetId: player.id,
         amount: modifier.bleedDamagePerTick,
         damageType: "bleed",
+        damageSourceId: modifier.sourceId,
         interruptsExtract: false,
         targetHp: state.hp,
         targetAlive: state.isAlive

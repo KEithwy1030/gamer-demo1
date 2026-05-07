@@ -14,10 +14,15 @@ assert.doesNotMatch(
   /slice\(0,\s*4\)/,
   "combat log should not expose sliced engineering ids"
 );
+assert.doesNotMatch(
+  gameClientSource,
+  /formatCombatLog|setCombatLog|combat log|命中 -|攻击已出手/,
+  "combat result should rely on floating damage numbers instead of extra status text"
+);
 assert.match(
   gameClientSource,
-  /return `\$\{action\}\$\{crit\} -\$\{payload\.amount\}\$\{finisher\}`;/,
-  "combat log should use productized status text instead of raw ids"
+  /setCombatResult\(payload\) \{\s*getScene\(\)\?\.onCombatResult\?\.{0,1}\(payload\);/s,
+  "combat result should be forwarded directly to scene damage feedback"
 );
 
 assert.doesNotMatch(
@@ -53,6 +58,16 @@ assert.match(
 );
 assert.match(
   inventoryPanelSource,
+  /const backpackRect = backpackCells\.getBoundingClientRect\(\);/,
+  "inventory drag hover should resolve against the actual grid rect instead of the padded surface shell"
+);
+assert.match(
+  inventoryPanelSource,
+  /surfaceRect: backpackCells\.getBoundingClientRect\(\),/,
+  "inventory drop candidate resolution should use the same grid rect as the stash shared helper flow"
+);
+assert.match(
+  inventoryPanelSource,
   /title\.textContent = "携行背包";/,
   "inventory panel should use product-facing title copy"
 );
@@ -76,6 +91,16 @@ assert.match(
   inventoryCss,
   /\.inventory-backpack-surface \{[\s\S]*padding: 10px;[\s\S]*background: rgba\(10, 8, 6, 0\.42\);/,
   "inventory backpack surface should frame the grid with stable padding and tone"
+);
+assert.match(
+  inventoryCss,
+  /\.inventory-section--backpack \{[\s\S]*overflow: visible;/,
+  "inventory backpack section should not expose an inner scrollbar on desktop"
+);
+assert.match(
+  inventoryCss,
+  /\.inventory-backpack-surface \{[\s\S]*overflow: hidden;/,
+  "inventory backpack surface should clip its own layers instead of relying on a scroll container"
 );
 
 console.log("validate-hud-ui: ok");

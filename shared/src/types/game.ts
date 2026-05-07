@@ -122,7 +122,7 @@ export interface MatchTimerPayload {
 
 export interface SettlementPayload {
   result: "success" | "failure";
-  reason?: "killed" | "timeout" | "extracted" | "corpseFog";
+  reason?: "killed" | "timeout" | "extracted" | "corpseFog" | "riverHazard";
   survivedSeconds: number;
   playerKills: number;
   monsterKills: number;

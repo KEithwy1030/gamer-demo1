@@ -218,8 +218,9 @@
   border-top: 1px solid rgba(232, 96, 44, 0.3);
   padding-top: 20px;
   margin-top: 10px;
-  width: 100%;
-  overflow-x: auto;
+  width: auto;
+  max-width: 100%;
+  overflow: visible;
 }
 
 .inventory-section h4 {
@@ -482,6 +483,7 @@
   border-radius: 8px;
   background: rgba(10, 8, 6, 0.42);
   border: 1px solid rgba(95, 42, 22, 0.55);
+  overflow: hidden;
 }
 
 .inventory-backpack-cells,

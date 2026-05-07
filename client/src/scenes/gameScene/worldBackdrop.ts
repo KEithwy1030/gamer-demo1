@@ -181,15 +181,35 @@ function drawCorpseRiver(
   }
 
   for (const node of plan.nodes) {
-    riverLayer.fillStyle(0x2f5962, 0.56);
+    riverLayer.fillStyle(0x263d34, 0.68);
     riverLayer.fillEllipse(node.centerX, node.centerY, node.radiusX * 1.78, node.radiusY * 1.82);
-    riverLayer.fillStyle(0x3f7483, 0.3);
+    riverLayer.fillStyle(0x4f5f36, 0.28);
     riverLayer.fillEllipse(node.centerX, node.centerY, node.radiusX * 1.18, node.radiusY * 1.24);
-    riverLayer.lineStyle(8, 0x9ec7d3, 0.14);
+    riverLayer.fillStyle(0x1d2924, 0.22);
+    riverLayer.fillEllipse(node.centerX - node.radiusX * 0.12, node.centerY + node.radiusY * 0.08, node.radiusX * 0.86, node.radiusY * 0.72);
+    riverLayer.lineStyle(8, 0x9aa76f, 0.14);
     riverLayer.strokeEllipse(node.centerX, node.centerY, node.radiusX * 1.22, node.radiusY * 1.26);
   }
 
-  riverLayer.lineStyle(3, 0xb9d6dd, 0.12);
+  for (const slick of plan.corpseSlicks) {
+    riverLayer.save();
+    riverLayer.translateCanvas(slick.x, slick.y);
+    riverLayer.rotateCanvas(slick.rotation);
+    riverLayer.fillStyle(0x5b1c16, 0.22);
+    riverLayer.fillEllipse(0, 0, slick.radiusX * 2, slick.radiusY * 2);
+    riverLayer.fillStyle(0x20120e, 0.18);
+    riverLayer.fillEllipse(slick.radiusX * 0.18, slick.radiusY * 0.08, slick.radiusX * 1.24, slick.radiusY * 1.2);
+    riverLayer.restore();
+  }
+
+  for (const foam of plan.foamPatches) {
+    riverLayer.fillStyle(0xb7b17c, foam.alpha);
+    riverLayer.fillEllipse(foam.x, foam.y, foam.radiusX * 2, foam.radiusY * 2);
+    riverLayer.lineStyle(2, 0xd6cf9c, foam.alpha * 0.75);
+    riverLayer.strokeEllipse(foam.x, foam.y, foam.radiusX * 1.62, foam.radiusY * 1.4);
+  }
+
+  riverLayer.lineStyle(3, 0xb7b17c, 0.12);
   for (const ripple of plan.rippleLines) {
     riverLayer.lineBetween(ripple.x1, ripple.y1, ripple.x2, ripple.y2);
   }

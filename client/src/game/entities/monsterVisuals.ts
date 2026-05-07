@@ -20,6 +20,7 @@ export interface MonsterAssetContract {
   rows: number;
   displaySize: number;
   actions: MonsterActionFrames;
+  frameRates: Record<MonsterAction, number>;
 }
 
 export interface MonsterVisualProfile {
@@ -36,37 +37,37 @@ export interface MonsterVisualProfile {
 
 const MONSTER_VISUAL_PROFILES: Record<MonsterState["type"], MonsterVisualProfile> = {
   normal: {
-    displaySize: 68,
-    shadow: { width: 52, height: 15, y: 27, alpha: 0.72 },
-    threatAura: { width: 68, height: 40, y: 12 },
-    telegraphRing: { width: 72, height: 72, y: 12 },
-    impactFlash: { width: 50, height: 60, y: 5 },
-    labelOffsetY: 46,
-    hpY: -44,
-    crownY: -78,
-    hpWidth: 44
+    displaySize: 34,
+    shadow: { width: 26, height: 8, y: 14, alpha: 0.72 },
+    threatAura: { width: 34, height: 20, y: 6 },
+    telegraphRing: { width: 38, height: 38, y: 6 },
+    impactFlash: { width: 28, height: 34, y: 3 },
+    labelOffsetY: 24,
+    hpY: -23,
+    crownY: -40,
+    hpWidth: 30
   },
   elite: {
-    displaySize: 76,
-    shadow: { width: 60, height: 17, y: 30, alpha: 0.78 },
-    threatAura: { width: 78, height: 48, y: 13 },
-    telegraphRing: { width: 86, height: 86, y: 13 },
-    impactFlash: { width: 58, height: 72, y: 6 },
-    labelOffsetY: 54,
-    hpY: -52,
-    crownY: -86,
-    hpWidth: 52
+    displaySize: 38,
+    shadow: { width: 30, height: 9, y: 16, alpha: 0.78 },
+    threatAura: { width: 40, height: 24, y: 7 },
+    telegraphRing: { width: 44, height: 44, y: 7 },
+    impactFlash: { width: 32, height: 38, y: 3 },
+    labelOffsetY: 28,
+    hpY: -27,
+    crownY: -45,
+    hpWidth: 33
   },
   boss: {
-    displaySize: 90,
-    shadow: { width: 76, height: 22, y: 34, alpha: 0.9 },
-    threatAura: { width: 100, height: 68, y: 16 },
-    telegraphRing: { width: 112, height: 112, y: 14 },
-    impactFlash: { width: 74, height: 88, y: 7 },
-    labelOffsetY: 66,
-    hpY: -70,
-    crownY: -104,
-    hpWidth: 70
+    displaySize: 45,
+    shadow: { width: 38, height: 11, y: 18, alpha: 0.9 },
+    threatAura: { width: 52, height: 34, y: 9 },
+    telegraphRing: { width: 58, height: 58, y: 8 },
+    impactFlash: { width: 40, height: 48, y: 4 },
+    labelOffsetY: 33,
+    hpY: -35,
+    crownY: -54,
+    hpWidth: 40
   }
 };
 
@@ -80,12 +81,20 @@ export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetC
     rows: 4,
     displaySize: MONSTER_VISUAL_PROFILES.normal.displaySize,
     actions: {
-      idle: [0, 1, 2, 1],
-      move: [4, 5, 6, 7],
-      attack: [8, 9],
-      charge: [8, 9, 10],
+      idle: [0, 0, 1, 2, 1],
+      move: [4, 5, 6, 7, 6, 5],
+      attack: [8, 9, 10, 9],
+      charge: [8, 9, 10, 9],
       hurt: [10, 9],
       death: [11]
+    },
+    frameRates: {
+      idle: 4,
+      move: 7,
+      attack: 9,
+      charge: 10,
+      hurt: 11,
+      death: 1
     }
   },
   elite: {
@@ -97,12 +106,20 @@ export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetC
     rows: 4,
     displaySize: MONSTER_VISUAL_PROFILES.elite.displaySize,
     actions: {
-      idle: [0, 1, 2, 1],
-      move: [4, 5, 6, 7],
-      attack: [8, 9],
-      charge: [8, 9, 10],
+      idle: [0, 1, 1, 2, 1],
+      move: [4, 5, 6, 7, 6, 5],
+      attack: [8, 9, 10, 9],
+      charge: [8, 9, 10, 9],
       hurt: [10, 9],
       death: [11]
+    },
+    frameRates: {
+      idle: 4,
+      move: 7,
+      attack: 8,
+      charge: 9,
+      hurt: 10,
+      death: 1
     }
   },
   boss: {
@@ -114,12 +131,20 @@ export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetC
     rows: 4,
     displaySize: MONSTER_VISUAL_PROFILES.boss.displaySize,
     actions: {
-      idle: [0, 1, 2, 3],
-      move: [4, 5, 6, 7],
-      attack: [8, 9],
+      idle: [0, 1, 2, 2, 1, 3],
+      move: [4, 5, 6, 7, 6, 5],
+      attack: [8, 9, 10, 9],
       charge: [8, 9, 10, 11],
       hurt: [12, 13],
       death: [14, 15]
+    },
+    frameRates: {
+      idle: 4,
+      move: 6,
+      attack: 7,
+      charge: 8,
+      hurt: 9,
+      death: 1
     }
   }
 };
@@ -142,6 +167,10 @@ export function getMonsterVisualProfile(type: MonsterState["type"]): MonsterVisu
 
 export function getMonsterActionFrames(type: MonsterState["type"], action: MonsterAction): number[] {
   return getMonsterAssetContract(type).actions[action];
+}
+
+export function getMonsterActionFrameRate(type: MonsterState["type"], action: MonsterAction): number {
+  return getMonsterAssetContract(type).frameRates[action];
 }
 
 export function getMonsterCorpseFrame(type: MonsterState["type"]): number {
