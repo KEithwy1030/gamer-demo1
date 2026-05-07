@@ -1,5 +1,6 @@
 export {
   advanceExtractState,
+  buildExtractOpenedPayload,
   initializeExtractState,
   interruptPlayerExtract,
   startPlayerExtract

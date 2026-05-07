@@ -8,6 +8,7 @@ import {
   createMobileControls,
   type MobileControlsApi
 } from "../../input/mobileControls";
+import { isPrimaryPointerAttack } from "./inputContracts";
 
 export function shouldUseTouchLayout(): boolean {
   const finePointer = window.matchMedia?.("(pointer: fine)").matches ?? false;
@@ -36,7 +37,14 @@ export class GameSceneInputBridge {
   private lastFacingDirection: Vector2 = { x: 0, y: 1 };
   private lastMoveSentAt = 0;
   private currentMoveDirection: Vector2 = { x: 0, y: 0 };
+  private currentManualMoveDirection: Vector2 = { x: 0, y: 0 };
   private facingLockDirection?: Vector2;
+  private assistMoveOverride?: Vector2;
+  private readonly handlePrimaryPointerDown = (pointer: Phaser.Input.Pointer): void => {
+    if (isPrimaryPointerAttack(pointer)) {
+      this.options.onAttack();
+    }
+  };
 
   constructor(scene: Phaser.Scene, options: GameSceneInputBridgeOptions) {
     this.scene = scene;
@@ -52,6 +60,7 @@ export class GameSceneInputBridge {
     if (!this.options.touchLayout) {
       this.mobileControls?.destroy();
       this.mobileControls = undefined;
+      this.scene.input.on("pointerdown", this.handlePrimaryPointerDown);
       return;
     }
 
@@ -75,6 +84,7 @@ export class GameSceneInputBridge {
   }
 
   destroy(): void {
+    this.scene.input.off("pointerdown", this.handlePrimaryPointerDown);
     this.keyboardControls?.destroy();
     this.keyboardControls = undefined;
     this.mobileControls?.destroy();
@@ -88,6 +98,28 @@ export class GameSceneInputBridge {
 
   getCurrentMoveDirection(): Vector2 {
     return this.currentMoveDirection;
+  }
+
+  getCurrentManualMoveDirection(): Vector2 {
+    return this.currentManualMoveDirection;
+  }
+
+  setAssistMoveOverride(direction?: Vector2): void {
+    if (!direction) {
+      this.assistMoveOverride = undefined;
+      return;
+    }
+
+    const magnitude = Math.hypot(direction.x, direction.y);
+    if (magnitude <= 0.001) {
+      this.assistMoveOverride = undefined;
+      return;
+    }
+
+    this.assistMoveOverride = {
+      x: direction.x / magnitude,
+      y: direction.y / magnitude
+    };
   }
 
   setFacingLockDirection(direction?: Vector2): void {
@@ -125,6 +157,16 @@ export class GameSceneInputBridge {
     const isJoystickActive = this.joystickVector.x !== 0 || this.joystickVector.y !== 0;
     if (isJoystickActive) {
       direction = { x: this.joystickVector.x, y: this.joystickVector.y };
+    }
+
+    this.currentManualMoveDirection = direction;
+
+    if (
+      this.assistMoveOverride
+      && Math.abs(direction.x) < 0.001
+      && Math.abs(direction.y) < 0.001
+    ) {
+      direction = { ...this.assistMoveOverride };
     }
 
     this.currentMoveDirection = direction;

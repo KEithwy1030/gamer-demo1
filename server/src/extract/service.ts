@@ -25,8 +25,13 @@ interface ExtractUpdateResult {
 }
 
 type ExtractInterruptReason = "damaged" | "left_zone" | "dead" | "timeout";
+type ExtractZoneCheckMode = "start" | "continue" | "default";
 
 const PROGRESS_BROADCAST_INTERVAL_MS = 250;
+const EXTRACT_START_INSET_MIN = 10;
+const EXTRACT_START_INSET_MAX = 16;
+const EXTRACT_LEAVE_GRACE_MIN = 8;
+const EXTRACT_LEAVE_GRACE_MAX = 14;
 const inventoryService = new InventoryService();
 
 export function initializeExtractState(room: RuntimeRoom): void {
@@ -88,6 +93,24 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
     throw new Error("Player already settled.");
   }
 
+  const activeZone = player.extract?.zoneId
+    ? room.extract?.zones.find((entry) => entry.zoneId === player.extract?.zoneId)
+    : undefined;
+  if (
+    activeZone
+    && player.extract?.completesAt
+    && !player.extract.settledAt
+    && isInsideExtractZone(activeZone, player, "continue")
+  ) {
+    return {
+      opened: buildOpenedPayload(room),
+      progressEvents: [],
+      successEvents: [],
+      settlementEvents: [],
+      shouldCloseRoom: false
+    };
+  }
+
   const zone = resolveOccupiedExtractZone(room, player);
   if (!zone) {
     throw new Error("Player is not inside the extract zone.");
@@ -111,20 +134,6 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
 
   if (squadHolderId && squadHolderId !== player.squadId) {
     throw new Error("Extract is keyed to another squad.");
-  }
-
-  if (
-    player.extract?.zoneId === zone.zoneId
-    && player.extract.completesAt
-    && !player.extract.settledAt
-  ) {
-    return {
-      opened: buildOpenedPayload(room),
-      progressEvents: [],
-      successEvents: [],
-      settlementEvents: [],
-      shouldCloseRoom: false
-    };
   }
 
   player.extract = {
@@ -229,7 +238,7 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
     }
 
     const zone = room.extract?.zones.find((entry) => entry.zoneId === player.extract?.zoneId);
-    if (!zone || !isInsideExtractZone(zone, player)) {
+    if (!zone || !isInsideExtractZone(zone, player, "continue")) {
       const interruption = interruptPlayerExtract(room, player.id, "left_zone", now);
       if (interruption) {
         progressEvents.push(interruption);
@@ -263,6 +272,11 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
     settlementEvents,
     shouldCloseRoom
   };
+}
+
+export function buildExtractOpenedPayload(room: RuntimeRoom): ExtractOpenedPayload {
+  initializeExtractState(room);
+  return buildOpenedPayload(room);
 }
 
 function settleSquadExtraction(
@@ -547,7 +561,9 @@ function buildSquadStatus(room: RuntimeRoom): ExtractSquadStatus {
       squadId: player.squadId,
       name: player.name,
       isAlive: player.state?.isAlive === true,
-      isInsideZone: zone ? isInsideExtractZone(zone, player) : false,
+      isInsideZone: zone
+        ? isInsideExtractZone(zone, player, player.extract?.zoneId === activeZoneId && player.extract?.completesAt ? "continue" : "start")
+        : false,
       isExtracting: player.extract?.zoneId === activeZoneId && Boolean(player.extract?.completesAt),
       isSettled: Boolean(player.extract?.settledAt)
     }));
@@ -569,7 +585,7 @@ function getExtractEligibleSquadMembers(room: RuntimeRoom, squadId: SquadId, zon
     player.squadId === squadId
     && player.state?.isAlive === true
     && !player.extract?.settledAt
-    && isInsideExtractZone(zone, player)
+    && isInsideExtractZone(zone, player, player.extract?.zoneId === zoneId && player.extract?.completesAt ? "continue" : "start")
   ));
 }
 
@@ -595,15 +611,29 @@ function resolveOccupiedExtractZone(room: RuntimeRoom, player: RuntimePlayer): R
   if (!room.extract || !player.state) {
     return undefined;
   }
-  return room.extract.zones.find((zone) => isInsideExtractZone(zone, player));
+  return room.extract.zones.find((zone) => isInsideExtractZone(zone, player, "start"));
 }
 
-function isInsideExtractZone(zone: RuntimeRoomExtractZone, player: RuntimePlayer): boolean {
+function isInsideExtractZone(zone: RuntimeRoomExtractZone, player: RuntimePlayer, mode: ExtractZoneCheckMode = "default"): boolean {
   if (!player.state) {
     return false;
   }
   const distance = Math.hypot(player.state.x - zone.x, player.state.y - zone.y);
-  return distance <= zone.radius;
+  return distance <= getExtractCheckRadius(zone, mode);
+}
+
+function getExtractCheckRadius(zone: RuntimeRoomExtractZone, mode: ExtractZoneCheckMode): number {
+  if (mode === "start") {
+    const inset = Math.min(EXTRACT_START_INSET_MAX, Math.max(EXTRACT_START_INSET_MIN, zone.radius * 0.15));
+    return Math.max(24, zone.radius - inset);
+  }
+
+  if (mode === "continue") {
+    const grace = Math.min(EXTRACT_LEAVE_GRACE_MAX, Math.max(EXTRACT_LEAVE_GRACE_MIN, zone.radius * 0.12));
+    return zone.radius + grace;
+  }
+
+  return zone.radius;
 }
 
 function getRuntimePlayer(room: RuntimeRoom, playerId: string): RuntimePlayer {

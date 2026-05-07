@@ -8,6 +8,16 @@ import { RoomStore } from "../server/src/room-store.js";
 import type { RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
 const now = Date.now();
+const SWORD_RANGE = 116;
+const LOCK_ASSIST_ACQUIRE_RANGE_BUFFER = 32;
+const LOCK_ASSIST_CHASE_RANGE_BUFFER = 108;
+const LOCK_ASSIST_MONSTER_CONTACT_RADIUS = 30;
+const LOCK_ATTACK_REACH = SWORD_RANGE + LOCK_ASSIST_ACQUIRE_RANGE_BUFFER + LOCK_ASSIST_MONSTER_CONTACT_RADIUS;
+const LOCK_CHASE_REACH = SWORD_RANGE + LOCK_ASSIST_CHASE_RANGE_BUFFER + LOCK_ASSIST_MONSTER_CONTACT_RADIUS;
+const EXTRACT_START_INSET_MIN = 10;
+const EXTRACT_START_INSET_MAX = 16;
+const DEV_PRESET_MIN_SAFETY_MS = 10_000;
+const DEV_PRESET_THREAT_CLEAR_RADIUS = 720;
 
 assertBossPreset();
 assertExtractPreset();
@@ -17,24 +27,49 @@ console.log("validate-dev-room-presets: ok");
 
 function assertBossPreset(): void {
   const room = createRoom();
+  const beforePreset = Date.now();
   applyDevRoomPreset(room, "boss");
   const player = getHuman(room);
   const boss = [...room.monsters!.values()].find((monster) => monster.type === "boss");
   assert.ok(boss, "boss preset requires a boss spawn");
   assert.ok(player.state, "boss preset requires human state");
   const distance = Math.hypot(player.state!.x - boss.x, player.state!.y - boss.y);
-  assert.ok(distance >= 180 && distance <= 260, `boss preset should stage player near boss at safe screenshot distance, got ${distance}`);
+  assert.ok(
+    distance > LOCK_ATTACK_REACH && distance <= LOCK_CHASE_REACH,
+    `boss preset should stage player in chase band (${LOCK_ATTACK_REACH}, ${LOCK_CHASE_REACH}], got ${distance}`
+  );
+  assert.equal(boss.aggroRange, 0, "boss preset should disable boss aggro during lock/cancel verification window");
+  assert.equal(boss.moveSpeed, 0, "boss preset should keep boss from collapsing chase band before verification");
+  assert.equal(boss.behaviorPhase, "idle", "boss preset should start boss in idle, not recover/windup/charge");
+  assert.ok(
+    boss.nextAttackAt >= beforePreset + DEV_PRESET_MIN_SAFETY_MS,
+    "boss preset should delay boss basic attacks long enough for lock/cancel verification"
+  );
+  assert.ok(
+    (boss.nextSmashAt ?? 0) >= beforePreset + DEV_PRESET_MIN_SAFETY_MS
+    && (boss.nextChargeAt ?? 0) >= beforePreset + DEV_PRESET_MIN_SAFETY_MS,
+    "boss preset should delay boss skill openers long enough for lock/cancel verification"
+  );
+  assertNoImmediateThreats(room, player.state, boss.id);
+  assertBotsDelayed(room, beforePreset);
   assertMatchPayloadIncludesPlayerPosition(room, player);
 }
 
 function assertExtractPreset(): void {
   const room = createRoom();
+  const beforePreset = Date.now();
   applyDevRoomPreset(room, "extract");
   const player = getHuman(room);
   const extract = room.matchLayout!.extractZones[0]!;
   assert.ok(player.state, "extract preset requires human state");
   const distance = Math.hypot(player.state!.x - extract.x, player.state!.y - extract.y);
-  assert.ok(distance < 420, `extract preset should place player near extract bridge, got ${distance}`);
+  const startRadius = getExtractStartRadius(extract.radius);
+  assert.ok(
+    distance <= startRadius - 4,
+    `extract preset should place player inside stable extract start radius (${startRadius}), got ${distance}`
+  );
+  assertNoImmediateThreats(room, extract);
+  assertBotsDelayed(room, beforePreset);
   assertMatchPayloadIncludesPlayerPosition(room, player);
 }
 
@@ -62,6 +97,48 @@ function assertMatchPayloadIncludesPlayerPosition(room: RuntimeRoom, player: Run
   assert.equal(payloadPlayer.x, player.state.x, "match:started payload should use preset-adjusted player x");
   assert.equal(payloadPlayer.y, player.state.y, "match:started payload should use preset-adjusted player y");
   assert.equal(payloadPlayer.isLocalPlayer, true, "match:started payload should mark the receiver as local player");
+}
+
+function assertNoImmediateThreats(room: RuntimeRoom, anchor: { x: number; y: number }, allowedMonsterId?: string): void {
+  const nearbyThreat = [...(room.monsters?.values() ?? [])].find((monster) => (
+    monster.isAlive
+    && monster.id !== allowedMonsterId
+    && Math.hypot(monster.x - anchor.x, monster.y - anchor.y) <= DEV_PRESET_THREAT_CLEAR_RADIUS
+  ));
+  assert.equal(
+    nearbyThreat,
+    undefined,
+    `dev preset should clear nearby non-target threats, found ${nearbyThreat?.id ?? "unknown"}`
+  );
+
+  for (const monster of room.monsters?.values() ?? []) {
+    if (!monster.isAlive) {
+      continue;
+    }
+    assert.ok(
+      monster.nextAttackAt >= Date.now() + DEV_PRESET_MIN_SAFETY_MS - 1000,
+      `dev preset should delay monster attacks for verification, ${monster.id} attacks too soon`
+    );
+  }
+}
+
+function assertBotsDelayed(room: RuntimeRoom, beforePreset: number): void {
+  for (const bot of room.players.values()) {
+    if (!bot.isBot) {
+      continue;
+    }
+    assert.ok(
+      (bot.botNextDecisionAt ?? 0) >= beforePreset + DEV_PRESET_MIN_SAFETY_MS,
+      "dev preset should delay bot decisions during verification window"
+    );
+    assert.equal(bot.botTargetPlayerId, undefined, "dev preset should clear bot player targets");
+    assert.deepEqual(bot.moveInput, { x: 0, y: 0 }, "dev preset should stop bot movement initially");
+  }
+}
+
+function getExtractStartRadius(zoneRadius: number): number {
+  const inset = Math.min(EXTRACT_START_INSET_MAX, Math.max(EXTRACT_START_INSET_MIN, zoneRadius * 0.15));
+  return Math.max(24, zoneRadius - inset);
 }
 
 function createRoom(): RuntimeRoom {

@@ -95,6 +95,9 @@ export class GameScene extends Phaser.Scene {
   public onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
   private onOpenChest?: (chestId: string) => void;
   private onToggleInventory?: () => void;
+  private lastLocalAttackAt = 0;
+  private lastLocalAttackTargetId?: string;
+  private lastCombatResultAt = 0;
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
   private localSkillCooldownEndsAt = 0;
@@ -168,10 +171,31 @@ export class GameScene extends Phaser.Scene {
       this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 },
       this.playerMarkers
     );
+
+    if (payload.playerId === this.latestState?.selfPlayerId) {
+      const attackAge = Date.now() - this.lastLocalAttackAt;
+      const resultAge = Date.now() - this.lastCombatResultAt;
+      if (attackAge < 1200 && resultAge > 450) {
+        const feedback = payload.targetId ? "攻击已出手，等待命中判定" : "攻击已出手";
+        this.hudOverlay?.showLockAssistFeedback(feedback, "info", `attack:${payload.attackId}`);
+      }
+    }
   }
 
   private handleCombatResult(payload: CombatEventPayload): void {
+    this.lastCombatResultAt = Date.now();
     this.feedbackFx?.handleCombatResult(payload, this.latestState, this.playerMarkers, this.monsterMarkers);
+    if (
+      payload.attackerId === this.latestState?.selfPlayerId
+      && (!this.lastLocalAttackTargetId || payload.targetId === this.lastLocalAttackTargetId)
+    ) {
+      this.hudOverlay?.showLockAssistFeedback(
+        `命中 ${payload.amount}`,
+        payload.isCritical ? "warn" : "info",
+        `hit:${payload.attackerId}:${payload.targetId}:${payload.amount}:${payload.targetHp}`
+      );
+      this.lastLocalAttackTargetId = undefined;
+    }
   }
 
   private createUnitAnimations(): void {
@@ -349,7 +373,10 @@ export class GameScene extends Phaser.Scene {
     attackPayload: AttackRequestPayload
   ): void {
     const direction = attackPayload.direction ?? this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
-    this.localBasicAttackEndsAt = Date.now() + cadence.repeatMs;
+    const now = Date.now();
+    this.localBasicAttackEndsAt = now + cadence.repeatMs;
+    this.lastLocalAttackAt = now;
+    this.lastLocalAttackTargetId = attackPayload.targetId;
 
     this.playerMarkers.get(self.id)?.playAction("attack", direction);
     this.time.delayedCall(cadence.startupMs, () => {
@@ -533,10 +560,14 @@ export class GameScene extends Phaser.Scene {
       queuedAttackTargetId: this.queuedAttack?.targetId,
       now: Date.now(),
       lastFacingDirection: this.inputBridge.getLastFacingDirection(),
-      currentMoveDirection: this.inputBridge.getCurrentMoveDirection()
+      currentMoveDirection: this.inputBridge.getCurrentMoveDirection(),
+      currentManualMoveDirection: this.inputBridge.getCurrentManualMoveDirection()
     });
 
     this.inputBridge.setFacingLockDirection(result.facingDirection);
+    if (result.clearMoveOverride) {
+      this.inputBridge.setAssistMoveOverride(undefined);
+    }
 
     if (result.kind === "clear") {
       this.clearChaseAssist();
@@ -563,7 +594,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (result.moveDirection) {
-      this.onMoveInput?.(result.moveDirection);
+      this.inputBridge.setAssistMoveOverride(result.moveDirection);
     }
     this.emitLockAssistFeedback(result, beforeFeedbackState);
   }
@@ -603,6 +634,7 @@ export class GameScene extends Phaser.Scene {
   private clearChaseAssist(): void {
     this.chaseAssist = undefined;
     this.inputBridge?.setFacingLockDirection(undefined);
+    this.inputBridge?.setAssistMoveOverride(undefined);
   }
 
   private emitLockAssistFeedback(
@@ -618,7 +650,7 @@ export class GameScene extends Phaser.Scene {
       }
     });
     if (event) {
-      this.hudOverlay?.showLockAssistFeedback(event.text, event.tone, event.key);
+      this.hudOverlay?.showLockAssistFeedback(event.text, event.tone, event.key, event.visibleMs);
     }
   }
 
@@ -643,7 +675,7 @@ export class GameScene extends Phaser.Scene {
     const panel = this.add.container(width / 2, height / 2).setScrollFactor(0).setDepth(1000);
     const bg = this.add.graphics().fillStyle(0x0f172a, 0.95).fillRoundedRect(-160, -120, 320, 240, 12);
     const title = this.add.text(0, -100, "任务目标", { fontFamily: "monospace", fontSize: "20px", color: "#f8fafc" }).setOrigin(0.5);
-    const hint = navigator.maxTouchPoints > 0 ? "• 移动: 虚拟摇杆\n• 攻击: 攻\n• 技能: 技\n• 交互: 拾" : "• 移动: WASD\n• 攻击: 空格\n• 技能: Q\n• 交互: E";
+    const hint = navigator.maxTouchPoints > 0 ? "• 移动: 虚拟摇杆\n• 攻击: 攻\n• 技能: 技\n• 交互: 拾" : "• 移动: WASD\n• 攻击: 鼠标左键\n• 技能: Q\n• 闪避: 空格";
     const content = this.add.text(0, 0, hint + "\n\n目标: 击杀怪物，收集战利品\n前往中心区域撤离。", { fontFamily: "monospace", fontSize: "16px", color: "#cbd5e1", align: "center" }).setOrigin(0.5);
     const footer = this.add.text(0, 100, "按任意键或点击关闭", { fontFamily: "monospace", fontSize: "12px", color: "#64748b" }).setOrigin(0.5);
     panel.add([bg, title, content, footer]);

@@ -381,7 +381,7 @@ export class GameHudOverlay {
     });
   }
 
-  showLockAssistFeedback(text: string, tone: "info" | "warn", key?: string): void {
+  showLockAssistFeedback(text: string, tone: "info" | "warn", key?: string, visibleMs?: number): void {
     const now = Date.now();
     const dedupeKey = key ?? `${tone}:${text}`;
     if (dedupeKey === this.lastLockAssistToastKey && now - this.lastLockAssistToastAt < 850) {
@@ -422,7 +422,7 @@ export class GameHudOverlay {
       alpha: { from: 0, to: 1 },
       duration: 150,
       ease: "Cubic.out",
-      hold: tone === "warn" ? 900 : 700,
+      hold: visibleMs ?? (tone === "warn" ? 1100 : 700),
       yoyo: true,
       onComplete: () => {
         this.lockAssistToast?.destroy();

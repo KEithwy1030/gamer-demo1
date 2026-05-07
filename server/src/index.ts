@@ -35,6 +35,7 @@ import {
 } from "./internal-constants.js";
 import {
   advanceExtractState,
+  buildExtractOpenedPayload,
   initializeExtractState,
   interruptPlayerExtract,
   startPlayerExtract
@@ -655,19 +656,7 @@ function attachRoomHandlers(socket: GameSocket): void {
         listChests(context.room)
       );
       if (context.room.extract?.zones?.length) {
-        io.to(context.room.code).emit(SocketEvent.ExtractOpened, {
-          roomCode: context.room.code,
-          carrier: context.room.extract.carrier,
-          zones: context.room.extract.zones.map((zone) => ({
-            zoneId: zone.zoneId,
-            x: zone.x,
-            y: zone.y,
-            radius: zone.radius,
-            channelDurationMs: zone.channelDurationMs,
-            openAtSec: zone.openAtSec,
-            isOpen: zone.isOpen
-          }))
-        });
+        io.to(context.room.code).emit(SocketEvent.ExtractOpened, buildExtractOpenedPayload(context.room));
       }
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to start match.");

@@ -15,6 +15,7 @@ export interface LockAssistToastEvent {
   key: string;
   text: string;
   tone: LockAssistToastTone;
+  visibleMs?: number;
 }
 
 export interface LockAssistFeedbackSnapshot {
@@ -168,7 +169,9 @@ export function mapLockAssistFeedbackEvent(params: {
 
   switch (result.reason) {
     case "retreat-input":
-      return { key: "cancel:retreat-input", text: "后撤已取消", tone: "warn" };
+      return { key: "cancel:retreat-input", text: "锁定取消：后撤", tone: "warn", visibleMs: 1700 };
+    case "manual-input":
+      return { key: "cancel:manual-input", text: "锁定取消：手动接管", tone: "warn", visibleMs: 1700 };
     case "target-lost":
       return { key: "clear:target-lost", text: "目标丢失", tone: "warn" };
     case "target-dead":
@@ -178,7 +181,7 @@ export function mapLockAssistFeedbackEvent(params: {
     case "expired":
       return { key: "clear:expired", text: "锁定结束", tone: "info" };
     case "entered-range":
-      return { key: "attack:entered-range", text: "锁定命中窗口", tone: "info" };
+      return { key: "attack:entered-range", text: "进入攻击距离", tone: "info" };
     default:
       return null;
   }

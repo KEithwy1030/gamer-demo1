@@ -48,10 +48,6 @@ export function createKeyboardControls(
       };
     },
     consumeActions(handlers) {
-      if (Phaser.Input.Keyboard.JustDown(keys.SPACE)) {
-        handlers.onAttack?.();
-      }
-
       if (Phaser.Input.Keyboard.JustDown(keys.Q)) {
         handlers.onSkill?.(0);
       }
@@ -64,7 +60,7 @@ export function createKeyboardControls(
         handlers.onSkill?.(2);
       }
 
-      if (Phaser.Input.Keyboard.JustDown(keys.SHIFT)) {
+      if (Phaser.Input.Keyboard.JustDown(keys.SHIFT) || Phaser.Input.Keyboard.JustDown(keys.SPACE)) {
         handlers.onDodge?.();
       }
 

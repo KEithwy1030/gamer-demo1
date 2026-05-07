@@ -1,4 +1,4 @@
-import Phaser from "phaser";
+import type Phaser from "phaser";
 import type { ChestOpenedPayload, ChestState } from "../../network/socketClient";
 import type { ExtractUiState } from "../createGameClient";
 import type { PlayerMarker } from "../../game/entities/PlayerMarker";
@@ -10,6 +10,14 @@ export class GameSceneInteractions {
   private chestUnsubscribes: Array<() => void> = [];
   private interactionPrompt?: Phaser.GameObjects.Text;
   private extractAutoStarted = false;
+  private extractAutoRearmRequired = false;
+  private extractLastPhase: ExtractUiState["phase"] | null = null;
+  private extractZone?: { x: number; y: number; radius: number };
+
+  private static readonly EXTRACT_START_INSET_MIN = 10;
+  private static readonly EXTRACT_START_INSET_MAX = 16;
+  private static readonly EXTRACT_REARM_GRACE_MIN = 8;
+  private static readonly EXTRACT_REARM_GRACE_MAX = 14;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -68,7 +76,7 @@ export class GameSceneInteractions {
     let minDistance = 80;
     for (const [id, sprite] of this.chestSprites.entries()) {
       if (sprite.texture.key === "chest_closed") {
-        const distance = Phaser.Math.Distance.Between(playerMarker.root.x, playerMarker.root.y, sprite.x, sprite.y);
+        const distance = distanceBetween(playerMarker.root.x, playerMarker.root.y, sprite.x, sprite.y);
         if (distance < minDistance) {
           minDistance = distance;
           nearest = id;
@@ -110,32 +118,101 @@ export class GameSceneInteractions {
       : extractState.carrier?.holderPlayerId === playerMarker?.id;
     if (!playerMarker || !canTryExtract) return;
 
-    const distance = Phaser.Math.Distance.Between(
+    this.syncExtractZone(extractState);
+    if (!this.extractZone) return;
+
+    const distance = distanceBetween(
       playerMarker.root.x,
       playerMarker.root.y,
-      extractState.x ?? 0,
-      extractState.y ?? 0
+      this.extractZone.x,
+      this.extractZone.y
     );
 
-    const insideExtractZone = distance <= (extractState.radius ?? 96);
+    const zoneRadius = this.extractZone.radius;
+    const startRadius = this.getExtractStartRadius(zoneRadius);
+    const rearmRadius = this.getExtractRearmRadius(zoneRadius);
+    const insideStartRadius = distance <= startRadius;
+    const outsideRearmRadius = distance > rearmRadius;
+    const serverReportsOutsideStart = selfMember?.isInsideZone === false && !selfMember.isExtracting;
+    const phaseChanged = this.extractLastPhase !== extractState.phase;
+    const extractionStoppedAfterAutoStart = this.extractAutoStarted
+      && !extractState.isExtracting
+      && extractState.phase !== "succeeded";
 
-    if (!insideExtractZone) {
+    if (outsideRearmRadius) {
       this.extractAutoStarted = false;
+      this.extractAutoRearmRequired = false;
+      this.extractLastPhase = extractState.phase;
       return;
     }
 
-    if (extractState.phase === "interrupted") {
+    if (extractState.phase === "interrupted" && phaseChanged) {
       this.extractAutoStarted = false;
+      this.extractAutoRearmRequired = insideStartRadius && !serverReportsOutsideStart;
+    }
+
+    // The server can follow an interrupted progress event with an opened heartbeat,
+    // which normalizes the UI phase back to idle before the next scene tick. Rearm
+    // the auto-start latch from the authoritative zone membership as soon as we know
+    // the previous auto-started channel has stopped and the player is outside.
+    if (extractionStoppedAfterAutoStart && serverReportsOutsideStart) {
+      this.extractAutoStarted = false;
+      this.extractAutoRearmRequired = false;
     }
 
     if (extractState.phase === "succeeded") {
       this.extractAutoStarted = true;
+      this.extractAutoRearmRequired = false;
+      this.extractLastPhase = extractState.phase;
       return;
     }
 
-    if (insideExtractZone && !this.extractAutoStarted && !extractState.isExtracting) {
+    if (this.extractAutoRearmRequired) {
+      if (!insideStartRadius || serverReportsOutsideStart) {
+        this.extractAutoRearmRequired = false;
+        this.extractAutoStarted = false;
+        this.extractLastPhase = extractState.phase;
+        return;
+      }
+      this.extractLastPhase = extractState.phase;
+      return;
+    }
+
+    if (insideStartRadius && !serverReportsOutsideStart && !this.extractAutoStarted && !extractState.isExtracting) {
       onStartExtract?.();
       this.extractAutoStarted = true;
+      this.extractAutoRearmRequired = false;
+    }
+    this.extractLastPhase = extractState.phase;
+  }
+
+  private getExtractStartRadius(zoneRadius: number): number {
+    const inset = Math.min(
+      GameSceneInteractions.EXTRACT_START_INSET_MAX,
+      Math.max(GameSceneInteractions.EXTRACT_START_INSET_MIN, zoneRadius * 0.15)
+    );
+    return Math.max(24, zoneRadius - inset);
+  }
+
+  private getExtractRearmRadius(zoneRadius: number): number {
+    const grace = Math.min(
+      GameSceneInteractions.EXTRACT_REARM_GRACE_MAX,
+      Math.max(GameSceneInteractions.EXTRACT_REARM_GRACE_MIN, zoneRadius * 0.12)
+    );
+    return zoneRadius + grace;
+  }
+
+  private syncExtractZone(extractState: ExtractUiState): void {
+    if (
+      typeof extractState.x === "number"
+      && typeof extractState.y === "number"
+      && typeof extractState.radius === "number"
+    ) {
+      this.extractZone = {
+        x: extractState.x,
+        y: extractState.y,
+        radius: extractState.radius
+      };
     }
   }
 
@@ -149,5 +226,12 @@ export class GameSceneInteractions {
     this.chestLabels.clear();
     this.chestSprites.clear();
     this.extractAutoStarted = false;
+    this.extractAutoRearmRequired = false;
+    this.extractLastPhase = null;
+    this.extractZone = undefined;
   }
+}
+
+function distanceBetween(x1: number, y1: number, x2: number, y2: number): number {
+  return Math.hypot(x1 - x2, y1 - y2);
 }

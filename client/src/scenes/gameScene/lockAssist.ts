@@ -5,7 +5,7 @@ export const LOCK_ASSIST_ACQUIRE_RANGE_BUFFER = 32;
 export const LOCK_ASSIST_CHASE_RANGE_BUFFER = 108;
 export const LOCK_ASSIST_CHASE_MOVE_SCALE = 1;
 export const LOCK_ASSIST_CHASE_MAX_DURATION_MS = 650;
-export const LOCK_ASSIST_PLAYER_CONTACT_RADIUS = 28;
+export const LOCK_ASSIST_PLAYER_CONTACT_RADIUS = 56;
 export const LOCK_ASSIST_MONSTER_CONTACT_RADIUS = 30;
 export const LOCK_ASSIST_FRONT_CONE_DEG = 130;
 export const LOCK_ASSIST_REAR_CONE_DEG = 95;
@@ -60,6 +60,7 @@ export interface ChaseAssistStepResult {
   moveDirection?: Vector2;
   attackDirection?: Vector2;
   clearQueuedAttack: boolean;
+  clearMoveOverride: boolean;
   reason:
     | "no-self"
     | "no-chase"
@@ -67,6 +68,7 @@ export interface ChaseAssistStepResult {
     | "target-dead"
     | "expired"
     | "retreat-input"
+    | "manual-input"
     | "target-out-of-range"
     | "entered-range"
     | "advance";
@@ -157,34 +159,45 @@ export function resolveChaseAssistStep(params: {
   now: number;
   lastFacingDirection: Vector2;
   currentMoveDirection: Vector2;
+  currentManualMoveDirection?: Vector2;
 }): ChaseAssistStepResult {
-  const { self, chaseAssist, target, queuedAttackTargetId, now, lastFacingDirection, currentMoveDirection } = params;
+  const {
+    self,
+    chaseAssist,
+    target,
+    queuedAttackTargetId,
+    now,
+    lastFacingDirection,
+    currentMoveDirection,
+    currentManualMoveDirection
+  } = params;
 
   if (!self || !self.isAlive) {
-    return { kind: "clear", clearQueuedAttack: false, reason: "no-self" };
+    return { kind: "clear", clearQueuedAttack: false, clearMoveOverride: true, reason: "no-self" };
   }
   if (!chaseAssist) {
-    return { kind: "clear", clearQueuedAttack: false, reason: "no-chase" };
+    return { kind: "clear", clearQueuedAttack: false, clearMoveOverride: true, reason: "no-chase" };
   }
   if (!target) {
-    return { kind: "clear", clearQueuedAttack: false, reason: "target-lost" };
+    return { kind: "clear", clearQueuedAttack: false, clearMoveOverride: true, reason: "target-lost" };
   }
   if (!target.isAlive) {
-    return { kind: "clear", clearQueuedAttack: false, reason: "target-dead" };
+    return { kind: "clear", clearQueuedAttack: false, clearMoveOverride: true, reason: "target-dead" };
   }
   if (now > chaseAssist.expiresAt) {
-    return { kind: "clear", clearQueuedAttack: false, reason: "expired" };
+    return { kind: "clear", clearQueuedAttack: false, clearMoveOverride: true, reason: "expired" };
   }
 
   const delta = { x: target.x - self.x, y: target.y - self.y };
   const distance = Math.hypot(delta.x, delta.y);
   const facingDirection = normalizeVector(delta, lastFacingDirection);
 
-  const moveMagnitude = Math.hypot(currentMoveDirection.x, currentMoveDirection.y);
+  const manualMove = currentManualMoveDirection ?? currentMoveDirection;
+  const moveMagnitude = Math.hypot(manualMove.x, manualMove.y);
   if (moveMagnitude > LOCK_ASSIST_MOVE_CANCEL_THRESHOLD) {
     const moveNormalized = {
-      x: currentMoveDirection.x / moveMagnitude,
-      y: currentMoveDirection.y / moveMagnitude
+      x: manualMove.x / moveMagnitude,
+      y: manualMove.y / moveMagnitude
     };
     const retreatDot = (moveNormalized.x * facingDirection.x) + (moveNormalized.y * facingDirection.y);
     if (retreatDot < LOCK_ASSIST_RETREAT_CANCEL_DOT) {
@@ -192,30 +205,42 @@ export function resolveChaseAssistStep(params: {
         kind: "clear",
         facingDirection,
         clearQueuedAttack: true,
+        clearMoveOverride: true,
         reason: "retreat-input"
       };
     }
+
+    return {
+      kind: "clear",
+      facingDirection,
+      clearQueuedAttack: true,
+      clearMoveOverride: true,
+      reason: "manual-input"
+    };
   }
 
-  const attackReach = getWeaponRange(self.weaponType) + LOCK_ASSIST_ACQUIRE_RANGE_BUFFER;
+  const contactRadius = getTargetContactRadius(chaseAssist.targetKind);
+  const attackReach = getWeaponRange(self.weaponType) + contactRadius + LOCK_ASSIST_ACQUIRE_RANGE_BUFFER;
   if (distance <= attackReach && queuedAttackTargetId) {
     return {
       kind: "attack",
       facingDirection,
       attackDirection: facingDirection,
       clearQueuedAttack: true,
+      clearMoveOverride: true,
       reason: "entered-range"
     };
   }
 
   if (
-    distance > getWeaponRange(self.weaponType) + LOCK_ASSIST_CHASE_RANGE_BUFFER
+    distance > getWeaponRange(self.weaponType) + contactRadius + LOCK_ASSIST_CHASE_RANGE_BUFFER
     || now - chaseAssist.startedAt > LOCK_ASSIST_CHASE_MAX_DURATION_MS
   ) {
     return {
       kind: "clear",
       facingDirection,
       clearQueuedAttack: true,
+      clearMoveOverride: true,
       reason: "target-out-of-range"
     };
   }
@@ -228,6 +253,7 @@ export function resolveChaseAssistStep(params: {
       y: facingDirection.y * LOCK_ASSIST_CHASE_MOVE_SCALE
     },
     clearQueuedAttack: false,
+    clearMoveOverride: false,
     reason: "advance"
   };
 }
@@ -274,6 +300,10 @@ function buildAssistCandidate(
     attackReach,
     score: distance + (angleDeg * 0.9) + (kind === "player" ? -12 : 0)
   };
+}
+
+function getTargetContactRadius(kind: "player" | "monster"): number {
+  return kind === "player" ? LOCK_ASSIST_PLAYER_CONTACT_RADIUS : LOCK_ASSIST_MONSTER_CONTACT_RADIUS;
 }
 
 function getAngleBetweenVectors(a: Vector2, b: Vector2): number {

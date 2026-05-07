@@ -12,10 +12,74 @@ import type { LocalProfile } from "./profile/localProfile";
 import { getServerProfile, loadServerProfile } from "./profile/profileClient";
 import "./styles/mobile.css";
 
+declare global {
+  interface Window {
+    __P0B_TEST_HOOKS__?: {
+      sendMoveInput(direction: { x: number; y: number }): void;
+      startExtract(): void;
+      getSnapshot?(): {
+        selfPlayerId: string | null;
+        matchSnapshot: ReturnType<GameClientController["getMatchSnapshot"]>;
+      };
+    };
+  }
+}
+
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (app) {
   void mountClientShell(app);
+}
+
+function shouldEnableP0BTestHooks(): boolean {
+  if (!import.meta.env.DEV || typeof window === "undefined") {
+    return false;
+  }
+
+  const search = new URLSearchParams(window.location.search);
+  return search.get("devRoomPreset") === "extract" || search.get("p0bTestHooks") === "1";
+}
+
+function clearP0BTestHooks(): void {
+  if (typeof window !== "undefined" && "__P0B_TEST_HOOKS__" in window) {
+    delete window.__P0B_TEST_HOOKS__;
+  }
+}
+
+function installP0BTestHooks(gameController: GameClientController): () => void {
+  if (!shouldEnableP0BTestHooks()) {
+    clearP0BTestHooks();
+    return clearP0BTestHooks;
+  }
+
+  let forcedMoveDirection: { x: number; y: number } | null = null;
+  const moveInterval = window.setInterval(() => {
+    if (forcedMoveDirection) {
+      gameController.sendMoveInput(forcedMoveDirection);
+    }
+  }, 50);
+
+  window.__P0B_TEST_HOOKS__ = {
+    sendMoveInput(direction) {
+      forcedMoveDirection = { x: direction.x, y: direction.y };
+      gameController.sendMoveInput(forcedMoveDirection);
+    },
+    startExtract() {
+      gameController.startExtract();
+    },
+    getSnapshot() {
+      return {
+        selfPlayerId: gameController.getSelfPlayerId(),
+        matchSnapshot: gameController.getMatchSnapshot()
+      };
+    }
+  };
+
+  return () => {
+    forcedMoveDirection = null;
+    window.clearInterval(moveInterval);
+    clearP0BTestHooks();
+  };
 }
 
 async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
@@ -33,6 +97,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
   window.addEventListener('resize', handleOrientationChange);
   window.addEventListener('orientationchange', handleOrientationChange);
   handleOrientationChange(); // Initial check
+  clearP0BTestHooks();
 
   await createSession();
 
@@ -40,6 +105,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
     const myVersion = ++sessionVersion;
     let lastInventory: MatchInventoryState | null = null;
     let gameController: GameClientController | null = null;
+    let cleanupP0BTestHooks = clearP0BTestHooks;
     let lobbyApp: Awaited<ReturnType<typeof bootstrapLobbyApp>> | null = null;
 
     const lobbyRoot = document.createElement("div");
@@ -81,6 +147,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
           // Ignore local teardown errors and continue rebuilding the shell.
         }
 
+        cleanupP0BTestHooks();
         gameController?.destroy();
         gameController = null;
         gameScaler.destroy();
@@ -157,6 +224,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
         toggleInventoryPanel();
       }
     });
+    cleanupP0BTestHooks = installP0BTestHooks(gameController);
 
     const lobbyController = createNetworkLobbyController(
       gameController.network,
@@ -186,6 +254,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
       });
       pendingLobbyInfoMessage = null;
     } catch (error) {
+      cleanupP0BTestHooks();
       appRoot.innerHTML = `<pre style="color:#fca5a5;padding:24px">${String(error)}</pre>`;
     }
   }
