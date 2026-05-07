@@ -12,8 +12,8 @@ const elite = MONSTER_ASSET_CONTRACTS.elite;
 const boss = MONSTER_ASSET_CONTRACTS.boss;
 const TARGET_DISPLAY_SIZE = {
   normal: 88,
-  elite: 38,
-  boss: 45
+  elite: 104,
+  boss: 120
 } as const;
 
 assert.equal(normal.frameWidth, 314, "normal monster frameWidth should stay at 314");
@@ -24,8 +24,8 @@ assert.equal(boss.frameWidth, 314, "boss monster frameWidth should stay at 314")
 assert.equal(boss.frameHeight, 314, "boss monster frameHeight should stay at 314");
 
 assert.equal(normal.displaySize, TARGET_DISPLAY_SIZE.normal, "normal display size should be raised to 88 for player-comparable readability");
-assert.equal(elite.displaySize, TARGET_DISPLAY_SIZE.elite, "elite display size should be reduced to 38");
-assert.equal(boss.displaySize, TARGET_DISPLAY_SIZE.boss, "boss display size should be reduced to 45");
+assert.equal(elite.displaySize, TARGET_DISPLAY_SIZE.elite, "elite display size should be raised above normal without overwhelming the screen");
+assert.equal(boss.displaySize, TARGET_DISPLAY_SIZE.boss, "boss display size should sit above elite while staying combat-readable");
 
 const monsterMarkerSource = fs.readFileSync(path.join(repoRoot, "client", "src", "game", "entities", "MonsterMarker.ts"), "utf8");
 assert.equal(
@@ -44,14 +44,16 @@ const eliteProfile = getMonsterVisualProfile("elite");
 const bossProfile = getMonsterVisualProfile("boss");
 
 assert.equal(normalProfile.shadow.width, 68, "normal shadow width should scale up with the sprite");
-assert.equal(eliteProfile.shadow.width, 30, "elite shadow width should scale down with the sprite");
-assert.equal(bossProfile.shadow.width, 38, "boss shadow width should scale down with the sprite");
+assert.equal(eliteProfile.shadow.width, 80, "elite shadow width should scale above the normal tier");
+assert.equal(bossProfile.shadow.width, 98, "boss shadow width should anchor the largest tier without returning to oversized silhouettes");
 assert.equal(normalProfile.hpWidth, 78, "normal hp bar width should scale up with the sprite");
-assert.equal(eliteProfile.hpWidth, 33, "elite hp bar width should scale down with the sprite");
-assert.equal(bossProfile.hpWidth, 40, "boss hp bar width should scale down with the sprite");
+assert.equal(eliteProfile.hpWidth, 68, "elite hp bar width should stay clearly above normal");
+assert.equal(bossProfile.hpWidth, 86, "boss hp bar width should stay clearly above elite");
 assert.equal(normalProfile.telegraphRing.width, 96, "normal telegraph ring should follow the larger visual size");
-assert.equal(eliteProfile.telegraphRing.width, 44, "elite telegraph ring should follow the reduced visual size");
-assert.equal(bossProfile.telegraphRing.width, 58, "boss telegraph ring should follow the reduced visual size");
+assert.equal(eliteProfile.telegraphRing.width, 116, "elite telegraph ring should cover the larger elite silhouette");
+assert.equal(bossProfile.telegraphRing.width, 144, "boss telegraph ring should cover the largest silhouette without flooding the arena");
+assert.equal(eliteProfile.crownY, -116, "elite crown anchor should lift with the taller elite profile");
+assert.equal(bossProfile.crownY, -128, "boss crown anchor should lift with the tallest profile");
 
 assert.equal(getMonsterTextureKey("boss"), "monster_boss_sheet", "boss should resolve to independent texture key");
 assert.notEqual(getMonsterTextureKey("boss"), getMonsterTextureKey("elite"), "boss should not reuse elite texture key");

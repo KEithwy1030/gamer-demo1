@@ -10,8 +10,8 @@ import type { RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from 
 
 const TARGET_DISPLAY_SIZE = {
   normal: 88,
-  elite: 38,
-  boss: 45
+  elite: 104,
+  boss: 120
 } as const;
 
 const now = Date.now();
@@ -64,18 +64,20 @@ function assertVisualContracts(): void {
   assert.notEqual(getMonsterTextureKey("boss"), getMonsterTextureKey("elite"), "boss should no longer share elite texture key");
 
   assert.equal(MONSTER_ASSET_CONTRACTS.normal.displaySize, TARGET_DISPLAY_SIZE.normal, "normal readability size should be raised to 88");
-  assert.equal(MONSTER_ASSET_CONTRACTS.elite.displaySize, TARGET_DISPLAY_SIZE.elite, "elite readability size should be reduced to 38");
-  assert.equal(MONSTER_ASSET_CONTRACTS.boss.displaySize, TARGET_DISPLAY_SIZE.boss, "boss readability size should be reduced to 45");
+  assert.equal(MONSTER_ASSET_CONTRACTS.elite.displaySize, TARGET_DISPLAY_SIZE.elite, "elite readability size should sit clearly above the normal tier");
+  assert.equal(MONSTER_ASSET_CONTRACTS.boss.displaySize, TARGET_DISPLAY_SIZE.boss, "boss readability size should sit above elite while remaining fightable");
 
   const normalProfile = getMonsterVisualProfile("normal");
   const eliteProfile = getMonsterVisualProfile("elite");
   const bossProfile = getMonsterVisualProfile("boss");
   assert.equal(normalProfile.hpWidth, 78, "normal hp bar should scale up with the monster");
-  assert.equal(eliteProfile.hpWidth, 33, "elite hp bar should scale down with the monster");
-  assert.equal(bossProfile.hpWidth, 40, "boss hp bar should scale down with the monster");
+  assert.equal(eliteProfile.hpWidth, 68, "elite hp bar should scale above normal with the larger silhouette");
+  assert.equal(bossProfile.hpWidth, 86, "boss hp bar should scale above elite with the largest silhouette");
   assert.equal(normalProfile.crownY, -100, "normal crown anchor contract should move with the larger monster silhouette");
-  assert.equal(eliteProfile.crownY, -45, "elite crown anchor contract should stay compact");
-  assert.equal(bossProfile.crownY, -54, "boss crown anchor contract should stay compact");
+  assert.equal(eliteProfile.crownY, -116, "elite crown anchor contract should lift above the taller elite silhouette");
+  assert.equal(bossProfile.crownY, -128, "boss crown anchor contract should lift above the tallest silhouette");
+  assert.equal(eliteProfile.labelOffsetY, 74, "elite label offset should clear the larger elite feet and shadow");
+  assert.equal(bossProfile.labelOffsetY, 84, "boss label offset should clear the larger boss feet and shadow");
 
   for (const action of ["idle", "move", "attack", "charge", "hurt", "death"] as const) {
     assert.ok(getMonsterActionFrames("boss", action).length > 0, `boss ${action} mapping should exist`);
