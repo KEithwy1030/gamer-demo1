@@ -484,6 +484,12 @@
   background: rgba(10, 8, 6, 0.42);
   border: 1px solid rgba(95, 42, 22, 0.55);
   overflow: hidden;
+  box-sizing: border-box;
+}
+
+.inventory-backpack-stage {
+  position: relative;
+  margin: 0 auto;
 }
 
 .inventory-backpack-cells,
@@ -492,8 +498,24 @@
   inset: 0;
 }
 
+.inventory-grid-drop-preview {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 2;
+  border: 2px dashed #e8b24d;
+  background: rgba(232, 178, 77, 0.14);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.inventory-grid-drop-preview--invalid {
+  border-color: #b8371f;
+  background: rgba(184, 55, 31, 0.16);
+}
+
 .inventory-backpack-items {
   pointer-events: none;
+  z-index: 3;
 }
 
 .inventory-backpack-items .inventory-item {

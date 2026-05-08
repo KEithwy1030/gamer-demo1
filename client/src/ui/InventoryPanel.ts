@@ -73,6 +73,7 @@ const GRID_CELL_SIZE = 34;
 const GRID_GAP = 4;
 const GRID_METRICS = { cellSize: GRID_CELL_SIZE, gap: GRID_GAP };
 const STABLE_BACKPACK_WIDTH = 376;
+const BACKPACK_SURFACE_PADDING = 10;
 
 export function createInventoryPanel(options: InventoryPanelOptions): InventoryPanelApi {
   let inventoryState: MatchInventoryState | null = null;
@@ -129,6 +130,8 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   backpackTitle.textContent = "携行格";
   const backpackSurface = document.createElement("div");
   backpackSurface.className = "inventory-backpack-surface";
+  const backpackStage = document.createElement("div");
+  backpackStage.className = "inventory-backpack-stage";
   const backpackCells = document.createElement("div");
   backpackCells.className = "inventory-backpack-cells";
   const backpackHighlight = document.createElement("div");
@@ -136,7 +139,8 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   backpackHighlight.hidden = true;
   const backpackItems = document.createElement("div");
   backpackItems.className = "inventory-backpack-items";
-  backpackSurface.append(backpackCells, backpackHighlight, backpackItems);
+  backpackStage.append(backpackCells, backpackHighlight, backpackItems);
+  backpackSurface.append(backpackStage);
 
   equipmentSection.append(equipmentTitle, equipmentGrid);
   backpackSection.append(backpackTitle, backpackSurface);
@@ -520,8 +524,12 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
   function renderBackpackGrid(width: number, height: number): void {
     backpackCells.replaceChildren();
-    backpackSurface.style.width = `${STABLE_BACKPACK_WIDTH}px`;
-    backpackSurface.style.height = `${height * GRID_CELL_SIZE + (height - 1) * GRID_GAP}px`;
+    const gridWidth = width * GRID_CELL_SIZE + (width - 1) * GRID_GAP;
+    const gridHeight = height * GRID_CELL_SIZE + (height - 1) * GRID_GAP;
+    backpackStage.style.width = `${gridWidth}px`;
+    backpackStage.style.height = `${gridHeight}px`;
+    backpackSurface.style.width = `${Math.max(STABLE_BACKPACK_WIDTH, gridWidth) + BACKPACK_SURFACE_PADDING * 2}px`;
+    backpackSurface.style.height = `${gridHeight + BACKPACK_SURFACE_PADDING * 2}px`;
 
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {

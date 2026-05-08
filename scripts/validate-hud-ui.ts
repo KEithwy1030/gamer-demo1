@@ -58,6 +58,31 @@ assert.match(
 );
 assert.match(
   inventoryPanelSource,
+  /const BACKPACK_SURFACE_PADDING = 10;/,
+  "inventory panel should keep the backpack surface padding in the TS geometry contract"
+);
+assert.match(
+  inventoryPanelSource,
+  /const backpackStage = document\.createElement\("div"\);\s*backpackStage\.className = "inventory-backpack-stage";/,
+  "inventory panel should render a dedicated backpack stage so padded shell geometry cannot skew drag math"
+);
+assert.match(
+  inventoryPanelSource,
+  /backpackStage\.append\(backpackCells, backpackHighlight, backpackItems\);\s*backpackSurface\.append\(backpackStage\);/s,
+  "inventory grid cells, highlight, and items should share the same inner stage geometry"
+);
+assert.match(
+  inventoryPanelSource,
+  /backpackSurface\.style\.width = `\$\{Math\.max\(STABLE_BACKPACK_WIDTH, gridWidth\) \+ BACKPACK_SURFACE_PADDING \* 2\}px`;/,
+  "inventory backpack surface width should include padding around the true grid stage"
+);
+assert.match(
+  inventoryPanelSource,
+  /backpackSurface\.style\.height = `\$\{gridHeight \+ BACKPACK_SURFACE_PADDING \* 2\}px`;/,
+  "inventory backpack surface height should include padding around the true grid stage"
+);
+assert.match(
+  inventoryPanelSource,
   /const backpackRect = backpackCells\.getBoundingClientRect\(\);/,
   "inventory drag hover should resolve against the actual grid rect instead of the padded surface shell"
 );
@@ -91,6 +116,11 @@ assert.match(
   inventoryCss,
   /\.inventory-backpack-surface \{[\s\S]*padding: 10px;[\s\S]*background: rgba\(10, 8, 6, 0\.42\);/,
   "inventory backpack surface should frame the grid with stable padding and tone"
+);
+assert.match(
+  inventoryCss,
+  /\.inventory-backpack-stage \{[\s\S]*position: relative;[\s\S]*margin: 0 auto;/,
+  "inventory backpack stage should isolate the actual grid geometry from the padded shell"
 );
 assert.match(
   inventoryCss,
