@@ -444,27 +444,21 @@ Exit criteria:
 
 Default worker route:
 - use GPT-5.4 for implementation packages
-- prefer the project custom agent `gamer_gamefeel_worker` when available
+- use the global Codex defaults for this repo and keep subagent MCP use opt-in
 
 Default verifier route:
 - use the main session for browser-based acceptance when subagent MCP startup is unstable
 - use GPT-5.5 verification only where the budget and toolchain allow it
 
 MCP rule:
-- implementation workers should not use MCP unless their task explicitly requires it
+- implementation workers should not depend on MCP unless their task explicitly requires it
 - browser acceptance should prefer repo scripts or main-session Playwright, not worker-launched MCP
 - any worker that uses browser or MCP must report tool use, ports, PIDs, artifact path, and cleanup status
-- project custom agents for this track disable `node_repl`, `playwright-mcp`, and `chrome-devtools` by default
+- global MCP startup timeouts should bound how long Codex waits for optional servers before continuing without them
 
 Reason:
 - presentation work benefits from subagent parallelism, but stale MCP startup or blocked browser authorization can waste more time than it saves
 - acceptance quality depends on evidence, not on which agent produced it
-
-Current project files:
-- `.codex/agents/gamer-gamefeel-worker.toml`
-- `.codex/agents/gamer-gamefeel-reviewer.toml`
-
-These agents are intentionally MCP-light. If the current Codex UI/runtime does not surface custom agents in an already-open session, use the built-in worker role with the same instruction: no MCP, no browser, no dev server unless explicitly delegated.
 
 ## Non-Goals For The Next Long Run
 
