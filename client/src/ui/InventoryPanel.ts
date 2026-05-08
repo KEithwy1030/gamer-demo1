@@ -7,7 +7,7 @@ import {
   createDragGhost,
   formatHighlightRect,
   resolveEquipmentCandidate,
-  resolveGridAnchor,
+  resolveDragAnchorFromSource,
   resolveGridCandidate,
   toDragOccupants,
   updateDragGhostPosition,
@@ -365,7 +365,9 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
       area,
       ghost,
       offset,
-      gridAnchor: resolveGridAnchor(offset, GRID_METRICS, item)
+      gridAnchor: resolveDragAnchorFromSource(offset, GRID_METRICS, item, area === "equipment"
+        ? { width: sourceEl.getBoundingClientRect().width, height: sourceEl.getBoundingClientRect().height }
+        : undefined)
     };
     sourceEl.classList.add("inventory-item--dragging");
     document.body.classList.add("inventory-dragging");

@@ -15,6 +15,11 @@ export type DragGridAnchor = {
   y: number;
 };
 
+export type DragSourceGeometry = {
+  width: number;
+  height: number;
+};
+
 export type DragItemShape = {
   instanceId: string;
   width?: number;
@@ -71,6 +76,24 @@ export function resolveGridAnchor(offset: DragPointerOffset, metrics: DragGridMe
   return {
     x: clamp(Math.floor(offset.x / step), 0, Math.max(0, width - 1)),
     y: clamp(Math.floor(offset.y / step), 0, Math.max(0, height - 1))
+  };
+}
+
+export function resolveDragAnchorFromSource(
+  offset: DragPointerOffset,
+  metrics: DragGridMetrics,
+  item: Pick<DragItemShape, "width" | "height">,
+  sourceGeometry?: DragSourceGeometry
+): DragGridAnchor {
+  const width = normalizeSpan(item.width);
+  const height = normalizeSpan(item.height);
+  const sourceWidth = Math.max(1, Math.round(sourceGeometry?.width ?? width * metrics.cellSize + (width - 1) * metrics.gap));
+  const sourceHeight = Math.max(1, Math.round(sourceGeometry?.height ?? height * metrics.cellSize + (height - 1) * metrics.gap));
+  const stepX = sourceWidth / width;
+  const stepY = sourceHeight / height;
+  return {
+    x: clamp(Math.floor(offset.x / stepX), 0, Math.max(0, width - 1)),
+    y: clamp(Math.floor(offset.y / stepY), 0, Math.max(0, height - 1))
   };
 }
 

@@ -1,4 +1,4 @@
-import { resolveEquipmentCandidate, resolveGridCandidate } from "../client/src/ui/inventoryDrag/shared.ts";
+import { resolveDragAnchorFromSource, resolveEquipmentCandidate, resolveGridCandidate } from "../client/src/ui/inventoryDrag/shared.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -92,6 +92,33 @@ function main(): void {
   });
   assert(clamped?.x === 8 && clamped?.y === 4, "candidate should clamp to last legal top-left cell");
   assert(clamped.valid === true, "clamped edge placement should stay valid");
+
+  const equipmentCardAnchor = resolveDragAnchorFromSource(
+    { x: 86, y: 78 },
+    combatMetrics,
+    { instanceId: "head-pack", width: 2, height: 1, equipmentSlot: "head" },
+    { width: 112, height: 80 }
+  );
+  assert(equipmentCardAnchor.x === 1 && equipmentCardAnchor.y === 0, "equipment card drag should normalize source card width into the dragged item grid anchor");
+
+  const normalizedEquipmentDrop = resolveGridCandidate({
+    grid: { width: 10, height: 6 },
+    pointer: { x: 100 + (34 + 4) * 6 + 20, y: 200 + (34 + 4) * 2 + 12 },
+    surfaceRect: combatSurface,
+    metrics: combatMetrics,
+    item: { instanceId: "head-pack", width: 2, height: 1, equipmentSlot: "head" },
+    occupants: [],
+    ignoreInstanceIds: [],
+    anchor: equipmentCardAnchor
+  });
+  assert(normalizedEquipmentDrop?.x === 5 && normalizedEquipmentDrop?.y === 2, "equipment-origin drag should keep the yellow drop preview aligned to the intended grid cells");
+
+  const stashItemAnchor = resolveDragAnchorFromSource(
+    { x: 78, y: 14 },
+    stashMetrics,
+    { instanceId: "head-pack", width: 2, height: 1, equipmentSlot: "head" }
+  );
+  assert(stashItemAnchor.x === 1 && stashItemAnchor.y === 0, "grid-origin drag should preserve existing anchor semantics when no custom source geometry is provided");
 
   const equipValid = resolveEquipmentCandidate({
     slot: "head",
