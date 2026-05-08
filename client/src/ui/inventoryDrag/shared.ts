@@ -10,6 +10,11 @@ export type DragPointerOffset = {
   y: number;
 };
 
+export type DragGridAnchor = {
+  x: number;
+  y: number;
+};
+
 export type DragItemShape = {
   instanceId: string;
   width?: number;
@@ -59,6 +64,16 @@ export function updateDragGhostPosition(ghost: HTMLElement, pointer: { x: number
   ghost.style.top = `${pointer.y - offset.y}px`;
 }
 
+export function resolveGridAnchor(offset: DragPointerOffset, metrics: DragGridMetrics, item: Pick<DragItemShape, "width" | "height">): DragGridAnchor {
+  const width = normalizeSpan(item.width);
+  const height = normalizeSpan(item.height);
+  const step = metrics.cellSize + metrics.gap;
+  return {
+    x: clamp(Math.floor(offset.x / step), 0, Math.max(0, width - 1)),
+    y: clamp(Math.floor(offset.y / step), 0, Math.max(0, height - 1))
+  };
+}
+
 export function isPointWithinRect(clientX: number, clientY: number, rect: DOMRect): boolean {
   return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
 }
@@ -81,8 +96,9 @@ export function resolveGridCandidate(params: {
   item: DragItemShape;
   occupants: DragOccupant[];
   ignoreInstanceIds?: string[];
+  anchor?: DragGridAnchor;
 }): DragGridCandidate | null {
-  const { grid, pointer, surfaceRect, metrics, item, occupants, ignoreInstanceIds = [] } = params;
+  const { grid, pointer, surfaceRect, metrics, item, occupants, ignoreInstanceIds = [], anchor } = params;
   if (!isPointWithinRect(pointer.x, pointer.y, surfaceRect)) {
     return null;
   }
@@ -90,8 +106,10 @@ export function resolveGridCandidate(params: {
   const width = normalizeSpan(item.width);
   const height = normalizeSpan(item.height);
   const step = metrics.cellSize + metrics.gap;
-  const rawX = Math.floor((pointer.x - surfaceRect.left) / step);
-  const rawY = Math.floor((pointer.y - surfaceRect.top) / step);
+  const anchorX = clamp(anchor?.x ?? 0, 0, Math.max(0, width - 1));
+  const anchorY = clamp(anchor?.y ?? 0, 0, Math.max(0, height - 1));
+  const rawX = Math.floor((pointer.x - surfaceRect.left) / step) - anchorX;
+  const rawY = Math.floor((pointer.y - surfaceRect.top) / step) - anchorY;
   const x = clamp(rawX, 0, Math.max(0, grid.width - width));
   const y = clamp(rawY, 0, Math.max(0, grid.height - height));
   const rect = { x, y, width, height };

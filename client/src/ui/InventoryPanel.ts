@@ -7,6 +7,7 @@ import {
   createDragGhost,
   formatHighlightRect,
   resolveEquipmentCandidate,
+  resolveGridAnchor,
   resolveGridCandidate,
   toDragOccupants,
   updateDragGhostPosition,
@@ -36,6 +37,7 @@ type DragState = {
   area: ItemArea;
   ghost: HTMLElement;
   offset: DragPointerOffset;
+  gridAnchor: { x: number; y: number };
 };
 
 const SLOT_ORDER: EquipmentSlotKey[] = ["weapon", "head", "chest", "hands", "shoes"];
@@ -312,8 +314,8 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     if (currentEquipCandidate) {
       const slotElement = equipmentSlotElements.get(currentEquipCandidate);
       slotElement?.classList.remove("inventory-drop-target--candidate", "inventory-drop-target--invalid");
-      currentEquipCandidate = null;
     }
+    currentEquipCandidate = null;
   }
 
   function renderBackpackHighlight(candidate: DragGridCandidate | null): void {
@@ -358,7 +360,8 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
       item,
       area,
       ghost,
-      offset
+      offset,
+      gridAnchor: resolveGridAnchor(offset, GRID_METRICS, item)
     };
     sourceEl.classList.add("inventory-item--dragging");
     document.body.classList.add("inventory-dragging");
@@ -393,7 +396,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     renderBackpackHighlight(resolveBackpackCandidate(event.clientX, event.clientY));
   }
 
-  function endDrag(event: PointerEvent): void {
+  function endDrag(): void {
     if (!activeDrag) {
       return;
     }
@@ -615,7 +618,8 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
           y: Number.isFinite(entry.y) ? Number(entry.y) : 0
         }))
       ),
-      ignoreInstanceIds: [activeDrag.item.instanceId]
+      ignoreInstanceIds: [activeDrag.item.instanceId],
+      anchor: activeDrag.gridAnchor
     });
   }
 
@@ -647,7 +651,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
   mobileClose.addEventListener("click", closeInventory);
   const onPointerMove = (event: PointerEvent) => updateDrag(event);
-  const onPointerUp = (event: PointerEvent) => endDrag(event);
+  const onPointerUp = () => endDrag();
   const onDocumentClick = (event: MouseEvent) => {
     if (activeTooltip && !activeTooltip.contains(event.target as Node) && !element.contains(event.target as Node)) {
       hideTooltip();
