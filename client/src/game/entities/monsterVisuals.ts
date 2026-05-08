@@ -37,37 +37,37 @@ export interface MonsterVisualProfile {
 
 const MONSTER_VISUAL_PROFILES: Record<MonsterState["type"], MonsterVisualProfile> = {
   normal: {
-    displaySize: 88,
-    shadow: { width: 68, height: 20, y: 36, alpha: 0.72 },
-    threatAura: { width: 88, height: 52, y: 16 },
-    telegraphRing: { width: 96, height: 96, y: 16 },
-    impactFlash: { width: 72, height: 88, y: 8 },
-    labelOffsetY: 60,
-    hpY: -58,
-    crownY: -100,
-    hpWidth: 78
+    displaySize: 114,
+    shadow: { width: 88, height: 26, y: 47, alpha: 0.72 },
+    threatAura: { width: 114, height: 68, y: 21 },
+    telegraphRing: { width: 125, height: 125, y: 21 },
+    impactFlash: { width: 94, height: 114, y: 10 },
+    labelOffsetY: 78,
+    hpY: -75,
+    crownY: -130,
+    hpWidth: 101
   },
   elite: {
-    displaySize: 104,
-    shadow: { width: 80, height: 23, y: 39, alpha: 0.78 },
-    threatAura: { width: 106, height: 66, y: 18 },
-    telegraphRing: { width: 116, height: 116, y: 18 },
-    impactFlash: { width: 78, height: 96, y: 8 },
-    labelOffsetY: 74,
-    hpY: -70,
-    crownY: -116,
-    hpWidth: 68
+    displaySize: 130,
+    shadow: { width: 100, height: 29, y: 49, alpha: 0.78 },
+    threatAura: { width: 133, height: 83, y: 23 },
+    telegraphRing: { width: 145, height: 145, y: 23 },
+    impactFlash: { width: 98, height: 120, y: 10 },
+    labelOffsetY: 93,
+    hpY: -88,
+    crownY: -145,
+    hpWidth: 85
   },
   boss: {
-    displaySize: 120,
-    shadow: { width: 98, height: 27, y: 43, alpha: 0.9 },
-    threatAura: { width: 132, height: 88, y: 18 },
-    telegraphRing: { width: 144, height: 144, y: 17 },
-    impactFlash: { width: 96, height: 112, y: 8 },
-    labelOffsetY: 84,
-    hpY: -88,
-    crownY: -128,
-    hpWidth: 86
+    displaySize: 260,
+    shadow: { width: 212, height: 59, y: 94, alpha: 0.9 },
+    threatAura: { width: 286, height: 191, y: 39 },
+    telegraphRing: { width: 312, height: 312, y: 38 },
+    impactFlash: { width: 208, height: 243, y: 17 },
+    labelOffsetY: 182,
+    hpY: -191,
+    crownY: -277,
+    hpWidth: 186
   }
 };
 
