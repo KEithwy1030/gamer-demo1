@@ -1,6 +1,9 @@
 import type { MonsterState } from "@gamer/shared";
 
 export type MonsterAction = "idle" | "move" | "attack" | "charge" | "hurt" | "death";
+export type MonsterFacing = "down" | "left" | "right" | "up";
+
+export const MONSTER_FACINGS = ["down", "left", "right", "up"] as const;
 
 export interface MonsterActionFrames {
   idle: number[];
@@ -19,7 +22,9 @@ export interface MonsterAssetContract {
   columns: number;
   rows: number;
   displaySize: number;
+  directionalCoverage: "full" | "fallback-only";
   actions: MonsterActionFrames;
+  directionalActions?: Record<MonsterFacing, MonsterActionFrames>;
   frameRates: Record<MonsterAction, number>;
 }
 
@@ -71,6 +76,26 @@ const MONSTER_VISUAL_PROFILES: Record<MonsterState["type"], MonsterVisualProfile
   }
 };
 
+function buildDirectionalActionRow(baseFrame: number): MonsterActionFrames {
+  return {
+    idle: [baseFrame, baseFrame, baseFrame + 1, baseFrame + 2, baseFrame + 1],
+    move: [baseFrame, baseFrame + 1, baseFrame + 2, baseFrame + 3, baseFrame + 2, baseFrame + 1],
+    attack: [baseFrame + 1, baseFrame + 2, baseFrame + 3, baseFrame + 2],
+    charge: [baseFrame + 1, baseFrame + 2, baseFrame + 3, baseFrame + 2],
+    hurt: [baseFrame + 3, baseFrame + 2],
+    death: [baseFrame + 3]
+  };
+}
+
+function buildFourDirectionActions(): Record<MonsterFacing, MonsterActionFrames> {
+  return {
+    down: buildDirectionalActionRow(0),
+    left: buildDirectionalActionRow(4),
+    right: buildDirectionalActionRow(8),
+    up: buildDirectionalActionRow(12)
+  };
+}
+
 export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetContract> = {
   normal: {
     textureKey: "monster_normal_sheet",
@@ -80,6 +105,7 @@ export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetC
     columns: 4,
     rows: 4,
     displaySize: MONSTER_VISUAL_PROFILES.normal.displaySize,
+    directionalCoverage: "full",
     actions: {
       idle: [0, 0, 1, 2, 1],
       move: [4, 5, 6, 7, 6, 5],
@@ -88,6 +114,7 @@ export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetC
       hurt: [10, 9],
       death: [11]
     },
+    directionalActions: buildFourDirectionActions(),
     frameRates: {
       idle: 4,
       move: 7,
@@ -105,6 +132,7 @@ export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetC
     columns: 4,
     rows: 4,
     displaySize: MONSTER_VISUAL_PROFILES.elite.displaySize,
+    directionalCoverage: "full",
     actions: {
       idle: [0, 1, 1, 2, 1],
       move: [4, 5, 6, 7, 6, 5],
@@ -113,6 +141,7 @@ export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetC
       hurt: [10, 9],
       death: [11]
     },
+    directionalActions: buildFourDirectionActions(),
     frameRates: {
       idle: 4,
       move: 7,
@@ -130,6 +159,7 @@ export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetC
     columns: 4,
     rows: 4,
     displaySize: MONSTER_VISUAL_PROFILES.boss.displaySize,
+    directionalCoverage: "fallback-only",
     actions: {
       idle: [0, 1, 2, 2, 1, 3],
       move: [4, 5, 6, 7, 6, 5],
@@ -169,6 +199,19 @@ export function getMonsterActionFrames(type: MonsterState["type"], action: Monst
   return getMonsterAssetContract(type).actions[action];
 }
 
+export function hasMonsterDirectionalCoverage(type: MonsterState["type"]): boolean {
+  return getMonsterAssetContract(type).directionalCoverage === "full";
+}
+
+export function getMonsterDirectionalActionFrames(
+  type: MonsterState["type"],
+  action: MonsterAction,
+  facing: MonsterFacing
+): number[] {
+  const contract = getMonsterAssetContract(type);
+  return contract.directionalActions?.[facing]?.[action] ?? contract.actions[action];
+}
+
 export function getMonsterActionFrameRate(type: MonsterState["type"], action: MonsterAction): number {
   return getMonsterAssetContract(type).frameRates[action];
 }
@@ -197,6 +240,13 @@ export function getMonsterAction(monster: MonsterState, options?: { isRecentlyHi
   return "idle";
 }
 
-export function getMonsterAnimationKey(type: MonsterState["type"], action: MonsterAction): string {
+export function getMonsterAnimationKey(
+  type: MonsterState["type"],
+  action: MonsterAction,
+  facing?: MonsterFacing
+): string {
+  if (facing && hasMonsterDirectionalCoverage(type)) {
+    return `monster-${type}-${action}-${facing}`;
+  }
   return `monster-${type}-${action}`;
 }

@@ -7,7 +7,9 @@ import {
   getMonsterCorpseFrame,
   getMonsterDisplaySize,
   getMonsterVisualProfile,
-  getMonsterTextureKey
+  getMonsterTextureKey,
+  hasMonsterDirectionalCoverage,
+  type MonsterFacing
 } from "./monsterVisuals";
 
 export class MonsterMarker {
@@ -34,6 +36,7 @@ export class MonsterMarker {
   private lastPhaseWidth = -1;
   private readonly profile: ReturnType<typeof getMonsterVisualProfile>;
   private readonly displaySize: number;
+  private facing: MonsterFacing = "down";
 
   constructor(scene: Phaser.Scene, monster: MonsterState) {
     this.id = monster.id;
@@ -73,7 +76,8 @@ export class MonsterMarker {
     this.displaySize = getMonsterDisplaySize(monster.type);
     this.setSpriteDisplayScale(1);
 
-    const idleKey = getMonsterAnimationKey(monster.type, "idle");
+    this.facing = resolveMonsterFacing(monster, { x: monster.x, y: monster.y }, this.facing);
+    const idleKey = getMonsterAnimationKey(monster.type, "idle", this.facing);
     if (scene.anims.exists(idleKey)) {
       this.sprite.anims.play(idleKey, true);
     }
@@ -263,6 +267,7 @@ export class MonsterMarker {
   }
 
   private applyVisualPose(monster: MonsterState, snapshot: ReturnType<typeof getMonsterReadabilitySnapshot>): void {
+    this.facing = resolveMonsterFacing(monster, { x: this.targetX - this.root.x, y: this.targetY - this.root.y }, this.facing);
     this.playAction(getMonsterAction(monster, { isRecentlyHit: snapshot.isRecentlyHit }));
     this.sprite.setAlpha(1);
     this.shadow.setAlpha(this.profile.shadow.alpha);
@@ -312,7 +317,7 @@ export class MonsterMarker {
   }
 
   private playAction(action: ReturnType<typeof getMonsterAction>): void {
-    const animationKey = getMonsterAnimationKey(this.monsterType, action);
+    const animationKey = getMonsterAnimationKey(this.monsterType, action, this.facing);
     if (!this.sprite.scene.anims.exists(animationKey)) {
       return;
     }
@@ -324,6 +329,41 @@ export class MonsterMarker {
 
     this.sprite.play(animationKey, true);
   }
+}
+
+function resolveMonsterFacing(
+  monster: MonsterState,
+  movement: { x: number; y: number },
+  fallback: MonsterFacing
+): MonsterFacing {
+  if (!hasMonsterDirectionalCoverage(monster.type)) {
+    return "down";
+  }
+
+  if (monster.telegraph?.aimDirection) {
+    return directionToFacing(monster.telegraph.aimDirection, fallback);
+  }
+
+  if (monster.telegraph?.chargeTarget) {
+    return directionToFacing(
+      { x: monster.telegraph.chargeTarget.x - monster.x, y: monster.telegraph.chargeTarget.y - monster.y },
+      fallback
+    );
+  }
+
+  return directionToFacing(movement, fallback);
+}
+
+function directionToFacing(direction: { x: number; y: number }, fallback: MonsterFacing): MonsterFacing {
+  const absX = Math.abs(direction.x);
+  const absY = Math.abs(direction.y);
+  if (absX < 0.8 && absY < 0.8) {
+    return fallback;
+  }
+  if (absX > absY) {
+    return direction.x < 0 ? "left" : "right";
+  }
+  return direction.y < 0 ? "up" : "down";
 }
 
 function getPhaseDurationMs(monster: MonsterState): number {

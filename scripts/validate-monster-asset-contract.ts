@@ -2,7 +2,16 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { MONSTER_ASSET_CONTRACTS, getMonsterActionFrameRate, getMonsterActionFrames, getMonsterTextureKey, getMonsterVisualProfile } from "../client/src/game/entities/monsterVisuals";
+import {
+  MONSTER_ASSET_CONTRACTS,
+  MONSTER_FACINGS,
+  getMonsterActionFrameRate,
+  getMonsterActionFrames,
+  getMonsterDirectionalActionFrames,
+  getMonsterTextureKey,
+  getMonsterVisualProfile,
+  hasMonsterDirectionalCoverage
+} from "../client/src/game/entities/monsterVisuals";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
@@ -27,6 +36,13 @@ assert.equal(normal.displaySize, TARGET_DISPLAY_SIZE.normal, "normal display siz
 assert.equal(elite.displaySize, TARGET_DISPLAY_SIZE.elite, "elite display size should be raised by 50 percent above the updated normal tier");
 assert.equal(boss.displaySize, TARGET_DISPLAY_SIZE.boss, "boss display size should be raised by 50 percent above the previous baseline while staying combat-readable");
 
+assert.equal(normal.directionalCoverage, "full", "normal monsters should use directional rows instead of a single front-facing action sheet");
+assert.equal(elite.directionalCoverage, "full", "elite monsters should use directional rows instead of a single front-facing action sheet");
+assert.equal(boss.directionalCoverage, "fallback-only", "boss should stay explicitly fallback-only until a real directional boss sheet exists");
+assert.equal(hasMonsterDirectionalCoverage("normal"), true, "normal should report directional animation coverage");
+assert.equal(hasMonsterDirectionalCoverage("elite"), true, "elite should report directional animation coverage");
+assert.equal(hasMonsterDirectionalCoverage("boss"), false, "boss should not pretend to have directional animation coverage");
+
 const monsterMarkerSource = fs.readFileSync(path.join(repoRoot, "client", "src", "game", "entities", "MonsterMarker.ts"), "utf8");
 assert.equal(
   monsterMarkerSource.includes("this.sprite.setScale("),
@@ -37,6 +53,28 @@ assert.match(
   monsterMarkerSource,
   /private setSpriteDisplayScale\(multiplier: number\): void \{[\s\S]*?this\.sprite\.setDisplaySize\(size, size\);[\s\S]*?\}/,
   "monster marker should preserve contract display size through pose multipliers"
+);
+assert.match(
+  monsterMarkerSource,
+  /resolveMonsterFacing/,
+  "monster marker should resolve a coarse facing before selecting an animation"
+);
+assert.match(
+  monsterMarkerSource,
+  /getMonsterAnimationKey\(this\.monsterType, action, this\.facing\)/,
+  "monster marker should play facing-specific animation keys when available"
+);
+
+const gameSceneSource = fs.readFileSync(path.join(repoRoot, "client", "src", "scenes", "GameScene.ts"), "utf8");
+assert.match(
+  gameSceneSource,
+  /for \(const facing of MONSTER_FACINGS\)/,
+  "game scene should register per-facing monster animations for directional monster contracts"
+);
+assert.match(
+  gameSceneSource,
+  /getMonsterDirectionalActionFrames\(monsterType, action, facing\)/,
+  "directional monster animations should use directional frame rows, not the old single-action frame table"
 );
 
 const normalProfile = getMonsterVisualProfile("normal");
@@ -69,6 +107,33 @@ for (const [type, contract] of Object.entries(MONSTER_ASSET_CONTRACTS)) {
       assert.ok(frame >= 0 && frame < frameCount, `${type} ${action} frame ${frame} should stay inside the ${contract.columns}x${contract.rows} sheet`);
     }
   }
+}
+
+for (const type of ["normal", "elite"] as const) {
+  const contract = MONSTER_ASSET_CONTRACTS[type];
+  assert.ok(contract.directionalActions, `${type} should define directional action rows`);
+  const seenFirstFrames = new Set<number>();
+  for (const facing of MONSTER_FACINGS) {
+    const idleFrames = getMonsterDirectionalActionFrames(type, "idle", facing);
+    const moveFrames = getMonsterDirectionalActionFrames(type, "move", facing);
+    const attackFrames = getMonsterDirectionalActionFrames(type, "attack", facing);
+    assert.ok(idleFrames.length >= 4, `${type} ${facing} idle should have enough frames to avoid card flipping`);
+    assert.ok(moveFrames.length >= 6, `${type} ${facing} move should have a return-loop gait`);
+    assert.ok(attackFrames.length >= 4, `${type} ${facing} attack should have anticipation, contact, and return frames`);
+    seenFirstFrames.add(idleFrames[0] ?? -1);
+    for (const frame of [...idleFrames, ...moveFrames, ...attackFrames]) {
+      assert.ok(frame >= 0 && frame < contract.columns * contract.rows, `${type} ${facing} directional frame ${frame} should stay in sheet`);
+    }
+  }
+  assert.equal(seenFirstFrames.size, 4, `${type} should map four facings to four distinct rows`);
+}
+
+for (const facing of MONSTER_FACINGS) {
+  assert.deepEqual(
+    getMonsterDirectionalActionFrames("boss", "move", facing),
+    getMonsterActionFrames("boss", "move"),
+    `boss ${facing} should use fallback action frames until directional boss art is replaced`
+  );
 }
 
 assert.deepEqual(getMonsterActionFrames("normal", "idle"), [0, 0, 1, 2, 1], "normal idle sequence should add a short hold to reduce choppiness");

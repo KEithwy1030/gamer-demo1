@@ -7,10 +7,13 @@ import { MonsterMarker } from "../game/entities/MonsterMarker";
 import { PlayerMarker } from "../game/entities/PlayerMarker";
 import {
   MONSTER_ASSET_CONTRACTS,
+  MONSTER_FACINGS,
+  getMonsterDirectionalActionFrames,
   getMonsterActionFrameRate,
   getMonsterActionFrames,
   getMonsterAnimationKey,
-  getMonsterTextureKey
+  getMonsterTextureKey,
+  hasMonsterDirectionalCoverage
 } from "../game/entities/monsterVisuals";
 import { MatchRuntimeStore, type MatchViewState } from "../game";
 import type { ChestOpenedPayload, ChestState } from "../network/socketClient";
@@ -206,12 +209,30 @@ export class GameScene extends Phaser.Scene {
 
     for (const monsterType of Object.keys(MONSTER_ASSET_CONTRACTS) as Array<keyof typeof MONSTER_ASSET_CONTRACTS>) {
       const textureKey = getMonsterTextureKey(monsterType);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "idle"), textureKey, getMonsterActionFrames(monsterType, "idle"), getMonsterActionFrameRate(monsterType, "idle"), -1);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "move"), textureKey, getMonsterActionFrames(monsterType, "move"), getMonsterActionFrameRate(monsterType, "move"), -1);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "attack"), textureKey, getMonsterActionFrames(monsterType, "attack"), getMonsterActionFrameRate(monsterType, "attack"), 0);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "charge"), textureKey, getMonsterActionFrames(monsterType, "charge"), getMonsterActionFrameRate(monsterType, "charge"), 0);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "hurt"), textureKey, getMonsterActionFrames(monsterType, "hurt"), getMonsterActionFrameRate(monsterType, "hurt"), 0);
-      this.createAnimation(getMonsterAnimationKey(monsterType, "death"), textureKey, getMonsterActionFrames(monsterType, "death"), getMonsterActionFrameRate(monsterType, "death"), 0);
+      for (const action of ["idle", "move", "attack", "charge", "hurt", "death"] as const) {
+        const repeat = action === "idle" || action === "move" ? -1 : 0;
+        this.createAnimation(
+          getMonsterAnimationKey(monsterType, action),
+          textureKey,
+          getMonsterActionFrames(monsterType, action),
+          getMonsterActionFrameRate(monsterType, action),
+          repeat
+        );
+
+        if (!hasMonsterDirectionalCoverage(monsterType)) {
+          continue;
+        }
+
+        for (const facing of MONSTER_FACINGS) {
+          this.createAnimation(
+            getMonsterAnimationKey(monsterType, action, facing),
+            textureKey,
+            getMonsterDirectionalActionFrames(monsterType, action, facing),
+            getMonsterActionFrameRate(monsterType, action),
+            repeat
+          );
+        }
+      }
     }
   }
 
