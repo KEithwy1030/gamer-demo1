@@ -190,6 +190,31 @@ async function clickBossApproximation(page) {
   });
 }
 
+async function triggerAndWaitForCombatResult(page, selfPlayerId, timeoutMs = 10_000) {
+  const started = Date.now();
+  let lastClickAt = 0;
+  while (Date.now() - started < timeoutMs) {
+    const combatEvent = await page.evaluate(({ minTs, selfId }) => {
+      return [...(window.__GAME_FEEL_EVENTS__ ?? [])]
+        .reverse()
+        .find((entry) => (
+          entry.ts >= minTs
+          && entry.name === "combat:result"
+          && (entry.payload?.attackerId === selfId || entry.payload?.targetId === selfId)
+        )) ?? null;
+    }, { minTs: started, selfId: selfPlayerId });
+    if (combatEvent) {
+      return combatEvent;
+    }
+    if (Date.now() - lastClickAt > 650) {
+      await clickBossApproximation(page);
+      lastClickAt = Date.now();
+    }
+    await sleep(100);
+  }
+  throw new Error("Timed out waiting for self combat:result after boss click loop");
+}
+
 async function run() {
   startLauncher();
   await waitForHttp(SERVER_URL);
@@ -212,17 +237,23 @@ async function run() {
   ]).then(([entry]) => entry);
 
   await page.locator("button.btn-primary").first().waitFor({ state: "visible", timeout: 20_000 });
-  await Promise.all([
+  const matchStarted = await Promise.all([
     waitForEventAfter(page, "match:started", roomState.ts, 20_000),
     page.locator("button.btn-primary").first().click()
-  ]);
+  ]).then(([entry]) => entry);
   await page.locator("canvas:not(.lobby-background)").first().waitFor({ state: "visible", timeout: 20_000 });
   await sleep(1_200);
 
   await screenshot(page, "01-combat-hud-boss-proximity.png");
 
-  await clickBossApproximation(page);
-  await sleep(1_000);
+  const combatEvent = await triggerAndWaitForCombatResult(page, matchStarted.payload?.selfPlayerId);
+  note("captured combat result before hit-feedback screenshot", {
+    attackerId: combatEvent.payload?.attackerId ?? null,
+    targetId: combatEvent.payload?.targetId ?? null,
+    amount: combatEvent.payload?.amount ?? null,
+    damageType: combatEvent.payload?.damageType ?? null
+  });
+  await sleep(220);
   await screenshot(page, "02-combat-hit-feedback-attempt.png");
 
   await page.keyboard.press("i");

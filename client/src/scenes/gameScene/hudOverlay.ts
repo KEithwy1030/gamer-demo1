@@ -45,6 +45,7 @@ export class GameHudOverlay {
   private layout?: HudLayout;
   private hpFill?: Phaser.GameObjects.Graphics;
   private hpLabel?: Phaser.GameObjects.Text;
+  private hpMetaText?: Phaser.GameObjects.Text;
   private weaponText?: Phaser.GameObjects.Text;
   private skillStateText?: Phaser.GameObjects.Text;
   private objectiveText?: Phaser.GameObjects.Text;
@@ -54,7 +55,9 @@ export class GameHudOverlay {
   private killsText?: Phaser.GameObjects.Text;
   private inventoryText?: Phaser.GameObjects.Text;
   private combatText?: Phaser.GameObjects.Text;
-  private skillTexts: Phaser.GameObjects.Text[] = [];
+  private skillKeyTexts: Phaser.GameObjects.Text[] = [];
+  private skillNameTexts: Phaser.GameObjects.Text[] = [];
+  private skillCooldownTexts: Phaser.GameObjects.Text[] = [];
   private skillCooldownGraphics: Phaser.GameObjects.Graphics[] = [];
   private extractProgressTrack?: Phaser.GameObjects.Graphics;
   private extractProgressFill?: Phaser.GameObjects.Graphics;
@@ -70,6 +73,7 @@ export class GameHudOverlay {
   private lastSelfHpRatio = -1;
   private lastHudHpColor = -1;
   private lastHudHpLabel = "";
+  private lastHudHpMetaLabel = "";
   private lastWeaponLabel = "";
   private lastSkillStateLabel = "";
   private lastObjectiveLabel = "";
@@ -79,7 +83,7 @@ export class GameHudOverlay {
   private lastKillsLabel = "";
   private lastInventoryLabel = "";
   private lastCombatLabel = "";
-  private lastSkillLabels = ["", "", "", ""];
+  private lastSkillNameLabels = ["", "", "", ""];
   private lastExtractProgressValue = -1;
   private lastExtractProgressLabel = "";
   private lastExtractProgressActive: boolean | null = null;
@@ -101,19 +105,25 @@ export class GameHudOverlay {
     const skillPanel = addHudImage(this.scene, HUD_ASSETS.skills, this.layout.skills, 0.98);
 
     const status = this.layout.status;
-    this.hpLabel = this.scene.add.text(status.x + status.width * 0.29, status.y + status.height * 0.26, "生命 -- / --", {
+    this.hpMetaText = this.scene.add.text(status.x + status.width * 0.29, status.y + status.height * 0.15, "生命线", {
+      fontFamily: GAMEPLAY_THEME.fonts.body,
+      fontSize: this.isTouchDevice ? "11px" : "12px",
+      color: "#6f5534",
+      letterSpacing: 0
+    });
+    this.hpLabel = this.scene.add.text(status.x + status.width * 0.29, status.y + status.height * 0.23, "-- / --", {
       fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: this.isTouchDevice ? "17px" : "20px",
+      fontSize: this.isTouchDevice ? "22px" : "26px",
       color: "#2a1d13",
       stroke: "#efe3c5",
       strokeThickness: 2
     });
-    this.weaponText = this.scene.add.text(status.x + status.width * 0.29, status.y + status.height * 0.61, "武器 --", {
+    this.weaponText = this.scene.add.text(status.x + status.width * 0.29, status.y + status.height * 0.63, "武器 · --", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
       fontSize: this.isTouchDevice ? "12px" : "14px",
       color: "#4e2c18"
     });
-    this.skillStateText = this.scene.add.text(status.x + status.width * 0.66, status.y + status.height * 0.61, "技能 待命", {
+    this.skillStateText = this.scene.add.text(status.x + status.width * 0.72, status.y + status.height * 0.63, "战技 · 待命", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
       fontSize: this.isTouchDevice ? "12px" : "14px",
       color: "#284854"
@@ -121,13 +131,13 @@ export class GameHudOverlay {
     this.hpFill = this.scene.add.graphics();
 
     const objective = this.layout.objective;
-    this.objectiveText = this.scene.add.text(objective.centerX, objective.y + objective.height * 0.52, "搜刮战利品，等待归营石阵点燃", {
+    this.objectiveText = this.scene.add.text(objective.centerX, objective.y + objective.height * 0.52, "搜刮战利品\n等待归营石阵点燃", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "15px" : "17px",
+      fontSize: this.isTouchDevice ? "14px" : "16px",
       color: "#2a1d13",
       align: "center",
-      lineSpacing: 4,
-      wordWrap: { width: Math.max(180, objective.width - 92), useAdvancedWrap: true }
+      lineSpacing: 3,
+      wordWrap: { width: Math.max(172, objective.width - 100), useAdvancedWrap: true }
     }).setOrigin(0.5);
 
     const timer = this.layout.timer;
@@ -138,22 +148,22 @@ export class GameHudOverlay {
       stroke: "#f3e6c6",
       strokeThickness: 2
     }).setOrigin(0.5, 0);
-    this.roomCodeText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.36, "战令 ------", {
+    this.roomCodeText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.36, "战令 · ------", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
       fontSize: this.isTouchDevice ? "11px" : "12px",
       color: "#342416"
     });
-    this.extractText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.56, "撤离 未点燃", {
+    this.extractText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.56, "队撤 · 未点燃", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
       fontSize: this.isTouchDevice ? "11px" : "12px",
       color: "#284854"
     });
-    this.killsText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.74, "压制 0/0", {
+    this.killsText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.74, "清怪 · 0/0", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
       fontSize: this.isTouchDevice ? "11px" : "12px",
       color: "#5a2519"
     });
-    this.inventoryText = this.scene.add.text(timer.x + timer.width * 0.63, timer.y + timer.height * 0.74, "背包 --/--", {
+    this.inventoryText = this.scene.add.text(timer.x + timer.width * 0.63, timer.y + timer.height * 0.74, "载荷 · --/--", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
       fontSize: this.isTouchDevice ? "11px" : "12px",
       color: "#342416"
@@ -162,21 +172,35 @@ export class GameHudOverlay {
     const command = this.layout.command;
     this.combatText = this.scene.add.text(command.centerX, command.centerY + 2, "", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "15px" : "17px",
+      fontSize: this.isTouchDevice ? "14px" : "16px",
       color: "#2a1d13",
       align: "center",
-      lineSpacing: 4,
-      wordWrap: { width: Math.max(240, command.width - 130), useAdvancedWrap: true }
+      lineSpacing: 3,
+      wordWrap: { width: Math.max(228, command.width - 138), useAdvancedWrap: true }
     }).setOrigin(0.5);
 
-    this.skillTexts = this.layout.skillSlots.map((slot, index) => this.scene.add.text(slot.x, slot.y, index === 3 ? "Shift\n翻滚" : "--", {
+    this.skillKeyTexts = this.layout.skillSlots.map((slot, index) => this.scene.add.text(slot.x, slot.y - slot.height * 0.34, index === 3 ? "SHIFT" : ["Q", "R", "T"][index] ?? "--", {
       fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: this.isTouchDevice ? "12px" : "13px",
+      fontSize: this.isTouchDevice ? "10px" : "11px",
+      color: "#6f5534",
+      align: "center"
+    }).setOrigin(0.5));
+    this.skillNameTexts = this.layout.skillSlots.map((slot, index) => this.scene.add.text(slot.x, slot.y + slot.height * 0.18, index === 3 ? "翻滚" : "--", {
+      fontFamily: GAMEPLAY_THEME.fonts.body,
+      fontSize: this.isTouchDevice ? "11px" : "12px",
       color: "#251a12",
       align: "center",
-      lineSpacing: 2,
-      wordWrap: { width: 78, useAdvancedWrap: true }
+      wordWrap: { width: slot.width - 14, useAdvancedWrap: true },
+      maxLines: 2
     }).setOrigin(0.5));
+    this.skillCooldownTexts = this.layout.skillSlots.map((slot) => this.scene.add.text(slot.x, slot.y - 1, "", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: this.isTouchDevice ? "17px" : "19px",
+      color: "#f7ead0",
+      stroke: "#130e0a",
+      strokeThickness: 4,
+      align: "center"
+    }).setOrigin(0.5).setVisible(false));
 
     this.skillCooldownGraphics = this.layout.skillSlots.map(() => this.scene.add.graphics());
 
@@ -205,6 +229,7 @@ export class GameHudOverlay {
       commandPanel,
       skillPanel,
       this.hpFill,
+      this.hpMetaText,
       this.hpLabel,
       this.weaponText,
       this.skillStateText,
@@ -216,7 +241,9 @@ export class GameHudOverlay {
       this.inventoryText,
       this.combatText,
       ...this.skillCooldownGraphics,
-      ...this.skillTexts,
+      ...this.skillKeyTexts,
+      ...this.skillNameTexts,
+      ...this.skillCooldownTexts,
       this.extractProgressTrack,
       this.extractProgressFill,
       this.extractProgressLabel
@@ -246,10 +273,15 @@ export class GameHudOverlay {
         this.lastHudHpColor = color;
       }
 
-      const hpLabel = `生命 ${Math.max(0, Math.ceil(player.hp))} / ${player.maxHp}`;
+      const hpLabel = `${Math.max(0, Math.ceil(player.hp))} / ${player.maxHp}`;
       if (this.lastHudHpLabel !== hpLabel) {
         this.hpLabel.setText(hpLabel);
         this.lastHudHpLabel = hpLabel;
+      }
+      const hpMetaLabel = hpRatio < 0.3 ? "生命线 · 危险" : hpRatio < 0.6 ? "生命线 · 受压" : "生命线 · 稳定";
+      if (this.hpMetaText && this.lastHudHpMetaLabel !== hpMetaLabel) {
+        this.hpMetaText.setText(hpMetaLabel);
+        this.lastHudHpMetaLabel = hpMetaLabel;
       }
       this.syncLowHpOverlay(hpRatio);
     } else {
@@ -257,7 +289,7 @@ export class GameHudOverlay {
     }
 
     if (this.weaponText && player) {
-      const weaponLabel = `武器 ${getWeaponLabel(player.weaponType)}`;
+      const weaponLabel = `武器 · ${getWeaponLabel(player.weaponType)}`;
       if (this.lastWeaponLabel !== weaponLabel) {
         this.weaponText.setText(weaponLabel);
         this.lastWeaponLabel = weaponLabel;
@@ -267,11 +299,11 @@ export class GameHudOverlay {
     if (this.skillStateText) {
       const skillId = resolvePrimarySkill(state);
       const now = Date.now();
-      let skillStateLabel = "技能 未配置";
+      let skillStateLabel = "战技 · 未配置";
       if (skillId) {
-        if (now < skillWindupEndsAt) skillStateLabel = `${getPrimarySkillLabel(skillId)} 蓄力 ${formatTenths((skillWindupEndsAt - now) / 1000)}s`;
-        else if (now < skillCooldownEndsAt) skillStateLabel = `${getPrimarySkillLabel(skillId)} 冷却 ${formatTenths((skillCooldownEndsAt - now) / 1000)}s`;
-        else skillStateLabel = `${getPrimarySkillLabel(skillId)} 可用`;
+        if (now < skillWindupEndsAt) skillStateLabel = `${getPrimarySkillLabel(skillId)} · 蓄力 ${formatTenths((skillWindupEndsAt - now) / 1000)}s`;
+        else if (now < skillCooldownEndsAt) skillStateLabel = `${getPrimarySkillLabel(skillId)} · 冷却 ${formatTenths((skillCooldownEndsAt - now) / 1000)}s`;
+        else skillStateLabel = `${getPrimarySkillLabel(skillId)} · 可用`;
       }
       if (this.lastSkillStateLabel !== skillStateLabel) {
         this.skillStateText.setText(skillStateLabel);
@@ -296,7 +328,7 @@ export class GameHudOverlay {
     }
 
     if (this.roomCodeText) {
-      const roomCodeLabel = `战令 ${state.code || "------"}`;
+      const roomCodeLabel = `战令 · ${state.code || "------"}`;
       if (this.lastRoomCodeLabel !== roomCodeLabel) {
         this.roomCodeText.setText(roomCodeLabel);
         this.lastRoomCodeLabel = roomCodeLabel;
@@ -314,7 +346,7 @@ export class GameHudOverlay {
 
     if (this.killsText) {
       const deadMonsters = state.monsters.filter((monster) => !monster.isAlive).length;
-      const killsLabel = `压制 ${deadMonsters}/${state.monsters.length}`;
+      const killsLabel = `清怪 · ${deadMonsters}/${state.monsters.length}`;
       if (this.lastKillsLabel !== killsLabel) {
         this.killsText.setText(killsLabel);
         this.lastKillsLabel = killsLabel;
@@ -452,17 +484,17 @@ export class GameHudOverlay {
 
   private syncSkillSlots(state: MatchViewState, cooldowns: Array<{ endsAt: number; durationMs: number }>): void {
     const labels = [
-      buildSkillSlotLabel("Q", resolveSkillBySlot(state, 0)),
-      buildSkillSlotLabel("R", resolveSkillBySlot(state, 1)),
-      buildSkillSlotLabel("T", resolveSkillBySlot(state, 2)),
-      "Shift\n翻滚"
+      buildSkillSlotLabel(resolveSkillBySlot(state, 0)),
+      buildSkillSlotLabel(resolveSkillBySlot(state, 1)),
+      buildSkillSlotLabel(resolveSkillBySlot(state, 2)),
+      "翻滚"
     ];
 
     labels.forEach((label, index) => {
-      const text = this.skillTexts[index];
-      if (!text || this.lastSkillLabels[index] === label) return;
+      const text = this.skillNameTexts[index];
+      if (!text || this.lastSkillNameLabels[index] === label) return;
       text.setText(label);
-      this.lastSkillLabels[index] = label;
+      this.lastSkillNameLabels[index] = label;
     });
 
     this.syncSkillCooldowns(cooldowns);
@@ -473,8 +505,9 @@ export class GameHudOverlay {
     const now = Date.now();
     this.layout.skillSlots.forEach((slot, index) => {
       const graphic = this.skillCooldownGraphics[index];
-      const text = this.skillTexts[index];
-      if (!graphic || !text) return;
+      const nameText = this.skillNameTexts[index];
+      const cooldownText = this.skillCooldownTexts[index];
+      if (!graphic || !nameText || !cooldownText) return;
 
       const cooldown = cooldowns[index] ?? { endsAt: 0, durationMs: 0 };
       const remainingMs = Math.max(0, cooldown.endsAt - now);
@@ -497,19 +530,13 @@ export class GameHudOverlay {
         );
         graphic.lineStyle(2, GAMEPLAY_THEME.colors.caution, 0.86);
         graphic.strokeRoundedRect(x + 1, y + 1, slot.width - 2, slot.height - 2, 6);
-        text.setFontSize(this.isTouchDevice ? 17 : 19);
-        text.setFontStyle("bold");
-        text.setColor("#f7ead0");
-        text.setStroke("#130e0a", 4);
-        text.setVisible(true).setAlpha(1);
-        text.setText(Math.ceil(remainingMs / 1000).toString());
+        nameText.setAlpha(0.3);
+        cooldownText.setVisible(true).setAlpha(1);
+        cooldownText.setText(Math.ceil(remainingMs / 1000).toString());
       } else {
-        text.setFontSize(this.isTouchDevice ? 12 : 13);
-        text.setFontStyle("");
-        text.setColor("#251a12");
-        text.setStroke("#130e0a", 0);
-        text.setVisible(true).setAlpha(1);
-        text.setText(this.lastSkillLabels[index] ?? "");
+        nameText.setAlpha(1);
+        cooldownText.setVisible(false);
+        cooldownText.setText("");
       }
     });
   }
@@ -561,12 +588,18 @@ export class GameHudOverlay {
 function buildHudLayout(width: number, height: number, isTouchDevice: boolean): HudLayout {
   const margin = isTouchDevice ? 12 : 22;
   const topGap = isTouchDevice ? 8 : 14;
-  const statusW = isTouchDevice ? Math.min(width - margin * 2, 396) : Math.min(468, Math.max(412, width * 0.25));
+  const statusW = isTouchDevice ? Math.min(width - margin * 2, Math.max(286, Math.min(308, width * 0.35))) : Math.min(468, Math.max(412, width * 0.25));
   const statusH = Math.round(statusW / 4.16);
-  const timerW = isTouchDevice ? Math.min(width - margin * 2, 320) : 332;
+  const timerW = isTouchDevice ? Math.min(width - margin * 2, Math.max(220, Math.min(236, width * 0.28))) : 332;
   const timerH = Math.round(timerW / 2.82);
-  const objectiveW = isTouchDevice ? Math.min(width - margin * 2, 388) : Math.min(408, Math.max(332, width - statusW - timerW - margin * 4));
-  const objectiveH = Math.round(objectiveW / 2.72);
+  const topRowObjectiveW = width - statusW - timerW - margin * 4;
+  const canUseTopRowObjective = isTouchDevice && topRowObjectiveW >= 260;
+  const objectiveW = canUseTopRowObjective
+    ? topRowObjectiveW
+    : isTouchDevice
+      ? Math.min(width - margin * 2, 388)
+      : Math.min(408, Math.max(332, width - statusW - timerW - margin * 4));
+  const objectiveH = Math.round(objectiveW / (isTouchDevice ? 3.15 : 2.72));
   const skillsW = isTouchDevice ? Math.min(width - margin * 2, 420) : 492;
   const skillsH = Math.round(skillsW / 5.46);
   const commandW = isTouchDevice ? Math.min(width - margin * 2, 500) : Math.min(560, width - 220);
@@ -574,11 +607,15 @@ function buildHudLayout(width: number, height: number, isTouchDevice: boolean): 
 
   const status = new Phaser.Geom.Rectangle(margin, margin, statusW, statusH);
   const timer = new Phaser.Geom.Rectangle(width - timerW - margin, margin, timerW, timerH);
-  const objectiveY = width < 1180 ? status.bottom + topGap : margin;
-  const objective = new Phaser.Geom.Rectangle(Math.round(width / 2 - objectiveW / 2), objectiveY, objectiveW, objectiveH);
-  const commandAnchorY = isTouchDevice ? height - margin - 132 : height - margin - 126;
-  const command = new Phaser.Geom.Rectangle(Math.round(width / 2 - commandW / 2), commandAnchorY, commandW, commandH);
+  const objectiveX = canUseTopRowObjective ? status.right + margin : Math.round(width / 2 - objectiveW / 2);
+  const objectiveY = canUseTopRowObjective ? margin : width < 1180 ? Math.max(status.bottom, timer.bottom) + topGap : margin;
+  const objective = new Phaser.Geom.Rectangle(objectiveX, objectiveY, objectiveW, objectiveH);
   const skills = new Phaser.Geom.Rectangle(margin, height - skillsH - margin, skillsW, skillsH);
+  const commandAnchorY = isTouchDevice ? height - margin - 92 : height - margin - 48;
+  const commandX = isTouchDevice
+    ? Math.round(width / 2 - commandW / 2)
+    : Math.min(width - margin - commandW, Math.round(skills.right + margin));
+  const command = new Phaser.Geom.Rectangle(commandX, Math.round(commandAnchorY - commandH), commandW, commandH);
 
   const slotW = Math.round(skills.width * 0.096);
   const slotH = Math.round(skills.height * 0.56);
@@ -607,8 +644,8 @@ function addHudImage(scene: Phaser.Scene, key: string, rect: Phaser.Geom.Rectang
     .setAlpha(alpha);
 }
 
-function buildSkillSlotLabel(key: string, skillId: ReturnType<typeof resolveSkillBySlot>): string {
-  return skillId ? `${key}\n${getPrimarySkillLabel(skillId)}` : `${key}\n--`;
+function buildSkillSlotLabel(skillId: ReturnType<typeof resolveSkillBySlot>): string {
+  return skillId ? getPrimarySkillLabel(skillId) : "--";
 }
 
 function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewState): string {
@@ -620,29 +657,29 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
   if (extractState.isExtracting) {
     const seconds = extractState.secondsRemaining == null ? "" : ` ${Math.ceil(extractState.secondsRemaining)}s`;
     return waitingCount > 0
-      ? `守住撤离圈，读条${seconds}\n等待 ${waitingCount} 名队友进圈`
-      : `守住撤离圈，队伍撤离读条${seconds}`;
+      ? `撤离读条${seconds}\n等 ${waitingCount} 名队友进圈`
+      : `撤离读条${seconds}\n守住圈内别掉点`;
   }
 
   if (extractState.didSucceed) {
-    return "已脱离封锁区，等待清点收益";
+    return "已脱离封锁区\n等待清点收益";
   }
 
   if (extractState.isOpen) {
     return waitingCount > 0
       ? `队伍归营火已点燃\n圈内 ${insideCount}/${aliveMembers.length} 人，等待队友`
-      : (hasBackpackCargo(state) ? "队伍归营火已点燃\n带货者进圈即可一起撤离" : "队伍归营火已点燃\n进圈完成会合撤离");
+      : (hasBackpackCargo(state) ? "队伍归营火已点燃\n带货者进圈即走" : "队伍归营火已点燃\n进圈完成会合撤离");
   }
 
   if (isCorpseFogCounterattacking(state)) {
-    return "尸毒反噬已起，生命会持续流失";
+    return "尸毒反噬已起\n生命会持续流失";
   }
 
   if (state.secondsRemaining !== null && state.secondsRemaining <= 60) {
-    return "封锁将尽，立刻转向归营火";
+    return "封锁将尽\n立刻转向归营火";
   }
 
-  return hasBackpackCargo(state) ? "背包已有收益，继续搜会抬高阵亡成本" : "先清外围资源，再向中圈高价值点靠拢";
+  return hasBackpackCargo(state) ? "已有收益入包\n别为贪点硬换血" : "先清外围资源\n再压向中圈高价值点";
 }
 
 function resolveExtractStateLabel(extractState: ExtractUiState): string {
@@ -692,10 +729,10 @@ function resolvePressureHint(state: MatchViewState, extractState: ExtractUiState
   }
 
   if (extractState.isOpen && waitingCount > 0) {
-    return `仍有 ${waitingCount} 名队友未进圈\n别让敌队拖住会合节奏。`;
+    return `仍有 ${waitingCount} 名队友未进圈\n别让敌队拖住会合。`;
   }
 
-  return "压怪拿货，控制换血\n给撤离留体力。";
+  return "压怪拿货，短换即退\n给撤离留体力。";
 }
 
 function hasBackpackCargo(state: MatchViewState): boolean {

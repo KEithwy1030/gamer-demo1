@@ -172,9 +172,18 @@ function assertUnifiedDamageFeedback(): void {
   const bleedFontSize = Number(/bleed:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1] ?? 0);
   const environmentFontSize = Number(/environment:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1] ?? 0);
   assert.ok(environmentFontSize >= bleedFontSize, "environment damage numbers should remain readable and distinct");
+  assert.ok(
+    /showBodyImpact\(target\.root\.x,\s*target\.root\.y,\s*target\.root\.depth,\s*payload\.damageType,\s*payload\.isCritical(?:\s*\?\?\s*false)?\)/.test(feedbackFxSource),
+    "damage events should always route through body impact feedback"
+  );
+  assert.ok(
+    /if\s*\(\s*isEnvironment\s*\)[\s\S]*?this\.spawnFragments\(x,\s*y,\s*\{\s*x:\s*0\.2,\s*y:\s*-1\s*\}/.test(feedbackFxSource),
+    "environment damage should produce body-impact fragments, not only floating numbers"
+  );
   const weaponVfxBody = /private createWeaponVfx[\s\S]*?\n  private createSkillVfx/.exec(feedbackFxSource)?.[0] ?? "";
   assert.equal(weaponVfxBody.includes("lineTo("), false, "basic attack feedback should not draw demo-style judgement lines");
-  assert.ok(feedbackFxSource.includes("showHitImpact"), "confirmed hits should use impact feedback instead of attack-line readability");
+  assert.equal(weaponVfxBody.includes("strokePath()"), false, "basic attack feedback should not rely on a single debug line as the main effect");
+  assert.ok(!feedbackFxSource.includes("showHitImpact("), "legacy hit-impact helper should not remain as the main effect path");
 }
 
 function tickUntil(check: () => boolean, message: string): void {
