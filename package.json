@@ -31,7 +31,8 @@
     "validate:inventory-drag-ui": "tsx scripts/validate-inventory-drag-ui.ts",
     "validate:visual-clarity": "tsx scripts/validate-visual-clarity.ts",
     "validate:hud-ui": "tsx scripts/validate-hud-ui.ts",
-    "validate:drag-contracts": "npm run validate:inventory-drag-contract && npm run validate:profile-drag-contract && npm run validate:inventory-drag-ui"
+    "validate:drag-contracts": "npm run validate:inventory-drag-contract && npm run validate:profile-drag-contract && npm run validate:inventory-drag-ui",
+    "accept:game-feel": "node scripts/accept-game-feel-baseline.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
