@@ -10,6 +10,7 @@ import {
   isPointInsideSafeCrossing
 } from "../server/src/match-layout.js";
 import { spawnInitialMonsters } from "../server/src/monsters/monster-manager.js";
+import { buildRiverVisualPlan } from "../client/src/scenes/gameScene/riverVisualPlan";
 import type { MatchLayout, SquadId } from "@gamer/shared";
 import type { RuntimeRoom } from "../server/src/types.js";
 
@@ -63,6 +64,7 @@ const sameBankTo = { x: 1220, y: 3620 };
 assert.equal(doesSegmentRequireSafeCrossing(layout, sameBankFrom, sameBankTo), false, "same-bank route should not require a bridge");
 
 assertRiverVisualBandsRespectExtract(layout);
+assertEnvironmentVisualPlanDepth(layout);
 
 console.log("validate-map-hazards: ok");
 
@@ -125,6 +127,23 @@ function assertRiverVisualBandsRespectExtract(layout: MatchLayout): void {
       );
     }
   }
+}
+
+function assertEnvironmentVisualPlanDepth(layout: MatchLayout): void {
+  const plan = buildRiverVisualPlan(layout);
+  assert.ok(plan.flowStrokes.length > 0, "river hazard layout should still build a visual flow plan");
+  assert.ok(
+    plan.foamPatches.length + plan.contaminationPatches.length + plan.corpseSlicks.length >= plan.nodes.length * 4,
+    "river should render as layered toxic water instead of a single band"
+  );
+  assert.ok(
+    plan.bankSoftnessPatches.length + plan.bankShadowPatches.length + plan.debrisPatches.length >= plan.nodes.length * 4,
+    "ground depth should add softness, shadow, and debris around river hazards"
+  );
+  assert.ok(
+    plan.fogVeils.length + plan.fogDriftPatches.length + plan.fogEdgePatches.length >= plan.nodes.length * 5,
+    "corpse fog should not collapse to a single flat fillRect mask"
+  );
 }
 
 function distance(a: { x: number; y: number }, b: { x: number; y: number }): number {

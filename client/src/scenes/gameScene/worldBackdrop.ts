@@ -66,8 +66,7 @@ export function rebuildWorldBackdrop(
 
   const atmosphereLayer = scene.add.graphics();
   atmosphereLayer.setDepth(-10);
-  atmosphereLayer.fillGradientStyle(0x0e0b08, 0x0e0b08, 0x0e0b08, 0x0e0b08, 0.04, 0.02, 0.16, 0.22);
-  atmosphereLayer.fillRect(0, 0, width, height);
+  drawCorpseFogAtmosphere(atmosphereLayer, state, width, height);
 
   return {
     terrainLayer,
@@ -163,6 +162,8 @@ function drawCorpseRiver(
   for (const stroke of plan.flowStrokes) {
     detailLayer.lineStyle(stroke.shorelineWidth, 0x201b14, 0.34);
     detailLayer.lineBetween(stroke.fromX, stroke.fromY, stroke.toX, stroke.toY);
+    detailLayer.lineStyle(stroke.shorelineWidth * 0.82, 0x463224, 0.16);
+    detailLayer.lineBetween(stroke.fromX, stroke.fromY, stroke.toX, stroke.toY);
   }
   for (const patch of plan.shorelinePatches) {
     detailLayer.fillStyle(0x271f17, 0.32);
@@ -170,35 +171,65 @@ function drawCorpseRiver(
     detailLayer.lineStyle(10, 0x514536, 0.18);
     detailLayer.strokeEllipse(patch.x, patch.y, patch.radiusX * 1.86, patch.radiusY * 1.92);
   }
+  for (const patch of plan.bankSoftnessPatches) {
+    drawRotatedPatch(detailLayer, patch, 0x4b3f2e);
+  }
+  for (const patch of plan.bankShadowPatches) {
+    drawRotatedPatch(detailLayer, patch, 0x17120d);
+  }
+  for (const patch of plan.debrisPatches) {
+    drawRotatedPatch(detailLayer, patch, 0x66543a);
+    detailLayer.lineStyle(2, 0x231b14, patch.alpha * 0.7);
+    detailLayer.strokeEllipse(patch.x, patch.y, patch.radiusX * 1.18, patch.radiusY * 1.16);
+  }
 
   for (const stroke of plan.flowStrokes) {
-    riverLayer.lineStyle(stroke.bodyWidth, 0x304c53, 0.58);
+    riverLayer.lineStyle(stroke.bodyWidth * 1.12, 0x1a261f, 0.36);
     riverLayer.lineBetween(stroke.fromX, stroke.fromY, stroke.toX, stroke.toY);
-    riverLayer.lineStyle(stroke.bodyWidth * 0.72, 0x3a6773, 0.4);
+    riverLayer.lineStyle(stroke.bodyWidth, 0x24332a, 0.64);
     riverLayer.lineBetween(stroke.fromX, stroke.fromY, stroke.toX, stroke.toY);
-    riverLayer.lineStyle(stroke.highlightWidth, 0x8fb8c4, 0.12);
+    riverLayer.lineStyle(stroke.bodyWidth * 0.8, 0x51653f, 0.34);
+    riverLayer.lineBetween(stroke.fromX, stroke.fromY, stroke.toX, stroke.toY);
+    riverLayer.lineStyle(stroke.bodyWidth * 0.38, 0x7b6e3f, 0.14);
+    riverLayer.lineBetween(stroke.fromX, stroke.fromY, stroke.toX, stroke.toY);
+    riverLayer.lineStyle(stroke.highlightWidth, 0xc4bb83, 0.12);
     riverLayer.lineBetween(stroke.fromX, stroke.fromY, stroke.toX, stroke.toY);
   }
 
   for (const node of plan.nodes) {
-    riverLayer.fillStyle(0x263d34, 0.68);
+    riverLayer.fillStyle(0x1f2920, 0.82);
     riverLayer.fillEllipse(node.centerX, node.centerY, node.radiusX * 1.78, node.radiusY * 1.82);
-    riverLayer.fillStyle(0x4f5f36, 0.28);
-    riverLayer.fillEllipse(node.centerX, node.centerY, node.radiusX * 1.18, node.radiusY * 1.24);
-    riverLayer.fillStyle(0x1d2924, 0.22);
+    riverLayer.fillStyle(0x3d4d2d, 0.32);
+    riverLayer.fillEllipse(node.centerX, node.centerY, node.radiusX * 1.36, node.radiusY * 1.4);
+    riverLayer.fillStyle(0x716038, 0.14);
+    riverLayer.fillEllipse(node.centerX + node.radiusX * 0.08, node.centerY - node.radiusY * 0.06, node.radiusX * 0.92, node.radiusY * 0.56);
+    riverLayer.fillStyle(0x131913, 0.28);
     riverLayer.fillEllipse(node.centerX - node.radiusX * 0.12, node.centerY + node.radiusY * 0.08, node.radiusX * 0.86, node.radiusY * 0.72);
-    riverLayer.lineStyle(8, 0x9aa76f, 0.14);
+    riverLayer.lineStyle(8, 0x9aa76f, 0.12);
     riverLayer.strokeEllipse(node.centerX, node.centerY, node.radiusX * 1.22, node.radiusY * 1.26);
+  }
+
+  for (const patch of plan.contaminationPatches) {
+    riverLayer.save();
+    riverLayer.translateCanvas(patch.x, patch.y);
+    riverLayer.rotateCanvas(patch.rotation);
+    riverLayer.fillStyle(0x7c763f, patch.alpha);
+    riverLayer.fillEllipse(0, 0, patch.radiusX * 2, patch.radiusY * 2);
+    riverLayer.fillStyle(0x2d2f17, patch.alpha * 0.65);
+    riverLayer.fillEllipse(patch.radiusX * 0.12, -patch.radiusY * 0.04, patch.radiusX * 1.24, patch.radiusY * 1.1);
+    riverLayer.restore();
   }
 
   for (const slick of plan.corpseSlicks) {
     riverLayer.save();
     riverLayer.translateCanvas(slick.x, slick.y);
     riverLayer.rotateCanvas(slick.rotation);
-    riverLayer.fillStyle(0x5b1c16, 0.22);
+    riverLayer.fillStyle(0x5b1c16, slick.alpha);
     riverLayer.fillEllipse(0, 0, slick.radiusX * 2, slick.radiusY * 2);
-    riverLayer.fillStyle(0x20120e, 0.18);
+    riverLayer.fillStyle(0x20120e, slick.alpha * 0.82);
     riverLayer.fillEllipse(slick.radiusX * 0.18, slick.radiusY * 0.08, slick.radiusX * 1.24, slick.radiusY * 1.2);
+    riverLayer.lineStyle(2, 0x8f7a54, slick.alpha * 0.36);
+    riverLayer.strokeEllipse(0, 0, slick.radiusX * 1.54, slick.radiusY * 1.42);
     riverLayer.restore();
   }
 
@@ -246,6 +277,67 @@ function drawCorpseRiver(
     detailLayer.lineStyle(10, GAMEPLAY_THEME.colors.iron900, 0.24);
     detailLayer.strokeCircle(extractZone.x, extractZone.y, extractZone.radius + EXTRACT_VISUAL_CLEARANCE_PADDING - 8);
   }
+}
+
+function drawCorpseFogAtmosphere(
+  atmosphereLayer: Phaser.GameObjects.Graphics,
+  state: MatchViewState,
+  width: number,
+  height: number
+): void {
+  atmosphereLayer.fillGradientStyle(0x0d0b08, 0x0d0b08, 0x0d0b08, 0x0d0b08, 0.06, 0.04, 0.18, 0.24);
+  atmosphereLayer.fillRect(0, 0, width, height);
+
+  const hazards = state.layout?.riverHazards ?? [];
+  if (hazards.length === 0) {
+    return;
+  }
+
+  const plan = buildRiverVisualPlan({
+    riverHazards: hazards,
+    safeCrossings: state.layout?.safeCrossings ?? [],
+    extractZones: state.layout?.extractZones ?? []
+  });
+
+  for (const veil of plan.fogVeils) {
+    atmosphereLayer.fillStyle(0x65704b, veil.alpha);
+    atmosphereLayer.fillEllipse(veil.x, veil.y, veil.radiusX * 2, veil.radiusY * 2);
+  }
+
+  for (const drift of plan.fogDriftPatches) {
+    atmosphereLayer.save();
+    atmosphereLayer.translateCanvas(drift.x, drift.y);
+    atmosphereLayer.rotateCanvas(drift.rotation);
+    atmosphereLayer.fillStyle(0x7f8052, drift.alpha);
+    atmosphereLayer.fillEllipse(0, 0, drift.radiusX * 2, drift.radiusY * 2);
+    atmosphereLayer.fillStyle(0x3f4731, drift.alpha * 0.72);
+    atmosphereLayer.fillEllipse(drift.radiusX * 0.18, -drift.radiusY * 0.08, drift.radiusX * 1.18, drift.radiusY * 0.92);
+    atmosphereLayer.restore();
+  }
+
+  for (const edge of plan.fogEdgePatches) {
+    atmosphereLayer.save();
+    atmosphereLayer.translateCanvas(edge.x, edge.y);
+    atmosphereLayer.rotateCanvas(edge.rotation);
+    atmosphereLayer.fillStyle(0x23281a, edge.alpha);
+    atmosphereLayer.fillEllipse(0, 0, edge.radiusX * 2.1, edge.radiusY * 2);
+    atmosphereLayer.lineStyle(3, 0x94925b, edge.alpha * 0.35);
+    atmosphereLayer.strokeEllipse(0, 0, edge.radiusX * 1.68, edge.radiusY * 1.42);
+    atmosphereLayer.restore();
+  }
+}
+
+function drawRotatedPatch(
+  layer: Phaser.GameObjects.Graphics,
+  patch: { x: number; y: number; radiusX: number; radiusY: number; alpha: number; rotation: number },
+  color: number
+): void {
+  layer.save();
+  layer.translateCanvas(patch.x, patch.y);
+  layer.rotateCanvas(patch.rotation);
+  layer.fillStyle(color, patch.alpha);
+  layer.fillEllipse(0, 0, patch.radiusX * 2, patch.radiusY * 2);
+  layer.restore();
 }
 
 function drawSafeCrossings(scene: Phaser.Scene, state: MatchViewState): Phaser.GameObjects.GameObject[] {

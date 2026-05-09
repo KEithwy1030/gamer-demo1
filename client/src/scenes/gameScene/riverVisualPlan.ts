@@ -25,6 +25,21 @@ export interface RiverRippleLine {
   y2: number;
 }
 
+export interface RiverEllipsePatch {
+  x: number;
+  y: number;
+  radiusX: number;
+  radiusY: number;
+}
+
+export interface RiverAlphaPatch extends RiverEllipsePatch {
+  alpha: number;
+}
+
+export interface RiverRotatedPatch extends RiverAlphaPatch {
+  rotation: number;
+}
+
 export interface RiverCrossingAccent {
   crossingId: string;
   x: number;
@@ -38,10 +53,17 @@ export interface RiverVisualPlan {
   nodes: RiverPlanNode[];
   flowStrokes: RiverFlowStroke[];
   rippleLines: RiverRippleLine[];
-  shoals: Array<{ x: number; y: number; radiusX: number; radiusY: number }>;
-  shorelinePatches: Array<{ x: number; y: number; radiusX: number; radiusY: number }>;
-  foamPatches: Array<{ x: number; y: number; radiusX: number; radiusY: number; alpha: number }>;
-  corpseSlicks: Array<{ x: number; y: number; radiusX: number; radiusY: number; rotation: number }>;
+  shoals: RiverEllipsePatch[];
+  shorelinePatches: RiverEllipsePatch[];
+  bankSoftnessPatches: RiverRotatedPatch[];
+  bankShadowPatches: RiverRotatedPatch[];
+  debrisPatches: RiverRotatedPatch[];
+  foamPatches: RiverAlphaPatch[];
+  contaminationPatches: RiverRotatedPatch[];
+  corpseSlicks: RiverRotatedPatch[];
+  fogVeils: RiverAlphaPatch[];
+  fogDriftPatches: RiverRotatedPatch[];
+  fogEdgePatches: RiverRotatedPatch[];
   crossingAccents: RiverCrossingAccent[];
 }
 
@@ -77,8 +99,15 @@ export function buildRiverVisualPlan(layout: Pick<MatchLayout, "riverHazards" | 
     radiusX: node.radiusX * 1.14,
     radiusY: node.radiusY * 1.18
   }));
+  const bankSoftnessPatches = nodes.flatMap((node, index) => buildBankSoftnessPatches(node, index));
+  const bankShadowPatches = nodes.flatMap((node, index) => buildBankShadowPatches(node, index));
+  const debrisPatches = nodes.flatMap((node, index) => buildDebrisPatches(node, index));
   const foamPatches = nodes.flatMap((node) => buildFoamPatches(node));
+  const contaminationPatches = nodes.flatMap((node, index) => buildContaminationPatches(node, index));
   const corpseSlicks = nodes.flatMap((node, index) => buildCorpseSlicks(node, index));
+  const fogVeils = buildFogVeils(nodes);
+  const fogDriftPatches = nodes.flatMap((node, index) => buildFogDriftPatches(node, index));
+  const fogEdgePatches = nodes.flatMap((node, index) => buildFogEdgePatches(node, index));
   const shoals = safeCrossings.flatMap((crossing) => buildCrossingShoals(crossing));
   const crossingAccents: RiverCrossingAccent[] = safeCrossings.map((crossing) => ({
     crossingId: crossing.crossingId,
@@ -99,8 +128,15 @@ export function buildRiverVisualPlan(layout: Pick<MatchLayout, "riverHazards" | 
     rippleLines,
     shoals,
     shorelinePatches,
+    bankSoftnessPatches,
+    bankShadowPatches,
+    debrisPatches,
     foamPatches,
+    contaminationPatches,
     corpseSlicks,
+    fogVeils,
+    fogDriftPatches,
+    fogEdgePatches,
     crossingAccents
   };
 }
@@ -129,7 +165,7 @@ function buildRippleLines(node: RiverPlanNode): RiverRippleLine[] {
   return lines;
 }
 
-function buildFoamPatches(node: RiverPlanNode): Array<{ x: number; y: number; radiusX: number; radiusY: number; alpha: number }> {
+function buildFoamPatches(node: RiverPlanNode): RiverAlphaPatch[] {
   return [
     {
       x: node.centerX - node.radiusX * 0.36,
@@ -148,7 +184,87 @@ function buildFoamPatches(node: RiverPlanNode): Array<{ x: number; y: number; ra
   ];
 }
 
-function buildCorpseSlicks(node: RiverPlanNode, index: number): Array<{ x: number; y: number; radiusX: number; radiusY: number; rotation: number }> {
+function buildBankSoftnessPatches(node: RiverPlanNode, index: number): RiverRotatedPatch[] {
+  const direction = index % 2 === 0 ? 1 : -1;
+  return [
+    {
+      x: node.centerX - direction * node.radiusX * 0.52,
+      y: node.centerY + direction * node.radiusY * 0.18,
+      radiusX: node.radiusX * 0.48,
+      radiusY: node.radiusY * 0.18,
+      alpha: 0.18,
+      rotation: direction * 0.24
+    },
+    {
+      x: node.centerX + direction * node.radiusX * 0.44,
+      y: node.centerY - direction * node.radiusY * 0.2,
+      radiusX: node.radiusX * 0.4,
+      radiusY: node.radiusY * 0.15,
+      alpha: 0.14,
+      rotation: -direction * 0.3
+    }
+  ];
+}
+
+function buildBankShadowPatches(node: RiverPlanNode, index: number): RiverRotatedPatch[] {
+  const direction = index % 2 === 0 ? 1 : -1;
+  return [
+    {
+      x: node.centerX + direction * node.radiusX * 0.24,
+      y: node.centerY + node.radiusY * 0.42,
+      radiusX: node.radiusX * 0.56,
+      radiusY: node.radiusY * 0.22,
+      alpha: 0.22,
+      rotation: direction * 0.12
+    }
+  ];
+}
+
+function buildDebrisPatches(node: RiverPlanNode, index: number): RiverRotatedPatch[] {
+  const direction = index % 2 === 0 ? 1 : -1;
+  return [
+    {
+      x: node.centerX - node.radiusX * 0.62,
+      y: node.centerY - direction * node.radiusY * 0.28,
+      radiusX: node.radiusX * 0.16,
+      radiusY: node.radiusY * 0.06,
+      alpha: 0.2,
+      rotation: 0.3 + direction * 0.18
+    },
+    {
+      x: node.centerX + node.radiusX * 0.58,
+      y: node.centerY + direction * node.radiusY * 0.24,
+      radiusX: node.radiusX * 0.12,
+      radiusY: node.radiusY * 0.05,
+      alpha: 0.16,
+      rotation: -0.24 + direction * 0.12
+    }
+  ];
+}
+
+function buildContaminationPatches(node: RiverPlanNode, index: number): RiverRotatedPatch[] {
+  const direction = index % 2 === 0 ? 1 : -1;
+  return [
+    {
+      x: node.centerX + direction * node.radiusX * 0.08,
+      y: node.centerY - direction * node.radiusY * 0.18,
+      radiusX: node.radiusX * 0.44,
+      radiusY: node.radiusY * 0.16,
+      alpha: 0.24,
+      rotation: direction * 0.18
+    },
+    {
+      x: node.centerX - direction * node.radiusX * 0.22,
+      y: node.centerY + direction * node.radiusY * 0.08,
+      radiusX: node.radiusX * 0.28,
+      radiusY: node.radiusY * 0.11,
+      alpha: 0.18,
+      rotation: -direction * 0.34
+    }
+  ];
+}
+
+function buildCorpseSlicks(node: RiverPlanNode, index: number): RiverRotatedPatch[] {
   const direction = index % 2 === 0 ? 1 : -1;
   return [
     {
@@ -156,12 +272,79 @@ function buildCorpseSlicks(node: RiverPlanNode, index: number): Array<{ x: numbe
       y: node.centerY - direction * node.radiusY * 0.12,
       radiusX: node.radiusX * 0.26,
       radiusY: node.radiusY * 0.1,
+      alpha: 0.22,
       rotation: direction * 0.32
+    },
+    {
+      x: node.centerX - direction * node.radiusX * 0.1,
+      y: node.centerY + direction * node.radiusY * 0.22,
+      radiusX: node.radiusX * 0.18,
+      radiusY: node.radiusY * 0.07,
+      alpha: 0.16,
+      rotation: -direction * 0.42
     }
   ];
 }
 
-function buildCrossingShoals(crossing: MatchLayoutSafeCrossing): Array<{ x: number; y: number; radiusX: number; radiusY: number }> {
+function buildFogVeils(nodes: RiverPlanNode[]): RiverAlphaPatch[] {
+  if (nodes.length === 0) {
+    return [];
+  }
+
+  return nodes.map((node, index) => ({
+    x: node.centerX + (index % 2 === 0 ? -1 : 1) * node.radiusX * 0.12,
+    y: node.centerY - node.radiusY * 0.08,
+    radiusX: node.radiusX * 1.72,
+    radiusY: node.radiusY * 1.44,
+    alpha: 0.08 + (index % 3) * 0.02
+  }));
+}
+
+function buildFogDriftPatches(node: RiverPlanNode, index: number): RiverRotatedPatch[] {
+  const direction = index % 2 === 0 ? 1 : -1;
+  return [
+    {
+      x: node.centerX + direction * node.radiusX * 0.26,
+      y: node.centerY - node.radiusY * 0.42,
+      radiusX: node.radiusX * 0.62,
+      radiusY: node.radiusY * 0.24,
+      alpha: 0.11,
+      rotation: direction * 0.22
+    },
+    {
+      x: node.centerX - direction * node.radiusX * 0.34,
+      y: node.centerY + node.radiusY * 0.28,
+      radiusX: node.radiusX * 0.46,
+      radiusY: node.radiusY * 0.18,
+      alpha: 0.09,
+      rotation: -direction * 0.3
+    }
+  ];
+}
+
+function buildFogEdgePatches(node: RiverPlanNode, index: number): RiverRotatedPatch[] {
+  const direction = index % 2 === 0 ? 1 : -1;
+  return [
+    {
+      x: node.centerX - direction * node.radiusX * 0.74,
+      y: node.centerY - node.radiusY * 0.12,
+      radiusX: node.radiusX * 0.34,
+      radiusY: node.radiusY * 0.12,
+      alpha: 0.12,
+      rotation: direction * 0.44
+    },
+    {
+      x: node.centerX + direction * node.radiusX * 0.72,
+      y: node.centerY + node.radiusY * 0.08,
+      radiusX: node.radiusX * 0.3,
+      radiusY: node.radiusY * 0.1,
+      alpha: 0.1,
+      rotation: -direction * 0.36
+    }
+  ];
+}
+
+function buildCrossingShoals(crossing: MatchLayoutSafeCrossing): RiverEllipsePatch[] {
   const centerX = crossing.x + crossing.width / 2;
   const centerY = crossing.y + crossing.height / 2;
   const radiusX = Math.max(crossing.width * 0.44, 78);
