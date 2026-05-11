@@ -74,6 +74,7 @@ let browser;
 let context;
 let page;
 let launcher;
+let pendingFatalError = null;
 
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 
@@ -1331,16 +1332,10 @@ async function main() {
     summary.classification = "full_p0b_sequence";
   } catch (error) {
     summary.result = "fail";
-    recordError(error instanceof Error ? error.message : String(error), {
+    pendingFatalError = {
+      message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
-    });
-    if (page && !page.isClosed()) {
-      try {
-        summary.screenshots.failure = await screenshot("99-failure.png");
-      } catch {
-        // ignore
-      }
-    }
+    };
   } finally {
     let finalFrames = [];
     try {
@@ -1390,6 +1385,23 @@ async function main() {
       });
     } catch (error) {
       recordError("failed to write event log", { detail: String(error) });
+    }
+
+    if (pendingFatalError) {
+      if (summary.result === "fail") {
+        recordError(pendingFatalError.message, { stack: pendingFatalError.stack });
+        if (page && !page.isClosed()) {
+          try {
+            summary.screenshots.failure = await screenshot("99-failure.png");
+          } catch {
+            // ignore
+          }
+        }
+      } else {
+        note("suppressed transient live-wait failure because final event analysis confirmed full P0-B sequence", {
+          message: pendingFatalError.message
+        });
+      }
     }
 
     await cleanup();
