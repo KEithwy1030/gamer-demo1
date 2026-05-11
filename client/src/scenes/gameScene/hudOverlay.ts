@@ -128,6 +128,13 @@ export class GameHudOverlay {
       fontSize: this.isTouchDevice ? "12px" : "14px",
       color: "#284854"
       }).setOrigin(0.5, 0);
+    this.weaponText
+      .setPosition(status.x + status.width * 0.29, status.y + status.height * 0.61)
+      .setFontSize(this.isTouchDevice ? "11px" : "13px");
+    this.skillStateText
+      .setPosition(status.x + status.width * 0.86, status.y + status.height * 0.61)
+      .setFontSize(this.isTouchDevice ? "11px" : "13px")
+      .setOrigin(1, 0);
     this.hpFill = this.scene.add.graphics();
 
     const objective = this.layout.objective;
@@ -168,6 +175,31 @@ export class GameHudOverlay {
       fontSize: this.isTouchDevice ? "11px" : "12px",
       color: "#342416"
     });
+
+    this.objectiveText
+      .setPosition(objective.centerX, objective.y + objective.height * 0.48)
+      .setFontSize(this.isTouchDevice ? "13px" : "15px")
+      .setWordWrapWidth(Math.max(168, objective.width - 124));
+    const timerPrimaryRight = timer.right - timer.width * 0.1;
+    const timerInfoLeft = timer.x + timer.width * 0.13;
+    const timerBottomY = timer.y + timer.height * 0.72;
+    this.timerText
+      .setPosition(timerPrimaryRight, timer.y + timer.height * 0.1)
+      .setFontSize(this.isTouchDevice ? "22px" : "26px")
+      .setOrigin(1, 0);
+    this.roomCodeText
+      .setPosition(timerInfoLeft, timer.y + timer.height * 0.26)
+      .setFontSize(this.isTouchDevice ? "10px" : "11px");
+    this.extractText
+      .setPosition(timerInfoLeft, timer.y + timer.height * 0.48)
+      .setFontSize(this.isTouchDevice ? "10px" : "11px");
+    this.killsText
+      .setPosition(timerInfoLeft, timerBottomY)
+      .setFontSize(this.isTouchDevice ? "10px" : "11px");
+    this.inventoryText
+      .setPosition(timerPrimaryRight, timerBottomY)
+      .setFontSize(this.isTouchDevice ? "10px" : "11px")
+      .setOrigin(1, 0);
 
     const command = this.layout.command;
     this.combatText = this.scene.add.text(command.centerX, command.centerY + 2, "", {
