@@ -3,6 +3,20 @@ import type { ChestOpenedPayload, ChestState } from "../../network/socketClient"
 import type { ExtractUiState } from "../createGameClient";
 import type { PlayerMarker } from "../../game/entities/PlayerMarker";
 
+function shouldSuppressAutoStartExtractForP0B(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const testHooks = (window as Window & {
+    __P0B_TEST_HOOKS__?: {
+      suppressAutoStartExtract?: boolean;
+    };
+  }).__P0B_TEST_HOOKS__;
+
+  return testHooks?.suppressAutoStartExtract === true;
+}
+
 export class GameSceneInteractions {
   private readonly scene: Phaser.Scene;
   private readonly chestSprites = new Map<string, Phaser.GameObjects.Image>();
@@ -111,6 +125,14 @@ export class GameSceneInteractions {
     extractState: ExtractUiState,
     onStartExtract?: () => void
   ): void {
+    if (shouldSuppressAutoStartExtractForP0B()) {
+      this.extractAutoStarted = false;
+      this.extractAutoRearmRequired = false;
+      this.extractLastPhase = extractState.phase;
+      this.syncExtractZone(extractState);
+      return;
+    }
+
     const activeSquadId = extractState.squadStatus?.activeSquadId ?? extractState.carrier?.holderSquadId ?? null;
     const selfMember = extractState.squadStatus?.members.find((member) => member.playerId === playerMarker?.id);
     const canTryExtract = extractState.isOpen

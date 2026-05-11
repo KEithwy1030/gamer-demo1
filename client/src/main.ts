@@ -15,6 +15,7 @@ import "./styles/mobile.css";
 declare global {
   interface Window {
     __P0B_TEST_HOOKS__?: {
+      suppressAutoStartExtract: boolean;
       sendMoveInput(direction: { x: number; y: number }): void;
       startExtract(): void;
       getSnapshot?(): {
@@ -60,6 +61,7 @@ function installP0BTestHooks(gameController: GameClientController): () => void {
   }, 50);
 
   window.__P0B_TEST_HOOKS__ = {
+    suppressAutoStartExtract: true,
     sendMoveInput(direction) {
       forcedMoveDirection = { x: direction.x, y: direction.y };
       gameController.sendMoveInput(forcedMoveDirection);
