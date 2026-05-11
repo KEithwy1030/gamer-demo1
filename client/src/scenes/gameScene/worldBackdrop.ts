@@ -4,7 +4,8 @@ import type { ExtractUiState } from "../createGameClient";
 import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
 import { buildRiverVisualPlan } from "./riverVisualPlan";
 
-const EXTRACT_VISUAL_CLEARANCE_PADDING = 120;
+const EXTRACT_VISUAL_CLEARANCE_PADDING = 72;
+const EXTRACT_HINT_LABEL_OFFSET = 34;
 
 export interface WorldBackdropRefs {
   terrainLayer?: Phaser.GameObjects.TileSprite;
@@ -96,34 +97,44 @@ export function syncExtractBackdrop(
 ): WorldBackdropRefs {
   const centerX = extractState.x ?? state.layout?.extractZones[0]?.x ?? state.width / 2;
   const centerY = extractState.y ?? state.layout?.extractZones[0]?.y ?? state.height / 2;
-  const outerRadius = Math.max((extractState.radius ?? state.layout?.extractZones[0]?.radius ?? 126) + 30, 126);
-  const innerRadius = Math.max((extractState.radius ?? state.layout?.extractZones[0]?.radius ?? 82) - 14, 54);
+  const zoneRadius = extractState.radius ?? state.layout?.extractZones[0]?.radius ?? 126;
+  const outerRadius = Math.max(zoneRadius + 14, 112);
+  const innerRadius = Math.max(zoneRadius - 18, 46);
+  const hintAlpha = extractState.isOpen ? 0.07 : 0.1;
+  const ringAlpha = extractState.isOpen ? 0.24 : 0.18;
+  const labelX = Math.max(92, centerX - outerRadius - EXTRACT_HINT_LABEL_OFFSET);
+  const labelY = Math.min(state.height - 42, centerY + outerRadius * 0.18);
 
   const extractOuterRing = refs.extractOuterRing
-    ?? scene.add.circle(centerX, centerY, outerRadius, GAMEPLAY_THEME.colors.signal, 0.1)
-      .setStrokeStyle(10, GAMEPLAY_THEME.colors.accent, 0.32)
+    ?? scene.add.circle(centerX, centerY, outerRadius, GAMEPLAY_THEME.colors.signal, hintAlpha)
+      .setStrokeStyle(8, GAMEPLAY_THEME.colors.accent, ringAlpha)
       .setDepth(-6);
   extractOuterRing.setPosition(centerX, centerY);
   extractOuterRing.setRadius(outerRadius);
+  extractOuterRing.setFillStyle(GAMEPLAY_THEME.colors.signal, hintAlpha);
+  extractOuterRing.setStrokeStyle(8, GAMEPLAY_THEME.colors.accent, ringAlpha);
 
   const extractInnerRing = refs.extractInnerRing
-    ?? scene.add.circle(centerX, centerY, innerRadius, GAMEPLAY_THEME.colors.signal, 0.08)
-      .setStrokeStyle(4, GAMEPLAY_THEME.colors.bone, 0.2)
+    ?? scene.add.circle(centerX, centerY, innerRadius, GAMEPLAY_THEME.colors.signal, hintAlpha * 0.7)
+      .setStrokeStyle(3, GAMEPLAY_THEME.colors.bone, ringAlpha * 0.82)
       .setDepth(-5);
   extractInnerRing.setPosition(centerX, centerY);
   extractInnerRing.setRadius(innerRadius);
+  extractInnerRing.setFillStyle(GAMEPLAY_THEME.colors.signal, hintAlpha * 0.7);
+  extractInnerRing.setStrokeStyle(3, GAMEPLAY_THEME.colors.bone, ringAlpha * 0.82);
 
   const extractBeacon = refs.extractBeacon ?? createExtractBeacon(scene, centerX, centerY);
-  extractBeacon.setPosition(centerX, centerY - 8);
+  extractBeacon.setPosition(centerX, centerY - 14);
+  extractBeacon.setAlpha(extractState.isOpen ? 0.84 : 0.72);
 
   const extractLabel = refs.extractLabel
     ?? scene.add.text(centerX, centerY + 126, "归营石阵", {
       fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: "20px",
+      fontSize: "17px",
       color: "#e8dfc8",
       stroke: "#16130f",
-      strokeThickness: 6
-    }).setOrigin(0.5).setDepth(-4);
+      strokeThickness: 5
+    }).setOrigin(1, 0.5).setDepth(-4);
   const members = extractState.squadStatus?.members ?? [];
   const aliveMembers = members.filter((member) => member.isAlive && !member.isSettled);
   const insideCount = aliveMembers.filter((member) => member.isInsideZone).length;
@@ -132,6 +143,9 @@ export function syncExtractBackdrop(
       ? `队伍归营火 ${insideCount}/${aliveMembers.length || 0}`
       : "归营火未点燃"
   );
+  extractLabel.setPosition(labelX, labelY);
+  extractLabel.setAlpha(extractState.isOpen ? 0.88 : 0.72);
+  extractLabel.setWordWrapWidth(240, true);
 
   return {
     ...refs,
@@ -272,10 +286,10 @@ function drawCorpseRiver(
   }
 
   if (extractZone) {
-    detailLayer.fillStyle(0x2a2118, 0.96);
+    detailLayer.fillStyle(0x2a2118, 0.12);
     detailLayer.fillCircle(extractZone.x, extractZone.y, extractZone.radius + EXTRACT_VISUAL_CLEARANCE_PADDING);
-    detailLayer.lineStyle(10, GAMEPLAY_THEME.colors.iron900, 0.24);
-    detailLayer.strokeCircle(extractZone.x, extractZone.y, extractZone.radius + EXTRACT_VISUAL_CLEARANCE_PADDING - 8);
+    detailLayer.lineStyle(6, GAMEPLAY_THEME.colors.iron900, 0.2);
+    detailLayer.strokeCircle(extractZone.x, extractZone.y, extractZone.radius + EXTRACT_VISUAL_CLEARANCE_PADDING - 6);
   }
 }
 
@@ -414,9 +428,9 @@ function createExtractBeacon(
 ): Phaser.GameObjects.Container {
   const beacon = scene.add.container(x, y - 8);
   beacon.setDepth(-4);
-  const glow = scene.add.circle(0, -6, 74, GAMEPLAY_THEME.colors.signal, 0.13);
+  const glow = scene.add.circle(0, -6, 56, GAMEPLAY_THEME.colors.signal, 0.11);
   const img = scene.add.image(0, 0, "extract_beacon_asset");
-  img.setDisplaySize(138, 138);
+  img.setDisplaySize(112, 112);
   beacon.add([glow, img]);
   return beacon;
 }
