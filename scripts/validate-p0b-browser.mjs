@@ -865,6 +865,11 @@ function getAwayDirection(point, center) {
   };
 }
 
+function getExtractStartRadius(zoneRadius) {
+  const inset = Math.min(18, Math.max(6, zoneRadius * 0.15));
+  return Math.max(24, zoneRadius - inset);
+}
+
 async function holdMovementUntilDistance(keys, selfId, center, minDistance, timeoutMs = 3_000) {
   const unique = [...new Set(keys.filter(Boolean))];
   if (!unique.length) {
@@ -979,7 +984,8 @@ async function ensureServerRecognizesZonePresence(zone, selfId) {
 
 async function moveNearZoneStartRadius() {
   const zone = await waitForCondition("extract zone", getZone, 15_000);
-  const target = { x: zone.x + zone.radius - 14, y: zone.y + 18 };
+  const startRadius = getExtractStartRadius(zone.radius);
+  const target = { x: zone.x + startRadius - 4, y: zone.y + 12 };
   const selfId = (await matchPayload())?.selfPlayerId;
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
@@ -988,8 +994,18 @@ async function moveNearZoneStartRadius() {
       await sleep(100);
       continue;
     }
-    if (Math.hypot(self.x - target.x, self.y - target.y) <= 28) {
-      note("positioned near extract start radius", { self, target, zone });
+    const distanceToCenter = Math.hypot(self.x - zone.x, self.y - zone.y);
+    const extractPayload = await latestExtractOpened();
+    const { member } = getExtractSnapshotForSelf(extractPayload, selfId);
+    if (distanceToCenter <= startRadius - 4 || member?.isInsideZone) {
+      note("positioned inside extract start radius", {
+        self,
+        target,
+        zone,
+        startRadius,
+        distanceToCenter,
+        extractMember: member ?? null
+      });
       return;
     }
     const beforeMove = self;
@@ -1002,6 +1018,35 @@ async function moveNearZoneStartRadius() {
     await sleep(60);
   }
   throw new Error("Timed out moving near extract start radius");
+}
+
+async function waitForStableServerStartPosition(zone, selfId) {
+  const startRadius = getExtractStartRadius(zone.radius);
+  return await waitForCondition(
+    "stable server-recognized extract start position",
+    async () => {
+      const self = await getSelfState();
+      if (!self) return null;
+      const distanceToCenter = Math.hypot(self.x - zone.x, self.y - zone.y);
+      if (!Number.isFinite(distanceToCenter) || distanceToCenter > startRadius - 2) {
+        return null;
+      }
+
+      const extractPayload = await latestExtractOpened();
+      const { member } = getExtractSnapshotForSelf(extractPayload, selfId);
+      if (!member?.isInsideZone || member.isExtracting) {
+        return null;
+      }
+
+      return {
+        self,
+        member,
+        distanceToCenter,
+        startRadius
+      };
+    },
+    8_000
+  );
 }
 
 async function runAcceptance() {
@@ -1219,22 +1264,24 @@ async function runAcceptance() {
 
   await moveNearZoneStartRadius();
   await stopMoveHook();
-  summary.keyTimes.returnedToStartRadius = Date.now();
   await ensureServerRecognizesZonePresence(zone, selfId);
+  const stableReturn = await waitForStableServerStartPosition(zone, selfId);
+  summary.keyTimes.returnedToStartRadius = Date.now();
+  note("confirmed stable server-recognized return before second restart", stableReturn);
   let secondOutbound = await waitForEvent(
     "player:startExtract",
-    (entry) => entry.direction === "out" && entry.ts >= interrupted.ts,
+    (entry) => entry.direction === "out" && entry.ts >= summary.keyTimes.returnedToStartRadius,
     1_500,
-    interrupted.ts
+    summary.keyTimes.returnedToStartRadius
   ).catch(() => null);
   if (!secondOutbound) {
     await callStartExtractHook();
     note("requested second extract via test hook fallback");
     secondOutbound = await waitForEvent(
       "player:startExtract",
-      (entry) => entry.direction === "out" && entry.ts >= interrupted.ts,
+      (entry) => entry.direction === "out" && entry.ts >= summary.keyTimes.returnedToStartRadius,
       8_000,
-      interrupted.ts
+      summary.keyTimes.returnedToStartRadius
     );
   }
   const secondStarted = await waitForEvent(
