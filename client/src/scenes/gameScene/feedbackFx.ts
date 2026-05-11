@@ -10,52 +10,52 @@ type MarkerMap = Map<string, PlayerMarker> | Map<string, MonsterMarker>;
 
 export const DAMAGE_NUMBER_STYLE = {
   normal: {
-    fontSize: 46,
-    strokeThickness: 12,
-    rise: 98,
-    duration: 1060,
+    fontSize: 58,
+    strokeThickness: 16,
+    rise: 118,
+    duration: 1360,
     color: "#ff9a6a",
     glowColor: 0xffc38e,
-    startScale: 0.9,
-    peakScale: 1.2,
-    xJitter: 22,
-    yOffset: -70
+    startScale: 0.96,
+    peakScale: 1.26,
+    xJitter: 16,
+    yOffset: -116
   },
   critical: {
-    fontSize: 66,
-    strokeThickness: 14,
-    rise: 136,
-    duration: 1240,
+    fontSize: 78,
+    strokeThickness: 18,
+    rise: 152,
+    duration: 1500,
     color: "#ffe89a",
     glowColor: 0xffd66a,
-    startScale: 0.82,
-    peakScale: 1.24,
-    xJitter: 24,
-    yOffset: -78
+    startScale: 0.88,
+    peakScale: 1.32,
+    xJitter: 18,
+    yOffset: -126
   },
   bleed: {
-    fontSize: 34,
-    strokeThickness: 8,
-    rise: 66,
-    duration: 820,
+    fontSize: 40,
+    strokeThickness: 10,
+    rise: 78,
+    duration: 980,
     color: "#d64a4a",
     glowColor: 0x861d1d,
-    startScale: 0.94,
-    peakScale: 1.08,
+    startScale: 0.98,
+    peakScale: 1.14,
     xJitter: 14,
-    yOffset: -58
+    yOffset: -82
   },
   environment: {
-    fontSize: 44,
-    strokeThickness: 11,
-    rise: 92,
-    duration: 1040,
+    fontSize: 50,
+    strokeThickness: 14,
+    rise: 108,
+    duration: 1280,
     color: "#d6ef97",
     glowColor: 0x708640,
-    startScale: 0.92,
-    peakScale: 1.12,
-    xJitter: 18,
-    yOffset: -68
+    startScale: 0.96,
+    peakScale: 1.2,
+    xJitter: 16,
+    yOffset: -108
   }
 } as const;
 
@@ -107,27 +107,62 @@ export class GameSceneFeedbackFx {
       : (isBleedTick
         ? DAMAGE_NUMBER_STYLE.bleed
         : (isEnvironmental ? DAMAGE_NUMBER_STYLE.environment : DAMAGE_NUMBER_STYLE.normal));
+    const damageX = target.root.x + Phaser.Math.Between(-style.xJitter, style.xJitter);
+    const damageY = target.root.y + style.yOffset;
+    const badge = this.scene.add.graphics().setPosition(damageX, damageY + 2).setDepth(2998);
+    const badgeWidth = Math.max(82, `${payload.amount}`.length * 34 + (payload.isCritical ? 62 : 52));
+    const badgeHeight = payload.isCritical ? 58 : 50;
+    const badgeOutline = isEnvironmental ? 0xe7ffb7 : (isBleedTick ? 0xff9c9c : 0xf8d7a3);
+    const badgeFill = isEnvironmental ? 0x203010 : (isBleedTick ? 0x351010 : 0x1a120d);
+    badge.fillStyle(badgeFill, isBleedTick ? 0.82 : 0.78);
+    badge.fillEllipse(0, 0, badgeWidth, badgeHeight);
+    badge.lineStyle(payload.isCritical ? 5 : 4, badgeOutline, payload.isCritical ? 0.95 : 0.88);
+    badge.strokeEllipse(0, 0, badgeWidth, badgeHeight);
+    badge.fillStyle(0xffffff, payload.isCritical ? 0.18 : 0.12);
+    badge.fillEllipse(0, -6, badgeWidth * 0.62, badgeHeight * 0.34);
+
     const text = this.scene.add.text(
-      target.root.x + Phaser.Math.Between(-style.xJitter, style.xJitter),
-      target.root.y + style.yOffset,
+      damageX,
+      damageY,
       `-${payload.amount}`,
       {
         fontFamily: GAMEPLAY_THEME.fonts.display,
         fontSize: `${style.fontSize}px`,
         fontStyle: "bold",
         color: style.color,
-        stroke: "#16130f",
+        stroke: payload.isCritical ? "#0d0906" : "#120d09",
         strokeThickness: style.strokeThickness
       }).setOrigin(0.5).setDepth(3000).setScale(style.startScale);
     text.setShadow(0, 0, Phaser.Display.Color.IntegerToColor(style.glowColor).rgba, 18, false, true);
+    const accent = this.scene.add.graphics().setPosition(damageX, damageY + 2).setDepth(2999);
+    this.drawDamageAccent(accent, badgeWidth, badgeHeight, style.glowColor, payload.isCritical ?? false);
+    const damageLift = style.rise;
+    const fadeDelay = Math.round(style.duration * 0.18);
     this.scene.tweens.add({
-      targets: text,
-      y: text.y - style.rise,
-      scale: style.peakScale,
-      alpha: 0,
+      targets: [badge, accent, text],
+      y: `-=${damageLift}`,
       duration: style.duration,
-      ease: "Cubic.out",
-      onComplete: () => text.destroy()
+      ease: "Cubic.out"
+    });
+    this.scene.tweens.add({
+      targets: [badge, accent, text],
+      alpha: 0,
+      delay: fadeDelay,
+      duration: style.duration - fadeDelay,
+      ease: "Quad.in",
+      onComplete: () => {
+        badge.destroy();
+        accent.destroy();
+        text.destroy();
+      }
+    });
+    this.scene.tweens.add({
+      targets: [badge, accent, text],
+      scaleX: style.peakScale,
+      scaleY: style.peakScale,
+      duration: 180,
+      yoyo: true,
+      ease: "Back.out"
     });
 
     if (payload.isCritical) {
@@ -312,29 +347,31 @@ export class GameSceneFeedbackFx {
     const isEnvironment = damageType === "environment";
     const isBleed = damageType === "bleed";
     if (isEnvironment) {
-      impact.fillStyle(0x647d2c, 0.38);
-      impact.fillEllipse(0, 0, 44, 22);
-      impact.fillStyle(0xd6ef97, 0.26);
-      impact.fillCircle(-12, -5, 7);
-      impact.fillCircle(14, 3, 5);
-      impact.lineStyle(3, 0xe7ffb7, 0.75).strokeCircle(0, 0, 30);
+      impact.fillStyle(0x647d2c, 0.46);
+      impact.fillEllipse(0, 0, 54, 28);
+      impact.fillStyle(0xd6ef97, 0.34);
+      impact.fillCircle(-14, -6, 9);
+      impact.fillCircle(16, 4, 7);
+      impact.lineStyle(4, 0xe7ffb7, 0.84).strokeCircle(0, 0, 36);
+      impact.lineStyle(2, 0xf5ffd7, 0.62).strokeCircle(0, 0, 23);
       this.spawnFragments(x, y, { x: 0.2, y: -1 }, 0x708640, 6, 8, 20);
     } else if (isBleed) {
-      impact.fillStyle(0x7f1d1d, 0.5);
-      impact.fillEllipse(0, 0, 38, 20);
-      impact.fillStyle(0xef4444, 0.42);
-      impact.fillCircle(-14, -4, 7);
-      impact.fillCircle(11, 5, 6);
-      impact.lineStyle(3, 0xff8f8f, 0.7).strokeCircle(0, 0, 26);
+      impact.fillStyle(0x7f1d1d, 0.58);
+      impact.fillEllipse(0, 0, 44, 24);
+      impact.fillStyle(0xef4444, 0.48);
+      impact.fillCircle(-15, -4, 8);
+      impact.fillCircle(13, 5, 7);
+      impact.lineStyle(4, 0xff8f8f, 0.78).strokeCircle(0, 0, 30);
     } else {
-      impact.fillStyle(0x7f1d1d, 0.54);
-      impact.fillEllipse(0, 0, critical ? 42 : 34, critical ? 22 : 18);
-      impact.fillStyle(0xef4444, 0.36);
-      impact.fillCircle(-14, -4, critical ? 8 : 7);
-      impact.fillCircle(12, 4, critical ? 6 : 5);
-      impact.fillStyle(0xf8d7a3, 0.34);
-      impact.fillEllipse(4, -8, critical ? 24 : 20, critical ? 9 : 7);
-      this.spawnFragments(x, y, { x: 0.3, y: -1 }, 0xb91c1c, critical ? 8 : 5, 10, 24);
+      impact.fillStyle(0x7f1d1d, critical ? 0.62 : 0.6);
+      impact.fillEllipse(0, 0, critical ? 54 : 46, critical ? 28 : 24);
+      impact.fillStyle(0xef4444, critical ? 0.52 : 0.46);
+      impact.fillCircle(-16, -4, critical ? 10 : 8);
+      impact.fillCircle(14, 4, critical ? 8 : 6);
+      impact.fillStyle(0xf8d7a3, critical ? 0.42 : 0.38);
+      impact.fillEllipse(5, -8, critical ? 30 : 26, critical ? 11 : 9);
+      impact.lineStyle(critical ? 4 : 3, 0xffd7b8, critical ? 0.86 : 0.72).strokeCircle(0, 0, critical ? 34 : 28);
+      this.spawnFragments(x, y, { x: 0.3, y: -1 }, 0xb91c1c, critical ? 8 : 6, 10, critical ? 28 : 24);
     }
     this.scene.tweens.add({
       targets: impact,
@@ -345,6 +382,26 @@ export class GameSceneFeedbackFx {
       ease: "Cubic.out",
       onComplete: () => impact.destroy()
     });
+  }
+
+  private drawDamageAccent(
+    graphics: Phaser.GameObjects.Graphics,
+    width: number,
+    height: number,
+    color: number,
+    critical: boolean
+  ): void {
+    graphics.lineStyle(critical ? 4 : 3, color, critical ? 0.88 : 0.78);
+    graphics.strokeEllipse(0, 0, width + (critical ? 28 : 20), height + (critical ? 18 : 14));
+    graphics.lineStyle(2, 0xffffff, critical ? 0.68 : 0.54);
+    graphics.beginPath();
+    graphics.moveTo(-width * 0.38, -height * 0.48);
+    graphics.lineTo(-width * 0.18, -height * 0.9);
+    graphics.moveTo(width * 0.2, -height * 0.9);
+    graphics.lineTo(width * 0.42, -height * 0.5);
+    graphics.strokePath();
+    graphics.fillStyle(color, critical ? 0.22 : 0.16);
+    graphics.fillEllipse(0, 0, width * 0.9, height * 0.58);
   }
 
   private drawImpactArc(
