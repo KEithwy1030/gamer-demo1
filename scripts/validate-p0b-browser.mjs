@@ -621,13 +621,15 @@ async function startSustainedMoveLoop({ zone, fallbackDirection = { x: 1, y: 0 }
     ({ nextZone, nextFallbackDirection, nextIntervalMs, nextLabel }) => {
       const clearLoop = () => {
         const active = window.__P0B_MOVE_LOOP__;
-        if (active?.timerId) {
-          window.clearInterval(active.timerId);
+        if (active) {
+          active.stopped = true;
         }
         delete window.__P0B_MOVE_LOOP__;
       };
 
       clearLoop();
+      const nextToken = (window.__P0B_MOVE_LOOP_SEQ__ ?? 0) + 1;
+      window.__P0B_MOVE_LOOP_SEQ__ = nextToken;
 
       const normalize = (direction) => {
         const x = Number(direction?.x ?? 0);
@@ -656,38 +658,69 @@ async function startSustainedMoveLoop({ zone, fallbackDirection = { x: 1, y: 0 }
         return normalize(nextFallbackDirection);
       };
 
-      const tick = () => {
-        const hooks = window.__P0B_TEST_HOOKS__;
-        if (!hooks || typeof hooks.sendMoveInput !== "function") {
-          return;
-        }
-        hooks.sendMoveInput(computeAwayDirection());
-      };
+      const hooks = window.__P0B_TEST_HOOKS__;
+      if (!hooks || typeof hooks.sendMoveInput !== "function") {
+        return;
+      }
 
-      tick();
       const resolvedIntervalMs = Math.max(16, Number(nextIntervalMs) || 50);
-      const timerId = window.setInterval(tick, resolvedIntervalMs);
+      const direction = computeAwayDirection();
       window.__P0B_MOVE_LOOP__ = {
-        timerId,
+        token: nextToken,
+        stopped: false,
         label: nextLabel,
         zone: nextZone,
-        fallbackDirection: normalize(nextFallbackDirection),
+        fallbackDirection: direction,
         intervalMs: resolvedIntervalMs,
         startedAt: Date.now()
       };
+      hooks.sendMoveInput(direction);
     },
     { nextZone: zone, nextFallbackDirection: fallbackDirection, nextIntervalMs: intervalMs, nextLabel: label }
   );
 }
 
 async function stopSustainedMoveLoop() {
-  await page.evaluate(() => {
+  return await page.evaluate(() => {
     const active = window.__P0B_MOVE_LOOP__;
-    if (active?.timerId) {
-      window.clearInterval(active.timerId);
+    if (active) {
+      active.stopped = true;
     }
     delete window.__P0B_MOVE_LOOP__;
+    return active
+      ? {
+          token: active.token ?? null,
+          label: active.label ?? null,
+          stoppedAt: Date.now()
+        }
+      : null;
   });
+}
+
+async function waitForNonZeroInputMoveQuiet(afterTs, quietWindowMs = 300, timeoutMs = 4_000) {
+  const started = Date.now();
+  let lastNonZeroTs = afterTs;
+  let observedNonZeroCount = 0;
+  while (Date.now() - started < timeoutMs) {
+    const events = await collectEvents();
+    const laterNonZeroMoves = events.filter(
+      (entry) => entry.direction === "out" && entry.name === "player:inputMove" && entry.ts >= afterTs && isNonZeroInputMovePayload(entry.payload)
+    );
+    if (laterNonZeroMoves.length > 0) {
+      observedNonZeroCount = laterNonZeroMoves.length;
+      lastNonZeroTs = laterNonZeroMoves[laterNonZeroMoves.length - 1].ts;
+    }
+    if (Date.now() - lastNonZeroTs >= quietWindowMs) {
+      return {
+        afterTs,
+        lastNonZeroTs,
+        quietWindowMs,
+        observedNonZeroCount
+      };
+    }
+    await sleep(Math.min(80, quietWindowMs));
+  }
+  throw new Error(`Timed out waiting for non-zero inputMove quiet window after ${afterTs}`);
 }
 
 async function createAndStartMatch() {
@@ -1226,7 +1259,7 @@ async function runAcceptance() {
     500,
     firstStarted.ts
   ).catch(() => null);
-  await stopSustainedMoveLoop();
+  const stoppedLoop = await stopSustainedMoveLoop();
   await stopMoveHook();
 
   if (!interrupted) {
@@ -1256,6 +1289,13 @@ async function runAcceptance() {
   summary.keyTimes.interruptedInbound = interrupted.ts;
   summary.assertions.leftZoneInterrupted = interrupted.payload?.reason === "left_zone";
   summary.screenshots.interrupted = await screenshot("03-left-zone-interrupted.png", { fullPage: false });
+  const quietAfterInterrupted = await waitForNonZeroInputMoveQuiet(interrupted.ts, 300, 4_000);
+  summary.keyTimes.outwardMoveQuietAfterInterrupted = quietAfterInterrupted.lastNonZeroTs;
+  note("confirmed outbound non-zero move loop went quiet before return-to-zone", {
+    interruptedTs: interrupted.ts,
+    stoppedLoop,
+    quietAfterInterrupted
+  });
 
   note("starting scripted return-to-zone movement", {
     interruptedTs: interrupted.ts,
