@@ -1102,6 +1102,10 @@ async function runAcceptance() {
   if (!selfId) throw new Error("match:started payload missing selfPlayerId");
   if (!zone) throw new Error("match:started payload missing extract zone");
   await ensureServerRecognizesZonePresence(zone, selfId);
+  await moveNearZoneStartRadius();
+  const stableFirstStart = await waitForStableServerStartPosition(zone, selfId);
+  summary.keyTimes.firstStableStartRadius = Date.now();
+  note("confirmed stable server-recognized first start position before first extract", stableFirstStart);
   await primeGameInputFocus();
   note("primed game input focus before first extract wait");
 
