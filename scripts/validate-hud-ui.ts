@@ -21,7 +21,7 @@ assert.doesNotMatch(
 );
 assert.match(
   gameClientSource,
-  /setCombatResult\(payload\) \{\s*getScene\(\)\?\.onCombatResult\?\.{0,1}\(payload\);/s,
+  /setCombatResult\(payload\) \{[\s\S]*getScene\(\)\?\.onCombatResult\?\.{0,1}\(payload\);/s,
   "combat result should be forwarded directly to scene damage feedback"
 );
 
