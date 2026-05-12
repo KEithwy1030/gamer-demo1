@@ -3,7 +3,18 @@
   y: number;
 }
 
-export type MobileActionButtonId = "attack" | "skill" | "pickup" | "inventory";
+export const MOBILE_ACTION_BUTTONS = [
+  "attack",
+  "skill0",
+  "skill1",
+  "skill2",
+  "dodge",
+  "pickup",
+  "extract",
+  "inventory"
+] as const;
+
+export type MobileActionButtonId = (typeof MOBILE_ACTION_BUTTONS)[number];
 
 export interface MobileButtonState {
   label?: string;
@@ -18,8 +29,10 @@ export interface MobileControlsOptions {
   zoneRatio?: number;
   onMove?(vector: Vector2): void;
   onAttack?(): void;
-  onSkill?(): void;
+  onSkill?(slotIndex: number): void;
+  onDodge?(): void;
   onPickup?(): void;
+  onExtract?(): void;
   onInventory?(): void;
 }
 
@@ -99,14 +112,14 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
 
   const updateLayout = () => {
     const portrait = isPortraitViewport();
-    const buttonSize = portrait ? 62 : 66;
-    const gap = 8;
+    const buttonSize = portrait ? 54 : 58;
+    const gap = portrait ? 7 : 8;
 
     setStyles(actionOverlay, {
       right: `max(${EDGE_PADDING}px, env(safe-area-inset-right))`,
       bottom: `max(${EDGE_PADDING}px, env(safe-area-inset-bottom))`,
       gap: `${gap}px`,
-      gridTemplateColumns: `repeat(2, ${buttonSize}px)`,
+      gridTemplateColumns: `repeat(4, ${buttonSize}px)`,
       padding: "8px"
     });
 
@@ -374,8 +387,12 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
   joystick.append(joystickBase, joystickKnob);
   actionOverlay.append(
     createActionButton("attack", "攻", "#ef4444", () => options.onAttack?.()),
-    createActionButton("skill", "技", "#38bdf8", () => options.onSkill?.()),
+    createActionButton("skill0", "一", "#38bdf8", () => options.onSkill?.(0)),
+    createActionButton("skill1", "二", "#60a5fa", () => options.onSkill?.(1)),
+    createActionButton("skill2", "三", "#a78bfa", () => options.onSkill?.(2)),
+    createActionButton("dodge", "闪", "#f97316", () => options.onDodge?.()),
     createActionButton("pickup", "取", "#4ade80", () => options.onPickup?.()),
+    createActionButton("extract", "撤", "#facc15", () => options.onExtract?.()),
     createActionButton("inventory", "包", "#fbbf24", () => options.onInventory?.())
   );
   shell.append(joystick, actionOverlay);

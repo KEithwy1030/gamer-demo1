@@ -297,6 +297,7 @@ export class GameScene extends Phaser.Scene {
         skillWindupEndsAt: this.localSkillWindupEndsAt,
         skillCooldowns: this.localSkillCooldowns
       });
+      this.inputBridge?.syncMobileButtons(this.localSkillCooldowns);
     });
   }
 
@@ -442,6 +443,7 @@ export class GameScene extends Phaser.Scene {
         skillWindupEndsAt: this.localSkillWindupEndsAt,
         skillCooldowns: this.localSkillCooldowns
       });
+      this.inputBridge?.syncMobileButtons(this.localSkillCooldowns);
     }
     this.hudOverlay?.pinToCamera();
 
@@ -469,6 +471,7 @@ export class GameScene extends Phaser.Scene {
         skillWindupEndsAt: this.localSkillWindupEndsAt,
         skillCooldowns: this.localSkillCooldowns
       });
+      this.inputBridge?.syncMobileButtons(this.localSkillCooldowns);
       this.syncWorld(this.latestState);
     }
   }

@@ -6,6 +6,7 @@ import {
 } from "../../input/keyboardControls";
 import {
   createMobileControls,
+  type MobileActionButtonId,
   type MobileControlsApi
 } from "../../input/mobileControls";
 import { isPrimaryPointerAttack } from "./inputContracts";
@@ -74,8 +75,10 @@ export class GameSceneInputBridge {
         this.joystickVector = vector;
       },
       onAttack: this.options.onAttack,
-      onSkill: () => this.options.onSkill(0),
+      onSkill: this.options.onSkill,
+      onDodge: this.options.onDodge,
       onPickup: this.options.onPickup,
+      onExtract: this.options.onExtract,
       onInventory: this.options.onInventory
     });
   }
@@ -137,6 +140,28 @@ export class GameSceneInputBridge {
     }
 
     this.facingLockDirection = { x: direction.x / magnitude, y: direction.y / magnitude };
+  }
+
+  syncMobileButtons(skillCooldowns: Array<{ endsAt: number; durationMs: number }>): void {
+    if (!this.mobileControls) {
+      return;
+    }
+
+    const now = Date.now();
+    const skillButtonIds: MobileActionButtonId[] = ["skill0", "skill1", "skill2"];
+    for (let index = 0; index < skillButtonIds.length; index += 1) {
+      const cooldown = skillCooldowns[index];
+      this.mobileControls.setButtonState(skillButtonIds[index], {
+        cooldownRatio: getCooldownRatio(cooldown, now),
+        cooldownText: getCooldownText(cooldown, now)
+      });
+    }
+
+    const dodgeCooldown = skillCooldowns[3];
+    this.mobileControls.setButtonState("dodge", {
+      cooldownRatio: getCooldownRatio(dodgeCooldown, now),
+      cooldownText: getCooldownText(dodgeCooldown, now)
+    });
   }
 
   private emitMoveInput(time: number): void {
@@ -202,4 +227,20 @@ export class GameSceneInputBridge {
       onInventory: this.options.onInventory
     });
   }
+}
+
+function getCooldownRatio(cooldown: { endsAt: number; durationMs: number } | undefined, now: number): number {
+  if (!cooldown || cooldown.durationMs <= 0 || cooldown.endsAt <= now) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(1, (cooldown.endsAt - now) / cooldown.durationMs));
+}
+
+function getCooldownText(cooldown: { endsAt: number; durationMs: number } | undefined, now: number): string {
+  if (!cooldown || cooldown.endsAt <= now) {
+    return "";
+  }
+
+  return `${Math.ceil((cooldown.endsAt - now) / 1000)}s`;
 }
