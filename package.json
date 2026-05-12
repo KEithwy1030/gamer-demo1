@@ -31,6 +31,7 @@
     "validate:inventory-drag-ui": "tsx scripts/validate-inventory-drag-ui.ts",
     "validate:chest-contract": "tsx scripts/validate-chest-contract.ts",
     "validate:pressure-ai-contract": "tsx scripts/validate-pressure-ai-contract.ts",
+    "validate:multiclient-room-contract": "tsx scripts/validate-multiclient-room-contract.ts",
     "validate:audio-hooks": "tsx scripts/validate-audio-hooks.ts",
     "validate:visual-clarity": "tsx scripts/validate-visual-clarity.ts",
     "validate:hud-ui": "tsx scripts/validate-hud-ui.ts",
