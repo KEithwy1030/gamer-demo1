@@ -17,6 +17,7 @@ import type { InventoryUpdateEvent, SettlementEnvelope } from "../network";
 import { GameSocketClient, type GameSocketClientOptions, type Unsubscribe } from "../network";
 import { MatchRuntimeStore, type MatchInventoryState } from "../game";
 import type { MatchInventoryItem } from "../game/matchRuntime";
+import { GameAudioController } from "../audio/gameAudio";
 import { translateItemName } from "../ui/itemPresentation";
 import { GameScene } from "./GameScene";
 import { applySmoothTextureSampling, GAME_RENDER_CONFIG } from "./gameScene/renderTuning";
@@ -67,6 +68,7 @@ export function createGameClientController(
   const GAME_VIEW_HEIGHT = 720;
   const runtime = new MatchRuntimeStore();
   const network = new GameSocketClient(options);
+  const audio = new GameAudioController();
   const subscriptions: Unsubscribe[] = [];
 
   let game: Phaser.Game | null = null;
@@ -106,15 +108,21 @@ export function createGameClientController(
         const gainedItem = normalized.items.find((item) => !previousIds.has(item.instanceId));
         if (gainedItem) {
           getScene()?.showPickupFeedback(gainedItem.name);
+          audio.play("pickup");
         }
       }
       runtime.setInventory(normalized);
       options.onInventoryChange?.(normalized);
     },
     setCombatResult(payload) {
+      const selfPlayerId = controller.getSelfPlayerId();
+      audio.play(payload.targetId === selfPlayerId ? "hurt" : "hit");
       getScene()?.onCombatResult?.(payload);
     },
     onPlayerAttack(payload) {
+      if (payload.playerId === controller.getSelfPlayerId()) {
+        audio.play("attack");
+      }
       getScene()?.onPlayerAttack?.(payload);
     },
     setTimer(secondsRemaining) {
@@ -193,6 +201,7 @@ export function createGameClientController(
     network.onExtractSuccess((payload) => {
       const selfPlayerId = controller.getSelfPlayerId();
       if (payload?.playerId && payload.playerId !== selfPlayerId) return;
+      audio.play("extract");
       controller.setExtractState({
         phase: "succeeded",
         isOpen: true,
@@ -212,6 +221,9 @@ export function createGameClientController(
       }
 
       const settlement = normalizeSettlementPayload(payload);
+      if (settlement.result === "failure") {
+        audio.play(settlement.reason === "killed" ? "death" : "warning");
+      }
       controller.setExtractState({
         phase: settlement.result === "success" ? "succeeded" : "idle",
         isExtracting: false,
@@ -221,6 +233,11 @@ export function createGameClientController(
         didSucceed: settlement.result === "success"
       });
       options.onSettlement?.(settlement);
+    }),
+    network.onChestOpened((payload) => {
+      if (!payload || payload.playerId === controller.getSelfPlayerId()) {
+        audio.play("chest");
+      }
     })
   );
 
@@ -279,6 +296,7 @@ export function createGameClientController(
 
   function destroy(): void {
     for (const unsubscribe of subscriptions) unsubscribe();
+    audio.destroy();
     network.destroy();
     if (game) {
       game.destroy(true);
