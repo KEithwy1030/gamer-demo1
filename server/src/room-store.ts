@@ -72,7 +72,7 @@ function normalizeRoomCode(code: string): string {
   return code
     .trim()
     .replace(/\s+/g, "")
-    .replace(/[.\uFF0E\u3002\u30FB\u8DEF]/g, "\u8DEF")
+    .replace(/[.\uFF0E\u3002\u00B7\u30FB\u8DEF]/g, "\u8DEF")
     .toUpperCase();
 }
 

@@ -27,8 +27,9 @@ async function main(): Promise<void> {
     const hostRebroadcastPromise = waitForRoomState(host, (room) => (
       room.code === hostRoom.code && room.players.some((player) => player.name === "GuestContract")
     ));
+    const browserNormalizedCode = hostRoom.code.replace(/\u8DEF/g, "\u00B7");
     const guestRoom = await emitAndWaitForRoomState(guest, SocketEvent.RoomJoin, {
-      code: hostRoom.code,
+      code: browserNormalizedCode,
       playerName: "GuestContract"
     });
     assert.equal(guestRoom.code, hostRoom.code, "guest should join the host room code");
