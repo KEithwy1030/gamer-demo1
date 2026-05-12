@@ -78,6 +78,12 @@ export interface LocalProfileMovePayload {
   y?: number;
 }
 
+type ProfileItemSource =
+  | { area: "pending"; item: LocalProfileItem }
+  | { area: "grid"; item: LocalGridItem }
+  | { area: "equipment"; item: LocalProfileItem; slot: EquipmentSlot }
+  | { area: "stash"; item: LocalGridItem; pageIndex: number };
+
 const STORAGE_KEY = "liuhuang.localProfile.v2";
 const LEGACY_STORAGE_KEY = "liuhuang.localProfile.v1";
 const STASH_WIDTH = 10;
@@ -184,44 +190,55 @@ export function moveProfileItem(profile: LocalProfile, payload: LocalProfileMove
     return next;
   }
 
-  if (payload.targetArea === "equipment") {
-    const slot = payload.slot ?? source.item.equipmentSlot ?? normalizeEquipmentSlot(source.item.slot);
-    if (!slot) {
-      restoreProfileItem(next, source);
-      throw new Error("这件物资不能装备。");
-    }
+  const item = stripGridPosition(source.item);
+  const pageIndex = clamp(payload.pageIndex ?? 0, 0, next.stash.pages.length - 1);
+  const swapSource = payload.swapItemInstanceId
+    ? removeProfileSwapTarget(next, payload.targetArea, pageIndex, payload.swapItemInstanceId)
+    : undefined;
 
-    const previous = next.equipment[slot];
-    next.equipment[slot] = stripGridPosition(source.item);
-    if (previous) {
-      if (!placeInInventory(next.inventory, stripGridPosition(previous))) {
-        const fallbackPageIndex = clamp(payload.pageIndex ?? 0, 0, next.stash.pages.length - 1);
-        const fallbackPage = next.stash.pages[fallbackPageIndex];
-        if (!placeInGridPage(fallbackPage, stripGridPosition(previous))) {
-          restoreProfileItem(next, source);
-          next.equipment[slot] = previous;
-          throw new Error("没有空位可放回被替换的装备。");
-        }
+  if (payload.swapItemInstanceId && !swapSource) {
+    restoreProfileItem(next, source);
+    throw new Error("未找到可交换的目标物资。");
+  }
+
+  try {
+    if (payload.targetArea === "equipment") {
+      const slot = payload.slot ?? resolveItemEquipmentSlot(item);
+      if (!slot || resolveItemEquipmentSlot(item) !== slot) {
+        throw new Error("这件物资不能装备。");
+      }
+
+      const previous = swapSource?.area === "equipment"
+        ? stripGridPosition(swapSource.item)
+        : next.equipment[slot];
+
+      next.equipment[slot] = item;
+      if (previous && !placeInInventory(next.inventory, previous)) {
+        throw new Error("携行背包没有足够空间。");
+      }
+    } else if (payload.targetArea === "grid") {
+      if (!placeInInventoryStrict(next.inventory, item, payload.x, payload.y)) {
+        throw new Error("携行背包没有足够空间。");
+      }
+
+      if (swapSource && !placeSwapItemIntoSource(next, source, swapSource)) {
+        throw new Error("携行背包没有足够空间。");
+      }
+    } else {
+      if (!placeInGridPageStrict(next.stash.pages[pageIndex], item, payload.x, payload.y)) {
+        throw new Error("当前仓库页没有足够空间。");
+      }
+
+      if (swapSource && !placeSwapItemIntoSource(next, source, swapSource)) {
+        throw new Error("当前仓库页没有足够空间。");
       }
     }
-
-    saveLocalProfile(next);
-    return next;
-  }
-
-  if (payload.targetArea === "grid") {
-    if (!placeInInventory(next.inventory, source.item, payload.x, payload.y)) {
-      restoreProfileItem(next, source);
-      throw new Error("携行背包没有足够空间。");
+  } catch (error) {
+    if (swapSource) {
+      restoreProfileItem(next, swapSource);
     }
-    saveLocalProfile(next);
-    return next;
-  }
-
-  const pageIndex = clamp(payload.pageIndex ?? 0, 0, next.stash.pages.length - 1);
-  if (!placeInGridPage(next.stash.pages[pageIndex], source.item, payload.x, payload.y)) {
     restoreProfileItem(next, source);
-    throw new Error("当前仓库页没有足够空间。");
+    throw error;
   }
 
   saveLocalProfile(next);
@@ -518,9 +535,9 @@ function normalizeGridItems(raw: unknown): LocalGridItem[] {
 
 function removeProfileItem(profile: LocalProfile, itemInstanceId: string):
   | { area: "pending"; item: LocalProfileItem }
-  | { area: "grid"; item: LocalProfileItem }
+  | { area: "grid"; item: LocalGridItem }
   | { area: "equipment"; item: LocalProfileItem; slot: EquipmentSlot }
-  | { area: "stash"; item: LocalProfileItem; pageIndex: number }
+  | { area: "stash"; item: LocalGridItem; pageIndex: number }
   | undefined {
   const pendingIndex = profile.pendingReturn?.items.findIndex((item) => item.instanceId === itemInstanceId) ?? -1;
   if (pendingIndex >= 0 && profile.pendingReturn) {
@@ -534,7 +551,7 @@ function removeProfileItem(profile: LocalProfile, itemInstanceId: string):
   const gridIndex = profile.inventory.items.findIndex((item) => item.instanceId === itemInstanceId);
   if (gridIndex >= 0) {
     const [item] = profile.inventory.items.splice(gridIndex, 1);
-    return { area: "grid", item: stripGridPosition(item) };
+    return { area: "grid", item };
   }
 
   for (const slot of Object.keys(profile.equipment) as EquipmentSlot[]) {
@@ -550,10 +567,35 @@ function removeProfileItem(profile: LocalProfile, itemInstanceId: string):
     const itemIndex = page.items.findIndex((item) => item.instanceId === itemInstanceId);
     if (itemIndex >= 0) {
       const [item] = page.items.splice(itemIndex, 1);
-      return { area: "stash", item: stripGridPosition(item), pageIndex };
+      return { area: "stash", item, pageIndex };
     }
   }
 
+  return undefined;
+}
+
+function removeProfileSwapTarget(
+  profile: LocalProfile,
+  targetArea: LocalProfileMovePayload["targetArea"],
+  targetPageIndex: number,
+  itemInstanceId: string
+): ProfileItemSource | undefined {
+  const source = removeProfileItem(profile, itemInstanceId);
+  if (!source) {
+    return undefined;
+  }
+
+  const allowed = targetArea === "grid"
+    ? source.area === "grid" || source.area === "pending" || source.area === "stash"
+    : targetArea === "stash"
+      ? source.area === "stash" && source.pageIndex === targetPageIndex
+      : source.area === "equipment";
+
+  if (allowed) {
+    return source;
+  }
+
+  restoreProfileItem(profile, source);
   return undefined;
 }
 
@@ -561,18 +603,18 @@ function restoreProfileItem(
   profile: LocalProfile,
   source:
     | { area: "pending"; item: LocalProfileItem }
-    | { area: "grid"; item: LocalProfileItem }
+    | { area: "grid"; item: LocalGridItem }
     | { area: "equipment"; item: LocalProfileItem; slot: EquipmentSlot }
-    | { area: "stash"; item: LocalProfileItem; pageIndex: number }
+    | { area: "stash"; item: LocalGridItem; pageIndex: number }
 ): void {
   if (source.area === "pending") {
     profile.pendingReturn = profile.pendingReturn ?? { items: [] };
-    profile.pendingReturn.items.push(source.item);
+    profile.pendingReturn.items.push(stripGridPosition(source.item));
     return;
   }
 
   if (source.area === "equipment") {
-    profile.equipment[source.slot] = source.item;
+    profile.equipment[source.slot] = stripGridPosition(source.item);
     return;
   }
 
@@ -586,6 +628,10 @@ function restoreProfileItem(
 
 function placeInInventory(inventory: LocalInventoryGrid, item: LocalProfileItem, preferredX?: number, preferredY?: number): boolean {
   return placeInGridPage(inventory, item, preferredX, preferredY);
+}
+
+function placeInInventoryStrict(inventory: LocalInventoryGrid, item: LocalProfileItem, preferredX?: number, preferredY?: number): boolean {
+  return placeInGridPageStrict(inventory, item, preferredX, preferredY);
 }
 
 function placeItemsIntoStash(
@@ -630,6 +676,65 @@ function placeInGridPage(
     y: placement.y
   });
   return true;
+}
+
+function placeInGridPageStrict(
+  grid: LocalInventoryGrid | LocalStashPage,
+  item: LocalProfileItem,
+  preferredX?: number,
+  preferredY?: number
+): boolean {
+  if (preferredX != null || preferredY != null) {
+    if (preferredX == null || preferredY == null) {
+      return false;
+    }
+
+    const candidate = stripGridPosition(item);
+    if (!canPlaceAt(grid, candidate, preferredX, preferredY)) {
+      return false;
+    }
+
+    grid.items.push({
+      ...candidate,
+      x: preferredX,
+      y: preferredY
+    });
+    return true;
+  }
+
+  return placeInGridPage(grid, item);
+}
+
+function placeRemovedItemIntoGrid(
+  grid: LocalInventoryGrid | LocalStashPage,
+  source: ProfileItemSource,
+  preferredX?: number,
+  preferredY?: number
+): boolean {
+  return placeInGridPage(grid, source.item, preferredX, preferredY);
+}
+
+function placeSwapItemIntoSource(profile: LocalProfile, source: ProfileItemSource, swapSource: ProfileItemSource): boolean {
+  if (source.area === "pending") {
+    profile.pendingReturn = profile.pendingReturn ?? { items: [] };
+    profile.pendingReturn.items.push(stripGridPosition(swapSource.item));
+    return true;
+  }
+
+  if (source.area === "grid") {
+    return placeRemovedItemIntoGrid(profile.inventory, swapSource, source.item.x, source.item.y);
+  }
+
+  if (source.area === "stash") {
+    return placeRemovedItemIntoGrid(profile.stash.pages[source.pageIndex], swapSource, source.item.x, source.item.y);
+  }
+
+  if (resolveItemEquipmentSlot(swapSource.item) === source.slot) {
+    profile.equipment[source.slot] = stripGridPosition(swapSource.item);
+    return true;
+  }
+
+  return placeInInventory(profile.inventory, swapSource.item);
 }
 
 function resolvePlacement(
@@ -723,6 +828,10 @@ function normalizeEquipmentSlot(value: unknown): EquipmentSlot | undefined {
   return value === "weapon" || value === "head" || value === "chest" || value === "hands" || value === "shoes"
     ? value
     : undefined;
+}
+
+function resolveItemEquipmentSlot(item: Pick<LocalProfileItem, "definitionId" | "equipmentSlot" | "slot">): EquipmentSlot | undefined {
+  return normalizeEquipmentSlot(item.equipmentSlot ?? item.slot) ?? resolveSharedEquipmentSlot({ definitionId: item.definitionId });
 }
 
 function createEmptyInventory(): LocalInventoryGrid {
