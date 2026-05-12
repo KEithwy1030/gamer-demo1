@@ -62,6 +62,23 @@ export interface MatchLayoutSafeCrossing {
   label: string;
 }
 
+export interface MatchLayoutObstacleZone {
+  obstacleId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  kind: "ruin" | "barricade" | "wreckage" | "wall";
+}
+
+export interface MatchLayoutLandmark {
+  landmarkId: string;
+  x: number;
+  y: number;
+  label: string;
+  kind: "spawn" | "resource" | "crossing" | "extract" | "danger";
+}
+
 export interface MatchLayout {
   templateId: "A" | "B" | "C";
   squadSpawns: MatchLayoutSpawnZone[];
@@ -70,6 +87,8 @@ export interface MatchLayout {
   safeZones: MatchLayoutSafeZone[];
   riverHazards: MatchLayoutRiverHazard[];
   safeCrossings: MatchLayoutSafeCrossing[];
+  obstacleZones: MatchLayoutObstacleZone[];
+  landmarks: MatchLayoutLandmark[];
 }
 
 export interface PlayerState {

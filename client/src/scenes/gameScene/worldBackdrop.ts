@@ -59,6 +59,7 @@ export function rebuildWorldBackdrop(
   detailLayer.strokeCircle(centerX, centerY, 252);
   detailLayer.lineStyle(3, GAMEPLAY_THEME.colors.signal, 0.16);
   detailLayer.strokeCircle(centerX, centerY, 154);
+  drawMapObstacles(detailLayer, state);
 
   const riverLayer = scene.add.graphics();
   riverLayer.setDepth(-33);
@@ -402,6 +403,73 @@ function drawSafeCrossings(scene: Phaser.Scene, state: MatchViewState): Phaser.G
     }
     return graphics;
   });
+}
+
+function drawMapObstacles(
+  detailLayer: Phaser.GameObjects.Graphics,
+  state: MatchViewState
+): void {
+  const obstacles = state.layout?.obstacleZones ?? [];
+  for (const obstacle of obstacles) {
+    const cx = obstacle.x + obstacle.width / 2;
+    const cy = obstacle.y + obstacle.height / 2;
+    const radius = Math.min(18, Math.min(obstacle.width, obstacle.height) * 0.16);
+
+    detailLayer.fillStyle(0x14100c, 0.22);
+    detailLayer.fillRoundedRect(obstacle.x + 12, obstacle.y + 16, obstacle.width, obstacle.height, radius);
+
+    switch (obstacle.kind) {
+      case "wall":
+        detailLayer.fillStyle(0x4d4638, 0.62);
+        detailLayer.fillRoundedRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height, radius);
+        detailLayer.lineStyle(5, 0x9f8f66, 0.18);
+        detailLayer.strokeRoundedRect(obstacle.x + 4, obstacle.y + 4, obstacle.width - 8, obstacle.height - 8, radius);
+        drawObstacleRibs(detailLayer, obstacle, obstacle.width > obstacle.height ? "horizontal" : "vertical");
+        break;
+      case "barricade":
+        detailLayer.fillStyle(0x5c3324, 0.58);
+        detailLayer.fillRoundedRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height, radius);
+        detailLayer.lineStyle(4, 0xd2a35c, 0.16);
+        detailLayer.strokeRoundedRect(obstacle.x + 3, obstacle.y + 3, obstacle.width - 6, obstacle.height - 6, radius);
+        drawObstacleRibs(detailLayer, obstacle, obstacle.width > obstacle.height ? "horizontal" : "vertical");
+        break;
+      case "wreckage":
+        detailLayer.fillStyle(0x654d34, 0.44);
+        detailLayer.fillEllipse(cx, cy, obstacle.width * 0.72, obstacle.height * 0.72);
+        detailLayer.fillStyle(0x2b2118, 0.42);
+        detailLayer.fillRoundedRect(obstacle.x + obstacle.width * 0.18, obstacle.y + obstacle.height * 0.22, obstacle.width * 0.64, obstacle.height * 0.42, radius);
+        detailLayer.lineStyle(3, 0xb4935b, 0.16);
+        detailLayer.strokeEllipse(cx, cy, obstacle.width * 0.62, obstacle.height * 0.58);
+        break;
+      case "ruin":
+      default:
+        detailLayer.fillStyle(0x3b352c, 0.56);
+        detailLayer.fillRoundedRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height, radius);
+        detailLayer.fillStyle(0x746246, 0.32);
+        detailLayer.fillRoundedRect(obstacle.x + 18, obstacle.y + 14, obstacle.width * 0.44, obstacle.height * 0.36, radius * 0.7);
+        detailLayer.lineStyle(6, 0x16130f, 0.2);
+        detailLayer.strokeRoundedRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height, radius);
+        break;
+    }
+  }
+}
+
+function drawObstacleRibs(
+  detailLayer: Phaser.GameObjects.Graphics,
+  obstacle: { x: number; y: number; width: number; height: number },
+  direction: "horizontal" | "vertical"
+): void {
+  detailLayer.lineStyle(3, 0x1b1510, 0.22);
+  if (direction === "horizontal") {
+    for (let x = obstacle.x + 54; x < obstacle.x + obstacle.width - 24; x += 74) {
+      detailLayer.lineBetween(x, obstacle.y + 10, x - 22, obstacle.y + obstacle.height - 12);
+    }
+    return;
+  }
+
+  for (let y = obstacle.y + 54; y < obstacle.y + obstacle.height - 24; y += 74) {
+    detailLayer.lineBetween(obstacle.x + 10, y, obstacle.x + obstacle.width - 12, y - 22);
+  }
 }
 
 function createRegionLabel(

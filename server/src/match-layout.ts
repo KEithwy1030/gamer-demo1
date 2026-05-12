@@ -2,6 +2,8 @@ import type {
   MatchLayout,
   MatchLayoutChestZone,
   MatchLayoutExtractZone,
+  MatchLayoutLandmark,
+  MatchLayoutObstacleZone,
   MatchLayoutRiverHazard,
   MatchLayoutSafeCrossing,
   MatchLayoutSafeZone,
@@ -86,6 +88,21 @@ const SAFE_CROSSINGS: Array<MatchLayoutSafeCrossing> = [
   }
 ];
 
+const OBSTACLE_ZONES: Array<MatchLayoutObstacleZone> = [
+  { obstacleId: "north_ruin_wall", x: 1840, y: 760, width: 520, height: 96, kind: "wall" },
+  { obstacleId: "north_camp_wreckage", x: 2620, y: 820, width: 430, height: 170, kind: "wreckage" },
+  { obstacleId: "west_barricade_line", x: 1160, y: 1760, width: 132, height: 600, kind: "barricade" },
+  { obstacleId: "east_broken_keep", x: 3310, y: 1700, width: 310, height: 460, kind: "ruin" },
+  { obstacleId: "southwest_cart_jam", x: 1280, y: 3180, width: 460, height: 170, kind: "wreckage" },
+  { obstacleId: "south_barricade_gate", x: 1960, y: 3820, width: 650, height: 126, kind: "barricade" },
+  { obstacleId: "southeast_ruin_wall", x: 3370, y: 3100, width: 116, height: 620, kind: "wall" },
+  { obstacleId: "far_northwest_broken_gate", x: 650, y: 1120, width: 360, height: 122, kind: "barricade" },
+  { obstacleId: "far_east_supply_ruin", x: 3890, y: 2380, width: 300, height: 260, kind: "ruin" },
+  { obstacleId: "south_corpse_wagons", x: 2860, y: 3990, width: 410, height: 150, kind: "wreckage" },
+  { obstacleId: "extract_outer_rubble_west", x: 2050, y: 2310, width: 230, height: 110, kind: "ruin" },
+  { obstacleId: "extract_outer_rubble_east", x: 2840, y: 2380, width: 220, height: 116, kind: "ruin" }
+];
+
 export interface BuildMatchLayoutOptions {
   roomCode: string;
   startedAt: number;
@@ -158,6 +175,9 @@ export function buildMatchLayout(options: BuildMatchLayoutOptions): MatchLayout 
     })
   ];
 
+  const obstacleZones = buildObstacleZones(extractZones, riverHazards, safeCrossings);
+  const landmarks = buildLandmarks(squadSpawns, extractZones, chestZones, safeCrossings);
+
   return {
     templateId,
     squadSpawns,
@@ -165,7 +185,9 @@ export function buildMatchLayout(options: BuildMatchLayoutOptions): MatchLayout 
     chestZones,
     safeZones,
     riverHazards,
-    safeCrossings
+    safeCrossings,
+    obstacleZones,
+    landmarks
   };
 }
 
@@ -216,12 +238,79 @@ export function isPointInsideRiverHazard(layout: MatchLayout, x: number, y: numb
   return layout.riverHazards.some((hazard) => pointInsideRiverHazardShape(layout, hazard, x, y));
 }
 
+export function isPointInsideObstacle(layout: MatchLayout, x: number, y: number, padding = 0): boolean {
+  return (layout.obstacleZones ?? []).some((obstacle) => pointInRect(x, y, {
+    x: obstacle.x - padding,
+    y: obstacle.y - padding,
+    width: obstacle.width + padding * 2,
+    height: obstacle.height + padding * 2
+  }));
+}
+
 export function doesSegmentRequireSafeCrossing(layout: MatchLayout, from: Vector2, to: Vector2): boolean {
   if (isPointInsideRiverHazard(layout, from.x, from.y) || isPointInsideRiverHazard(layout, to.x, to.y)) {
     return true;
   }
 
   return layout.riverHazards.some((hazard) => segmentIntersectsExpandedRect(from, to, hazard, HAZARD_POINT_PADDING));
+}
+
+function buildObstacleZones(
+  extractZones: MatchLayoutExtractZone[],
+  riverHazards: MatchLayoutRiverHazard[],
+  safeCrossings: MatchLayoutSafeCrossing[]
+): MatchLayoutObstacleZone[] {
+  return OBSTACLE_ZONES.filter((obstacle) => {
+    const center = rectCenter(obstacle);
+    const blocksExtract = extractZones.some((zone) => distance(center, zone) < zone.radius + 210);
+    const blocksCrossing = safeCrossings.some((crossing) => rectsOverlap(obstacle, crossing));
+    const fullyInsideRiver = riverHazards.some((hazard) => rectContainsCircle(
+      hazard,
+      center.x,
+      center.y,
+      Math.min(obstacle.width, obstacle.height) * 0.35
+    ));
+
+    return !blocksExtract && !blocksCrossing && !fullyInsideRiver;
+  }).map((obstacle) => ({ ...obstacle }));
+}
+
+function buildLandmarks(
+  squadSpawns: MatchLayoutSpawnZone[],
+  extractZones: MatchLayoutExtractZone[],
+  chestZones: MatchLayoutChestZone[],
+  safeCrossings: MatchLayoutSafeCrossing[]
+): MatchLayoutLandmark[] {
+  return [
+    ...squadSpawns.map((spawn): MatchLayoutLandmark => ({
+      landmarkId: `spawn_${spawn.squadId}`,
+      x: spawn.anchorX,
+      y: spawn.anchorY,
+      label: spawn.deploymentLabel,
+      kind: "spawn"
+    })),
+    ...chestZones.filter((zone) => zone.lane === "contested").map((zone): MatchLayoutLandmark => ({
+      landmarkId: `resource_${zone.chestId}`,
+      x: zone.x,
+      y: zone.y,
+      label: "Contested Cache",
+      kind: "resource"
+    })),
+    ...safeCrossings.map((crossing): MatchLayoutLandmark => ({
+      landmarkId: `crossing_${crossing.crossingId}`,
+      x: crossing.x + crossing.width / 2,
+      y: crossing.y + crossing.height / 2,
+      label: crossing.label,
+      kind: "crossing"
+    })),
+    ...extractZones.map((zone): MatchLayoutLandmark => ({
+      landmarkId: `extract_${zone.zoneId}`,
+      x: zone.x,
+      y: zone.y,
+      label: "Return Fire",
+      kind: "extract"
+    }))
+  ];
 }
 
 function buildExtractZone(zoneId: string): MatchLayoutExtractZone {
@@ -301,6 +390,16 @@ function rectContainsCircle(
     && x + radius <= rect.x + rect.width
     && y - radius >= rect.y
     && y + radius <= rect.y + rect.height;
+}
+
+function rectsOverlap(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number }
+): boolean {
+  return a.x < b.x + b.width
+    && a.x + a.width > b.x
+    && a.y < b.y + b.height
+    && a.y + a.height > b.y;
 }
 
 function rectCenter(rect: { x: number; y: number; width: number; height: number }): Vector2 {

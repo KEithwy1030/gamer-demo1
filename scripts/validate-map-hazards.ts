@@ -6,6 +6,7 @@ import {
   getExtractClearRadius,
   getRiverHazardAtPoint,
   getRiverVisualBands,
+  isPointInsideObstacle,
   isPointInsideRiverHazard,
   isPointInsideSafeCrossing
 } from "../server/src/match-layout.js";
@@ -23,6 +24,8 @@ const layout = buildMatchLayout({
 
 assert.ok(layout.riverHazards.length >= 4, "river should be composed from multiple hazard segments");
 assert.ok(hasHorizontalAndVerticalVariation(layout), "river should vary in width and orientation");
+assert.ok(layout.obstacleZones.length >= 6, "map v2 should include multiple obstacle zones for route decisions");
+assert.ok(layout.landmarks.filter((entry) => entry.kind === "resource").length >= 4, "map v2 should expose contested resource landmarks");
 
 for (const crossing of layout.safeCrossings) {
   const center = rectCenter(crossing);
@@ -43,6 +46,20 @@ for (const zone of layout.extractZones) {
 
 for (const chest of layout.chestZones) {
   assert.equal(isPointInsideRiverHazard(layout, chest.x, chest.y), false, `chest ${chest.chestId} should not be in river hazard`);
+  assert.equal(isPointInsideObstacle(layout, chest.x, chest.y, 36), false, `chest ${chest.chestId} should not be blocked by obstacle`);
+}
+
+for (const obstacle of layout.obstacleZones) {
+  assert.ok(obstacle.width >= 96 && obstacle.height >= 96, `obstacle ${obstacle.obstacleId} should be gameplay-readable`);
+  for (const zone of layout.extractZones) {
+    assert.ok(
+      distance(rectCenter(obstacle), zone) > zone.radius + 180,
+      `obstacle ${obstacle.obstacleId} should not crowd extract zone ${zone.zoneId}`
+    );
+  }
+  for (const crossing of layout.safeCrossings) {
+    assert.equal(rectsOverlap(obstacle, crossing), false, `obstacle ${obstacle.obstacleId} should not block crossing ${crossing.crossingId}`);
+  }
 }
 
 const room = createRoom(layout);
@@ -81,6 +98,16 @@ function rectCenter(rect: { x: number; y: number; width: number; height: number 
     x: rect.x + rect.width / 2,
     y: rect.y + rect.height / 2
   };
+}
+
+function rectsOverlap(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number }
+): boolean {
+  return a.x < b.x + b.width
+    && a.x + a.width > b.x
+    && a.y < b.y + b.height
+    && a.y + a.height > b.y;
 }
 
 function assertExtractRadiusSafe(layout: MatchLayout, zone: MatchLayout["extractZones"][number]): void {

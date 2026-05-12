@@ -150,7 +150,9 @@ export function createGameClientController(
           chestZones: [],
           safeZones: [],
           riverHazards: [],
-          safeCrossings: []
+          safeCrossings: [],
+          obstacleZones: [],
+          landmarks: []
         }
       };
     },

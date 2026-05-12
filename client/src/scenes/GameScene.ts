@@ -502,7 +502,9 @@ export class GameScene extends Phaser.Scene {
       ? [
         state.layout.templateId,
         ...state.layout.riverHazards.map((entry) => `${entry.hazardId}:${entry.x},${entry.y},${entry.width},${entry.height}`),
-        ...state.layout.safeCrossings.map((entry) => `${entry.crossingId}:${entry.x},${entry.y},${entry.width},${entry.height}`)
+        ...state.layout.safeCrossings.map((entry) => `${entry.crossingId}:${entry.x},${entry.y},${entry.width},${entry.height}`),
+        ...(state.layout.obstacleZones ?? []).map((entry) => `${entry.obstacleId}:${entry.x},${entry.y},${entry.width},${entry.height}`),
+        ...(state.layout.landmarks ?? []).map((entry) => `${entry.landmarkId}:${entry.x},${entry.y},${entry.kind}`)
       ].join("|")
       : "no-layout";
     const nextSignature = `${state.width}x${state.height}:${layoutSignature}`;

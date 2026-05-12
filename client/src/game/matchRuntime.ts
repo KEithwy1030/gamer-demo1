@@ -177,6 +177,8 @@ function cloneLayout(layout: MatchLayout): MatchLayout {
     chestZones: layout.chestZones.map((entry) => ({ ...entry })),
     safeZones: layout.safeZones.map((entry) => ({ ...entry })),
     riverHazards: layout.riverHazards.map((entry) => ({ ...entry })),
-    safeCrossings: layout.safeCrossings.map((entry) => ({ ...entry }))
+    safeCrossings: layout.safeCrossings.map((entry) => ({ ...entry })),
+    obstacleZones: (layout.obstacleZones ?? []).map((entry) => ({ ...entry })),
+    landmarks: (layout.landmarks ?? []).map((entry) => ({ ...entry }))
   };
 }

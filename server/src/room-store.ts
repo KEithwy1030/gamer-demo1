@@ -22,7 +22,7 @@ import {
   SQUAD_SIZE
 } from "./internal-constants.js";
 import { setPlayerBaseStats, syncPlayerCombatState } from "./combat/player-effects.js";
-import { buildMatchLayout, getSquadSpawnZone } from "./match-layout.js";
+import { buildMatchLayout, getSquadSpawnZone, isPointInsideObstacle } from "./match-layout.js";
 import type {
   MatchStartContext,
   RoomStateEnvelope,
@@ -348,8 +348,11 @@ export class RoomStore {
       const normalizedDirection = normalizeDirection(moveInput);
       const moveStep = (player.state.moveSpeed * tickMs / 1000) * directionMagnitude;
       player.state.direction = normalizedDirection;
-      player.state.x = clamp(player.state.x + normalizedDirection.x * moveStep, 24, MATCH_MAP_WIDTH - 24);
-      player.state.y = clamp(player.state.y + normalizedDirection.y * moveStep, 24, MATCH_MAP_HEIGHT - 24);
+      const nextX = clamp(player.state.x + normalizedDirection.x * moveStep, 24, MATCH_MAP_WIDTH - 24);
+      const nextY = clamp(player.state.y + normalizedDirection.y * moveStep, 24, MATCH_MAP_HEIGHT - 24);
+      const resolved = resolveObstacleAwarePosition(room.matchLayout, player.state.x, player.state.y, nextX, nextY);
+      player.state.x = resolved.x;
+      player.state.y = resolved.y;
     }
 
     return this.toRuntimeContext(room);
@@ -562,8 +565,32 @@ function cloneLayout(layout: MatchLayout | undefined): MatchLayout {
     chestZones: layout.chestZones.map((entry) => ({ ...entry })),
     safeZones: layout.safeZones.map((entry) => ({ ...entry })),
     riverHazards: layout.riverHazards.map((entry) => ({ ...entry })),
-    safeCrossings: layout.safeCrossings.map((entry) => ({ ...entry }))
+    safeCrossings: layout.safeCrossings.map((entry) => ({ ...entry })),
+    obstacleZones: (layout.obstacleZones ?? []).map((entry) => ({ ...entry })),
+    landmarks: (layout.landmarks ?? []).map((entry) => ({ ...entry }))
   };
+}
+
+function resolveObstacleAwarePosition(
+  layout: MatchLayout | undefined,
+  currentX: number,
+  currentY: number,
+  nextX: number,
+  nextY: number
+): Vector2 {
+  if (!layout || !isPointInsideObstacle(layout, nextX, nextY, 18)) {
+    return { x: nextX, y: nextY };
+  }
+
+  if (!isPointInsideObstacle(layout, nextX, currentY, 18)) {
+    return { x: nextX, y: currentY };
+  }
+
+  if (!isPointInsideObstacle(layout, currentX, nextY, 18)) {
+    return { x: currentX, y: nextY };
+  }
+
+  return { x: currentX, y: currentY };
 }
 
 function rotateOffset(offset: { x: number; y: number }, facing: Vector2): Vector2 {
