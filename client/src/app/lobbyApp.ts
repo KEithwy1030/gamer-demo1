@@ -10,7 +10,7 @@ import type {
   RoomState,
 } from "./lobbyTypes";
 import { LobbyView } from "../ui/lobbyView";
-import { buildProfileLoadoutSnapshot } from "../profile/localProfile";
+import { buildProfileLoadoutSnapshot, type LocalProfile } from "../profile/localProfile";
 import {
   getServerProfile,
   moveServerProfileItem,
@@ -28,7 +28,7 @@ const normalizeRoomCode = (value: string) =>
 
 const createInitialState = (options: LobbyRuntimeOptions): LobbyState => ({
   screen: "lobby",
-  activeTab: "hall",
+  activeTab: resolveInitialActiveTab(options),
   playerName: options.profile.displayName,
   roomCodeInput: "",
   currentRoom: null,
@@ -39,6 +39,17 @@ const createInitialState = (options: LobbyRuntimeOptions): LobbyState => ({
   profile: options.profile,
   ...options.initialState,
 });
+
+function resolveInitialActiveTab(options: LobbyRuntimeOptions): LobbyState["activeTab"] {
+  if (options.initialState?.activeTab) {
+    return options.initialState.activeTab;
+  }
+  return shouldOpenStashByDefault(options.profile) ? "stash" : "hall";
+}
+
+function shouldOpenStashByDefault(profile: LocalProfile): boolean {
+  return (profile.pendingReturn?.items.length ?? 0) > 0 || profile.lastRun?.result === "success";
+}
 
 export class LobbyApp {
   private readonly root: HTMLElement;

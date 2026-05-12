@@ -113,8 +113,13 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
   function renderAll(): void {
     const listedItemIds = new Set(listings.map((listing) => listing.item.instanceId));
     const available = candidates.filter((item) => !listedItemIds.has(item.instanceId));
-    if (selectedItemId && !available.some((item) => item.instanceId === selectedItemId)) {
-      selectedItemId = null;
+    const hasSelectedItem = selectedItemId
+      ? available.some((item) => item.instanceId === selectedItemId)
+      : false;
+    if (!hasSelectedItem) {
+      const nextSelection = available[0] ?? null;
+      selectedItemId = nextSelection?.instanceId ?? null;
+      priceInput.value = nextSelection ? String(suggestPrice(nextSelection)) : "";
     }
 
     sourceList.replaceChildren(...renderCandidateRows(available));
@@ -147,6 +152,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
       selectedMeta.textContent = "从左侧选择一件物资";
       selectedStats.replaceChildren();
       createButton.disabled = true;
+      priceInput.value = "";
       return;
     }
 
@@ -237,11 +243,19 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
 
 function collectMarketCandidates(profile: LocalProfile): LocalProfileItem[] {
   const byId = new Map<string, LocalProfileItem>();
-  for (const item of profile.pendingReturn?.items ?? []) byId.set(item.instanceId, item);
-  for (const item of profile.inventory.items) byId.set(item.instanceId, item);
-  for (const item of Object.values(profile.equipment)) if (item) byId.set(item.instanceId, item);
+  for (const item of profile.pendingReturn?.items ?? []) {
+    if (!byId.has(item.instanceId)) byId.set(item.instanceId, item);
+  }
+  for (const item of profile.inventory.items) {
+    if (!byId.has(item.instanceId)) byId.set(item.instanceId, item);
+  }
+  for (const item of Object.values(profile.equipment)) {
+    if (item && !byId.has(item.instanceId)) byId.set(item.instanceId, item);
+  }
   for (const page of profile.stash.pages) {
-    for (const item of page.items) byId.set(item.instanceId, item);
+    for (const item of page.items) {
+      if (!byId.has(item.instanceId)) byId.set(item.instanceId, item);
+    }
   }
   return [...byId.values()];
 }

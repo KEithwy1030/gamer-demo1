@@ -395,6 +395,7 @@ export class LobbyView {
     });
 
     this.setActiveTab(state.activeTab);
+    this.updateNavIndicators(state);
     this.stashView.render(state.profile);
     this.marketView.render(state.profile);
 
@@ -510,8 +511,18 @@ export class LobbyView {
   private createNavButton(label: string, tab: LobbyTab): HTMLButtonElement {
     const button = createElement("button", "nav-item", label) as HTMLButtonElement;
     button.type = "button";
+    button.dataset.baseLabel = label;
     button.addEventListener("click", () => this.callbacks.onTabChange(tab));
     return button;
+  }
+
+  private updateNavIndicators(state: LobbyState): void {
+    const pendingCount = state.profile.pendingReturn?.items.length ?? 0;
+    const stashButton = this.tabButtons.stash;
+    const baseLabel = stashButton.dataset.baseLabel ?? "行囊";
+    stashButton.textContent = pendingCount > 0 ? `${baseLabel} (${pendingCount})` : baseLabel;
+    stashButton.classList.toggle("has-pending", pendingCount > 0);
+    stashButton.setAttribute("aria-label", pendingCount > 0 ? `${baseLabel}，${pendingCount} 件待整理` : baseLabel);
   }
 
   private setActiveTab(nextTab: LobbyTab): void {
