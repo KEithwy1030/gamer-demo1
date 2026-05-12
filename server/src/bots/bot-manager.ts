@@ -250,7 +250,6 @@ function tryBotScavenge(
   if (chest) {
     try {
       const { loot } = openChest(context.room, bot.id, chest.id, bot.state.x, bot.state.y);
-      botInventoryService.addItemsToInventory(context.room, bot.id, loot);
       result.chestOpenedEvents.push({
         chestId: chest.id,
         playerId: bot.id,

@@ -29,6 +29,7 @@
     "validate:inventory-drag-contract": "tsx scripts/validate-inventory-drag-contract.ts",
     "validate:profile-drag-contract": "tsx scripts/validate-profile-drag-contract.ts",
     "validate:inventory-drag-ui": "tsx scripts/validate-inventory-drag-ui.ts",
+    "validate:chest-contract": "tsx scripts/validate-chest-contract.ts",
     "validate:visual-clarity": "tsx scripts/validate-visual-clarity.ts",
     "validate:hud-ui": "tsx scripts/validate-hud-ui.ts",
     "validate:mobile-controls-contract": "tsx scripts/validate-mobile-controls-contract.ts",

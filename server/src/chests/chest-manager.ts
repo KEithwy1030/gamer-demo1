@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
-import { buildInventoryItem } from "../loot/loot-manager.js";
-import type { Chest, InventoryItem, RuntimeRoom } from "../types.js";
+import { buildInventoryItem, ensureDropState } from "../loot/loot-manager.js";
+import type { Chest, DropState, InventoryItem, RuntimeRoom } from "../types.js";
 
 const STARTER_LOOT_TEMPLATES = [
   "armor_hands_common",
@@ -97,10 +97,19 @@ export function openChest(
   chestId: string,
   playerX: number,
   playerY: number
-): { chest: Chest; loot: InventoryItem[] } {
+): { chest: Chest; loot: InventoryItem[]; spawnedDrops: DropState[] } {
   const chest = room.chests?.get(chestId);
   if (!chest) {
     throw new Error("Chest not found.");
+  }
+
+  const player = room.players.get(playerId);
+  if (!player?.state) {
+    throw new Error("Player is not active in the current match.");
+  }
+
+  if (!player.state.isAlive) {
+    throw new Error("Dead players cannot open chests.");
   }
 
   if (chest.isOpen) {
@@ -118,8 +127,36 @@ export function openChest(
     modifiers: item.modifiers ? { ...item.modifiers } : undefined,
     affixes: (item.affixes ?? []).map((affix) => ({ ...affix }))
   }));
+  const spawnedDrops = spawnChestDrops(room, chest, loot);
 
-  return { chest, loot };
+  return { chest, loot, spawnedDrops };
+}
+
+function spawnChestDrops(room: RuntimeRoom, chest: Chest, loot: InventoryItem[]): DropState[] {
+  const dropState = ensureDropState(room);
+  const drops: DropState[] = [];
+
+  loot.forEach((item, index) => {
+    const angle = (Math.PI * 2 * index) / Math.max(loot.length, 1);
+    const radius = 34 + (index % 2) * 18;
+    const drop: DropState = {
+      id: `drop_${crypto.randomUUID()}`,
+      item: {
+        ...item,
+        modifiers: item.modifiers ? { ...item.modifiers } : undefined,
+        affixes: (item.affixes ?? []).map((affix) => ({ ...affix }))
+      },
+      x: Math.round(chest.x + Math.cos(angle) * radius),
+      y: Math.round(chest.y + Math.sin(angle) * radius),
+      source: "spawn",
+      createdAt: Date.now()
+    };
+
+    dropState.set(drop.id, drop);
+    drops.push(drop);
+  });
+
+  return drops;
 }
 
 function pickWeighted<T extends { weight: number }>(entries: T[]): T {

@@ -979,8 +979,6 @@ function attachRoomHandlers(socket: GameSocket): void {
         player.state.y
       );
 
-      const inventoryUpdate = inventoryService.addItemsToInventory(context.room, session.playerId, loot);
-
       const chestOpenedPayload: ChestOpenedPayload = {
         chestId: payload.chestId,
         playerId: session.playerId,
@@ -988,7 +986,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       };
 
       io.to(roomCode).emit(SocketEvent.ChestOpened, chestOpenedPayload);
-      io.to(socket.id).emit(SocketEvent.InventoryUpdate, inventoryUpdate);
+      io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to open chest.");
     }
