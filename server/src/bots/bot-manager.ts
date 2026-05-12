@@ -1,5 +1,5 @@
 import type { AttackRequestPayload, BotDifficulty, CombatEventPayload, SkillCastPayload, Vector2 } from "@gamer/shared";
-import { openChest } from "../chests/chest-manager.js";
+import { startChestOpening } from "../chests/chest-manager.js";
 import { startPlayerExtract } from "../extract/index.js";
 import { InventoryService } from "../inventory/service.js";
 import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "../internal-constants.js";
@@ -249,12 +249,7 @@ function tryBotScavenge(
 
   if (chest) {
     try {
-      const { loot } = openChest(context.room, bot.id, chest.id, bot.state.x, bot.state.y);
-      result.chestOpenedEvents.push({
-        chestId: chest.id,
-        playerId: bot.id,
-        loot
-      });
+      startChestOpening(context.room, bot.id, chest.id);
       result.playerStateChanged = true;
       return true;
     } catch {

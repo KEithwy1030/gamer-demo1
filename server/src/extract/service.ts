@@ -225,7 +225,9 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
       const settlement = settlePlayer(room, player, {
         now,
         result: "failure",
-        reason: player.deathReason === "corpseFog" ? "corpseFog" : "killed"
+        reason: player.deathReason === "corpseFog" || player.deathReason === "riverHazard"
+          ? player.deathReason
+          : "killed"
       });
       if (settlement) {
         settlementEvents.push(settlement);

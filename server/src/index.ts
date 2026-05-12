@@ -52,7 +52,13 @@ import {
 import { RoomStore } from "./room-store.js";
 import { MarketStore } from "./market-store.js";
 import { ProfileStore } from "./profile-store.js";
-import { listChests, openChest, spawnChests } from "./chests/chest-manager.js";
+import {
+  interruptChestOpening,
+  listChests,
+  spawnChests,
+  startChestOpening,
+  tickChestOpenings
+} from "./chests/chest-manager.js";
 import { applyDevRoomPreset, resolveEnabledDevRoomPreset } from "./dev-test-hooks.js";
 import type {
   ChestOpenedPayload,
@@ -266,6 +272,7 @@ function emitExtractInterruptForCombatEvent(
   if (interruption) {
     io.to(roomCode).emit(SocketEvent.ExtractProgress, interruption);
   }
+  interruptChestOpening(room, event.targetId);
 }
 
 function applyRiverHazardTick(roomCode: string, now = Date.now()): void {
@@ -474,13 +481,17 @@ function startPlayerSyncLoop(roomCode: string): void {
       }
       const botResult = tickBots(context);
       emitBotTickResult(roomCode, botResult);
+      const chestTick = tickChestOpenings(context.room);
+      for (const event of chestTick.openedEvents) {
+        io.to(roomCode).emit(SocketEvent.ChestOpened, event);
+      }
       for (const event of botResult.chestOpenedEvents) {
         io.to(roomCode).emit(SocketEvent.ChestOpened, event);
       }
       for (const event of botResult.lootPickedEvents) {
         io.to(roomCode).emit(SocketEvent.LootPicked, event);
       }
-      if (botResult.chestOpenedEvents.length > 0 || botResult.lootPickedEvents.length > 0) {
+      if (chestTick.openedEvents.length > 0 || botResult.chestOpenedEvents.length > 0 || botResult.lootPickedEvents.length > 0) {
         io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
       }
       if (botResult.monsterStateChanged) {
@@ -971,22 +982,11 @@ function attachRoomHandlers(socket: GameSocket): void {
         throw new Error("Dead players cannot open chests.");
       }
 
-      const { loot } = openChest(
+      startChestOpening(
         context.room,
         session.playerId,
-        payload.chestId,
-        player.state.x,
-        player.state.y
+        payload.chestId
       );
-
-      const chestOpenedPayload: ChestOpenedPayload = {
-        chestId: payload.chestId,
-        playerId: session.playerId,
-        loot
-      };
-
-      io.to(roomCode).emit(SocketEvent.ChestOpened, chestOpenedPayload);
-      io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to open chest.");
     }

@@ -1,15 +1,24 @@
 import assert from "node:assert/strict";
-import { spawnChests, openChest } from "../server/src/chests/chest-manager.js";
+import {
+  CHEST_OPEN_DURATION_MS,
+  interruptChestOpening,
+  openChest,
+  spawnChests,
+  startChestOpening,
+  tickChestOpenings
+} from "../server/src/chests/chest-manager.js";
 import { buildInventoryItem } from "../server/src/loot/loot-manager.js";
-import type { InventoryEntry, RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
+import type { InventoryEntry, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
 const now = Date.now();
 
 assertSpawnChestsFromLayout();
 assertOpenChestGuardsAndWorldDrops();
+assertOpeningChannelCompletesAndInterrupts();
+assertContestedChestNoiseAggrosNearbyMonsters();
 assertFullBackpackKeepsLootAsWorldDrops();
 
-console.log("[chest-contract] PASS layout spawn, guard rails, world-drop loot, duplicate-open, full-backpack retention");
+console.log("[chest-contract] PASS layout spawn, guard rails, channel opening, interrupts, contested noise, world-drop loot, duplicate-open, full-backpack retention");
 
 function assertSpawnChestsFromLayout(): void {
   const room = createRoom();
@@ -76,6 +85,60 @@ function assertOpenChestGuardsAndWorldDrops(): void {
   assert.equal(room.drops?.size, result.loot.length, "duplicate open should not spawn additional drops");
 }
 
+function assertOpeningChannelCompletesAndInterrupts(): void {
+  const room = createRoom();
+  spawnChests(room);
+  const player = room.players.get("player-1")!;
+  const chest = room.chests!.get("starter_player")!;
+
+  startChestOpening(room, player.id, chest.id, now);
+  assert.equal(chest.isOpen, false, "startChestOpening should not open immediately");
+  assert.equal(room.drops?.size ?? 0, 0, "opening channel should not spawn drops before completion");
+  assert.ok(player.openingChest, "player should record active chest opening");
+
+  let tick = tickChestOpenings(room, now + CHEST_OPEN_DURATION_MS - 1);
+  assert.equal(tick.openedEvents.length, 0, "opening should not complete before duration");
+  assert.equal(chest.isOpen, false, "pre-duration tick should keep chest closed");
+
+  tick = tickChestOpenings(room, now + CHEST_OPEN_DURATION_MS);
+  assert.equal(tick.openedEvents.length, 1, "opening should complete after channel duration");
+  assert.equal(tick.openedEvents[0]!.chestId, chest.id, "completion event should identify chest");
+  assert.equal(chest.isOpen, true, "completion tick should open chest");
+  assert.ok((room.drops?.size ?? 0) > 0, "completion tick should spawn world drops");
+  assert.equal(player.openingChest, undefined, "completion tick should clear opening state");
+
+  const interruptRoom = createRoom();
+  spawnChests(interruptRoom);
+  const interruptPlayer = interruptRoom.players.get("player-1")!;
+  const interruptChest = interruptRoom.chests!.get("starter_player")!;
+  startChestOpening(interruptRoom, interruptPlayer.id, interruptChest.id, now);
+  interruptPlayer.state!.x += 40;
+  tick = tickChestOpenings(interruptRoom, now + CHEST_OPEN_DURATION_MS);
+  assert.equal(tick.openedEvents.length, 0, "moving during opening should not complete chest");
+  assert.equal(tick.interruptedPlayerIds.includes(interruptPlayer.id), true, "moving should report interrupted opener");
+  assert.equal(interruptChest.isOpen, false, "interrupted chest should remain closed");
+  assert.equal(interruptRoom.drops?.size ?? 0, 0, "interrupted chest should not spawn drops");
+
+  startChestOpening(interruptRoom, interruptPlayer.id, interruptChest.id, now);
+  assert.equal(interruptPlayer.openingChest?.chestId, interruptChest.id, "restarting after movement interrupt should be allowed");
+  interruptChestOpening(interruptRoom, interruptPlayer.id);
+  assert.equal(interruptPlayer.openingChest, undefined, "damage/manual interrupt should clear opening state");
+}
+
+function assertContestedChestNoiseAggrosNearbyMonsters(): void {
+  const room = createRoom();
+  spawnChests(room);
+  const player = room.players.get("player-1")!;
+  const chest = room.chests!.get("contested_center")!;
+  player.state!.x = chest.x;
+  player.state!.y = chest.y;
+  const monster = createMonster("elite-near", chest.x + 120, chest.y);
+  room.monsters = new Map([[monster.id, monster]]);
+
+  openChest(room, player.id, chest.id, chest.x, chest.y);
+  assert.equal(room.monsters.get(monster.id)?.targetPlayerId, player.id, "contested chest noise should aggro nearby elite");
+}
+
 function assertFullBackpackKeepsLootAsWorldDrops(): void {
   const room = createRoom();
   spawnChests(room);
@@ -121,8 +184,10 @@ function createRoom(): RuntimeRoom {
       ],
       safeZones: [],
       riverHazards: [],
-      safeCrossings: []
-    } as NonNullable<RuntimeRoom["matchLayout"]>
+      safeCrossings: [],
+      obstacleZones: [],
+      landmarks: []
+    }
   };
 }
 
@@ -166,6 +231,39 @@ function createPlayer(id: string, x: number, y: number): RuntimePlayer {
       items: [],
       equipment: {}
     }
+  };
+}
+
+function createMonster(id: string, x: number, y: number): RuntimeMonster {
+  return {
+    id,
+    spawnId: id,
+    type: "elite",
+    x,
+    y,
+    spawnX: x,
+    spawnY: y,
+    patrolX: x,
+    patrolY: y,
+    patrolRadius: 260,
+    guardRadius: 420,
+    returnDelayMs: 1_000,
+    aggroRange: 460,
+    leashRange: 760,
+    attackRange: 50,
+    attackDamage: 18,
+    moveSpeed: 180,
+    attackCooldownMs: 900,
+    nextAttackAt: now,
+    behaviorPhase: "idle",
+    hp: 180,
+    maxHp: 180,
+    isAlive: true,
+    isEnraged: false,
+    enrageThreshold: 0.35,
+    enrageAttackDamageBonus: 6,
+    enrageMoveSpeedBonus: 35,
+    enrageCooldownMultiplier: 0.75
   };
 }
 

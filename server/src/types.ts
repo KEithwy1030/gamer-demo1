@@ -93,6 +93,14 @@ export interface Chest {
   loot: InventoryItem[];
 }
 
+export interface RuntimeChestOpeningState {
+  chestId: string;
+  startedAt: number;
+  completesAt: number;
+  startX: number;
+  startY: number;
+}
+
 export interface PlayerOpenChestPayload {
   chestId: string;
 }
@@ -311,6 +319,7 @@ export interface RuntimePlayer extends LobbyPlayer {
   extract?: RuntimePlayerExtractState;
   inventory?: InventoryState;
   moveInput?: Vector2;
+  openingChest?: RuntimeChestOpeningState;
   deathLootDropped?: boolean;
   deathReason?: SettlementPayload["reason"];
   attackCooldownEndsAt?: number;

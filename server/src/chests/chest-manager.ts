@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { buildInventoryItem, ensureDropState } from "../loot/loot-manager.js";
-import type { Chest, DropState, InventoryItem, RuntimeRoom } from "../types.js";
+import type { Chest, ChestOpenedPayload, DropState, InventoryItem, RuntimeRoom } from "../types.js";
 
 const STARTER_LOOT_TEMPLATES = [
   "armor_hands_common",
@@ -15,6 +15,10 @@ const STARTER_MIN_LOOT = 2;
 const STARTER_MAX_LOOT = 3;
 const CONTESTED_MIN_LOOT = 3;
 const CONTESTED_MAX_LOOT = 5;
+export const CHEST_OPEN_DURATION_MS = 2_000;
+const CHEST_INTERACT_RANGE = 80;
+const CHEST_OPEN_MOVE_TOLERANCE = 28;
+const CHEST_NOISE_RADIUS = 720;
 
 function pickStarterLootItem(): InventoryItem | undefined {
   const templateId = STARTER_LOOT_TEMPLATES[Math.floor(Math.random() * STARTER_LOOT_TEMPLATES.length)];
@@ -117,7 +121,7 @@ export function openChest(
   }
 
   const distance = Math.hypot(playerX - chest.x, playerY - chest.y);
-  if (distance > 80) {
+  if (distance > CHEST_INTERACT_RANGE) {
     throw new Error("Too far from the chest.");
   }
 
@@ -128,8 +132,106 @@ export function openChest(
     affixes: (item.affixes ?? []).map((affix) => ({ ...affix }))
   }));
   const spawnedDrops = spawnChestDrops(room, chest, loot);
+  alertMonstersToChestNoise(room, playerId, chest);
 
   return { chest, loot, spawnedDrops };
+}
+
+export function startChestOpening(
+  room: RuntimeRoom,
+  playerId: string,
+  chestId: string,
+  now = Date.now()
+): void {
+  const chest = room.chests?.get(chestId);
+  if (!chest) {
+    throw new Error("Chest not found.");
+  }
+
+  const player = room.players.get(playerId);
+  if (!player?.state) {
+    throw new Error("Player is not active in the current match.");
+  }
+
+  if (!player.state.isAlive) {
+    throw new Error("Dead players cannot open chests.");
+  }
+
+  if (chest.isOpen) {
+    throw new Error("Chest is already open.");
+  }
+
+  if (player.openingChest) {
+    throw new Error("Already opening a chest.");
+  }
+
+  const distance = Math.hypot(player.state.x - chest.x, player.state.y - chest.y);
+  if (distance > CHEST_INTERACT_RANGE) {
+    throw new Error("Too far from the chest.");
+  }
+
+  player.openingChest = {
+    chestId,
+    startedAt: now,
+    completesAt: now + CHEST_OPEN_DURATION_MS,
+    startX: player.state.x,
+    startY: player.state.y
+  };
+}
+
+export function interruptChestOpening(room: RuntimeRoom, playerId: string): boolean {
+  const player = room.players.get(playerId);
+  if (!player?.openingChest) {
+    return false;
+  }
+
+  player.openingChest = undefined;
+  return true;
+}
+
+export function tickChestOpenings(
+  room: RuntimeRoom,
+  now = Date.now()
+): { openedEvents: ChestOpenedPayload[]; interruptedPlayerIds: string[] } {
+  const openedEvents: ChestOpenedPayload[] = [];
+  const interruptedPlayerIds: string[] = [];
+
+  for (const player of room.players.values()) {
+    const opening = player.openingChest;
+    if (!opening) {
+      continue;
+    }
+
+    const chest = room.chests?.get(opening.chestId);
+    const state = player.state;
+    if (!chest || chest.isOpen || !state?.isAlive) {
+      player.openingChest = undefined;
+      interruptedPlayerIds.push(player.id);
+      continue;
+    }
+
+    const moved = Math.hypot(state.x - opening.startX, state.y - opening.startY);
+    const chestDistance = Math.hypot(state.x - chest.x, state.y - chest.y);
+    if (moved > CHEST_OPEN_MOVE_TOLERANCE || chestDistance > CHEST_INTERACT_RANGE) {
+      player.openingChest = undefined;
+      interruptedPlayerIds.push(player.id);
+      continue;
+    }
+
+    if (now < opening.completesAt) {
+      continue;
+    }
+
+    const { loot } = openChest(room, player.id, opening.chestId, state.x, state.y);
+    player.openingChest = undefined;
+    openedEvents.push({
+      chestId: opening.chestId,
+      playerId: player.id,
+      loot
+    });
+  }
+
+  return { openedEvents, interruptedPlayerIds };
 }
 
 function spawnChestDrops(room: RuntimeRoom, chest: Chest, loot: InventoryItem[]): DropState[] {
@@ -157,6 +259,29 @@ function spawnChestDrops(room: RuntimeRoom, chest: Chest, loot: InventoryItem[])
   });
 
   return drops;
+}
+
+function alertMonstersToChestNoise(room: RuntimeRoom, playerId: string, chest: Chest): void {
+  const layoutChest = room.matchLayout?.chestZones.find((entry) => entry.chestId === chest.id);
+  if (layoutChest?.lane !== "contested") {
+    return;
+  }
+
+  for (const monster of room.monsters?.values() ?? []) {
+    if (!monster.isAlive) {
+      continue;
+    }
+
+    const distance = Math.hypot(monster.x - chest.x, monster.y - chest.y);
+    if (distance > CHEST_NOISE_RADIUS) {
+      continue;
+    }
+
+    monster.targetPlayerId = playerId;
+    monster.lastAggroAt = Date.now();
+    monster.idleUntil = undefined;
+    monster.returningUntil = undefined;
+  }
 }
 
 function pickWeighted<T extends { weight: number }>(entries: T[]): T {

@@ -56,7 +56,7 @@ interface CombatPlayerState {
 }
 
 const NORMAL_MONSTER_COUNT = 40;
-const ELITE_MONSTER_COUNT = 3;
+const ELITE_MONSTER_COUNT = 6;
 const BOSS_MONSTER_COUNT = 1;
 const CENTER_EXCLUSION_RADIUS = 300;
 const SAFE_ZONE_EXCLUSION_RADIUS = 520;
@@ -906,19 +906,35 @@ function resolveEliteGuardPoint(
   resourcePoint: { x: number; y: number },
   index: number
 ): { x: number; y: number } {
-  for (let attempt = 0; attempt < 24; attempt += 1) {
-    const angle = ((index * 137) + attempt * 47) * (Math.PI / 180);
-    const radius = ELITE_RESOURCE_GUARD_OFFSET_PX + (attempt % 3) * 45;
-    const point = {
-      x: clamp(resourcePoint.x + Math.cos(angle) * radius, MAP_MARGIN_PX, MATCH_MAP_WIDTH - MAP_MARGIN_PX),
-      y: clamp(resourcePoint.y + Math.sin(angle) * radius, MAP_MARGIN_PX, MATCH_MAP_HEIGHT - MAP_MARGIN_PX)
-    };
-    if (isValidSpawnPoint(room, point.x, point.y)) {
-      return point;
+  const radiusSteps = [0, 80, ELITE_RESOURCE_GUARD_OFFSET_PX, 210, 285, 360, 420];
+  for (const radius of radiusSteps) {
+    for (let attempt = 0; attempt < 18; attempt += 1) {
+      const angle = ((index * 137) + attempt * 20) * (Math.PI / 180);
+      const point = {
+        x: clamp(resourcePoint.x + Math.cos(angle) * radius, MAP_MARGIN_PX, MATCH_MAP_WIDTH - MAP_MARGIN_PX),
+        y: clamp(resourcePoint.y + Math.sin(angle) * radius, MAP_MARGIN_PX, MATCH_MAP_HEIGHT - MAP_MARGIN_PX)
+      };
+      if (isValidEliteGuardPoint(room, point.x, point.y)) {
+        return point;
+      }
     }
   }
 
   return randomMidRingPoint(room);
+}
+
+function isValidEliteGuardPoint(room: RuntimeRoom, x: number, y: number): boolean {
+  const centerDistance = distanceBetween(x, y, MATCH_MAP_WIDTH / 2, MATCH_MAP_HEIGHT / 2);
+  if (centerDistance < CENTER_EXCLUSION_RADIUS) {
+    return false;
+  }
+
+  const layout = room.matchLayout;
+  if (!layout) {
+    return true;
+  }
+
+  return !isPointInsideRiverHazard(layout, x, y);
 }
 
 function resolveBossArenaPoint(room: RuntimeRoom): { x: number; y: number } {
