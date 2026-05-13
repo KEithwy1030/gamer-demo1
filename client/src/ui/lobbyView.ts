@@ -275,8 +275,8 @@ export class LobbyView {
     codeTitle.append(createElement("span", undefined, "根据代码加入"), createElement("span", "kicker", "房主分享"));
     const codeInputRow = createElement("div", "code-input-row");
     this.roomCodeInput = createElement("input", "code-input") as HTMLInputElement;
-    this.roomCodeInput.placeholder = "例如 南岭路42";
-    this.roomCodeInput.maxLength = 8;
+    this.roomCodeInput.placeholder = "例如 STONE路89";
+    this.roomCodeInput.maxLength = 16;
     this.roomCodeInput.addEventListener("input", () => this.callbacks.onRoomCodeInputChange(this.roomCodeInput.value));
     this.joinButton = createElement("button", "code-go", "加入 ▶") as HTMLButtonElement;
     this.joinButton.type = "button";

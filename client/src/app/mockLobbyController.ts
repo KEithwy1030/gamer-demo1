@@ -37,14 +37,15 @@ const normalizeRoomCode = (value: string) =>
   value
     .trim()
     .replace(/\s+/g, "")
-    .replace(/[.\uFF0E\u3002\u30FB路]/g, "·")
-    .slice(0, 8)
-    .toUpperCase();
+    .replace(/[.\uFF0E\u3002\u00B7\u30FB\u8DEF]/g, "\u8DEF")
+    .replace(/[^a-zA-Z0-9\u8DEF]/g, "")
+    .toUpperCase()
+    .slice(0, 16);
 
 const makeRoomCode = () => {
   const place = PLACE_WORDS[Math.floor(Math.random() * PLACE_WORDS.length)];
   const number = String(Math.floor(Math.random() * 100)).padStart(2, "0");
-  return `${place}·${number}`;
+  return `${place}\u8DEF${number}`;
 };
 
 const cloneRoomState = (room: MockRoom, localPlayerId: string, status: RoomState["status"] = "waiting"): RoomState => ({

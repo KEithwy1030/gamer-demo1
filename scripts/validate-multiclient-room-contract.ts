@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { io, type Socket } from "socket.io-client";
 import { SocketEvent } from "../shared/src/protocol/events.js";
 import type { RoomSummary } from "../shared/src/types/lobby.js";
@@ -11,6 +12,41 @@ main().catch((error) => {
 });
 
 async function main(): Promise<void> {
+  assertRoomCodeUxContract();
+
+  const exactRoomCode = await validateTwoClientJoin({
+    hostName: "HostExact",
+    guestName: "GuestExact",
+    joinCode: (code) => code
+  });
+  const aliasRoomCode = await validateTwoClientJoin({
+    hostName: "HostAlias",
+    guestName: "GuestAlias",
+    joinCode: (code) => code.replace(/\u8DEF/g, "\u00B7")
+  });
+
+  console.log(`[multiclient-room-contract] PASS serverUrl=${serverUrl} exact=${exactRoomCode} alias=${aliasRoomCode}`);
+}
+
+function assertRoomCodeUxContract(): void {
+  const lobbyApp = readFileSync(new URL("../client/src/app/lobbyApp.ts", import.meta.url), "utf8");
+  const mockLobbyController = readFileSync(new URL("../client/src/app/mockLobbyController.ts", import.meta.url), "utf8");
+  const lobbyView = readFileSync(new URL("../client/src/ui/lobbyView.ts", import.meta.url), "utf8");
+
+  const canonicalSeparatorRule = '.replace(/[.\\uFF0E\\u3002\\u00B7\\u30FB\\u8DEF]/g, "\\u8DEF")';
+  assert.ok(lobbyApp.includes(canonicalSeparatorRule), "browser lobby should preserve the displayed room-code separator");
+  assert.ok(mockLobbyController.includes(canonicalSeparatorRule), "mock lobby should preserve the displayed room-code separator");
+  assert.ok(lobbyApp.includes(".slice(0, 16)"), "browser lobby should not truncate current generated room codes");
+  assert.ok(mockLobbyController.includes(".slice(0, 16)"), "mock lobby should not truncate current generated room codes");
+  assert.ok(lobbyView.includes("this.roomCodeInput.maxLength = 16;"), "room-code input should allow current generated room codes");
+  assert.ok(lobbyView.includes('this.roomCodeInput.placeholder = "例如 STONE路89";'), "room-code placeholder should match server-generated format");
+}
+
+async function validateTwoClientJoin(options: {
+  hostName: string;
+  guestName: string;
+  joinCode: (code: string) => string;
+}): Promise<string> {
   const host = io(serverUrl, { transports: ["websocket"], forceNew: true, reconnection: false });
   const guest = io(serverUrl, { transports: ["websocket"], forceNew: true, reconnection: false });
 
@@ -18,29 +54,28 @@ async function main(): Promise<void> {
     await Promise.all([waitForConnect(host), waitForConnect(guest)]);
 
     const hostRoom = await emitAndWaitForRoomState(host, SocketEvent.RoomCreate, {
-      playerName: "HostContract",
+      playerName: options.hostName,
       botDifficulty: "normal"
     });
     assert.equal(hostRoom.players.length, 1, "created room should contain host");
-    assert.equal(hostRoom.players[0]!.name, "HostContract", "created room should preserve host name");
+    assert.equal(hostRoom.players[0]!.name, options.hostName, "created room should preserve host name");
 
     const hostRebroadcastPromise = waitForRoomState(host, (room) => (
-      room.code === hostRoom.code && room.players.some((player) => player.name === "GuestContract")
+      room.code === hostRoom.code && room.players.some((player) => player.name === options.guestName)
     ));
-    const browserNormalizedCode = hostRoom.code.replace(/\u8DEF/g, "\u00B7");
     const guestRoom = await emitAndWaitForRoomState(guest, SocketEvent.RoomJoin, {
-      code: browserNormalizedCode,
-      playerName: "GuestContract"
+      code: options.joinCode(hostRoom.code),
+      playerName: options.guestName
     });
     assert.equal(guestRoom.code, hostRoom.code, "guest should join the host room code");
     assert.equal(guestRoom.players.length, 2, "joined room should contain both clients");
-    assert.ok(guestRoom.players.some((player) => player.name === "HostContract"), "guest room state should include host");
-    assert.ok(guestRoom.players.some((player) => player.name === "GuestContract"), "guest room state should include guest");
+    assert.ok(guestRoom.players.some((player) => player.name === options.hostName), "guest room state should include host");
+    assert.ok(guestRoom.players.some((player) => player.name === options.guestName), "guest room state should include guest");
 
     const rebroadcastHostRoom = await hostRebroadcastPromise;
     assert.equal(rebroadcastHostRoom.players.length, 2, "host should receive guest join rebroadcast");
 
-    console.log(`[multiclient-room-contract] PASS serverUrl=${serverUrl} room=${hostRoom.code} players=${rebroadcastHostRoom.players.map((player) => player.name).join(",")}`);
+    return hostRoom.code;
   } finally {
     host.disconnect();
     guest.disconnect();
