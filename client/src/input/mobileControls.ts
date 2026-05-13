@@ -40,6 +40,7 @@ export interface MobileControlsApi {
   destroy(): void;
   getVector(): Vector2;
   setButtonState(buttonId: MobileActionButtonId, state: MobileButtonState): void;
+  setInputEnabled(enabled: boolean): void;
 }
 
 const DEFAULT_ZONE_RATIO = 0.55;
@@ -106,6 +107,7 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
   let centerX = 0;
   let centerY = 0;
   let currentVector: Vector2 = { x: 0, y: 0 };
+  let inputEnabled = true;
 
   const zoneRatio = options.zoneRatio ?? DEFAULT_ZONE_RATIO;
   const speedScale = options.speedScale ?? 1;
@@ -260,7 +262,7 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
 
   function applyButtonState(parts: ButtonParts): void {
     const remainingRatio = clamp(parts.state.cooldownRatio ?? 0, 0, 1);
-    const disabled = parts.state.disabled === true || remainingRatio > 0;
+    const disabled = !inputEnabled || parts.state.disabled === true || remainingRatio > 0;
     const remainingAngle = Math.round(remainingRatio * 360);
     const readyColor = parts.accentColor;
 
@@ -475,7 +477,7 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
       shell.remove();
     },
     getVector() {
-      return currentVector;
+      return inputEnabled ? currentVector : { x: 0, y: 0 };
     },
     setButtonState(buttonId: MobileActionButtonId, state: MobileButtonState) {
       const parts = buttons.get(buttonId);
@@ -484,6 +486,15 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
       }
       parts.state = { ...parts.state, ...state };
       applyButtonState(parts);
+    },
+    setInputEnabled(enabled: boolean) {
+      inputEnabled = enabled;
+      if (!enabled) {
+        resetJoystick();
+      }
+      for (const parts of buttons.values()) {
+        applyButtonState(parts);
+      }
     }
   };
 }

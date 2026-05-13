@@ -61,6 +61,15 @@ export interface GameSceneInitData {
   subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
 }
 
+interface SpectateHudRefs {
+  container: Phaser.GameObjects.Container;
+  background: Phaser.GameObjects.Graphics;
+  titleText: Phaser.GameObjects.Text;
+  targetText: Phaser.GameObjects.Text;
+  hintText: Phaser.GameObjects.Text;
+  cycleButton: Phaser.GameObjects.Text;
+}
+
 export class GameScene extends Phaser.Scene {
   static readonly KEY = "GameScene";
 
@@ -83,6 +92,8 @@ export class GameScene extends Phaser.Scene {
   private latestState: MatchViewState | null = null;
   private worldSignature = "";
   private followedPlayerId: string | null = null;
+  private spectateTargetId: string | null = null;
+  private spectateHud?: SpectateHudRefs;
   private extractState: ExtractUiState = {
     phase: "idle",
     isOpen: false,
@@ -114,6 +125,7 @@ export class GameScene extends Phaser.Scene {
     { endsAt: 0, durationMs: 0 }
   ];
   private localBasicAttackEndsAt = 0;
+  private pendingBasicAttackFire?: Phaser.Time.TimerEvent;
   private pendingSkillCast?: Phaser.Time.TimerEvent;
   private queuedAttack?: AttackRequestPayload;
   private chaseAssist?: ChaseAssistState;
@@ -262,8 +274,12 @@ export class GameScene extends Phaser.Scene {
     this.interactions.mount(this.subscribeChestsInit, this.subscribeChestOpened);
     this.inputBridge = new GameSceneInputBridge(this, {
       touchLayout,
-      onMoveInput: this.onMoveInput,
+      onMoveInput: (direction) => {
+        if (!this.isSelfControllable()) return;
+        this.onMoveInput?.(direction);
+      },
       onPrimaryPointerAttack: (pointer) => {
+        if (!this.isSelfControllable()) return;
         const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
         this.attackIntentTarget = { worldX: worldPoint.x, worldY: worldPoint.y };
       },
@@ -271,10 +287,15 @@ export class GameScene extends Phaser.Scene {
       onSkill: (slotIndex) => this.handleSkill(slotIndex),
       onDodge: () => this.handleDodge(),
       onPickup: () => this.handleInteract(),
-      onExtract: () => this.onStartExtract?.(),
+      onExtract: () => {
+        if (!this.isSelfControllable()) return;
+        this.onStartExtract?.();
+      },
       onInventory: () => this.handleToggleInventory()
     });
     this.inputBridge.mount();
+    this.mountSpectateHud();
+    this.input.keyboard?.on("keydown", this.handleSpectateKeydown);
 
     this.unsubscribeRuntime = this.runtime.subscribe((state) => {
       this.latestState = state;
@@ -298,10 +319,14 @@ export class GameScene extends Phaser.Scene {
         skillCooldowns: this.localSkillCooldowns
       });
       this.inputBridge?.syncMobileButtons(this.localSkillCooldowns);
+      this.syncSpectateState();
     });
   }
 
   private handleAttack(): void {
+    if (!this.isSelfControllable()) {
+      return;
+    }
     const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
     if (!self) return;
 
@@ -333,6 +358,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleSkill(slotIndex = 0): void {
+    if (!this.isSelfControllable()) {
+      return;
+    }
     const sid = resolveSkillBySlot(this.latestState, slotIndex);
     if (!sid) return;
 
@@ -357,6 +385,10 @@ export class GameScene extends Phaser.Scene {
 
     if (windupMs > 0) {
       this.pendingSkillCast = this.time.delayedCall(windupMs, () => {
+        if (!this.isSelfControllable()) {
+          this.pendingSkillCast = undefined;
+          return;
+        }
         const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
         const castDirection = this.inputBridge?.getLastFacingDirection() ?? direction;
         if (self) this.playerMarkers.get(self.id)?.playAction("skill", castDirection);
@@ -389,13 +421,22 @@ export class GameScene extends Phaser.Scene {
     this.lastLocalAttackTargetId = attackPayload.targetId;
 
     this.playerMarkers.get(self.id)?.playAction("attack", direction);
-    this.time.delayedCall(cadence.startupMs, () => {
+    this.pendingBasicAttackFire?.remove(false);
+    this.pendingBasicAttackFire = this.time.delayedCall(cadence.startupMs, () => {
+      if (!this.isSelfControllable()) {
+        this.pendingBasicAttackFire = undefined;
+        return;
+      }
       this.feedbackFx?.playLocalAttack(this.latestState, direction);
       this.onAttack?.(attackPayload);
+      this.pendingBasicAttackFire = undefined;
     });
   }
 
   private handleDodge(): void {
+    if (!this.isSelfControllable()) {
+      return;
+    }
     const now = Date.now();
     const cooldownMs = getPrimarySkillCooldownMs("common_dodge");
     if (now < this.localSkillWindupEndsAt || now < this.localSkillCooldowns[3].endsAt) return;
@@ -414,11 +455,289 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleInteract(): void {
+    if (!this.isSelfControllable()) {
+      return;
+    }
     this.interactions?.handleInteract(this.onOpenChest, this.onPickup);
   }
 
   private handleToggleInventory(): void {
+    if (!this.isSelfControllable()) {
+      return;
+    }
     this.onToggleInventory?.();
+  }
+
+  private readonly handleSpectateKeydown = (event: KeyboardEvent): void => {
+    if (!this.latestState || this.isSelfControllable()) {
+      return;
+    }
+
+    if (event.key === "[" || event.code === "BracketLeft") {
+      event.preventDefault();
+      this.shiftSpectateTarget(-1);
+    } else if (event.key === "]" || event.code === "BracketRight") {
+      event.preventDefault();
+      this.shiftSpectateTarget(1);
+    }
+  };
+
+  private readonly handleSpectateButtonClick = (): void => {
+    this.shiftSpectateTarget(1);
+  };
+
+  private isSelfControllable(): boolean {
+    return this.getSelfPlayer()?.isAlive === true;
+  }
+
+  private getSelfPlayer(state: MatchViewState | null = this.latestState): MatchViewState["players"][number] | undefined {
+    if (!state?.selfPlayerId) {
+      return undefined;
+    }
+
+    return state.players.find((player) => player.id === state.selfPlayerId);
+  }
+
+  private syncSpectateState(): void {
+    const state = this.latestState;
+    if (!state) {
+      return;
+    }
+
+    const self = this.getSelfPlayer(state);
+    if (self?.isAlive) {
+      this.inputBridge?.setInputEnabled(true);
+      this.spectateTargetId = null;
+      this.hideSpectateHud();
+      this.followPlayer(self);
+      this.updateInteractionPrompts(self, true);
+      return;
+    }
+
+    this.clearDeadCombatState();
+    this.inputBridge?.setInputEnabled(false);
+    const target = this.resolveSpectateTarget(state);
+    this.followPlayer(target);
+    this.updateInteractionPrompts(self, false);
+    this.showSpectateHud(state, target, self);
+  }
+
+  private updateInteractionPrompts(player: MatchViewState["players"][number] | undefined, allowInteract: boolean): void {
+    if (!allowInteract) {
+      this.interactions?.hidePrompt();
+      return;
+    }
+
+    if (!player) {
+      this.interactions?.hidePrompt();
+      return;
+    }
+
+    this.interactions?.updateChestPrompt(this.playerMarkers.get(player.id));
+    this.interactions?.updateAutoExtract(this.playerMarkers.get(player.id), this.extractState, this.onStartExtract);
+  }
+
+  private resolveSpectateTarget(state: MatchViewState): MatchViewState["players"][number] | undefined {
+    const self = this.getSelfPlayer(state);
+    const squadPlayers = this.getSpectateCandidates(state, self);
+    if (squadPlayers.length === 0) {
+      return undefined;
+    }
+
+    const aliveCandidates = squadPlayers.filter((player) => player.isAlive);
+    const candidates = aliveCandidates.length > 0 ? aliveCandidates : squadPlayers;
+    const preferred = this.spectateTargetId
+      ? candidates.find((player) => player.id === this.spectateTargetId)
+      : undefined;
+    const target = preferred ?? candidates.find((player) => player.id === self?.id) ?? candidates[0];
+    this.spectateTargetId = target?.id ?? null;
+    return target;
+  }
+
+  private getSpectateCandidates(
+    state: MatchViewState,
+    self?: MatchViewState["players"][number]
+  ): MatchViewState["players"] {
+    if (!self) {
+      return [];
+    }
+
+    const sameSquad = state.players.filter((player) => player.squadId === self.squadId);
+    const aliveSameSquad = sameSquad.filter((player) => player.isAlive);
+    return aliveSameSquad.length > 0 ? aliveSameSquad : sameSquad;
+  }
+
+  private shiftSpectateTarget(step: number): void {
+    const state = this.latestState;
+    if (!state) {
+      return;
+    }
+
+    const self = this.getSelfPlayer(state);
+    if (!self || self.isAlive) {
+      return;
+    }
+
+    const candidates = this.getSpectateCandidates(state, self);
+    if (candidates.length === 0) {
+      return;
+    }
+
+    const currentTarget = this.resolveSpectateTarget(state);
+    const currentIndex = currentTarget ? candidates.findIndex((player) => player.id === currentTarget.id) : -1;
+    const nextIndex = (currentIndex + step + candidates.length) % candidates.length;
+    this.spectateTargetId = candidates[nextIndex]?.id ?? null;
+    this.syncSpectateState();
+  }
+
+  private clearDeadCombatState(): void {
+    this.pendingBasicAttackFire?.remove(false);
+    this.pendingBasicAttackFire = undefined;
+    this.pendingSkillCast?.remove(false);
+    this.pendingSkillCast = undefined;
+    this.queuedAttack = undefined;
+    this.chaseAssist = undefined;
+    this.attackIntentTarget = undefined;
+    this.localBasicAttackEndsAt = 0;
+    this.lastLocalAttackTargetId = undefined;
+    this.inputBridge?.setFacingLockDirection(undefined);
+    this.inputBridge?.setAssistMoveOverride(undefined);
+  }
+
+  private followPlayer(player: MatchViewState["players"][number] | undefined): void {
+    if (!player) {
+      return;
+    }
+
+    const marker = this.playerMarkers.get(player.id);
+    if (!marker) {
+      return;
+    }
+
+    if (this.followedPlayerId !== player.id) {
+      this.cameras.main.startFollow(marker.root, true, 0.12, 0.12);
+      this.followedPlayerId = player.id;
+    }
+  }
+
+  private mountSpectateHud(): void {
+    if (this.spectateHud) {
+      return;
+    }
+
+    const container = this.add.container(0, 0).setScrollFactor(0).setDepth(10040).setVisible(false);
+    const background = this.add.graphics();
+    const titleText = this.add.text(0, 0, "你已阵亡", {
+      fontFamily: "monospace",
+      fontSize: "13px",
+      color: "#f7e5c5"
+    });
+    const targetText = this.add.text(0, 0, "正在观看：--", {
+      fontFamily: "monospace",
+      fontSize: "15px",
+      color: "#ffe8b0",
+      wordWrap: { width: 300, useAdvancedWrap: true }
+    });
+    const hintText = this.add.text(0, 0, "[ / ] 切换同队目标", {
+      fontFamily: "monospace",
+      fontSize: "11px",
+      color: "#b9d8df"
+    });
+    const cycleButton = this.add.text(0, 0, "切换队友", {
+      fontFamily: "monospace",
+      fontSize: "12px",
+      color: "#f9efdc",
+      backgroundColor: "rgba(40, 28, 18, 0.9)",
+      padding: { x: 10, y: 6 }
+    }).setInteractive({ useHandCursor: true });
+    cycleButton.on("pointerdown", this.handleSpectateButtonClick);
+
+    container.add([background, titleText, targetText, hintText, cycleButton]);
+    this.spectateHud = {
+      container,
+      background,
+      titleText,
+      targetText,
+      hintText,
+      cycleButton
+    };
+    this.layoutSpectateHud(this.scale.width);
+  }
+
+  private layoutSpectateHud(width: number): void {
+    if (!this.spectateHud) {
+      return;
+    }
+
+    const panelWidth = Math.min(540, width - 24);
+    const panelHeight = 74;
+    const x = width / 2;
+    const y = 18;
+    const left = -panelWidth / 2;
+    const right = panelWidth / 2;
+
+    this.spectateHud.container.setPosition(x, y).setVisible(true);
+    this.spectateHud.background.clear();
+    this.spectateHud.background.fillStyle(0x120d0a, 0.9);
+    this.spectateHud.background.fillRoundedRect(left, 0, panelWidth, panelHeight, 10);
+    this.spectateHud.background.lineStyle(2, 0x5f7e86, 0.7);
+    this.spectateHud.background.strokeRoundedRect(left, 0, panelWidth, panelHeight, 10);
+
+    this.spectateHud.titleText
+      .setPosition(left + 14, 10)
+      .setFontSize("13px");
+    this.spectateHud.targetText
+      .setPosition(left + 14, 26)
+      .setWordWrapWidth(Math.max(180, panelWidth - 160))
+      .setFontSize("15px");
+    this.spectateHud.hintText
+      .setPosition(left + 14, 50)
+      .setFontSize("11px");
+    this.spectateHud.cycleButton
+      .setPosition(right - 14, 23)
+      .setOrigin(1, 0)
+      .setFontSize("12px");
+  }
+
+  private showSpectateHud(
+    state: MatchViewState,
+    target: MatchViewState["players"][number] | undefined,
+    self: MatchViewState["players"][number] | undefined
+  ): void {
+    this.mountSpectateHud();
+    if (!this.spectateHud) {
+      return;
+    }
+
+    const targetLabel = target
+      ? target.id === self?.id
+        ? "正在观看：自己的尸体"
+        : `正在观看：队友 ${target.name}${target.isAlive ? "" : "（阵亡）"}`
+      : "正在观看：暂无同队目标";
+    this.spectateHud.container.setVisible(true);
+    this.spectateHud.titleText.setText("你已阵亡");
+    this.spectateHud.targetText.setText(targetLabel);
+    this.spectateHud.hintText.setText(this.getSpectateHintLabel(state));
+    this.layoutSpectateHud(this.scale.width);
+  }
+
+  private hideSpectateHud(): void {
+    this.spectateHud?.container.setVisible(false);
+  }
+
+  private destroySpectateHud(): void {
+    this.spectateHud?.container.destroy(true);
+    this.spectateHud = undefined;
+  }
+
+  private getSpectateHintLabel(state: MatchViewState): string {
+    const self = this.getSelfPlayer(state);
+    const squadPlayers = this.getSpectateCandidates(state, self);
+    if (squadPlayers.length <= 1) {
+      return "[ / ] 暂无可切换目标";
+    }
+
+    return "[ / ] 切换同队目标";
   }
 
   update(time: number, delta: number): void {
@@ -444,21 +763,9 @@ export class GameScene extends Phaser.Scene {
         skillCooldowns: this.localSkillCooldowns
       });
       this.inputBridge?.syncMobileButtons(this.localSkillCooldowns);
+      this.syncSpectateState();
     }
     this.hudOverlay?.pinToCamera();
-
-    const sid = this.latestState?.selfPlayerId;
-    if (sid) {
-      const sm = this.playerMarkers.get(sid);
-      if (sm) {
-        if (this.followedPlayerId !== sid) {
-          this.cameras.main.startFollow(sm.root, true, 0.12, 0.12);
-          this.followedPlayerId = sid;
-        }
-        this.interactions?.updateChestPrompt(sm);
-        this.interactions?.updateAutoExtract(sm, this.extractState, this.onStartExtract);
-      }
-    }
   }
 
   setExtractState(s: ExtractUiState): void {
@@ -478,6 +785,7 @@ export class GameScene extends Phaser.Scene {
 
   shutdown(): void {
     this.unsubscribeRuntime?.();
+    this.input.keyboard?.off("keydown", this.handleSpectateKeydown);
     this.interactions?.destroy();
     this.interactions = undefined;
     this.inputBridge?.destroy();
@@ -488,9 +796,11 @@ export class GameScene extends Phaser.Scene {
     this.monsterSkillFx = undefined;
     this.lockAssistFeedback?.destroy();
     this.lockAssistFeedback = undefined;
+    this.destroySpectateHud();
     this.localBasicAttackEndsAt = 0;
     this.queuedAttack = undefined;
     this.chaseAssist = undefined;
+    this.spectateTargetId = null;
     this.corpseFogImage?.destroy();
     this.corpseFogImage = undefined;
     this.corpseFogTexture?.destroy();

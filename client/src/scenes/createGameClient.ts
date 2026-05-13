@@ -42,6 +42,7 @@ export interface GameClientControllerOptions extends GameSocketClientOptions {
 export interface GameClientController {
   readonly network: GameSocketClient;
   mount(): void;
+  syncViewport(): void;
   connect(): void;
   disconnect(): void;
   destroy(): void;
@@ -73,10 +74,13 @@ export function createGameClientController(
 
   let game: Phaser.Game | null = null;
   let extractState = createInitialExtractState();
+  let releaseViewportSync: (() => void) | null = null;
+  let viewportSyncFrame = 0;
 
   const controller: GameClientController = {
     network,
     mount,
+    syncViewport: syncGameViewport,
     connect: () => network.connect(),
     disconnect: () => network.disconnect(),
     destroy,
@@ -173,7 +177,6 @@ export function createGameClientController(
   };
 
   subscriptions.push(
-    network.onMatchStarted((payload) => controller.enterMatch(payload)),
     network.onPlayersState((players) => controller.applyPlayers(players)),
     network.onMonstersState((monsters) => controller.applyMonsters(monsters)),
     network.onDropsState((drops) => controller.applyDrops(drops)),
@@ -270,6 +273,7 @@ export function createGameClientController(
         autoCenter: Phaser.Scale.CENTER_BOTH
       }
     });
+    ensureViewportSync();
     applySmoothTextureSampling(game);
     game.scene.start(GameScene.KEY, {
       runtime,
@@ -292,12 +296,15 @@ export function createGameClientController(
       subscribeChestsInit: (cb: any) => network.onChestsInit(cb),
       subscribeChestOpened: (cb: any) => network.onChestOpened(cb)
     });
+    syncGameViewport();
   }
 
   function destroy(): void {
     for (const unsubscribe of subscriptions) unsubscribe();
     audio.destroy();
     network.destroy();
+    releaseViewportSync?.();
+    releaseViewportSync = null;
     if (game) {
       game.destroy(true);
       game = null;
@@ -311,8 +318,68 @@ export function createGameClientController(
   }
 
   function syncGameViewport(): void {
-    return;
+    if (!game) {
+      return;
+    }
+
+    const parent = resolveParentElement(options.parent);
+    if (parent) {
+      parent.style.width = `${GAME_VIEW_WIDTH}px`;
+      parent.style.height = `${GAME_VIEW_HEIGHT}px`;
+      parent.style.minHeight = `${GAME_VIEW_HEIGHT}px`;
+    }
+
+    const canvas = game.canvas;
+    canvas.style.display = "block";
+    canvas.style.position = "absolute";
+    canvas.style.inset = "0";
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+
+    game.scale.resize(GAME_VIEW_WIDTH, GAME_VIEW_HEIGHT);
+    game.scale.refresh();
   }
+
+  function ensureViewportSync(): void {
+    if (releaseViewportSync || typeof window === "undefined") {
+      return;
+    }
+
+    const requestSync = () => {
+      if (viewportSyncFrame) {
+        return;
+      }
+
+      viewportSyncFrame = window.requestAnimationFrame(() => {
+        viewportSyncFrame = 0;
+        syncGameViewport();
+      });
+    };
+
+    const viewport = window.visualViewport;
+    window.addEventListener("resize", requestSync);
+    window.addEventListener("orientationchange", requestSync);
+    viewport?.addEventListener("resize", requestSync);
+
+    releaseViewportSync = () => {
+      if (viewportSyncFrame) {
+        window.cancelAnimationFrame(viewportSyncFrame);
+        viewportSyncFrame = 0;
+      }
+
+      window.removeEventListener("resize", requestSync);
+      window.removeEventListener("orientationchange", requestSync);
+      viewport?.removeEventListener("resize", requestSync);
+    };
+  }
+}
+
+function resolveParentElement(parent: HTMLElement | string): HTMLElement | null {
+  if (typeof parent !== "string") {
+    return parent;
+  }
+
+  return document.querySelector<HTMLElement>(parent);
 }
 
 function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryState {

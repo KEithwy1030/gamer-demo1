@@ -221,17 +221,6 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
       if (interruption) {
         progressEvents.push(interruption);
       }
-
-      const settlement = settlePlayer(room, player, {
-        now,
-        result: "failure",
-        reason: player.deathReason === "corpseFog" || player.deathReason === "riverHazard"
-          ? player.deathReason
-          : "killed"
-      });
-      if (settlement) {
-        settlementEvents.push(settlement);
-      }
       continue;
     }
 
@@ -260,6 +249,22 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
     const success = settleSquadExtraction(room, player, zone, now);
     successEvents.push(...success.successEvents);
     settlementEvents.push(...success.settlementEvents);
+  }
+
+  if (shouldFailureSettleUnsettledHumans(room)) {
+    for (const player of getUnsettledHumanPlayers(room)) {
+      const settlement = settlePlayer(room, player, {
+        now,
+        result: "failure",
+        reason: player.deathReason === "corpseFog" || player.deathReason === "riverHazard"
+          ? player.deathReason
+          : "killed"
+      });
+      if (settlement) {
+        settlementEvents.push(settlement);
+      }
+    }
+    room.extract!.matchEndedAt = now;
   }
 
   const shouldCloseRoom = room.extract!.matchEndedAt !== undefined || areAllPlayersSettled(room);
@@ -360,6 +365,36 @@ function areAllPlayersSettled(room: RuntimeRoom): boolean {
     }
   }
   return hasPlayers;
+}
+
+function shouldFailureSettleUnsettledHumans(room: RuntimeRoom): boolean {
+  let hasUnsettledHuman = false;
+
+  for (const player of room.players.values()) {
+    if (player.isBot || player.extract?.settledAt) {
+      continue;
+    }
+
+    hasUnsettledHuman = true;
+    if (player.state?.isAlive) {
+      return false;
+    }
+  }
+
+  return hasUnsettledHuman;
+}
+
+function getUnsettledHumanPlayers(room: RuntimeRoom): RuntimePlayer[] {
+  const players: RuntimePlayer[] = [];
+  for (const player of room.players.values()) {
+    if (player.isBot || player.extract?.settledAt) {
+      continue;
+    }
+
+    players.push(player);
+  }
+
+  return players;
 }
 
 function settlePlayer(

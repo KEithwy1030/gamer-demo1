@@ -88,17 +88,34 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
   let sessionVersion = 0;
   let profile: LocalProfile = await loadServerProfile();
   let pendingLobbyInfoMessage: string | null = null;
+  let activeGameController: GameClientController | null = null;
 
-  // Handle orientation changes for mobile portrait mode
-  const handleOrientationChange = () => {
-    const isPortrait = window.innerHeight > window.innerWidth;
-    document.body.classList.toggle('portrait-mode', isPortrait);
-    document.body.classList.toggle('landscape-mode', !isPortrait);
+  const syncViewportState = () => {
+    const viewport = window.visualViewport;
+    const viewportWidth = Math.max(1, Math.round(viewport?.width ?? window.innerWidth));
+    const viewportHeight = Math.max(1, Math.round(viewport?.height ?? window.innerHeight));
+    const isPortrait = viewportHeight > viewportWidth;
+
+    document.documentElement.style.setProperty("--app-viewport-width", `${viewportWidth}px`);
+    document.documentElement.style.setProperty("--app-viewport-height", `${viewportHeight}px`);
+    document.body.classList.toggle("portrait-mode", isPortrait);
+    document.body.classList.toggle("landscape-mode", !isPortrait);
+    appRoot.style.minHeight = `${viewportHeight}px`;
   };
 
-  window.addEventListener('resize', handleOrientationChange);
-  window.addEventListener('orientationchange', handleOrientationChange);
-  handleOrientationChange(); // Initial check
+  const handleOrientationChange = () => {
+    syncViewportState();
+    activeGameController?.syncViewport();
+  };
+
+  const handleVisualViewportChange = () => {
+    handleOrientationChange();
+  };
+
+  window.addEventListener("resize", handleOrientationChange);
+  window.addEventListener("orientationchange", handleOrientationChange);
+  window.visualViewport?.addEventListener("resize", handleVisualViewportChange);
+  syncViewportState();
   clearP0BTestHooks();
 
   await createSession();
@@ -151,6 +168,9 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
 
         cleanupP0BTestHooks();
         gameController?.destroy();
+        if (activeGameController === gameController) {
+          activeGameController = null;
+        }
         gameController = null;
         gameScaler.destroy();
         inventoryPanel.destroy();
@@ -226,6 +246,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
         toggleInventoryPanel();
       }
     });
+    activeGameController = gameController;
     cleanupP0BTestHooks = installP0BTestHooks(gameController);
 
     const lobbyController = createNetworkLobbyController(
@@ -236,11 +257,19 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
         setInventoryAvailable(true);
         lobbyRoot.hidden = true;
         gameRoot.hidden = false;
+        syncViewportState();
+        gameScaler.refresh();
         
         // Stop lobby background animations
         lobbyApp?.destroy();
         
         gameController?.enterMatch(payload);
+        gameController?.syncViewport();
+        window.requestAnimationFrame(() => {
+          syncViewportState();
+          gameScaler.refresh();
+          gameController?.syncViewport();
+        });
       }
     );
 

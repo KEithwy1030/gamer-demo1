@@ -1,5 +1,61 @@
+@media screen and (max-width: 768px) {
+  html,
+  body,
+  #app {
+    min-height: var(--app-viewport-height, 100dvh);
+  }
+
+  .game-scale-frame {
+    width: var(--app-viewport-width, 100vw);
+    height: var(--app-viewport-height, 100dvh);
+    min-height: var(--app-viewport-height, 100dvh);
+  }
+}
+
 /* Mobile portrait mode enhancements */
 @media screen and (max-width: 768px) and (orientation: portrait) {
+  body.portrait-mode::before,
+  body.portrait-mode::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  body.portrait-mode .game-scale-frame::before {
+    content: "Rotate to landscape";
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: 16px;
+    z-index: 5000;
+    padding: 10px 14px;
+    border: 1px solid rgba(232, 96, 44, 0.68);
+    border-radius: 10px;
+    background: rgba(14, 11, 8, 0.84);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+    color: #f4ebd4;
+    font: 700 14px/1.35 "Noto Sans SC", system-ui, sans-serif;
+    letter-spacing: 0.06em;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  body.portrait-mode .game-scale-frame::after {
+    content: "Battle stays visible; landscape gives you more room to play.";
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    z-index: 5000;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(7, 10, 16, 0.68);
+    color: #cfc6b2;
+    font: 12px/1.4 "Noto Sans SC", system-ui, sans-serif;
+    letter-spacing: 0.02em;
+    text-align: center;
+    pointer-events: none;
+  }
+
   body.portrait-mode::before {
     content: "请横屏游玩";
     position: fixed;

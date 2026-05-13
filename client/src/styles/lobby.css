@@ -126,6 +126,7 @@ button { font-family: inherit; cursor: pointer; }
   height: 720px;
   min-height: 720px;
   overflow: hidden;
+  position: relative;
 }
 
 .game-scene-root {
@@ -136,6 +137,8 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .game-scene-root canvas {
+  position: absolute !important;
+  inset: 0 !important;
   display: block;
   width: 100% !important;
   height: 100% !important;

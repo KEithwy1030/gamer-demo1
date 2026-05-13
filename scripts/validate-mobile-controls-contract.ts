@@ -28,11 +28,15 @@ assert.match(inputBridge, /onSkill:\s*this\.options\.onSkill/, "mobile skill but
 assert.match(inputBridge, /onDodge:\s*this\.options\.onDodge/, "mobile controls should wire dodge");
 assert.match(inputBridge, /onExtract:\s*this\.options\.onExtract/, "mobile controls should wire extract");
 assert.match(inputBridge, /syncMobileButtons/, "input bridge should expose mobile cooldown synchronization");
+assert.match(inputBridge, /setInputEnabled\(enabled: boolean\)/, "input bridge should expose dead-state mobile input gating");
 assert.match(gameScene, /syncMobileButtons\(this\.localSkillCooldowns\)/, "GameScene should sync mobile skill/dodge cooldowns");
+assert.match(gameScene, /handleToggleInventory\(\): void \{\s+if \(!this\.isSelfControllable\(\)\)/, "dead spectating should block inventory toggles");
+assert.match(gameScene, /this\.inputBridge\?\.setInputEnabled\(false\)/, "dead spectating should visibly disable mobile controls");
 assert.match(mobileControls, /className = "mobile-joystick"/, "mobile movement should use a fixed MOBA-style joystick shell");
 assert.match(mobileControls, /className = "mobile-action-cluster"/, "mobile actions should use a positioned ability cluster");
 assert.match(mobileControls, /borderRadius:\s*"50%"/, "mobile action buttons should be circular");
 assert.match(mobileControls, /conic-gradient\(from -90deg/, "mobile cooldowns should remain radial and readable");
+assert.match(mobileControls, /setInputEnabled\(enabled: boolean\)/, "mobile controls should allow the scene to disable all buttons while spectating");
 assert.match(mobileCss, /\.mobile-action-button--attack/, "mobile CSS should anchor primary attack separately");
 assert.match(mobileCss, /\.mobile-action-button--skill0/, "mobile CSS should place skills as a cluster instead of a flat grid");
 

@@ -108,6 +108,10 @@ export class GameSceneInteractions {
     this.interactionPrompt.setVisible(false);
   }
 
+  hidePrompt(): void {
+    this.interactionPrompt?.setVisible(false);
+  }
+
   handleInteract(onOpenChest?: (chestId: string) => void, onPickup?: () => void): void {
     if (this.interactionPrompt?.visible) {
       const chestId = this.interactionPrompt.getData("chestId");

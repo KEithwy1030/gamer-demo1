@@ -142,6 +142,17 @@ export class GameSceneInputBridge {
     this.facingLockDirection = { x: direction.x / magnitude, y: direction.y / magnitude };
   }
 
+  setInputEnabled(enabled: boolean): void {
+    this.mobileControls?.setInputEnabled(enabled);
+    if (!enabled) {
+      this.joystickVector = { x: 0, y: 0 };
+      this.currentMoveDirection = { x: 0, y: 0 };
+      this.currentManualMoveDirection = { x: 0, y: 0 };
+      this.assistMoveOverride = undefined;
+      this.facingLockDirection = undefined;
+    }
+  }
+
   syncMobileButtons(skillCooldowns: Array<{ endsAt: number; durationMs: number }>): void {
     if (!this.mobileControls) {
       return;
