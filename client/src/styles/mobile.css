@@ -49,6 +49,149 @@
   }
 }
 
+.mobile-joystick {
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.mobile-joystick.is-active {
+  opacity: 1 !important;
+}
+
+.mobile-joystick__base,
+.mobile-joystick__track,
+.mobile-joystick__knob {
+  box-sizing: border-box;
+}
+
+.mobile-joystick__base::before,
+.mobile-joystick__base::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 68%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(220, 247, 255, 0.2), transparent);
+  transform: translate(-50%, -50%);
+}
+
+.mobile-joystick__base::after {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.mobile-action-cluster {
+  isolation: isolate;
+}
+
+.mobile-action-button {
+  -webkit-tap-highlight-color: transparent;
+  position: absolute !important;
+}
+
+.mobile-action-button::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--mobile-action-color, #fff) 52%, transparent);
+  opacity: 0.52;
+  pointer-events: none;
+}
+
+.mobile-action-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 38%),
+    radial-gradient(circle at 50% 100%, color-mix(in srgb, var(--mobile-action-color, #fff) 24%, transparent), transparent 54%);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.mobile-action-button--attack {
+  right: 4px;
+  bottom: 6px;
+}
+
+.mobile-action-button--skill0 {
+  right: 78px;
+  bottom: 18px;
+}
+
+.mobile-action-button--skill1 {
+  right: 58px;
+  bottom: 88px;
+}
+
+.mobile-action-button--skill2 {
+  right: 126px;
+  bottom: 58px;
+}
+
+.mobile-action-button--dodge {
+  right: 6px;
+  bottom: 94px;
+}
+
+.mobile-action-button--pickup {
+  right: 152px;
+  bottom: 10px;
+}
+
+.mobile-action-button--extract {
+  right: 164px;
+  bottom: 64px;
+}
+
+.mobile-action-button--inventory {
+  right: 118px;
+  bottom: 116px;
+}
+
+@media screen and (max-width: 768px) and (orientation: portrait) {
+  .mobile-action-button--attack {
+    right: 2px;
+    bottom: 4px;
+  }
+
+  .mobile-action-button--skill0 {
+    right: 70px;
+    bottom: 14px;
+  }
+
+  .mobile-action-button--skill1 {
+    right: 52px;
+    bottom: 80px;
+  }
+
+  .mobile-action-button--skill2 {
+    right: 116px;
+    bottom: 52px;
+  }
+
+  .mobile-action-button--dodge {
+    right: 4px;
+    bottom: 86px;
+  }
+
+  .mobile-action-button--pickup {
+    right: 138px;
+    bottom: 8px;
+  }
+
+  .mobile-action-button--extract {
+    right: 150px;
+    bottom: 58px;
+  }
+
+  .mobile-action-button--inventory {
+    right: 108px;
+    bottom: 106px;
+  }
+}
+
 @media screen and (max-width: 768px) and (orientation: portrait) {
   /* Portrait mode specific styles */
   html, body {

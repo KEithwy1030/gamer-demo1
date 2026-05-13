@@ -43,11 +43,11 @@ export interface MobileControlsApi {
 }
 
 const DEFAULT_ZONE_RATIO = 0.55;
-const BASE_SIZE = 120;
-const KNOB_SIZE = 50;
-const MAX_RADIUS = 35;
-const DEAD_ZONE = 8;
-const EDGE_PADDING = 16;
+const BASE_SIZE = 148;
+const KNOB_SIZE = 64;
+const MAX_RADIUS = 48;
+const DEAD_ZONE = 10;
+const EDGE_PADDING = 18;
 
 function isPortraitViewport(): boolean {
   return window.innerHeight >= window.innerWidth;
@@ -98,6 +98,7 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
   const shell = document.createElement("div");
   const joystick = document.createElement("div");
   const joystickBase = document.createElement("div");
+  const joystickTrack = document.createElement("div");
   const joystickKnob = document.createElement("div");
   const actionOverlay = document.createElement("div");
 
@@ -112,24 +113,56 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
 
   const updateLayout = () => {
     const portrait = isPortraitViewport();
-    const buttonSize = portrait ? 54 : 58;
-    const gap = portrait ? 7 : 8;
+    const buttonSize = portrait ? 58 : 64;
+    const attackSize = portrait ? 70 : 78;
+    const utilitySize = portrait ? 44 : 48;
+    const actionWidth = portrait ? 206 : 236;
+    const actionHeight = portrait ? 164 : 178;
+    const actionBottom = portrait ? 22 : 20;
+    const joystickSize = portrait ? 138 : BASE_SIZE;
+    const joystickLeft = portrait ? 22 : 36;
+    const joystickBottom = portrait ? 22 : 24;
+
+    setStyles(joystick, {
+      width: `${joystickSize}px`,
+      height: `${joystickSize}px`,
+      left: `max(${joystickLeft}px, env(safe-area-inset-left))`,
+      bottom: `max(${joystickBottom}px, env(safe-area-inset-bottom))`
+    });
+
+    setStyles(joystickBase, {
+      width: `${joystickSize}px`,
+      height: `${joystickSize}px`
+    });
+
+    setStyles(joystickTrack, {
+      inset: `${Math.round(joystickSize * 0.16)}px`
+    });
+
+    setStyles(joystickKnob, {
+      left: `${(joystickSize - KNOB_SIZE) / 2}px`,
+      top: `${(joystickSize - KNOB_SIZE) / 2}px`
+    });
 
     setStyles(actionOverlay, {
       right: `max(${EDGE_PADDING}px, env(safe-area-inset-right))`,
-      bottom: `max(${EDGE_PADDING}px, env(safe-area-inset-bottom))`,
-      gap: `${gap}px`,
-      gridTemplateColumns: `repeat(4, ${buttonSize}px)`,
-      padding: "8px"
+      bottom: `max(${actionBottom}px, env(safe-area-inset-bottom))`,
+      width: `${actionWidth}px`,
+      height: `${actionHeight}px`
     });
 
-    for (const button of buttons.values()) {
+    for (const [buttonId, button] of buttons.entries()) {
+      const size = buttonId === "attack"
+        ? attackSize
+        : buttonId === "pickup" || buttonId === "extract" || buttonId === "inventory"
+          ? utilitySize
+          : buttonSize;
       setStyles(button.element, {
-        width: `${buttonSize}px`,
-        height: `${buttonSize}px`
+        width: `${size}px`,
+        height: `${size}px`
       });
       setStyles(button.label, {
-        fontSize: portrait ? "18px" : "20px"
+        fontSize: buttonId === "attack" ? (portrait ? "24px" : "27px") : (portrait ? "18px" : "20px")
       });
       setStyles(button.timer, {
         fontSize: portrait ? "11px" : "12px"
@@ -145,36 +178,23 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
   const resetJoystick = () => {
     activeTouchId = null;
     emitVector({ x: 0, y: 0 });
-    setStyles(joystick, {
-      opacity: "0",
-      visibility: "hidden"
-    });
+    joystick.classList.remove("is-active");
     setStyles(joystickKnob, {
       transform: "translate(0px, 0px)"
     });
   };
 
   const showJoystick = (touch: Touch) => {
-    const zoneMaxX = window.innerWidth * zoneRatio - BASE_SIZE / 2 - EDGE_PADDING;
-    centerX = clamp(
-      touch.clientX,
-      BASE_SIZE / 2 + EDGE_PADDING,
-      Math.max(BASE_SIZE / 2 + EDGE_PADDING, zoneMaxX)
-    );
-    centerY = clamp(
-      touch.clientY,
-      BASE_SIZE / 2 + EDGE_PADDING,
-      window.innerHeight - BASE_SIZE / 2 - EDGE_PADDING
-    );
-
-    setStyles(joystick, {
-      transform: `translate(${Math.round(centerX - BASE_SIZE / 2)}px, ${Math.round(centerY - BASE_SIZE / 2)}px)`,
-      opacity: "1",
-      visibility: "visible"
-    });
+    const rect = joystick.getBoundingClientRect();
+    centerX = rect.left + rect.width / 2;
+    centerY = rect.top + rect.height / 2;
+    joystick.classList.add("is-active");
   };
 
-  const isJoystickTouch = (touch: Touch) => touch.clientX <= window.innerWidth * zoneRatio;
+  const isJoystickTouch = (touch: Touch) => (
+    touch.clientX <= window.innerWidth * zoneRatio
+    && touch.clientY >= window.innerHeight * 0.44
+  );
 
   const handleTouchStart = (event: TouchEvent) => {
     if (activeTouchId !== null) {
@@ -242,16 +262,20 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     const remainingRatio = clamp(parts.state.cooldownRatio ?? 0, 0, 1);
     const disabled = parts.state.disabled === true || remainingRatio > 0;
     const remainingAngle = Math.round(remainingRatio * 360);
+    const readyColor = parts.accentColor;
 
     parts.label.textContent = parts.state.label ?? parts.label.textContent;
     parts.timer.textContent = parts.state.cooldownText ?? "";
     parts.timer.style.opacity = parts.timer.textContent ? "1" : "0";
     parts.element.disabled = disabled;
-    parts.element.style.opacity = disabled ? "0.92" : "1";
-    parts.element.style.filter = disabled ? "saturate(0.82)" : "none";
+    parts.element.style.opacity = disabled ? "0.86" : "1";
+    parts.element.style.filter = disabled ? "saturate(0.75) brightness(0.9)" : "none";
+    parts.element.style.setProperty("--mobile-action-color", readyColor);
+    parts.element.style.setProperty("--mobile-cooldown-angle", `${remainingAngle}deg`);
     parts.element.style.background = [
-      `conic-gradient(from -90deg, rgba(0,0,0,0.58) 0deg ${remainingAngle}deg, rgba(255,255,255,0.04) ${remainingAngle}deg 360deg)`,
-      "linear-gradient(180deg, rgba(43,37,25,0.96), rgba(14,11,8,0.94))"
+      `conic-gradient(from -90deg, rgba(6,10,16,0.78) 0deg ${remainingAngle}deg, rgba(255,255,255,0.02) ${remainingAngle}deg 360deg)`,
+      "radial-gradient(circle at 36% 24%, rgba(255,255,255,0.28), rgba(255,255,255,0.04) 26%, rgba(7,13,20,0.2) 54%)",
+      "linear-gradient(180deg, rgba(37,48,55,0.92), rgba(7,10,16,0.94))"
     ].join(", ");
   }
 
@@ -268,10 +292,13 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     button.type = "button";
     button.setAttribute("data-button-id", buttonId);
 
+    const isPrimary = buttonId === "attack";
+    const isUtility = buttonId === "pickup" || buttonId === "extract" || buttonId === "inventory";
+
     setStyles(button, {
       position: "relative",
       overflow: "hidden",
-      borderRadius: "8px",
+      borderRadius: "50%",
       border: `2px solid ${color}`,
       display: "flex",
       flexDirection: "column",
@@ -283,11 +310,24 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
       userSelect: "none",
       webkitUserSelect: "none",
       touchAction: "manipulation",
-      boxShadow: `inset 0 0 0 1px rgba(232,223,200,0.1), 0 10px 20px rgba(0,0,0,0.34), 0 0 18px ${color}33`,
+      boxShadow: [
+        `0 0 0 ${isPrimary ? 5 : isUtility ? 2 : 3}px rgba(255,255,255,0.05)`,
+        `0 0 0 ${isPrimary ? 9 : isUtility ? 5 : 6}px ${color}1c`,
+        `0 12px 28px rgba(0,0,0,0.46)`,
+        `inset 0 0 0 1px rgba(255,255,255,0.13)`,
+        `inset 0 -10px 18px rgba(0,0,0,0.34)`
+      ].join(", "),
       textShadow: `0 0 10px ${color}`,
-      letterSpacing: "0.08em",
+      letterSpacing: "0",
       transition: "transform 120ms ease, opacity 120ms ease, filter 120ms ease"
     });
+
+    button.className = [
+      "mobile-action-button",
+      `mobile-action-button--${buttonId}`,
+      isPrimary ? "mobile-action-button--primary" : "",
+      isUtility ? "mobile-action-button--utility" : ""
+    ].filter(Boolean).join(" ");
 
     setStyles(labelEl, {
       position: "relative",
@@ -349,18 +389,31 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     width: `${BASE_SIZE}px`,
     height: `${BASE_SIZE}px`,
     pointerEvents: "none",
-    opacity: "0",
-    visibility: "hidden"
+    opacity: "0.88"
   });
+  joystick.className = "mobile-joystick";
 
   setStyles(joystickBase, {
     width: `${BASE_SIZE}px`,
     height: `${BASE_SIZE}px`,
     borderRadius: "50%",
-    background: "radial-gradient(circle, rgba(232,96,44,0.16), rgba(14,11,8,0.44) 58%, rgba(14,11,8,0.1))",
-    border: "2px solid rgba(232,96,44,0.38)",
-    boxShadow: "0 0 0 1px rgba(232,223,200,0.1) inset, 0 12px 34px rgba(0,0,0,0.32)"
+    background: [
+      "radial-gradient(circle at 50% 50%, rgba(104,161,181,0.2) 0 30%, rgba(13,24,35,0.44) 31% 56%, rgba(5,9,16,0.12) 57%)",
+      "conic-gradient(from 20deg, rgba(143,222,255,0.08), rgba(255,255,255,0.18), rgba(143,222,255,0.06), rgba(255,255,255,0.16), rgba(143,222,255,0.08))"
+    ].join(", "),
+    border: "2px solid rgba(157,210,225,0.38)",
+    boxShadow: "0 0 0 1px rgba(255,255,255,0.1) inset, 0 18px 42px rgba(0,0,0,0.42), 0 0 34px rgba(83,162,190,0.16)"
   });
+  joystickBase.className = "mobile-joystick__base";
+
+  setStyles(joystickTrack, {
+    position: "absolute",
+    borderRadius: "50%",
+    border: "1px solid rgba(214,238,243,0.28)",
+    background: "radial-gradient(circle, rgba(163,215,229,0.08), rgba(5,10,16,0.24) 58%, rgba(5,10,16,0.02) 60%)",
+    boxShadow: "inset 0 0 22px rgba(63,142,177,0.18)"
+  });
+  joystickTrack.className = "mobile-joystick__track";
 
   setStyles(joystickKnob, {
     position: "absolute",
@@ -369,22 +422,25 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     width: `${KNOB_SIZE}px`,
     height: `${KNOB_SIZE}px`,
     borderRadius: "50%",
-    background: "rgba(232,223,200,0.68)",
-    boxShadow: "0 0 18px rgba(232,96,44,0.45)",
+    background: [
+      "radial-gradient(circle at 34% 28%, rgba(255,255,255,0.72), rgba(182,224,232,0.78) 28%, rgba(56,92,116,0.86) 64%, rgba(12,18,27,0.96))",
+      "linear-gradient(180deg, rgba(255,255,255,0.12), rgba(0,0,0,0.18))"
+    ].join(", "),
+    border: "2px solid rgba(220,247,255,0.56)",
+    boxShadow: "0 0 0 6px rgba(155,218,232,0.08), 0 0 28px rgba(101,199,229,0.44), 0 12px 24px rgba(0,0,0,0.4)",
     pointerEvents: "none"
   });
+  joystickKnob.className = "mobile-joystick__knob";
 
   setStyles(actionOverlay, {
     position: "fixed",
-    display: "grid",
+    display: "block",
     pointerEvents: "auto",
-    background: "linear-gradient(180deg, rgba(22,19,15,0.78), rgba(14,11,8,0.9))",
-    border: "1px solid rgba(232,96,44,0.34)",
-    borderRadius: "8px",
-    boxShadow: "0 18px 42px rgba(0,0,0,0.42)"
+    background: "radial-gradient(ellipse at 68% 62%, rgba(8,13,20,0.52), rgba(8,13,20,0.08) 58%, transparent 72%)"
   });
+  actionOverlay.className = "mobile-action-cluster";
 
-  joystick.append(joystickBase, joystickKnob);
+  joystick.append(joystickBase, joystickTrack, joystickKnob);
   actionOverlay.append(
     createActionButton("attack", "攻", "#ef4444", () => options.onAttack?.()),
     createActionButton("skill0", "一", "#38bdf8", () => options.onSkill?.(0)),
