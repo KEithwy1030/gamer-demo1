@@ -44,6 +44,8 @@ import {
   getPrimarySkillWindupMs,
   resolveSkillBySlot,
 } from "./gameScene/skillHelpers";
+import { MiasmaPipeline } from "./gameScene/miasmaPipeline";
+import { resolveCorpseFogVisualState } from "./gameScene/worldBackdrop"; // I'll move the helper or just keep it there if exported
 
 export interface GameSceneInitData {
   runtime: MatchRuntimeStore;
@@ -174,7 +176,7 @@ export class GameScene extends Phaser.Scene {
     this.onToggleInventory = data.onToggleInventory;
     this.subscribeChestsInit = data.subscribeChestsInit;
     this.subscribeChestOpened = data.subscribeChestOpened;
-    this.subscribeChestProgress = data.subscribeChestProgress;
+    // this.subscribeChestProgress = data.subscribeChestProgress;
     this.onCombatResult = (payload) => this.handleCombatResult(payload);
     this.onPlayerAttack = (payload) => this.handleServerPlayerAttack(payload);
 
@@ -295,6 +297,14 @@ export class GameScene extends Phaser.Scene {
       onInventory: () => this.handleToggleInventory()
     });
     this.inputBridge.mount();
+    
+    // Register and apply Miasma Shader
+    const renderer = this.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+    if (renderer.pipelines) {
+      renderer.pipelines.addPostPipeline("MiasmaPipeline", MiasmaPipeline);
+      this.cameras.main.setPostPipeline("MiasmaPipeline");
+    }
+
     this.mountSpectateHud();
     this.input.keyboard?.on("keydown", this.handleSpectateKeydown);
 
@@ -304,7 +314,6 @@ export class GameScene extends Phaser.Scene {
       this.syncPlayers(state);
       this.syncMonsters(state);
       this.syncDrops(state);
-      this.syncCorpseFog(state);
       this.lockAssistFeedback?.sync({
         state,
         chaseAssist: this.chaseAssist,
@@ -765,6 +774,7 @@ export class GameScene extends Phaser.Scene {
       });
       this.inputBridge?.syncMobileButtons(this.localSkillCooldowns);
       this.syncSpectateState();
+      this.updateMiasmaShader();
     }
     this.hudOverlay?.pinToCamera();
   }
@@ -1016,78 +1026,31 @@ export class GameScene extends Phaser.Scene {
     glow?.setScale(1 + Math.sin(time / 360) * 0.05);
   }
 
-  private syncCorpseFog(state: MatchViewState): void {
-    if (!state.startedAt) return;
+  private updateMiasmaShader(): void {
+    if (!this.latestState?.startedAt) return;
+    
+    const pipeline = this.cameras.main.getPostPipeline("MiasmaPipeline") as MiasmaPipeline;
+    if (!pipeline) return;
 
-    const { width, height } = this.scale;
-    const fogState = resolveCorpseFogVisualState(state.startedAt);
-    const bucket = Math.round(fogState.visibilityPercent * 1000);
-    const phase = Math.floor(this.time.now / 650) % 8;
-    const signature = `${width}x${height}:${bucket}:${phase}`;
-    if (this.corpseFogSignature === signature && this.corpseFogImage) {
-      return;
-    }
+    const fogState = resolveCorpseFogVisualState(this.latestState.startedAt);
+    const camera = this.cameras.main;
+    
+    // Calculate world center (extract zone) in screen coordinates
+    const worldX = this.latestState.width / 2;
+    const worldY = this.latestState.height / 2;
+    
+    // Convert world to screen: (world - camera.scroll) * zoom
+    const screenX = (worldX - camera.scrollX) * camera.zoom;
+    const screenY = (worldY - camera.scrollY) * camera.zoom;
 
-    this.corpseFogSignature = signature;
-    if (!this.corpseFogTexture || this.corpseFogTexture.width !== width || this.corpseFogTexture.height !== height) {
-      this.corpseFogTexture?.destroy();
-      this.corpseFogTexture = this.textures.createCanvas("corpse_fog_mask", width, height) ?? undefined;
-    }
+    const radius = Math.max(80, Math.max(this.latestState.width, this.latestState.height) * 0.78 * fogState.visibilityPercent);
+    const screenRadius = radius * camera.zoom;
 
-    const texture = this.corpseFogTexture;
-    if (!texture) return;
-    const context = texture.getContext();
-    context.clearRect(0, 0, width, height);
+    // Intensity increases as the game progresses
+    const elapsedSec = (Date.now() - this.latestState.startedAt) / 1000;
+    const intensity = Phaser.Math.Clamp(elapsedSec / 900, 0.4, 0.98); // Reach full intensity at 15 mins
 
-    const density = Phaser.Math.Clamp(1 - fogState.visibilityPercent, 0, 0.92);
-    const edgeGradient = context.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, Math.max(width, height) * 0.78);
-    edgeGradient.addColorStop(0, `rgba(74, 93, 58, ${0.05 + density * 0.16})`);
-    edgeGradient.addColorStop(0.54, `rgba(91, 92, 49, ${0.12 + density * 0.34})`);
-    edgeGradient.addColorStop(1, `rgba(6, 8, 5, ${0.18 + density * 0.56})`);
-    context.fillStyle = edgeGradient;
-    context.fillRect(0, 0, width, height);
-
-    context.fillStyle = `rgba(107, 91, 58, ${0.04 + density * 0.18})`;
-    for (let index = 0; index < 18; index += 1) {
-      const seed = index * 97 + phase * 23;
-      const x = ((seed * 37) % (width + 220)) - 110;
-      const y = ((seed * 61) % (height + 160)) - 80;
-      const radiusX = 70 + ((seed * 11) % 120);
-      const radiusY = 18 + ((seed * 7) % 42);
-      context.beginPath();
-      context.ellipse(x, y, radiusX, radiusY, (seed % 7) * 0.18, 0, Math.PI * 2);
-      context.fill();
-    }
-
-    context.fillStyle = `rgba(19, 27, 16, ${Math.max(0, density - 0.38) * 0.36})`;
-    for (let index = 0; index < 12; index += 1) {
-      const seed = index * 131 + phase * 41;
-      const x = ((seed * 29) % (width + 260)) - 130;
-      const y = ((seed * 43) % (height + 180)) - 90;
-      context.beginPath();
-      context.ellipse(x, y, 90 + ((seed * 5) % 160), 24 + ((seed * 3) % 58), (seed % 9) * -0.16, 0, Math.PI * 2);
-      context.fill();
-    }
-
-    const radius = Math.max(80, Math.max(width, height) * 0.78 * fogState.visibilityPercent);
-    const gradient = context.createRadialGradient(width / 2, height / 2, radius * 0.48, width / 2, height / 2, radius);
-    gradient.addColorStop(0, "rgba(0,0,0,1)");
-    gradient.addColorStop(0.68, "rgba(0,0,0,0.72)");
-    gradient.addColorStop(1, "rgba(0,0,0,0)");
-    context.globalCompositeOperation = "destination-out";
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, width, height);
-    context.globalCompositeOperation = "source-over";
-    texture.refresh();
-
-    if (!this.corpseFogImage) {
-      this.corpseFogImage = this.add.image(0, 0, "corpse_fog_mask")
-        .setOrigin(0)
-        .setScrollFactor(0)
-        .setDepth(165);
-    }
-    this.corpseFogImage.setTexture("corpse_fog_mask");
-    this.corpseFogImage.setDisplaySize(width, height);
+    pipeline.setMiasma(screenX, screenY, screenRadius, intensity);
   }
 }
 
@@ -1122,19 +1085,4 @@ function getBasicAttackCadence(weaponType: WeaponType, attackSpeedBonus: number)
 function getAttackAnimationFrameRate(weaponType: WeaponType): number {
   const attacksPerSecond = WEAPON_DEFINITIONS[weaponType]?.attacksPerSecond ?? 0.5;
   return Math.max(5, Math.round(attacksPerSecond * 12));
-}
-
-function resolveCorpseFogVisualState(startedAt: number): { visibilityPercent: number } {
-  const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
-  if (elapsedSec <= 480) {
-    return { visibilityPercent: lerp(1, 0.5, elapsedSec / 480) };
-  }
-  if (elapsedSec <= 720) {
-    return { visibilityPercent: lerp(0.5, 0.25, (elapsedSec - 480) / 240) };
-  }
-  return { visibilityPercent: lerp(0.25, 0.1, Math.min(1, (elapsedSec - 720) / 180)) };
-}
-
-function lerp(from: number, to: number, t: number): number {
-  return from + (to - from) * Phaser.Math.Clamp(t, 0, 1);
 }

@@ -62,6 +62,9 @@ export class GameHudOverlay {
   private extractProgressTrack?: Phaser.GameObjects.Graphics;
   private extractProgressFill?: Phaser.GameObjects.Graphics;
   private extractProgressLabel?: Phaser.GameObjects.Text;
+  private chestProgressTrack?: Phaser.GameObjects.Graphics;
+  private chestProgressFill?: Phaser.GameObjects.Graphics;
+  private chestProgressLabel?: Phaser.GameObjects.Text;
   private lowHpOverlay?: Phaser.GameObjects.Rectangle;
   private pickupToast?: Phaser.GameObjects.Container;
   private pickupToastTween?: Phaser.Tweens.Tween;
@@ -87,6 +90,9 @@ export class GameHudOverlay {
   private lastExtractProgressValue = -1;
   private lastExtractProgressLabel = "";
   private lastExtractProgressActive: boolean | null = null;
+  private lastChestProgressValue = -1;
+  private lastChestProgressLabel = "";
+  private lastChestProgressActive: boolean | null = null;
 
   constructor(scene: Phaser.Scene, isTouchDevice: boolean) {
     this.scene = scene;
@@ -249,6 +255,19 @@ export class GameHudOverlay {
     this.extractProgressFill.setVisible(false);
     this.extractProgressLabel.setVisible(false);
 
+    this.chestProgressTrack = this.scene.add.graphics();
+    this.chestProgressFill = this.scene.add.graphics();
+    this.chestProgressLabel = this.scene.add.text(width / 2, Math.max(112, this.layout.objective.bottom + 18), "开启宝箱", {
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: this.isTouchDevice ? "17px" : "19px",
+      color: "#4ade80",
+      stroke: "#120d0a",
+      strokeThickness: 4
+    }).setOrigin(0.5, 1);
+    this.chestProgressTrack.setVisible(false);
+    this.chestProgressFill.setVisible(false);
+    this.chestProgressLabel.setVisible(false);
+
     this.lowHpOverlay = this.scene.add.rectangle(0, 0, width, height, GAMEPLAY_THEME.colors.danger, 0)
       .setOrigin(0)
       .setScrollFactor(0)
@@ -278,7 +297,10 @@ export class GameHudOverlay {
       ...this.skillCooldownTexts,
       this.extractProgressTrack,
       this.extractProgressFill,
-      this.extractProgressLabel
+      this.extractProgressLabel,
+      this.chestProgressTrack,
+      this.chestProgressFill,
+      this.chestProgressLabel
     ]);
   }
 

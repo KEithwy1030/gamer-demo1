@@ -10,52 +10,52 @@ type MarkerMap = Map<string, PlayerMarker> | Map<string, MonsterMarker>;
 
 export const DAMAGE_NUMBER_STYLE = {
   normal: {
-    fontSize: 58,
-    strokeThickness: 16,
-    rise: 118,
-    duration: 1360,
+    fontSize: 48, // Slightly smaller base to allow for more aggressive scaling
+    strokeThickness: 10,
+    rise: 140,
+    duration: 1200,
     color: "#ff9a6a",
     glowColor: 0xffc38e,
-    startScale: 0.96,
-    peakScale: 1.26,
-    xJitter: 16,
-    yOffset: -116
+    startScale: 0.2, // Start from very small for "pop" effect
+    peakScale: 1.2,
+    xJitter: 32,
+    yOffset: -100
   },
   critical: {
-    fontSize: 78,
-    strokeThickness: 18,
-    rise: 152,
-    duration: 1500,
+    fontSize: 64,
+    strokeThickness: 14,
+    rise: 180,
+    duration: 1600,
     color: "#ffe89a",
     glowColor: 0xffd66a,
-    startScale: 0.88,
-    peakScale: 1.32,
-    xJitter: 18,
-    yOffset: -126
+    startScale: 0.1,
+    peakScale: 1.8, // Massive pop for crits
+    xJitter: 48,
+    yOffset: -120
   },
   bleed: {
-    fontSize: 40,
-    strokeThickness: 10,
-    rise: 78,
-    duration: 980,
+    fontSize: 32,
+    strokeThickness: 6,
+    rise: 60,
+    duration: 800,
     color: "#d64a4a",
     glowColor: 0x861d1d,
-    startScale: 0.98,
-    peakScale: 1.14,
-    xJitter: 14,
-    yOffset: -82
+    startScale: 0.5,
+    peakScale: 1.1,
+    xJitter: 12,
+    yOffset: -70
   },
   environment: {
-    fontSize: 50,
-    strokeThickness: 14,
-    rise: 108,
-    duration: 1280,
+    fontSize: 42,
+    strokeThickness: 8,
+    rise: 90,
+    duration: 1100,
     color: "#d6ef97",
     glowColor: 0x708640,
-    startScale: 0.96,
+    startScale: 0.4,
     peakScale: 1.2,
-    xJitter: 16,
-    yOffset: -108
+    xJitter: 20,
+    yOffset: -90
   }
 } as const;
 
@@ -141,6 +141,7 @@ export class GameSceneFeedbackFx {
     this.scene.tweens.add({
       targets: [badge, accent, text],
       y: `-=${damageLift}`,
+      x: `+=${Phaser.Math.Between(-style.xJitter * 0.5, style.xJitter * 0.5)}`, // Subtle drift
       duration: style.duration,
       ease: "Cubic.out"
     });
@@ -156,13 +157,14 @@ export class GameSceneFeedbackFx {
         text.destroy();
       }
     });
+    // The "Pop" animation
     this.scene.tweens.add({
       targets: [badge, accent, text],
       scaleX: style.peakScale,
       scaleY: style.peakScale,
-      duration: 180,
+      duration: 120, // Faster pop
       yoyo: true,
-      ease: "Back.out"
+      ease: "Back.easeOut"
     });
 
     if (payload.isCritical) {
@@ -182,9 +184,17 @@ export class GameSceneFeedbackFx {
       this.flashEffect(target.root);
     }
     this.showBodyImpact(target.root.x, target.root.y, target.root.depth, payload.damageType, payload.isCritical ?? false);
+
+    if (payload.isCritical) {
+      this.scene.cameras.main.flash(100, 255, 255, 255, true); // Subtle white flash for crit
+      this.shakeCamera(0.015, 200);
+      this.applyHitStop(60);
+    }
+
     if (!isBleedTick && payload.targetId === latestState?.selfPlayerId) {
-      this.scene.cameras.main.shake(150, 4 / this.scene.scale.width);
-      this.applyHitStop(50);
+      this.scene.cameras.main.flash(120, 184, 55, 31, true); // Red flash for self damage
+      this.scene.cameras.main.shake(200, 8 / this.scene.scale.width);
+      this.applyHitStop(100);
       this.showDamageWash();
     }
 
