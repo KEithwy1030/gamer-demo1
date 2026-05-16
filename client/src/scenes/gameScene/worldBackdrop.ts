@@ -4,6 +4,8 @@ import type { ExtractUiState } from "../createGameClient";
 import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
 import { buildRiverVisualPlan } from "./riverVisualPlan";
 
+export { resolveCorpseFogVisualState } from "./corpseFogVisualState";
+
 const EXTRACT_VISUAL_CLEARANCE_PADDING = 72;
 const EXTRACT_HINT_LABEL_OFFSET = 34;
 
@@ -501,19 +503,4 @@ function createExtractBeacon(
   img.setDisplaySize(112, 112);
   beacon.add([glow, img]);
   return beacon;
-}
-
-export function resolveCorpseFogVisualState(startedAt: number): { visibilityPercent: number } {
-  const elapsedSec = Math.max(0, (Date.now() - startedAt) / 1000);
-  if (elapsedSec <= 480) {
-    return { visibilityPercent: lerp(1, 0.5, elapsedSec / 480) };
-  }
-  if (elapsedSec <= 720) {
-    return { visibilityPercent: lerp(0.5, 0.25, (elapsedSec - 480) / 240) };
-  }
-  return { visibilityPercent: lerp(0.25, 0.1, Math.min(1, (elapsedSec - 720) / 180)) };
-}
-
-function lerp(from: number, to: number, t: number): number {
-  return from + (to - from) * Phaser.Math.Clamp(t, 0, 1);
 }

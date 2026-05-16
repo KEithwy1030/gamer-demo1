@@ -24,6 +24,7 @@ import {
   syncExtractBackdrop,
   type WorldBackdropRefs
 } from "./gameScene/worldBackdrop";
+import { resolveCorpseFogVisualState } from "./gameScene/corpseFogVisualState";
 import { GameHudOverlay } from "./gameScene/hudOverlay";
 import { GameSceneInputBridge, shouldUseTouchLayout } from "./gameScene/inputBridge";
 import { GameSceneInteractions } from "./gameScene/interactions";
@@ -45,7 +46,6 @@ import {
   resolveSkillBySlot,
 } from "./gameScene/skillHelpers";
 import { MiasmaPipeline } from "./gameScene/miasmaPipeline";
-import { resolveCorpseFogVisualState } from "./gameScene/worldBackdrop"; // I'll move the helper or just keep it there if exported
 
 export interface GameSceneInitData {
   runtime: MatchRuntimeStore;
@@ -85,6 +85,7 @@ export class GameScene extends Phaser.Scene {
   private corpseFogImage?: Phaser.GameObjects.Image;
   private corpseFogTexture?: Phaser.Textures.CanvasTexture;
   private corpseFogSignature = "";
+  private miasmaPipeline?: MiasmaPipeline;
   private hudOverlay?: GameHudOverlay;
   private inputBridge?: GameSceneInputBridge;
   private interactions?: GameSceneInteractions;
@@ -297,13 +298,7 @@ export class GameScene extends Phaser.Scene {
       onInventory: () => this.handleToggleInventory()
     });
     this.inputBridge.mount();
-    
-    // Register and apply Miasma Shader
-    const renderer = this.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
-    if (renderer.pipelines) {
-      renderer.pipelines.addPostPipeline("MiasmaPipeline", MiasmaPipeline);
-      this.cameras.main.setPostPipeline("MiasmaPipeline");
-    }
+    this.miasmaPipeline = this.installMiasmaPipeline();
 
     this.mountSpectateHud();
     this.input.keyboard?.on("keydown", this.handleSpectateKeydown);
@@ -816,6 +811,7 @@ export class GameScene extends Phaser.Scene {
     this.corpseFogImage = undefined;
     this.corpseFogTexture?.destroy();
     this.corpseFogTexture = undefined;
+    this.miasmaPipeline = undefined;
   }
 
   private syncWorld(state: MatchViewState): void {
@@ -1028,29 +1024,38 @@ export class GameScene extends Phaser.Scene {
 
   private updateMiasmaShader(): void {
     if (!this.latestState?.startedAt) return;
-    
-    const pipeline = this.cameras.main.getPostPipeline("MiasmaPipeline") as MiasmaPipeline;
-    if (!pipeline) return;
+    if (!this.miasmaPipeline) return;
 
     const fogState = resolveCorpseFogVisualState(this.latestState.startedAt);
     const camera = this.cameras.main;
-    
-    // Calculate world center (extract zone) in screen coordinates
+
     const worldX = this.latestState.width / 2;
     const worldY = this.latestState.height / 2;
-    
-    // Convert world to screen: (world - camera.scroll) * zoom
     const screenX = (worldX - camera.scrollX) * camera.zoom;
     const screenY = (worldY - camera.scrollY) * camera.zoom;
 
     const radius = Math.max(80, Math.max(this.latestState.width, this.latestState.height) * 0.78 * fogState.visibilityPercent);
     const screenRadius = radius * camera.zoom;
-
-    // Intensity increases as the game progresses
     const elapsedSec = (Date.now() - this.latestState.startedAt) / 1000;
-    const intensity = Phaser.Math.Clamp(elapsedSec / 900, 0.4, 0.98); // Reach full intensity at 15 mins
+    const intensity = Phaser.Math.Clamp(elapsedSec / 900, 0.4, 0.98);
 
-    pipeline.setMiasma(screenX, screenY, screenRadius, intensity);
+    this.miasmaPipeline.setMiasma(screenX, screenY, screenRadius, intensity);
+  }
+
+  private installMiasmaPipeline(): MiasmaPipeline | undefined {
+    const renderer = this.renderer as Phaser.Renderer.WebGL.WebGLRenderer | Phaser.Renderer.Canvas.CanvasRenderer;
+    if (!("pipelines" in renderer) || !renderer.pipelines) {
+      return undefined;
+    }
+
+    const pipelines = renderer.pipelines;
+    if (!pipelines.has("MiasmaPipeline")) {
+      pipelines.addPostPipeline("MiasmaPipeline", MiasmaPipeline);
+    }
+    this.cameras.main.setPostPipeline("MiasmaPipeline");
+
+    const activePipeline = this.cameras.main.getPostPipeline("MiasmaPipeline");
+    return Array.isArray(activePipeline) ? activePipeline[0] as MiasmaPipeline | undefined : activePipeline as MiasmaPipeline | undefined;
   }
 }
 

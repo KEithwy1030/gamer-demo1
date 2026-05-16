@@ -21,6 +21,7 @@
     "validate:monster-assets": "tsx scripts/validate-monster-asset-contract.ts",
     "validate:combat-readability": "tsx scripts/validate-combat-readability.ts",
     "validate:map-hazards": "tsx scripts/validate-map-hazards.ts",
+    "validate:miasma-pipeline": "tsx scripts/validate-miasma-pipeline.ts",
     "validate:lock-assist": "tsx scripts/validate-lock-assist.ts",
     "validate:dev-room-presets": "tsx scripts/validate-dev-room-presets.ts",
     "validate:dev-cors-contract": "tsx scripts/validate-dev-cors-contract.ts",

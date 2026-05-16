@@ -14,75 +14,57 @@ uniform float uIntensity;
 
 varying vec2 outTexCoord;
 
-// Simplex 2D noise
-vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
-
-float snoise(vec2 v){
-  const vec4 C = vec4(0.211324865405187, 0.366025403784439,
-           -0.577350269189626, 0.024390243902439);
-  vec2 i  = floor(v + dot(v, C.yy) );
-  vec2 x0 = v -   i + dot(i, C.xx);
-  vec2 i1;
-  i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-  vec4 x12 = x0.xyxy + C.xxzz;
-  x12.xy -= i1;
-  i = mod(i, 289.0);
-  vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
-  + i.x + vec3(0.0, i1.x, 1.0 ));
-  vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy),
-    dot(x12.zw,x12.zw)), 0.0);
-  m = m*m ;
-  m = m*m ;
-  vec3 x = 2.0 * fract(p * C.www) - 1.0;
-  vec3 h = abs(x) - 0.5;
-  vec3 a0 = x - floor(x + 0.5);
-  vec3 m1 = m * ( 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h ) );
-  vec3 g;
-  g.x  = a0.x  * x0.x  + h.x  * x0.y;
-  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-  return 130.0 * dot(m1, g);
+// Stable value noise keeps the post effect deterministic across browsers.
+float hash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
 }
 
-float fbm(vec2 uv) {
-  float value = 0.0;
-  float amplitude = 0.5;
-  for (int i = 0; i < 4; i++) {
-    value += amplitude * snoise(uv);
-    uv *= 2.0;
-    amplitude *= 0.5;
-  }
-  return value;
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+
+float fbm(vec2 p) {
+    float v = 0.0;
+    float a = 0.5;
+    vec2 shift = vec2(100.0);
+    for (int i = 0; i < 4; i++) {
+        v += a * noise(p);
+        p = p * 2.0 + shift;
+        a *= 0.5;
+    }
+    return v;
 }
 
 void main() {
-  vec2 uv = outTexCoord;
-  vec4 texColor = texture2D(uMainSampler, uv);
-  
-  // Calculate distance from world center in screen space
-  vec2 screenPos = uv * uResolution;
-  float dist = distance(screenPos, uCenter);
-  
-  // Normalized distance based on radius
-  float d = dist / uRadius;
-  
-  // Create noise-based edge
-  float n = fbm(uv * 3.0 + uTime * 0.15);
-  float edge = smoothstep(0.85, 1.15, d + n * 0.1);
-  
-  // Sickly green-yellow color for miasma
-  vec3 miasmaColor = vec3(0.12, 0.18, 0.08); // Base dark moss
-  miasmaColor = mix(miasmaColor, vec3(0.3, 0.25, 0.1), n * 0.5 + 0.5); // Add rust yellow
-  
-  // Contrast enhancement in the fog
-  vec3 finalColor = mix(texColor.rgb, miasmaColor, edge * uIntensity);
-  
-  // Pulse effect near the edge
-  float pulse = sin(uTime * 2.0) * 0.05 + 0.95;
-  if (edge > 0.1) {
-      finalColor *= mix(1.0, 0.8, edge * pulse);
-  }
-  
-  gl_FragColor = vec4(finalColor, texColor.a);
+    vec2 uv = outTexCoord;
+    vec4 texColor = texture2D(uMainSampler, uv);
+
+    vec2 pixelPos = uv * uResolution;
+    float dist = distance(pixelPos, uCenter);
+    float d = dist / max(uRadius, 1.0);
+
+    float t = uTime * 0.2;
+    float n = fbm(uv * 4.0 + vec2(t, t * 0.8));
+    float fogThreshold = 0.8 + n * 0.15;
+    float edge = smoothstep(fogThreshold, fogThreshold + 0.3, d);
+
+    vec3 miasmaColor = mix(vec3(0.05, 0.08, 0.02), vec3(0.15, 0.18, 0.05), n);
+    vec3 finalColor = mix(texColor.rgb, miasmaColor, edge * uIntensity);
+
+    if (edge > 0.01) {
+        finalColor *= (1.0 - edge * 0.2 * uIntensity);
+    }
+
+    gl_FragColor = vec4(finalColor, texColor.a);
 }
 `;
 

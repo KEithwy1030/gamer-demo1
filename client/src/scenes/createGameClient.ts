@@ -1,4 +1,4 @@
-﻿import Phaser from "phaser";
+import Phaser from "phaser";
 import {
   AttackRequestPayload,
   INVENTORY_HEIGHT,
@@ -253,7 +253,7 @@ export function createGameClientController(
     }
 
     game = new Phaser.Game({
-      type: Phaser.CANVAS,
+      type: Phaser.AUTO,
       parent: options.parent,
       width: GAME_VIEW_WIDTH,
       height: GAME_VIEW_HEIGHT,
