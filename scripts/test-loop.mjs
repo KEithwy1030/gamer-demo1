@@ -658,7 +658,160 @@ function getBridgeAwareWaypoints(clientState, from, to) {
     }))
     .sort((left, right) => (distance(from, left) + distance(left, to)) - (distance(from, right) + distance(right, to)))[0];
 
-  return bridgeCenter ? [bridgeCenter, to] : [to];
+  return addObstacleDetours(clientState, from, bridgeCenter ? [bridgeCenter, to] : [to]);
+}
+
+function pointInRectWithPadding(point, rect, padding = 0) {
+  return point.x >= rect.x - padding
+    && point.x <= rect.x + rect.width + padding
+    && point.y >= rect.y - padding
+    && point.y <= rect.y + rect.height + padding;
+}
+
+function segmentIntersectsSegmentForRoute(a1, a2, b1, b2) {
+  const subtract = (left, right) => ({ x: left.x - right.x, y: left.y - right.y });
+  const cross = (left, right) => (left.x * right.y) - (left.y * right.x);
+  const pointOnSegment = (start, point, end) => (
+    point.x >= Math.min(start.x, end.x)
+    && point.x <= Math.max(start.x, end.x)
+    && point.y >= Math.min(start.y, end.y)
+    && point.y <= Math.max(start.y, end.y)
+  );
+
+  const d1 = cross(subtract(a2, a1), subtract(b1, a1));
+  const d2 = cross(subtract(a2, a1), subtract(b2, a1));
+  const d3 = cross(subtract(b2, b1), subtract(a1, b1));
+  const d4 = cross(subtract(b2, b1), subtract(a2, b1));
+
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+    return true;
+  }
+
+  return (d1 === 0 && pointOnSegment(a1, b1, a2))
+    || (d2 === 0 && pointOnSegment(a1, b2, a2))
+    || (d3 === 0 && pointOnSegment(b1, a1, b2))
+    || (d4 === 0 && pointOnSegment(b1, a2, b2));
+}
+
+function segmentIntersectsRectForRoute(start, end, rect, padding = 0) {
+  const expanded = {
+    x: rect.x - padding,
+    y: rect.y - padding,
+    width: rect.width + padding * 2,
+    height: rect.height + padding * 2
+  };
+
+  if (pointInRectWithPadding(start, expanded) || pointInRectWithPadding(end, expanded)) {
+    return true;
+  }
+
+  const minX = expanded.x;
+  const maxX = expanded.x + expanded.width;
+  const minY = expanded.y;
+  const maxY = expanded.y + expanded.height;
+  return segmentIntersectsSegmentForRoute(start, end, { x: minX, y: minY }, { x: maxX, y: minY })
+    || segmentIntersectsSegmentForRoute(start, end, { x: maxX, y: minY }, { x: maxX, y: maxY })
+    || segmentIntersectsSegmentForRoute(start, end, { x: maxX, y: maxY }, { x: minX, y: maxY })
+    || segmentIntersectsSegmentForRoute(start, end, { x: minX, y: maxY }, { x: minX, y: minY });
+}
+
+function pointInRiverHazard(clientState, point) {
+  const layout = clientState.matchStarted?.room?.layout;
+  return (layout?.riverHazards ?? []).some((hazard) => pointInRectWithPadding(point, hazard))
+    && !(layout?.safeCrossings ?? []).some((crossing) => pointInRectWithPadding(point, crossing));
+}
+
+function routeBlockScore(clientState, from, to) {
+  const layout = clientState.matchStarted?.room?.layout;
+  if (!layout) {
+    return 0;
+  }
+
+  let score = 0;
+  if (pointInRiverHazard(clientState, from) || pointInRiverHazard(clientState, to)) {
+    score += 4;
+  }
+  if ((layout.riverHazards ?? []).some((hazard) => segmentIntersectsRectForRoute(from, to, hazard, 110))) {
+    score += 2;
+  }
+  if ((layout.obstacleZones ?? []).some((obstacle) => segmentIntersectsRectForRoute(from, to, obstacle, 42))) {
+    score += 8;
+  }
+  return score;
+}
+
+function getBlockingObstacle(clientState, from, to, padding = 54) {
+  const obstacles = clientState.matchStarted?.room?.layout?.obstacleZones ?? [];
+  return obstacles.find((obstacle) => segmentIntersectsRectForRoute(from, to, obstacle, padding));
+}
+
+function isBlockedRoutePoint(clientState, point) {
+  const layout = clientState.matchStarted?.room?.layout;
+  if (!layout) {
+    return false;
+  }
+
+  return pointInRiverHazard(clientState, point)
+    || (layout.obstacleZones ?? []).some((obstacle) => pointInRectWithPadding(point, obstacle, 64));
+}
+
+function clampRoutePoint(clientState, point) {
+  const room = clientState.matchStarted?.room;
+  return {
+    x: Math.max(96, Math.min(room?.width ?? 4800, point.x)),
+    y: Math.max(96, Math.min(room?.height ?? 4800, point.y))
+  };
+}
+
+function resolveObstacleDetour(clientState, from, to) {
+  const obstacle = getBlockingObstacle(clientState, from, to);
+  if (!obstacle) {
+    return undefined;
+  }
+
+  const padding = 110;
+  const candidates = [
+    { x: obstacle.x - padding, y: obstacle.y - padding },
+    { x: obstacle.x + obstacle.width + padding, y: obstacle.y - padding },
+    { x: obstacle.x - padding, y: obstacle.y + obstacle.height + padding },
+    { x: obstacle.x + obstacle.width + padding, y: obstacle.y + obstacle.height + padding },
+    { x: obstacle.x + obstacle.width / 2, y: obstacle.y - padding },
+    { x: obstacle.x + obstacle.width / 2, y: obstacle.y + obstacle.height + padding },
+    { x: obstacle.x - padding, y: obstacle.y + obstacle.height / 2 },
+    { x: obstacle.x + obstacle.width + padding, y: obstacle.y + obstacle.height / 2 }
+  ].map((point) => clampRoutePoint(clientState, point));
+
+  return candidates
+    .filter((point) => !isBlockedRoutePoint(clientState, point))
+    .map((point) => ({
+      point,
+      score: distance(from, point)
+        + distance(point, to)
+        + routeBlockScore(clientState, from, point) * 1000
+        + routeBlockScore(clientState, point, to) * 1000
+    }))
+    .sort((left, right) => left.score - right.score)[0]?.point;
+}
+
+function addObstacleDetours(clientState, from, targets) {
+  const waypoints = [];
+  let current = from;
+
+  for (const target of targets) {
+    let segmentStart = current;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const detour = resolveObstacleDetour(clientState, segmentStart, target);
+      if (!detour) {
+        break;
+      }
+      waypoints.push(detour);
+      segmentStart = detour;
+    }
+    waypoints.push(target);
+    current = target;
+  }
+
+  return waypoints;
 }
 
 
@@ -755,6 +908,11 @@ function pickNearestAliveMonster(client) {
     if (left.type !== right.type) {
       return left.type === "normal" ? -1 : 1;
     }
+    const leftBlockScore = routeBlockScore(client.state, self, left);
+    const rightBlockScore = routeBlockScore(client.state, self, right);
+    if (leftBlockScore !== rightBlockScore) {
+      return leftBlockScore - rightBlockScore;
+    }
     return distance(self, left) - distance(self, right);
   });
   return aliveMonsters[0];
@@ -814,7 +972,9 @@ async function killOneMonster(client, timeoutMs) {
 
     if (Date.now() - lastAttackAt >= getAttackIntervalMs(self)) {
       client.socket.emit("player:attack", {
-        attackId: `attack_${Date.now()}`
+        attackId: `attack_${Date.now()}`,
+        direction: normalizeDirection(self, targetMonster),
+        targetId: targetMonster.id
       });
       lastAttackAt = Date.now();
     }
@@ -868,7 +1028,9 @@ async function killMonsterById(client, targetMonsterId, timeoutMs) {
 
     if (Date.now() - lastAttackAt >= getAttackIntervalMs(self)) {
       client.socket.emit('player:attack', {
-        attackId: `attack_${Date.now()}`
+        attackId: `attack_${Date.now()}`,
+        direction: normalizeDirection(self, targetMonster),
+        targetId: targetMonster.id
       });
       lastAttackAt = Date.now();
     }

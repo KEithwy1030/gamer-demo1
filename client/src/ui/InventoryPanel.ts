@@ -7,7 +7,7 @@ import {
   createDragGhost,
   formatHighlightRect,
   resolveEquipmentCandidate,
-  resolveDragAnchorFromSource,
+  resolveGridAnchor,
   resolveGridCandidate,
   toDragOccupants,
   updateDragGhostPosition,
@@ -78,9 +78,6 @@ const BACKPACK_SURFACE_PADDING = 10;
 export function createInventoryPanel(options: InventoryPanelOptions): InventoryPanelApi {
   let inventoryState: MatchInventoryState | null = null;
   let activeTooltip: HTMLElement | null = null;
-  let activeDrag: DragState | null = null;
-  let currentBackpackCandidate: DragGridCandidate | null = null;
-  let currentEquipCandidate: EquipmentSlotKey | null = null;
   const cleanup: Array<() => void> = [];
 
   const element = document.createElement("aside");
@@ -98,7 +95,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
   const summary = document.createElement("p");
   summary.className = "inventory-panel__summary";
-  summary.textContent = "正在同步携行状态...";
+      summary.textContent = "正在同步状态...";
   titleWrap.append(title, summary);
 
   const toggle = document.createElement("button");
@@ -170,7 +167,10 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
   function closeInventory(): void {
     element.classList.add("inventory-panel--collapsed");
-    hideTooltip();
+    hideTooltip(true);
+    if (activeDrag) {
+      cancelDrag();
+    }
     updateLauncherLabel();
   }
 
@@ -179,7 +179,29 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     updateLauncherLabel();
   }
 
-  function hideTooltip(): void {
+  let hideTooltipTimer: number | null = null;
+  let activeTooltipInstanceId: string | null = null;
+
+  function hideTooltip(immediate = false): void {
+    if (immediate) {
+      if (hideTooltipTimer) {
+        window.clearTimeout(hideTooltipTimer);
+        hideTooltipTimer = null;
+      }
+      activeTooltipInstanceId = null;
+      doHideTooltip();
+      return;
+    }
+
+    if (hideTooltipTimer) return;
+    hideTooltipTimer = window.setTimeout(() => {
+      hideTooltipTimer = null;
+      activeTooltipInstanceId = null;
+      doHideTooltip();
+    }, 300);
+  }
+
+  function doHideTooltip(): void {
     if (activeTooltip) {
       activeTooltip.remove();
       activeTooltip = null;
@@ -187,11 +209,35 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   }
 
   function showTooltip(item: MatchInventoryItem, area: ItemArea, anchorRect?: DOMRect, point?: { x: number; y: number }): void {
-    hideTooltip();
+    if (activeTooltipInstanceId === item.instanceId) {
+      if (hideTooltipTimer) {
+        window.clearTimeout(hideTooltipTimer);
+        hideTooltipTimer = null;
+      }
+      return;
+    }
+
+    if (hideTooltipTimer) {
+      window.clearTimeout(hideTooltipTimer);
+      hideTooltipTimer = null;
+    }
+    doHideTooltip();
 
     const tooltip = createTooltip(item, area);
     document.body.append(tooltip);
     activeTooltip = tooltip;
+    activeTooltipInstanceId = item.instanceId;
+
+    // Keep tooltip open when hovering over it
+    tooltip.addEventListener("mouseenter", () => {
+      if (hideTooltipTimer) {
+        window.clearTimeout(hideTooltipTimer);
+        hideTooltipTimer = null;
+      }
+    });
+    tooltip.addEventListener("mouseleave", () => {
+      hideTooltip();
+    });
 
     const rect = tooltip.getBoundingClientRect();
     const top = point
@@ -311,19 +357,24 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     return line;
   }
 
+  function cleanupOrphanGhosts(): void {
+    document.querySelectorAll(".inventory-drag-ghost").forEach(ghost => ghost.remove());
+    document.body.classList.remove("inventory-dragging");
+  }
+
   function clearHighlights(): void {
-    currentBackpackCandidate = null;
+    currentGridCandidate = null;
     backpackHighlight.hidden = true;
     backpackHighlight.classList.remove("inventory-grid-drop-preview--invalid");
-    if (currentEquipCandidate) {
-      const slotElement = equipmentSlotElements.get(currentEquipCandidate);
-      slotElement?.classList.remove("inventory-drop-target--candidate", "inventory-drop-target--invalid");
+
+    if (currentEquipmentCandidate) {
+      equipmentSlotElements.get(currentEquipmentCandidate)?.classList.remove("inventory-drop-target--candidate", "inventory-drop-target--invalid");
     }
-    currentEquipCandidate = null;
+    currentEquipmentCandidate = null;
   }
 
   function renderBackpackHighlight(candidate: DragGridCandidate | null): void {
-    currentBackpackCandidate = candidate;
+    currentGridCandidate = candidate;
     if (!candidate) {
       backpackHighlight.hidden = true;
       backpackHighlight.classList.remove("inventory-grid-drop-preview--invalid");
@@ -340,10 +391,10 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   }
 
   function renderEquipmentCandidate(slot: EquipmentSlotKey | null, valid = true): void {
-    if (currentEquipCandidate && currentEquipCandidate !== slot) {
-      equipmentSlotElements.get(currentEquipCandidate)?.classList.remove("inventory-drop-target--candidate", "inventory-drop-target--invalid");
+    if (currentEquipmentCandidate && currentEquipmentCandidate !== slot) {
+      equipmentSlotElements.get(currentEquipmentCandidate)?.classList.remove("inventory-drop-target--candidate", "inventory-drop-target--invalid");
     }
-    currentEquipCandidate = slot;
+    currentEquipmentCandidate = slot;
     for (const [slotKey, slotElement] of equipmentSlotElements.entries()) {
       const active = slotKey === slot;
       slotElement.classList.toggle("inventory-drop-target--candidate", active && valid);
@@ -351,95 +402,22 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     }
   }
 
-  function startDrag(event: PointerEvent, item: MatchInventoryItem, area: ItemArea, sourceEl: HTMLElement): void {
-    if (event.button !== 0 || isCompactViewport()) {
-      return;
-    }
-
-    hideTooltip();
-
-    const { ghost, offset } = createDragGhost(sourceEl, event);
-
-    activeDrag = {
-      item,
-      area,
-      ghost,
-      offset,
-      gridAnchor: resolveDragAnchorFromSource(offset, GRID_METRICS, item, area === "equipment"
-        ? { width: sourceEl.getBoundingClientRect().width, height: sourceEl.getBoundingClientRect().height }
-        : undefined)
-    };
-    sourceEl.classList.add("inventory-item--dragging");
-    document.body.classList.add("inventory-dragging");
-  }
-
-  function updateDrag(event: PointerEvent): void {
-    if (!activeDrag || !inventoryState) {
-      return;
-    }
-
-    updateDragGhostPosition(activeDrag.ghost, { x: event.clientX, y: event.clientY }, activeDrag.offset);
-
-    clearHighlights();
-
-    const slot = resolveEquipmentHover(event.clientX, event.clientY);
-    if (slot) {
-      const occupant = inventoryState.equipment[slot];
-      const candidate = resolveEquipmentCandidate({
-        slot,
-        item: activeDrag.item,
-        occupant: occupant ?? null
-      });
-      renderEquipmentCandidate(slot, candidate.valid);
-      return;
-    }
-
-    const backpackRect = backpackCells.getBoundingClientRect();
-    if (!isPointWithinRect(event.clientX, event.clientY, backpackRect)) {
-      return;
-    }
-
-    renderBackpackHighlight(resolveBackpackCandidate(event.clientX, event.clientY));
-  }
-
-  function endDrag(): void {
-    if (!activeDrag) {
-      return;
-    }
-
-    const sourceInstanceId = activeDrag.item.instanceId;
-    const sourceArea = activeDrag.area;
-    activeDrag.ghost.remove();
-    document.querySelectorAll(".inventory-item--dragging").forEach((node) => node.classList.remove("inventory-item--dragging"));
-    document.body.classList.remove("inventory-dragging");
-
-    if (currentEquipCandidate && inventoryState) {
-      const equipped = inventoryState.equipment[currentEquipCandidate];
-      const candidate = resolveEquipmentCandidate({
-        slot: currentEquipCandidate,
-        item: activeDrag.item,
-        occupant: equipped ?? null
-      });
-      if (candidate.valid) {
-        options.onMove({
-          itemInstanceId: sourceInstanceId,
-          targetArea: "equipment",
-          slot: currentEquipCandidate,
-          swapItemInstanceId: candidate.swapItemInstanceId
-        });
-      }
-    } else if (currentBackpackCandidate?.valid) {
-      options.onMove({
-        itemInstanceId: sourceInstanceId,
-        targetArea: "grid",
-        x: currentBackpackCandidate.x,
-        y: currentBackpackCandidate.y,
-        swapItemInstanceId: currentBackpackCandidate.swapItemInstanceId
-      });
-    }
-
-    clearHighlights();
-    activeDrag = null;
+  function resolveBackpackCandidate(clientX: number, clientY: number): DragGridCandidate | null {
+    if (!inventoryState || !activeDrag) return null;
+    return resolveGridCandidate({
+      grid: { width: inventoryState.width, height: inventoryState.height },
+      pointer: { x: clientX, y: clientY },
+      surfaceRect: backpackCells.getBoundingClientRect(),
+      metrics: GRID_METRICS,
+      item: activeDrag.item,
+      occupants: toDragOccupants(inventoryState.items.map(it => ({
+        ...it,
+        x: it.x ?? 0,
+        y: it.y ?? 0
+      }))),
+      anchor: activeDrag.gridAnchor,
+      ignoreInstanceIds: [activeDrag.item.instanceId]
+    });
   }
 
   function resolveEquipmentHover(clientX: number, clientY: number): EquipmentSlotKey | null {
@@ -452,224 +430,392 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     return null;
   }
 
-  function renderEquipmentItem(slotKey: EquipmentSlotKey, item: MatchInventoryItem | undefined): HTMLElement {
-    const slot = document.createElement("div");
-    slot.className = "inventory-equip-slot";
-    slot.dataset.slot = slotKey;
+  let activeDrag: DragState | null = null;
+  let currentGridCandidate: DragGridCandidate | null = null;
+  let currentEquipmentCandidate: EquipmentSlotKey | null = null;
+  let interactionSessionId: string | null = null;
 
-    const label = document.createElement("span");
-    label.className = "inventory-slot-label";
-    label.textContent = getSlotLabel(slotKey);
-    slot.append(label);
+  function startDrag(event: PointerEvent, item: MatchInventoryItem, area: ItemArea, sourceEl: HTMLElement): void {
+    if (event.button !== 0) return;
+
+    try {
+      sourceEl.setPointerCapture(event.pointerId);
+    } catch (e) {}
+
+    cancelDrag();
+    const { ghost, offset } = createDragGhost(sourceEl, event);
+    ghost.classList.remove("inventory-item--equipment");
+    interactionSessionId = item.instanceId;
+
+    activeDrag = {
+      item,
+      area,
+      ghost,
+      offset,
+      gridAnchor: resolveGridAnchor(offset, GRID_METRICS, item)
+    };
+
+    sourceEl.style.visibility = "hidden";
+    sourceEl.classList.add("inventory-item--dragging");
+    document.body.classList.add("inventory-dragging");
+    updateDragGhostPosition(ghost, { x: event.clientX, y: event.clientY }, offset);
+  }
+
+  function updateDrag(event: PointerEvent): void {
+    if (!activeDrag || !inventoryState) return;
+    updateDragGhostPosition(activeDrag.ghost, { x: event.clientX, y: event.clientY }, activeDrag.offset);
+    clearHighlights();
+
+    const slot = resolveEquipmentHover(event.clientX, event.clientY);
+    if (slot) {
+      const occupant = inventoryState.equipment[slot];
+      const candidate = resolveEquipmentCandidate({
+        slot,
+        item: activeDrag.item,
+        occupant: occupant ?? null
+      });
+      currentEquipmentCandidate = slot;
+      renderEquipmentCandidate(slot, candidate.valid);
+      return;
+    }
+
+    const backpackRect = backpackCells.getBoundingClientRect();
+    if (isPointWithinRect(event.clientX, event.clientY, backpackRect)) {
+      const candidate = resolveBackpackCandidate(event.clientX, event.clientY);
+      renderBackpackHighlight(candidate);
+    }
+  }
+
+  function finishDrag(event?: PointerEvent): void {
+    if (!activeDrag) {
+      cancelDrag();
+      return;
+    }
+
+    if (event) {
+      try {
+        (event.target as HTMLElement)?.releasePointerCapture(event.pointerId);
+      } catch (e) {}
+    }
+
+    const sourceInstanceId = activeDrag.item.instanceId;
+    if (currentEquipmentCandidate && inventoryState) {
+      const equipped = inventoryState.equipment[currentEquipmentCandidate];
+      const candidate = resolveEquipmentCandidate({
+        slot: currentEquipmentCandidate,
+        item: activeDrag.item,
+        occupant: equipped ?? null
+      });
+      if (candidate.valid) {
+        options.onMove({
+          itemInstanceId: sourceInstanceId,
+          targetArea: "equipment",
+          slot: currentEquipmentCandidate,
+          swapItemInstanceId: candidate.swapItemInstanceId
+        });
+      }
+    } else if (currentGridCandidate?.valid && inventoryState) {
+      options.onMove({
+        itemInstanceId: sourceInstanceId,
+        targetArea: "grid",
+        x: currentGridCandidate.x,
+        y: currentGridCandidate.y,
+        swapItemInstanceId: currentGridCandidate.swapItemInstanceId
+      });
+    }
+    cancelDrag();
+    if (inventoryState) render(inventoryState);
+  }
+
+  function cancelDrag(): void {
+    if (activeDrag) {
+      activeDrag.ghost.remove();
+    }
+
+    if (interactionSessionId) {
+      const el = itemElementCache.get(interactionSessionId);
+      if (el) el.style.visibility = "";
+    }
+
+    activeDrag = null;
+    interactionSessionId = null;
+    currentGridCandidate = null;
+    currentEquipmentCandidate = null;
+    cleanupOrphanGhosts();
+    document.querySelectorAll(".inventory-item--dragging").forEach(node => {
+      (node as HTMLElement).style.visibility = "";
+      node.classList.remove("inventory-item--dragging");
+    });
+    document.body.classList.remove("inventory-dragging");
+    clearHighlights();
+  }
+
+  const equipmentSlotCache = new Map<EquipmentSlotKey, HTMLElement>();
+
+  function renderEquipmentItem(slotKey: EquipmentSlotKey, item: MatchInventoryItem | undefined): HTMLElement {
+    let slot = equipmentSlotCache.get(slotKey);
+    if (!slot) {
+      slot = document.createElement("div");
+      slot.className = "inventory-equip-slot";
+      slot.dataset.slot = slotKey;
+
+      const label = document.createElement("span");
+      label.className = "inventory-slot-label";
+      label.textContent = getSlotLabel(slotKey);
+      slot.append(label);
+      equipmentSlotCache.set(slotKey, slot);
+    }
 
     if (!item) {
       slot.classList.add("inventory-equip-slot--empty");
+      const itemBtn = slot.querySelector(".inventory-item");
+      if (itemBtn) itemBtn.remove();
       return slot;
     }
 
-    const button = createInventoryItemElement(item, "equipment");
-    button.classList.add("inventory-item--equipment");
-    slot.append(button);
+    slot.classList.remove("inventory-equip-slot--empty");
+    let el = itemElementCache.get(item.instanceId);
+    if (!el) {
+      el = createInventoryItemElement(item, "equipment");
+      itemElementCache.set(item.instanceId, el);
+    }
+    updateInventoryItemElement(el, item, "equipment");
+
+    // Reused grid nodes must shed absolute layout when mounted in equipment slots.
+    el.style.left = "";
+    el.style.top = "";
+    el.style.width = "";
+    el.style.height = "";
+    el.style.visibility = "";
+    el.classList.add("inventory-item--equipment");
+
+    if (slot.querySelector(".inventory-item") !== el) {
+      slot.querySelectorAll(".inventory-item").forEach(btn => btn.remove());
+      slot.append(el);
+    }
     return slot;
   }
 
-  function createInventoryItemElement(item: MatchInventoryItem, area: ItemArea): HTMLButtonElement {
+  function resolveCurrentItemContext(button: HTMLButtonElement): { item: MatchInventoryItem; area: ItemArea } | null {
+    if (!inventoryState) {
+      return null;
+    }
+
+    const instanceId = button.dataset.instanceId;
+    const area = button.dataset.area === "equipment" ? "equipment" : button.dataset.area === "backpack" ? "backpack" : null;
+    if (!instanceId || !area) {
+      return null;
+    }
+
+    if (area === "equipment") {
+      const item = Object.values(inventoryState.equipment).find((entry) => entry?.instanceId === instanceId);
+      return item ? { item, area } : null;
+    }
+
+    const item = inventoryState.items.find((entry) => entry.instanceId === instanceId);
+    return item ? { item, area } : null;
+  }
+
+  function updateInventoryItemElement(button: HTMLButtonElement, item: MatchInventoryItem, area: ItemArea): void {
     const presentation = getItemPresentation(item);
     const rarity = (item.rarity ?? "common").toLowerCase();
+    button.className = `inventory-item inventory-item--${area} quality-${rarity}`;
+    button.dataset.instanceId = item.instanceId;
+    button.dataset.area = area;
+
+    const icon = button.querySelector<HTMLElement>(".inventory-item-icon");
+    if (icon) {
+      icon.className = `inventory-item-icon inventory-item-icon--${presentation.iconKey}`;
+      icon.innerHTML = presentation.iconSvg;
+    }
+
+    const badge = button.querySelector<HTMLElement>(".inventory-item-badge");
+    if (badge) {
+      badge.textContent = `${item.width ?? 1}x${item.height ?? 1}`;
+    }
+
+    const name = button.querySelector<HTMLElement>(".inventory-item-name");
+    if (name) {
+      name.textContent = presentation.displayName;
+    }
+  }
+
+  function createInventoryItemElement(item: MatchInventoryItem, area: ItemArea): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `inventory-item inventory-item--${area} quality-${rarity}`;
-    button.title = `${presentation.displayName} · ${Math.max(1, item.width ?? 1)}x${Math.max(1, item.height ?? 1)}`;
 
     const icon = document.createElement("div");
-    icon.className = `inventory-item-icon inventory-item-icon--${presentation.iconKey}`;
-    icon.innerHTML = presentation.iconSvg;
+    icon.className = "inventory-item-icon";
 
     const badge = document.createElement("span");
     badge.className = "inventory-item-badge";
-    badge.textContent = `${Math.max(1, item.width ?? 1)}x${Math.max(1, item.height ?? 1)}`;
 
-    const titleText = document.createElement("span");
-    titleText.className = "inventory-item-name";
-    titleText.textContent = presentation.displayName;
+    const name = document.createElement("span");
+    name.className = "inventory-item-name";
 
-    button.append(icon, badge, titleText);
+    button.append(icon, badge, name);
+    updateInventoryItemElement(button, item, area);
 
-    button.addEventListener("pointerdown", (event) => startDrag(event, item, area, button));
+    button.addEventListener("pointerdown", (event) => {
+      const context = resolveCurrentItemContext(button);
+      if (context) {
+        startDrag(event, context.item, context.area, button);
+      }
+    });
     button.addEventListener("mouseenter", () => {
-      if (!isCompactViewport() && !activeDrag) {
-        showTooltip(item, area, button.getBoundingClientRect());
+      const context = resolveCurrentItemContext(button);
+      if (context && !isCompactViewport() && !activeDrag) {
+        showTooltip(context.item, context.area, button.getBoundingClientRect());
       }
     });
     button.addEventListener("mouseleave", () => {
-      if (!activeDrag && !isCompactViewport()) {
-        hideTooltip();
+      if (!activeDrag) hideTooltip();
+    });
+    button.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      const context = resolveCurrentItemContext(button);
+      if (context) {
+        showTooltip(context.item, context.area, undefined, { x: e.clientX, y: e.clientY });
       }
     });
-    button.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      showTooltip(item, area, undefined, { x: event.clientX, y: event.clientY });
-    });
-    button.addEventListener("click", (event) => {
-      if (activeDrag) {
-        return;
+    button.addEventListener("click", (e) => {
+      if (activeDrag) return;
+      e.stopPropagation();
+      const context = resolveCurrentItemContext(button);
+      if (context) {
+        showTooltip(context.item, context.area, button.getBoundingClientRect());
       }
-      event.stopPropagation();
-      showTooltip(item, area, button.getBoundingClientRect(), isCompactViewport() ? {
-        x: Math.max(12, window.innerWidth / 2 - 140),
-        y: Math.max(12, window.innerHeight / 2 - 120)
-      } : undefined);
     });
 
     return button;
   }
 
+  let currentGridWidth = 0;
+  let currentGridHeight = 0;
+
   function renderBackpackGrid(width: number, height: number): void {
-    backpackCells.replaceChildren();
     const gridWidth = width * GRID_CELL_SIZE + (width - 1) * GRID_GAP;
     const gridHeight = height * GRID_CELL_SIZE + (height - 1) * GRID_GAP;
+
+    if (width !== currentGridWidth || height !== currentGridHeight || backpackCells.childElementCount === 0) {
+      backpackCells.replaceChildren();
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const cell = document.createElement("div");
+          cell.className = "inventory-grid-cell";
+          cell.style.left = `${x * (GRID_CELL_SIZE + GRID_GAP)}px`;
+          cell.style.top = `${y * (GRID_CELL_SIZE + GRID_GAP)}px`;
+          cell.style.width = `${GRID_CELL_SIZE}px`;
+          cell.style.height = `${GRID_CELL_SIZE}px`;
+          backpackCells.append(cell);
+        }
+      }
+      currentGridWidth = width;
+      currentGridHeight = height;
+    }
+
     backpackStage.style.width = `${gridWidth}px`;
     backpackStage.style.height = `${gridHeight}px`;
     backpackSurface.style.width = `${Math.max(STABLE_BACKPACK_WIDTH, gridWidth) + BACKPACK_SURFACE_PADDING * 2}px`;
     backpackSurface.style.height = `${gridHeight + BACKPACK_SURFACE_PADDING * 2}px`;
-
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const cell = document.createElement("div");
-        cell.className = "inventory-grid-cell";
-        cell.style.left = `${x * (GRID_CELL_SIZE + GRID_GAP)}px`;
-        cell.style.top = `${y * (GRID_CELL_SIZE + GRID_GAP)}px`;
-        cell.style.width = `${GRID_CELL_SIZE}px`;
-        cell.style.height = `${GRID_CELL_SIZE}px`;
-        backpackCells.append(cell);
-      }
-    }
   }
 
-  function renderBackpackItems(items: MatchInventoryItem[]): void {
-    backpackItems.replaceChildren();
-    for (const item of items) {
-      const x = Number.isFinite(item.x) ? Number(item.x) : 0;
-      const y = Number.isFinite(item.y) ? Number(item.y) : 0;
-      const itemWidth = Math.max(1, item.width ?? 1);
-      const itemHeight = Math.max(1, item.height ?? 1);
-
-      const button = createInventoryItemElement(item, "backpack");
-      button.style.left = `${x * (GRID_CELL_SIZE + GRID_GAP)}px`;
-      button.style.top = `${y * (GRID_CELL_SIZE + GRID_GAP)}px`;
-      button.style.width = `${itemWidth * GRID_CELL_SIZE + (itemWidth - 1) * GRID_GAP}px`;
-      button.style.height = `${itemHeight * GRID_CELL_SIZE + (itemHeight - 1) * GRID_GAP}px`;
-      backpackItems.append(button);
-    }
-  }
+  const itemElementCache = new Map<string, HTMLButtonElement>();
 
   function render(inventory: MatchInventoryState | null): void {
     inventoryState = inventory;
-    hideTooltip();
     clearHighlights();
+    cleanupOrphanGhosts();
 
     if (!inventory) {
-      summary.textContent = "正在同步携行状态...";
+      hideTooltip(true);
+      summary.textContent = "正在同步状态...";
       equipmentGrid.replaceChildren();
       backpackCells.replaceChildren();
       backpackItems.replaceChildren();
+      itemElementCache.clear();
+      interactionSessionId = null;
       return;
     }
 
     const width = Math.max(1, inventory.width || 10);
     const height = Math.max(1, inventory.height || 6);
-    const total = width * height;
-    const used = inventory.items.reduce((sum, item) => sum + Math.max(1, item.width ?? 1) * Math.max(1, item.height ?? 1), 0);
+    const totalCells = width * height;
+    const usedCells = inventory.items.reduce((sum, item) => sum + (item.width ?? 1) * (item.height ?? 1), 0);
     const weaponName = inventory.equipment.weapon ? getItemPresentation(inventory.equipment.weapon).displayName : "空手";
 
-    summary.textContent = `${weaponName} · ${used}/${total} 格已占用`;
+    summary.textContent = `${weaponName} · ${usedCells}/${totalCells} 格已占用`;
     backpackTitle.textContent = `携行格 ${width}x${height}`;
 
-    equipmentGrid.replaceChildren();
+    const activeIds = new Set<string>();
     for (const slotKey of SLOT_ORDER) {
-      const slotElement = renderEquipmentItem(slotKey, inventory.equipment[slotKey]);
+      const item = inventory.equipment[slotKey];
+      const slotElement = renderEquipmentItem(slotKey, item);
+      if (item) {
+        activeIds.add(item.instanceId);
+        const el = itemElementCache.get(item.instanceId);
+        if (el) {
+          el.style.visibility = "";
+          el.classList.remove("inventory-item--dragging");
+        }
+      }
       equipmentSlotElements.set(slotKey, slotElement);
-      equipmentGrid.append(slotElement);
+      if (slotElement.parentElement !== equipmentGrid) equipmentGrid.append(slotElement);
     }
 
     renderBackpackGrid(width, height);
-    renderBackpackItems(inventory.items);
-  }
 
-  function findFirstFit(
-    items: MatchInventoryItem[],
-    gridWidth: number,
-    gridHeight: number,
-    item: MatchInventoryItem
-  ): { x: number; y: number } | null {
-    const itemWidth = Math.max(1, item.width ?? 1);
-    const itemHeight = Math.max(1, item.height ?? 1);
-    return findFirstFitRect(
-      { width: gridWidth, height: gridHeight },
-      toGridRects(items),
-      { width: itemWidth, height: itemHeight }
-    ) ?? null;
-  }
+    inventory.items.forEach(item => {
+      activeIds.add(item.instanceId);
 
-  function resolveBackpackCandidate(clientX: number, clientY: number): DragGridCandidate | null {
-    if (!inventoryState || !activeDrag) {
-      return null;
-    }
-    return resolveGridCandidate({
-      grid: { width: inventoryState.width, height: inventoryState.height },
-      pointer: { x: clientX, y: clientY },
-      surfaceRect: backpackCells.getBoundingClientRect(),
-      metrics: GRID_METRICS,
-      item: activeDrag.item,
-      occupants: toDragOccupants(
-        inventoryState.items.map((entry) => ({
-          ...entry,
-          x: Number.isFinite(entry.x) ? Number(entry.x) : 0,
-          y: Number.isFinite(entry.y) ? Number(entry.y) : 0
-        }))
-      ),
-      ignoreInstanceIds: [activeDrag.item.instanceId],
-      anchor: activeDrag.gridAnchor
+      let el = itemElementCache.get(item.instanceId);
+      if (!el) {
+        el = createInventoryItemElement(item, "backpack");
+        itemElementCache.set(item.instanceId, el);
+      }
+      updateInventoryItemElement(el, item, "backpack");
+
+      // Reused equipment nodes must shed slot styling when mounted in the grid.
+      const isCurrentlyDragged = interactionSessionId === item.instanceId;
+      el.style.visibility = isCurrentlyDragged ? "hidden" : "";
+      el.classList.toggle("inventory-item--dragging", isCurrentlyDragged);
+      el.classList.remove("inventory-item--equipment");
+
+      const x = Number.isFinite(item.x) ? Number(item.x) : 0;
+      const y = Number.isFinite(item.y) ? Number(item.y) : 0;
+      const itemWidth = Math.max(1, item.width ?? 1);
+      const itemHeight = Math.max(1, item.height ?? 1);
+
+      el.style.width = `${itemWidth * GRID_CELL_SIZE + (itemWidth - 1) * GRID_GAP}px`;
+      el.style.height = `${itemHeight * GRID_CELL_SIZE + (itemHeight - 1) * GRID_GAP}px`;
+      el.style.left = `${x * (GRID_CELL_SIZE + GRID_GAP)}px`;
+      el.style.top = `${y * (GRID_CELL_SIZE + GRID_GAP)}px`;
+
+      if (el.parentElement !== backpackItems) backpackItems.append(el);
+    });
+
+    itemElementCache.forEach((el, id) => {
+      if (!activeIds.has(id) && interactionSessionId !== id) {
+        el.remove();
+        itemElementCache.delete(id);
+      }
     });
   }
 
-  function toGridRects(items: MatchInventoryItem[]): Array<{ x: number; y: number; width: number; height: number }> {
-    return items.map((entry) => ({
-      x: Number.isFinite(entry.x) ? Number(entry.x) : 0,
-      y: Number.isFinite(entry.y) ? Number(entry.y) : 0,
-      width: Math.max(1, entry.width ?? 1),
-      height: Math.max(1, entry.height ?? 1)
-    }));
-  }
-
-  toggle.addEventListener("click", () => {
-    if (element.classList.contains("inventory-panel--collapsed")) {
-      openInventory();
-    } else {
-      closeInventory();
-    }
-  });
-
-  mobileToggle.addEventListener("click", (event) => {
-    event.stopPropagation();
-    if (element.classList.contains("inventory-panel--collapsed")) {
-      openInventory();
-    } else {
-      closeInventory();
-    }
-  });
-
+  toggle.addEventListener("click", () => element.classList.contains("inventory-panel--collapsed") ? openInventory() : closeInventory());
+  mobileToggle.addEventListener("click", (e) => { e.stopPropagation(); element.classList.contains("inventory-panel--collapsed") ? openInventory() : closeInventory(); });
   mobileClose.addEventListener("click", closeInventory);
-  const onPointerMove = (event: PointerEvent) => updateDrag(event);
-  const onPointerUp = () => endDrag();
-  const onDocumentClick = (event: MouseEvent) => {
-    if (activeTooltip && !activeTooltip.contains(event.target as Node) && !element.contains(event.target as Node)) {
-      hideTooltip();
-    }
+
+  const onPointerMove = (e: PointerEvent) => updateDrag(e);
+  const onPointerUp = (e: PointerEvent) => finishDrag(e);
+  const onDocumentClick = (e: MouseEvent) => {
+    if (activeTooltip && !activeTooltip.contains(e.target as Node) && !element.contains(e.target as Node)) hideTooltip();
   };
+
   document.addEventListener("pointermove", onPointerMove);
   document.addEventListener("pointerup", onPointerUp);
   document.addEventListener("click", onDocumentClick);
+
   cleanup.push(
     () => document.removeEventListener("pointermove", onPointerMove),
     () => document.removeEventListener("pointerup", onPointerUp),
@@ -691,10 +837,11 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     element,
     render,
     destroy() {
-      cleanup.forEach((fn) => fn());
+      cleanup.forEach(fn => fn());
       cleanup.length = 0;
-      hideTooltip();
+      hideTooltip(true);
       clearHighlights();
+      cleanupOrphanGhosts();
       mobileToggle.remove();
       element.remove();
     }

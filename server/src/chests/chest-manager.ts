@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { buildInventoryItem, ensureDropState } from "../loot/loot-manager.js";
-import type { Chest, ChestOpenedPayload, DropState, InventoryItem, RuntimeRoom } from "../types.js";
+import type { Chest, ChestOpenedPayload, ChestProgressPayload, DropState, InventoryItem, RuntimeRoom } from "../types.js";
 
 const STARTER_LOOT_TEMPLATES = [
   "armor_hands_common",

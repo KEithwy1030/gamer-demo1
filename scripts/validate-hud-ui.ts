@@ -108,13 +108,28 @@ assert.match(
 );
 assert.match(
   inventoryPanelSource,
-  /title\.textContent = "携行背包";/,
+  /title\.textContent = "\u643a\u884c\u80cc\u5305";/,
   "inventory panel should use product-facing title copy"
 );
 assert.match(
   inventoryPanelSource,
-  /backpackTitle\.textContent = `携行格 \$\{width\}x\$\{height\}`;/,
+  /backpackTitle\.textContent = `\u643a\u884c\u683c \$\{width\}x\$\{height\}`;/,
   "inventory panel should use compact product-facing grid copy"
+);
+assert.match(
+  inventoryPanelSource,
+  /function resolveCurrentItemContext\(button: HTMLButtonElement\): \{ item: MatchInventoryItem; area: ItemArea \} \| null \{/,
+  "inventory item event handlers should resolve the current item context from live inventory state"
+);
+assert.match(
+  inventoryPanelSource,
+  /button\.addEventListener\("pointerdown", \(event\) => \{[\s\S]*const context = resolveCurrentItemContext\(button\);[\s\S]*startDrag\(event, context\.item, context\.area, button\);/s,
+  "inventory drag start should not rely on stale item or area closures after DOM node reuse"
+);
+assert.match(
+  inventoryPanelSource,
+  /updateInventoryItemElement\(el, item, "equipment"\);[\s\S]*updateInventoryItemElement\(el, item, "backpack"\);/s,
+  "reused inventory item nodes should refresh their dataset, presentation, and area on every render"
 );
 
 assert.match(
@@ -146,6 +161,16 @@ assert.match(
   inventoryCss,
   /\.inventory-backpack-surface \{[\s\S]*overflow: hidden;/,
   "inventory backpack surface should clip its own layers instead of relying on a scroll container"
+);
+assert.doesNotMatch(
+  inventoryCss,
+  /\.inventory-grid--backpack \{[^}]*24px/,
+  "inventory backpack grid should not keep stale 24px cell rules after adopting the 34px drag geometry"
+);
+assert.doesNotMatch(
+  inventoryCss,
+  /\.inventory-slot \{[^}]*min-(?:width|height): 24px;/,
+  "inventory slots should not keep stale 24px hitbox rules after adopting the 34px drag geometry"
 );
 
 console.log("validate-hud-ui: ok");
