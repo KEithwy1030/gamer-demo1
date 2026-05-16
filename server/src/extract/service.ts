@@ -11,6 +11,7 @@ import type {
   ExtractProgressPayload,
   ExtractSuccessPayload,
   MatchSettlementEnvelope,
+  InventoryItemKind,
   RuntimePlayer,
   RuntimeRoom,
   RuntimeRoomExtractZone
@@ -33,6 +34,16 @@ const EXTRACT_START_INSET_MAX = 16;
 const EXTRACT_LEAVE_GRACE_MIN = 8;
 const EXTRACT_LEAVE_GRACE_MAX = 14;
 const inventoryService = new InventoryService();
+
+interface SettlementItemDetail {
+  instanceId: string;
+  definitionId: string;
+  name: string;
+  kind: "weapon" | "armor" | "gold" | "treasure" | "consumable" | "quest";
+  rarity?: "common" | "uncommon" | "rare" | "epic";
+  goldValue: number;
+  treasureValue: number;
+}
 
 export function initializeExtractState(room: RuntimeRoom): void {
   const layoutZones = room.matchLayout?.extractZones ?? [];
@@ -456,14 +467,17 @@ function buildSettlement(
       extractedGold: extractedItems.gold,
       extractedTreasureValue: extractedItems.treasureValue,
       extractedItems: extractedItems.names,
+      extractedItemDetails: extractedItems.details,
       retainedItems: extractedItems.names,
+      retainedItemDetails: extractedItems.details,
       lostItems: [],
+      lostItemDetails: [],
       loadoutLost: false,
       profileGoldDelta: extractedItems.gold + extractedItems.treasureValue
     };
   }
 
-  const lostItems = collectAllItemNames(player);
+  const lostItems = collectAllItems(player);
   return {
     result: "failure",
     reason: outcome.reason,
@@ -473,23 +487,24 @@ function buildSettlement(
     extractedGold: 0,
     extractedTreasureValue: 0,
     extractedItems: [],
+    extractedItemDetails: [],
     retainedItems: [],
-    lostItems,
-    loadoutLost: lostItems.length > 0,
+    retainedItemDetails: [],
+    lostItems: lostItems.names,
+    lostItemDetails: lostItems.details,
+    loadoutLost: lostItems.names.length > 0,
     profileGoldDelta: 0
   };
 }
 
-function collectExtractedItems(player: RuntimePlayer): { gold: number; treasureValue: number; names: string[] } {
-  const items = [
-    ...(player.inventory?.items.map((entry) => entry.item) ?? []),
-    ...Object.values(player.inventory?.equipment ?? {}).filter((item): item is NonNullable<typeof item> => Boolean(item))
-  ];
+function collectExtractedItems(player: RuntimePlayer): { gold: number; treasureValue: number; names: string[]; details: SettlementItemDetail[] } {
+  const details = collectItemDetails(player);
 
   return {
-    gold: items.reduce((sum, item) => sum + item.goldValue, 0),
-    treasureValue: items.reduce((sum, item) => sum + item.treasureValue, 0),
-    names: items.map((item) => item.name)
+    gold: details.reduce((sum, item) => sum + item.goldValue, 0),
+    treasureValue: details.reduce((sum, item) => sum + item.treasureValue, 0),
+    names: details.map((item) => item.name),
+    details
   };
 }
 
@@ -537,13 +552,31 @@ function hasActiveExtractingSquad(room: RuntimeRoom, squadId: SquadId, zoneId: s
   ));
 }
 
-function collectAllItemNames(player: RuntimePlayer): string[] {
-  return [
-    ...(player.inventory?.items.map((entry) => entry.item.name) ?? []),
-    ...Object.values(player.inventory?.equipment ?? {})
-      .filter((item): item is NonNullable<typeof item> => Boolean(item))
-      .map((item) => item.name)
+function collectItemDetails(player: RuntimePlayer): SettlementItemDetail[] {
+  const items = [
+    ...(player.inventory?.items.map((entry) => entry.item) ?? []),
+    ...Object.values(player.inventory?.equipment ?? {}).filter((item): item is NonNullable<typeof item> => Boolean(item))
   ];
+  return items.map((item) => ({
+    instanceId: item.instanceId,
+    definitionId: item.templateId,
+    name: item.name,
+    kind: normalizeSettlementItemKind(item.kind),
+    rarity: item.rarity,
+    goldValue: item.goldValue,
+    treasureValue: item.treasureValue
+  }));
+}
+
+function collectAllItems(player: RuntimePlayer): { names: string[]; details: SettlementItemDetail[] } {
+  const details = collectItemDetails(player);
+  return { names: details.map((item) => item.name), details };
+}
+
+function normalizeSettlementItemKind(kind: InventoryItemKind): SettlementItemDetail["kind"] {
+  if (kind === "equipment") return "armor";
+  if (kind === "currency") return "gold";
+  return kind;
 }
 
 function buildProgressPayload(

@@ -8,6 +8,7 @@ import {
   MonsterState,
   PlayerState,
   RoomRuntimeSnapshot,
+  SettlementItemDetail,
   SettlementPayload,
   SkillId,
   Vector2,
@@ -511,8 +512,11 @@ function normalizeSettlementPayload(payload: SettlementEnvelope | unknown): Sett
     extractedGold: asNumber(settlement.extractedGold, 0),
     extractedTreasureValue: asNumber(settlement.extractedTreasureValue, 0),
     extractedItems: Array.isArray(settlement.extractedItems) ? settlement.extractedItems.map((item) => translateItemName(String(item))) : [],
+    extractedItemDetails: normalizeSettlementItems(settlement.extractedItemDetails),
     retainedItems: Array.isArray(settlement.retainedItems) ? settlement.retainedItems.map((item) => translateItemName(String(item))) : [],
+    retainedItemDetails: normalizeSettlementItems(settlement.retainedItemDetails),
     lostItems: Array.isArray(settlement.lostItems) ? settlement.lostItems.map((item) => translateItemName(String(item))) : [],
+    lostItemDetails: normalizeSettlementItems(settlement.lostItemDetails),
     loadoutLost: settlement.loadoutLost === true,
     profileGoldDelta: asNumber(settlement.profileGoldDelta, 0)
   };
@@ -536,6 +540,27 @@ function asString(value: unknown, fallback: string): string {
 
 function asOptionalString(value: unknown): SettlementPayload["reason"] | undefined {
   return typeof value === "string" ? (value as SettlementPayload["reason"]) : undefined;
+}
+
+function normalizeSettlementItems(value: unknown): SettlementItemDetail[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.flatMap((entry) => {
+    if (!isRecord(entry)) return [];
+    const definitionId = asOptionalStringValue(entry.definitionId);
+    const name = asOptionalStringValue(entry.name);
+    const kind = asOptionalStringValue(entry.kind);
+    if (!definitionId || !name || !kind) return [];
+    return [{
+      instanceId: asString(entry.instanceId, definitionId),
+      definitionId,
+      name,
+      kind: kind as SettlementItemDetail["kind"],
+      rarity: asOptionalStringValue(entry.rarity) as SettlementItemDetail["rarity"],
+      goldValue: asNumber(entry.goldValue, 0),
+      treasureValue: asNumber(entry.treasureValue, 0)
+    }];
+  });
+  return items.length > 0 ? items : undefined;
 }
 
 function asOptionalStringValue(value: unknown): string | undefined {

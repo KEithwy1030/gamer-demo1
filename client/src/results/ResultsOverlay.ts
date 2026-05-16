@@ -1,7 +1,7 @@
-import type { SettlementPayload } from "@gamer/shared";
+import type { SettlementItemDetail, SettlementPayload } from "@gamer/shared";
 import "../styles/results.css";
 import type { ResultOverlayState } from "./types";
-import { translateItemName } from "../ui/itemPresentation";
+import { getItemPresentation } from "../ui/itemPresentation";
 
 export interface ResultsOverlayApi {
   readonly element: HTMLElement;
@@ -121,7 +121,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
     title.textContent = copy.title;
     subtitle.textContent = copy.subtitle;
     replaceStats(stats, settlement);
-    replaceItems(itemsList, settlement.extractedItems);
+    replaceItems(itemsList, settlement.result === "success" ? settlement.extractedItemDetails ?? [] : settlement.lostItemDetails ?? []);
   }
 }
 
@@ -167,9 +167,10 @@ function replaceStats(container: HTMLElement, settlement: SettlementPayload): vo
   );
 }
 
-function replaceItems(container: HTMLElement, items: string[]): void {
+function replaceItems(container: HTMLElement, items: SettlementItemDetail[]): void {
   if (items.length === 0) {
     const empty = document.createElement("li");
+    empty.className = "results-item-card results-item-card--empty";
     empty.textContent = "未带回物资";
     container.replaceChildren(empty);
     return;
@@ -178,7 +179,22 @@ function replaceItems(container: HTMLElement, items: string[]): void {
   container.replaceChildren(
     ...items.map((item) => {
       const entry = document.createElement("li");
-      entry.textContent = translateItemName(item);
+      const presentation = getItemPresentation({
+        definitionId: item.definitionId,
+        name: item.name,
+        kind: item.kind,
+        rarity: item.rarity
+      });
+      entry.className = `results-item-card results-item-card--${presentation.variant}`;
+      entry.setAttribute("data-rarity", item.rarity ?? "common");
+      entry.innerHTML = `
+        <span class="results-item-card__icon">${presentation.icon}</span>
+        <span class="results-item-card__body">
+          <span class="results-item-card__name">${escapeHtml(item.name)}</span>
+          <span class="results-item-card__meta">${escapeHtml(presentation.detailLabel)}</span>
+        </span>
+        <span class="results-item-card__value">${formatItemValue(item)}</span>
+      `;
       return entry;
     })
   );
@@ -202,4 +218,23 @@ function formatDuration(totalSeconds: number): string {
 
 function formatSignedNumber(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toLocaleString("zh-CN")}`;
+}
+
+function formatItemValue(item: SettlementItemDetail): string {
+  if (item.treasureValue > 0) {
+    return `${item.treasureValue.toLocaleString("zh-CN")}+`;
+  }
+  if (item.goldValue > 0) {
+    return `${item.goldValue.toLocaleString("zh-CN")}g`;
+  }
+  return item.rarity ?? "common";
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }

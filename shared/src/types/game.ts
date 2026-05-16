@@ -1,4 +1,5 @@
 import type { StatusEffectState } from "./combat";
+import type { ItemCategory, ItemRarity } from "./inventory";
 
 export interface Vector2 {
   x: number;
@@ -148,10 +149,23 @@ export interface SettlementPayload {
   extractedGold: number;
   extractedTreasureValue: number;
   extractedItems: string[];
+  extractedItemDetails?: SettlementItemDetail[];
   retainedItems: string[];
+  retainedItemDetails?: SettlementItemDetail[];
   lostItems: string[];
+  lostItemDetails?: SettlementItemDetail[];
   loadoutLost: boolean;
   profileGoldDelta: number;
+}
+
+export interface SettlementItemDetail {
+  instanceId: string;
+  definitionId: string;
+  name: string;
+  kind: ItemCategory;
+  rarity?: ItemRarity;
+  goldValue: number;
+  treasureValue: number;
 }
 
 export interface ExtractCarrierState {
