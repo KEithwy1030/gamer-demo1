@@ -101,10 +101,10 @@ const OBSTACLE_ZONES: Array<MatchLayoutObstacleZone> = [
   { obstacleId: "south_corpse_wagons", x: 2860, y: 3990, width: 410, height: 150, kind: "wreckage" },
   { obstacleId: "extract_outer_rubble_west", x: 2050, y: 2310, width: 230, height: 110, kind: "ruin" },
   { obstacleId: "extract_outer_rubble_east", x: 2840, y: 2380, width: 220, height: 116, kind: "ruin" },
-  { obstacleId: "center_north_wall", x: 2320, y: 1960, width: 160, height: 64, kind: "wall" },
-  { obstacleId: "center_south_wall", x: 2320, y: 2780, width: 160, height: 64, kind: "wall" },
-  { obstacleId: "center_west_barricade", x: 1980, y: 2360, width: 64, height: 120, kind: "barricade" },
-  { obstacleId: "center_east_barricade", x: 2750, y: 2360, width: 64, height: 120, kind: "barricade" }
+  { obstacleId: "center_north_wall", x: 2320, y: 1944, width: 160, height: 96, kind: "wall" },
+  { obstacleId: "center_south_wall", x: 2320, y: 2764, width: 160, height: 96, kind: "wall" },
+  { obstacleId: "center_west_barricade", x: 1964, y: 2360, width: 96, height: 120, kind: "barricade" },
+  { obstacleId: "center_east_barricade", x: 2734, y: 2360, width: 96, height: 120, kind: "barricade" }
 ];
 
 export interface BuildMatchLayoutOptions {
