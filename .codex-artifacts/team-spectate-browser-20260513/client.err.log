@@ -1,0 +1,12 @@
+npm warn "5173" is being parsed as a normal command line argument.
+npm warn Unknown cli config "--port". This will stop working in the next major version of npm.
+npm warn Unknown cli config "--strictPort". This will stop working in the next major version of npm.
+[31merror when starting dev server:
+Error: EPERM: operation not permitted, unlink 'E:\CursorData\gamer\client\node_modules\.vite\deps\package.json'[39m
+npm error Lifecycle script `dev` failed with error:
+npm error code 1
+npm error path E:\CursorData\gamer\client
+npm error workspace @gamer/client@0.1.0
+npm error location E:\CursorData\gamer\client
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c vite --host 0.0.0.0 5173

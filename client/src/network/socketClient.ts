@@ -1,4 +1,4 @@
-﻿import { io, type Socket } from "socket.io-client";
+import { io, type Socket } from "socket.io-client";
 import {
   type AttackRequestPayload,
   type CombatEventPayload,
@@ -72,6 +72,14 @@ export interface ChestOpenedPayload {
   chestId: string;
   playerId: string;
   loot: InventorySnapshotPayload["inventory"]["items"];
+}
+
+export interface ChestProgressPayload {
+  chestId: string;
+  playerId: string;
+  status: "started" | "progress" | "interrupted";
+  remainingMs: number;
+  durationMs: number;
 }
 
 export interface InventoryUpdateEvent {
@@ -193,6 +201,10 @@ export class GameSocketClient {
 
   onChestOpened(listener: (payload: ChestOpenedPayload) => void): Unsubscribe {
     return this.on(SocketEvent.ChestOpened, listener);
+  }
+
+  onChestProgress(listener: (payload: ChestProgressPayload) => void): Unsubscribe {
+    return this.on(SocketEvent.ChestProgress, listener);
   }
 
   onSettlement(listener: (payload: SettlementEnvelope | unknown) => void): Unsubscribe {

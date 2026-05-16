@@ -1,0 +1,19 @@
+[dev-acceptance] started fixed dev preset launcher
+run id: mobile-hud-lol-slider-20260513
+server pid: 15640
+client pid: 33984
+server url: http://127.0.0.1:3210
+client base url: http://127.0.0.1:5174
+boss preset url: http://127.0.0.1:5174/?devRoomPreset=boss
+extract preset url: http://127.0.0.1:5174/?devRoomPreset=extract
+env PORT=3210
+env ENABLE_TEST_HOOKS=1
+env CLIENT_ORIGIN=http://127.0.0.1:5174,http://localhost:5174
+env VITE_SERVER_URL=http://127.0.0.1:3210
+env PROFILE_STORE_PATH=E:\CursorData\gamer\.codex-artifacts\dev-acceptance\mobile-hud-lol-slider-20260513\profiles-3210.json
+artifact dir: E:\CursorData\gamer\.codex-artifacts\dev-acceptance\mobile-hud-lol-slider-20260513
+profile store: E:\CursorData\gamer\.codex-artifacts\dev-acceptance\mobile-hud-lol-slider-20260513\profiles-3210.json
+server log: E:\CursorData\gamer\.codex-artifacts\dev-acceptance\mobile-hud-lol-slider-20260513\server-3210.log
+client log: E:\CursorData\gamer\.codex-artifacts\dev-acceptance\mobile-hud-lol-slider-20260513\client-5174.log
+launcher log: E:\CursorData\gamer\.codex-artifacts\dev-acceptance\mobile-hud-lol-slider-20260513\launcher.log
+stop: Ctrl+C in this launcher terminal

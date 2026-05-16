@@ -1,4 +1,4 @@
-﻿import type { CombatEventPayload, SkillId, Vector2, WeaponType } from "@gamer/shared";
+import type { CombatEventPayload, SkillId, Vector2, WeaponType } from "@gamer/shared";
 import Phaser from "phaser";
 import type { AttackRequestPayload } from "@gamer/shared";
 import { WEAPON_DEFINITIONS } from "@gamer/shared";
@@ -174,6 +174,7 @@ export class GameScene extends Phaser.Scene {
     this.onToggleInventory = data.onToggleInventory;
     this.subscribeChestsInit = data.subscribeChestsInit;
     this.subscribeChestOpened = data.subscribeChestOpened;
+    this.subscribeChestProgress = data.subscribeChestProgress;
     this.onCombatResult = (payload) => this.handleCombatResult(payload);
     this.onPlayerAttack = (payload) => this.handleServerPlayerAttack(payload);
 

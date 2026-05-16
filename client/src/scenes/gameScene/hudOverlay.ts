@@ -573,6 +573,43 @@ export class GameHudOverlay {
     });
   }
 
+  private syncChestProgress(chestProgress?: { progress: number; remainingMs: number } | null): void {
+    if (!this.chestProgressTrack || !this.chestProgressFill || !this.chestProgressLabel || !this.layout) return;
+
+    const active = Boolean(chestProgress && chestProgress.progress > 0 && chestProgress.progress < 1);
+    if (this.lastChestProgressActive !== active) {
+      this.chestProgressTrack.setVisible(active);
+      this.chestProgressFill.setVisible(active);
+      this.chestProgressLabel.setVisible(active);
+      this.lastChestProgressActive = active;
+    }
+    if (!active || !chestProgress) return;
+
+    const progress = Phaser.Math.Clamp(chestProgress.progress, 0, 1);
+    const barWidth = Math.min(420, this.scene.scale.width - 120);
+    const x = this.scene.scale.width / 2 - barWidth / 2;
+    const y = Math.max(116, this.layout.objective.bottom + 18);
+
+    if (Math.abs(this.lastChestProgressValue - progress) > 0.005) {
+      this.chestProgressTrack.clear();
+      this.chestProgressTrack.fillStyle(0x130e0a, 0.9);
+      this.chestProgressTrack.fillRoundedRect(x, y, barWidth, 20, 6);
+      this.chestProgressTrack.lineStyle(2, 0x4ade80, 0.82);
+      this.chestProgressTrack.strokeRoundedRect(x, y, barWidth, 20, 6);
+      this.chestProgressFill.clear();
+      this.chestProgressFill.fillStyle(0x4ade80, 1);
+      this.chestProgressFill.fillRoundedRect(x + 6, y + 6, (barWidth - 12) * progress, 8, 3);
+      this.lastChestProgressValue = progress;
+    }
+
+    const seconds = ` ${Math.ceil(chestProgress.remainingMs / 1000)}s`;
+    const label = `开启宝箱${seconds}`;
+    if (this.lastChestProgressLabel !== label) {
+      this.chestProgressLabel.setText(label);
+      this.lastChestProgressLabel = label;
+    }
+  }
+
   private syncLowHpOverlay(hpRatio: number): void {
     if (!this.lowHpOverlay) return;
     const targetAlpha = hpRatio < 0.28 ? 0.16 : hpRatio < 0.48 ? 0.07 : 0;

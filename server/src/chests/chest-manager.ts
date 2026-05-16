@@ -192,9 +192,10 @@ export function interruptChestOpening(room: RuntimeRoom, playerId: string): bool
 export function tickChestOpenings(
   room: RuntimeRoom,
   now = Date.now()
-): { openedEvents: ChestOpenedPayload[]; interruptedPlayerIds: string[] } {
+): { openedEvents: ChestOpenedPayload[]; interruptedPlayerIds: string[]; progressEvents: ChestProgressPayload[] } {
   const openedEvents: ChestOpenedPayload[] = [];
   const interruptedPlayerIds: string[] = [];
+  const progressEvents: ChestProgressPayload[] = [];
 
   for (const player of room.players.values()) {
     const opening = player.openingChest;
@@ -207,6 +208,13 @@ export function tickChestOpenings(
     if (!chest || chest.isOpen || !state?.isAlive) {
       player.openingChest = undefined;
       interruptedPlayerIds.push(player.id);
+      progressEvents.push({
+        chestId: opening.chestId,
+        playerId: player.id,
+        status: "interrupted",
+        remainingMs: 0,
+        durationMs: CHEST_OPEN_DURATION_MS
+      });
       continue;
     }
 
@@ -215,10 +223,24 @@ export function tickChestOpenings(
     if (moved > CHEST_OPEN_MOVE_TOLERANCE || chestDistance > CHEST_INTERACT_RANGE) {
       player.openingChest = undefined;
       interruptedPlayerIds.push(player.id);
+      progressEvents.push({
+        chestId: opening.chestId,
+        playerId: player.id,
+        status: "interrupted",
+        remainingMs: 0,
+        durationMs: CHEST_OPEN_DURATION_MS
+      });
       continue;
     }
 
     if (now < opening.completesAt) {
+      progressEvents.push({
+        chestId: opening.chestId,
+        playerId: player.id,
+        status: now - opening.startedAt < 100 ? "started" : "progress",
+        remainingMs: opening.completesAt - now,
+        durationMs: CHEST_OPEN_DURATION_MS
+      });
       continue;
     }
 
@@ -231,7 +253,7 @@ export function tickChestOpenings(
     });
   }
 
-  return { openedEvents, interruptedPlayerIds };
+  return { openedEvents, interruptedPlayerIds, progressEvents };
 }
 
 function spawnChestDrops(room: RuntimeRoom, chest: Chest, loot: InventoryItem[]): DropState[] {

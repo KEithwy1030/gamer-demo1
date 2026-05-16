@@ -111,6 +111,14 @@ export interface ChestOpenedPayload {
   loot: InventoryItem[];
 }
 
+export interface ChestProgressPayload {
+  chestId: string;
+  playerId: string;
+  status: "started" | "progress" | "interrupted";
+  remainingMs: number;
+  durationMs: number;
+}
+
 export interface PlayerPickupPayload {
   dropId: string;
 }

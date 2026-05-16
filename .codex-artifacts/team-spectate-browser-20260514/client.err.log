@@ -1,0 +1,20 @@
+[31mfailed to load config from E:\CursorData\gamer\client\vite.config.ts[39m
+[31merror when starting dev server:
+Error: spawn EPERM
+    at ChildProcess.spawn (node:internal/child_process:421:11)
+    at Object.spawn (node:child_process:796:9)
+    at ensureServiceIsRunning (E:\CursorData\gamer\node_modules\esbuild\lib\main.js:2268:29)
+    at build (E:\CursorData\gamer\node_modules\esbuild\lib\main.js:2166:26)
+    at bundleConfigFile (file:///E:/CursorData/gamer/node_modules/vite/dist/node/chunks/config.js:35819:23)
+    at bundleAndLoadConfigFile (file:///E:/CursorData/gamer/node_modules/vite/dist/node/chunks/config.js:35806:24)
+    at loadConfigFromFile (file:///E:/CursorData/gamer/node_modules/vite/dist/node/chunks/config.js:35775:179)
+    at resolveConfig (file:///E:/CursorData/gamer/node_modules/vite/dist/node/chunks/config.js:35424:28)
+    at _createServer (file:///E:/CursorData/gamer/node_modules/vite/dist/node/chunks/config.js:25365:73)
+    at createServer$2 (file:///E:/CursorData/gamer/node_modules/vite/dist/node/chunks/config.js:25362:9)[39m
+npm error Lifecycle script `dev` failed with error:
+npm error code 1
+npm error path E:\CursorData\gamer\client
+npm error workspace @gamer/client@0.1.0
+npm error location E:\CursorData\gamer\client
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c vite --host 0.0.0.0 --port 5174 --strictPort

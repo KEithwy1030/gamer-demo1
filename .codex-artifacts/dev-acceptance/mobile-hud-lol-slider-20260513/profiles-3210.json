@@ -1,0 +1,58 @@
+{
+  "profiles": [
+    {
+      "profileId": "profile-63bba6b2-f446-4e3d-84ca-30544c583d4c",
+      "displayName": "HUD验收",
+      "gold": 500,
+      "inventory": {
+        "width": 10,
+        "height": 6,
+        "items": []
+      },
+      "equipment": {
+        "weapon": {
+          "instanceId": "starter-f3dcb673-89f4-4370-8052-db7123c0c701",
+          "definitionId": "weapon_sword_basic",
+          "kind": "weapon",
+          "rarity": "common",
+          "name": "锈蚀长剑"
+        }
+      },
+      "stash": {
+        "width": 10,
+        "height": 8,
+        "pages": [
+          {
+            "width": 10,
+            "height": 8,
+            "items": []
+          },
+          {
+            "width": 10,
+            "height": 8,
+            "items": []
+          },
+          {
+            "width": 10,
+            "height": 8,
+            "items": []
+          },
+          {
+            "width": 10,
+            "height": 8,
+            "items": []
+          },
+          {
+            "width": 10,
+            "height": 8,
+            "items": []
+          }
+        ]
+      },
+      "pendingReturn": null,
+      "lastRun": null,
+      "botDifficulty": "normal",
+      "version": 2
+    }
+  ]
+}

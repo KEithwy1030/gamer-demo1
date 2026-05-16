@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "AfterAgent": [
+      {
+        "name": "mandatory-typecheck-review",
+        "type": "command",
+        "command": "npm run typecheck",
+        "description": "强制在任务结束前进行全项目类型检查，确保没有由于代码修改导致的破坏性 Bug。"
+      }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command",
+        "hooks": [
+          {
+            "name": "prevent-dangerous-git-ops",
+            "type": "command",
+            "command": "powershell -Command \"if ($env:GEMINI_TOOL_ARGS -match 'git push --force|git reset --hard origin') { exit 1 }\"",
+            "description": "防止 AI 执行强制推送或破坏远程同步的操作。"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -482,6 +482,9 @@ function startPlayerSyncLoop(roomCode: string): void {
       const botResult = tickBots(context);
       emitBotTickResult(roomCode, botResult);
       const chestTick = tickChestOpenings(context.room);
+      for (const event of chestTick.progressEvents) {
+        io.to(roomCode).emit(SocketEvent.ChestProgress, event);
+      }
       for (const event of chestTick.openedEvents) {
         io.to(roomCode).emit(SocketEvent.ChestOpened, event);
       }

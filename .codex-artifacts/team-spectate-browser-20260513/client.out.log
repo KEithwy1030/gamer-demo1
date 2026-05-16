@@ -1,0 +1,9 @@
+
+> gamer-demo1@0.1.0 dev:client
+> npm run dev --workspace client --port 5173 --strictPort
+
+
+> @gamer/client@0.1.0 dev
+> vite --host 0.0.0.0 5173
+
+[2m22:32:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed

@@ -1,0 +1,8 @@
+
+> gamer-demo1@0.1.0 dev:server
+> npm run dev --workspace server
+
+
+> @gamer/server@0.1.0 dev
+> tsx watch src/index.ts
+

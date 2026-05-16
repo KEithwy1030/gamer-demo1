@@ -53,6 +53,7 @@ export interface MatchViewState {
   inventory: MatchInventoryState | null;
   lastCombatText: string | null;
   layout: MatchLayout | null;
+  chestProgress: { progress: number; remainingMs: number } | null;
 }
 
 type Listener = (state: MatchViewState) => void;
@@ -72,7 +73,8 @@ export class MatchRuntimeStore {
     secondsRemaining: null,
     inventory: null,
     lastCombatText: null,
-    layout: null
+    layout: null,
+    chestProgress: null
   };
 
   private readonly listeners = new Set<Listener>();
@@ -130,6 +132,11 @@ export class MatchRuntimeStore {
 
   setCombatText(text: string | null): void {
     this.state = { ...this.state, lastCombatText: text };
+    this.emit();
+  }
+
+  setChestProgress(progress: { progress: number; remainingMs: number } | null): void {
+    this.state = { ...this.state, chestProgress: progress };
     this.emit();
   }
 

@@ -1,0 +1,7 @@
+
+> @gamer/server@0.1.0 dev
+> tsx watch src/index.ts
+
+[server] listening on http://0.0.0.0:3210
+16:12:09 [tsx] change in ./src\extract\service.ts Restarting...
+c[server] listening on http://0.0.0.0:3210

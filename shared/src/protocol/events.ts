@@ -33,6 +33,7 @@ export const SocketEvent = {
   ExtractSuccess: "extract:success",
   ChestsInit: "chests:init",
   ChestOpened: "chest:opened",
+  ChestProgress: "chest:progress",
   PlayerOpenChest: "player:openChest"
 } as const;
 
