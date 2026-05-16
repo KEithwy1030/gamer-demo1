@@ -128,11 +128,16 @@ export function resolveGridCandidate(params: {
 
   const width = normalizeSpan(item.width);
   const height = normalizeSpan(item.height);
-  const step = metrics.cellSize + metrics.gap;
+  const unscaledWidth = grid.width * metrics.cellSize + (grid.width - 1) * metrics.gap;
+  const unscaledHeight = grid.height * metrics.cellSize + (grid.height - 1) * metrics.gap;
+  const scaleX = surfaceRect.width > 0 && unscaledWidth > 0 ? surfaceRect.width / unscaledWidth : 1;
+  const scaleY = surfaceRect.height > 0 && unscaledHeight > 0 ? surfaceRect.height / unscaledHeight : 1;
+  const stepX = (metrics.cellSize + metrics.gap) * scaleX;
+  const stepY = (metrics.cellSize + metrics.gap) * scaleY;
   const anchorX = clamp(anchor?.x ?? 0, 0, Math.max(0, width - 1));
   const anchorY = clamp(anchor?.y ?? 0, 0, Math.max(0, height - 1));
-  const rawX = Math.floor((pointer.x - surfaceRect.left) / step) - anchorX;
-  const rawY = Math.floor((pointer.y - surfaceRect.top) / step) - anchorY;
+  const rawX = Math.floor((pointer.x - surfaceRect.left) / Math.max(1, stepX)) - anchorX;
+  const rawY = Math.floor((pointer.y - surfaceRect.top) / Math.max(1, stepY)) - anchorY;
   const x = clamp(rawX, 0, Math.max(0, grid.width - width));
   const y = clamp(rawY, 0, Math.max(0, grid.height - height));
   const rect = { x, y, width, height };

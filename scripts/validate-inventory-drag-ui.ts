@@ -113,6 +113,19 @@ function main(): void {
   });
   assert(normalizedEquipmentDrop?.x === 5 && normalizedEquipmentDrop?.y === 2, "equipment-origin drag should keep the yellow drop preview aligned to the intended grid cells");
 
+  const scaledCombatSurface = makeRect(100, 200, combatSurface.width * 0.75, combatSurface.height * 0.75);
+  const scaledDrop = resolveGridCandidate({
+    grid: { width: 10, height: 6 },
+    pointer: { x: 100 + ((34 + 4) * 6 + 20) * 0.75, y: 200 + ((34 + 4) * 2 + 12) * 0.75 },
+    surfaceRect: scaledCombatSurface,
+    metrics: combatMetrics,
+    item: { instanceId: "head-pack", width: 2, height: 1, equipmentSlot: "head" },
+    occupants: [],
+    ignoreInstanceIds: [],
+    anchor: equipmentCardAnchor
+  });
+  assert(scaledDrop?.x === 5 && scaledDrop?.y === 2, "scaled combat inventory should resolve the same logical grid cell as the unscaled surface");
+
   const stashItemAnchor = resolveDragAnchorFromSource(
     { x: 78, y: 14 },
     stashMetrics,
