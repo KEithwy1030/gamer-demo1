@@ -15,6 +15,7 @@ Run one focused browser playtest and record whether the current Demo 1 loop deli
 ## Setup
 
 - Branch: `feat-frontend-optimization`.
+- Preflight: run `npm run validate:launch-readiness` after code changes and before counting a session as release-feel evidence.
 - Start server: `npm run dev:server`.
 - Start client: `npm run dev:client`.
 - URL: `http://localhost:5173/`.
