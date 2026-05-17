@@ -3,6 +3,7 @@ import Phaser from "phaser";
 import type { MatchViewState } from "../../game";
 import type { MonsterMarker } from "../../game/entities/MonsterMarker";
 import type { PlayerMarker } from "../../game/entities/PlayerMarker";
+import type { StatusEffectType } from "@gamer/shared";
 import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
 import { getPrimarySkillWindupMs } from "./skillHelpers";
 
@@ -136,6 +137,7 @@ export class GameSceneFeedbackFx {
     text.setShadow(0, 0, Phaser.Display.Color.IntegerToColor(style.glowColor).rgba, 18, false, true);
     const accent = this.scene.add.graphics().setPosition(damageX, damageY + 2).setDepth(2999);
     this.drawDamageAccent(accent, badgeWidth, badgeHeight, style.glowColor, payload.isCritical ?? false);
+    this.showStatusAppliedTags(payload.statusApplied, target.root.x, target.root.y, target.root.depth);
     const damageLift = style.rise;
     const fadeDelay = Math.round(style.duration * 0.18);
     this.scene.tweens.add({
@@ -202,6 +204,41 @@ export class GameSceneFeedbackFx {
     if (attackerMonster && payload.targetId === latestState?.selfPlayerId) {
       this.showMonsterAttackVfx(attackerMonster.root.x, attackerMonster.root.y, attackerMonster.root.depth);
     }
+  }
+
+  private showStatusAppliedTags(statusApplied: StatusEffectType[] | undefined, x: number, y: number, depth: number): void {
+    if (!statusApplied?.length) return;
+    const unique = [...new Set(statusApplied)].slice(0, 3);
+    const rowWidth = Math.max(0, (unique.length - 1) * 54);
+    unique.forEach((status, index) => {
+      const presentation = getStatusPresentation(status);
+      const tag = this.scene.add.text(
+        x + index * 54 - rowWidth / 2,
+        y - 132 - index * 6,
+        presentation.label,
+        {
+          fontFamily: GAMEPLAY_THEME.fonts.display,
+          fontSize: "22px",
+          fontStyle: "bold",
+          color: presentation.color,
+          backgroundColor: presentation.backgroundColor,
+          stroke: "#120d09",
+          strokeThickness: 5,
+          padding: { x: 8, y: 4 }
+        }
+      ).setOrigin(0.5).setDepth(depth + 130).setAlpha(0.98);
+      tag.setShadow(0, 0, presentation.shadow, 12, false, true);
+      this.scene.tweens.add({
+        targets: tag,
+        y: "-=46",
+        alpha: 0,
+        scaleX: 1.12,
+        scaleY: 1.12,
+        duration: 900,
+        ease: "Cubic.out",
+        onComplete: () => tag.destroy()
+      });
+    });
   }
 
   playLocalAttack(latestState: MatchViewState | null, lastFacingDirection: Vector2): void {
@@ -580,5 +617,22 @@ export class GameSceneFeedbackFx {
 
   private shakeCamera(intensity: number, duration: number): void {
     this.scene.cameras.main.shake(duration, intensity);
+  }
+}
+
+function getStatusPresentation(status: StatusEffectType): { label: string; color: string; backgroundColor: string; shadow: string } {
+  switch (status) {
+    case "slow":
+      return { label: "减速", color: "#dbeafe", backgroundColor: "rgba(30,64,175,0.84)", shadow: "#60a5fa" };
+    case "bleed":
+      return { label: "流血", color: "#fee2e2", backgroundColor: "rgba(127,29,29,0.86)", shadow: "#ef4444" };
+    case "damageReduction":
+      return { label: "护体", color: "#fef3c7", backgroundColor: "rgba(113,63,18,0.84)", shadow: "#f59e0b" };
+    case "attackBoost":
+      return { label: "强攻", color: "#ffedd5", backgroundColor: "rgba(154,52,18,0.84)", shadow: "#fb923c" };
+    case "attackSpeedBoost":
+      return { label: "连斩", color: "#ecfccb", backgroundColor: "rgba(63,98,18,0.84)", shadow: "#a3e635" };
+    case "moveSpeedBoost":
+      return { label: "疾行", color: "#cffafe", backgroundColor: "rgba(21,94,117,0.84)", shadow: "#22d3ee" };
   }
 }

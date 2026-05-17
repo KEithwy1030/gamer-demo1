@@ -53,6 +53,7 @@ assertNormalAndEliteTelegraph();
 assertBossTelegraph();
 assertHitAndDeathReadable();
 assertUnifiedDamageFeedback();
+assertPlayerStatusReadability();
 
 console.log("validate-combat-readability: ok");
 
@@ -177,6 +178,13 @@ function assertUnifiedDamageFeedback(): void {
     "damage events should always route through body impact feedback"
   );
   assert.ok(
+    /showStatusAppliedTags\(payload\.statusApplied,\s*target\.root\.x,\s*target\.root\.y,\s*target\.root\.depth\)/.test(feedbackFxSource),
+    "combat feedback should surface statusApplied as a visible hit confirmation"
+  );
+  for (const label of ["减速", "流血", "护体", "强攻", "连斩", "疾行"]) {
+    assert.ok(feedbackFxSource.includes(label), `statusApplied label ${label} should remain visible in combat feedback`);
+  }
+  assert.ok(
     /if\s*\(\s*isEnvironment\s*\)[\s\S]*?this\.spawnFragments\(x,\s*y,\s*\{\s*x:\s*0\.2,\s*y:\s*-1\s*\}/.test(feedbackFxSource),
     "environment damage should produce body-impact fragments, not only floating numbers"
   );
@@ -184,6 +192,16 @@ function assertUnifiedDamageFeedback(): void {
   assert.equal(weaponVfxBody.includes("lineTo("), false, "basic attack feedback should not draw demo-style judgement lines");
   assert.equal(weaponVfxBody.includes("strokePath()"), false, "basic attack feedback should not rely on a single debug line as the main effect");
   assert.ok(!feedbackFxSource.includes("showHitImpact("), "legacy hit-impact helper should not remain as the main effect path");
+}
+
+function assertPlayerStatusReadability(): void {
+  const playerMarkerSource = fs.readFileSync(new URL("../client/src/game/entities/PlayerMarker.ts", import.meta.url), "utf8");
+  assert.ok(playerMarkerSource.includes("statusBadges"), "player marker should maintain visible status badges");
+  assert.ok(playerMarkerSource.includes("summarizeStatusEffects"), "player marker should summarize status effects before display");
+  assert.ok(playerMarkerSource.includes("resolveStatusBadge"), "player marker should map status effects to stable badge labels");
+  for (const label of ["缓", "血", "盾", "攻", "速", "疾"]) {
+    assert.ok(playerMarkerSource.includes(label), `status badge ${label} should remain visible in combat UI`);
+  }
 }
 
 function tickUntil(check: () => boolean, message: string): void {

@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { WEAPON_DEFINITIONS, type PlayerState, type WeaponType } from "@gamer/shared";
+import { WEAPON_DEFINITIONS, type PlayerState, type StatusEffectState, type WeaponType } from "@gamer/shared";
 
 export type AnimationState = "IDLE" | "MOVE" | "ATTACK" | "HURT" | "DIE";
 type DirectionKey = "down" | "left" | "right" | "up";
@@ -9,6 +9,9 @@ const PLAYER_FRAME_SIZE = 132;
 const PLAYER_BODY_Y = 8;
 const PLAYER_HP_Y = -78;
 const PLAYER_NAME_Y = -92;
+const STATUS_BADGE_Y = -61;
+const STATUS_BADGE_SPACING = 27;
+const MAX_STATUS_BADGES = 4;
 
 export class PlayerMarker {
   readonly id: string;
@@ -19,6 +22,7 @@ export class PlayerMarker {
   private readonly hpTrack: Phaser.GameObjects.Rectangle;
   private readonly hpFill: Phaser.GameObjects.Rectangle;
   private readonly nameplate: Phaser.GameObjects.Text;
+  private readonly statusBadges: Phaser.GameObjects.Text[] = [];
   private targetX: number;
   private targetY: number;
   private currentState: AnimationState = "IDLE";
@@ -79,13 +83,27 @@ export class PlayerMarker {
       padding: player.isBot ? { x: 4, y: 2 } : { x: 6, y: 3 }
     });
     this.nameplate.setOrigin(0.5, 1);
+    for (let index = 0; index < MAX_STATUS_BADGES; index += 1) {
+      const badge = scene.add.text(0, STATUS_BADGE_Y, "", {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        fontStyle: "bold",
+        color: "#f3ead6",
+        backgroundColor: "rgba(22,19,15,0.78)",
+        padding: { x: 4, y: 2 }
+      });
+      badge.setOrigin(0.5, 0.5);
+      badge.setVisible(false);
+      this.statusBadges.push(badge);
+    }
 
     const children: Phaser.GameObjects.GameObject[] = [
       this.shadow,
       this.sprite,
       this.hpTrack,
       this.hpFill,
-      this.nameplate
+      this.nameplate,
+      ...this.statusBadges
     ];
 
     this.root = scene.add.container(player.x, player.y, children);
@@ -217,6 +235,8 @@ export class PlayerMarker {
       this.lastNameplateColor = nextNameplateColor;
     }
 
+    this.syncStatusBadges(player);
+
     this.nameplate.setScale(player.isBot ? 0.84 : 1);
     const nextLabelAlpha = player.isAlive ? (player.isBot ? 0.82 : 1) : 0.65;
     if (this.nameplate.alpha !== nextLabelAlpha) {
@@ -228,6 +248,24 @@ export class PlayerMarker {
       this.root.setAlpha(nextRootAlpha);
       this.lastRootAlpha = nextRootAlpha;
     }
+  }
+
+  private syncStatusBadges(player: PlayerState): void {
+    const presentations = summarizeStatusEffects(player.statusEffects ?? []);
+    const rowWidth = Math.max(0, (presentations.length - 1) * STATUS_BADGE_SPACING);
+    this.statusBadges.forEach((badge, index) => {
+      const presentation = presentations[index];
+      if (!presentation || !player.isAlive) {
+        badge.setVisible(false);
+        return;
+      }
+
+      badge.setText(presentation.label);
+      badge.setColor(presentation.color);
+      badge.setBackgroundColor(presentation.backgroundColor);
+      badge.setPosition(index * STATUS_BADGE_SPACING - rowWidth / 2, STATUS_BADGE_Y);
+      badge.setVisible(true);
+    });
   }
 
   createGhost(): void {
@@ -258,6 +296,47 @@ export class PlayerMarker {
 
     this.sprite.anims.stop();
     this.sprite.setFrame(getIdleFrame(this.facing));
+  }
+}
+
+function summarizeStatusEffects(effects: StatusEffectState[]): Array<{ label: string; color: string; backgroundColor: string }> {
+  const seen = new Set<StatusEffectState["type"]>();
+  const presentations: Array<{ label: string; color: string; backgroundColor: string }> = [];
+  for (const effect of effects) {
+    if (seen.has(effect.type)) {
+      continue;
+    }
+
+    const presentation = resolveStatusBadge(effect);
+    if (!presentation) {
+      continue;
+    }
+
+    seen.add(effect.type);
+    presentations.push(presentation);
+    if (presentations.length >= MAX_STATUS_BADGES) {
+      break;
+    }
+  }
+  return presentations;
+}
+
+function resolveStatusBadge(effect: StatusEffectState): { label: string; color: string; backgroundColor: string } | null {
+  switch (effect.type) {
+    case "slow":
+      return { label: "缓", color: "#dbeafe", backgroundColor: "rgba(30,64,175,0.84)" };
+    case "bleed":
+      return { label: "血", color: "#fee2e2", backgroundColor: "rgba(127,29,29,0.84)" };
+    case "damageReduction":
+      return { label: "盾", color: "#fef3c7", backgroundColor: "rgba(113,63,18,0.84)" };
+    case "attackBoost":
+      return { label: "攻", color: "#ffedd5", backgroundColor: "rgba(154,52,18,0.84)" };
+    case "attackSpeedBoost":
+      return { label: "速", color: "#ecfccb", backgroundColor: "rgba(63,98,18,0.84)" };
+    case "moveSpeedBoost":
+      return { label: "疾", color: "#cffafe", backgroundColor: "rgba(21,94,117,0.84)" };
+    default:
+      return null;
   }
 }
 
