@@ -45,14 +45,14 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 
 - Manual long-session balance: 9-12 minute ideal extraction timing cannot be proven by deterministic tests; `MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md` now defines the required evidence format.
 - Real multi-human PvPvE feel: socket contracts prove protocol shape, not player tension or combat readability under human pressure.
-- Commercial art polish: generated assets and visual clarity tests exist, but the game is not yet at final store-ready art direction.
+- Commercial art polish: the lobby / black-market entry now uses a generated bitmap backdrop and a local preview screenshot confirmed the lobby shell renders with the new art, but the rest of the commercial art pass is still incomplete.
 - Browser/mobile hands-on comfort: automation can catch layout and console failures, but not actual play feel.
 - Human playtest note capture: the note-copy action now exists in both the results overlay and lobby recent-run summary, but the session itself still needs to be run and rated.
 - Player death loot race: deterministic enemy kill, full drop, and opposing pickup is now covered; live multi-human contest tension still needs manual playtest.
 
 ## Next implementation target
 
-The highest-value next slice is manual/playtest-facing: run the focused 9-12 minute extraction session defined in `MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md`, use the new note-copy action in `ResultsOverlay`, and record whether corpse-fog pressure, contested resources, black-market payoff, and death-loss tension feel readable and worth replaying. Automation now covers the major structural Demo 1 contracts, but it cannot prove human tension.
+The highest-value next slice is still manual/playtest-facing: run the focused 9-12 minute extraction session defined in `MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md`, use the new note-copy action in `ResultsOverlay`, and record whether corpse-fog pressure, contested resources, black-market payoff, and death-loss tension feel readable and worth replaying. The new lobby bitmap backdrop improves the first impression, but automation still cannot prove human tension.
 
 ## Verification command
 
