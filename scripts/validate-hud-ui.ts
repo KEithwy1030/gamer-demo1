@@ -86,6 +86,36 @@ assert.match(
   "HUD pressure hint should escalate carried-value warning during corpse fog"
 );
 assert.match(
+  hudSource,
+  /const EXTRACT_WINDOW_OPEN_SEC = 8 \* 60;/,
+  "HUD extraction pressure phase should align with the GDD eight-minute extract window"
+);
+assert.match(
+  hudSource,
+  /const CORPSE_FOG_INTENSIFIED_SEC = 12 \* 60;/,
+  "HUD extraction pressure phase should align with the GDD twelve-minute intensified fog window"
+);
+assert.match(
+  hudSource,
+  /function resolveExtractionPressurePhase\(state: MatchViewState\): ExtractionPressurePhase \{/,
+  "HUD should resolve a reusable extraction pressure phase instead of a single corpse-fog boolean"
+);
+assert.match(
+  hudSource,
+  /state\.secondsRemaining !== null[\s\S]*MATCH_DURATION_SEC - state\.secondsRemaining/,
+  "HUD phase timing should use authoritative match timer when available"
+);
+assert.match(
+  hudSource,
+  /归营火即将点燃\\n清路线，别再深压/,
+  "HUD objective should warn players shortly before the extract window opens"
+);
+assert.match(
+  hudSource,
+  /加剧期 5hp\/s，别再换血\\n进圈完成读条。/,
+  "HUD combat pressure should surface the intensified corpse-fog damage stage"
+);
+assert.match(
   gameClientSource,
   /goldValue: asNumber\(item\.goldValue, 0\),[\s\S]*treasureValue: asNumber\(item\.treasureValue, 0\),/,
   "match inventory normalization should preserve item value for in-match risk decisions"

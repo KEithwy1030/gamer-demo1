@@ -746,6 +746,7 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
   const waitingCount = Math.max(0, aliveMembers.length - insideCount);
   const cargoValue = resolveInventoryCargoValue(state);
   const cargoLabel = formatCompactValue(cargoValue);
+  const pressurePhase = resolveExtractionPressurePhase(state);
 
   if (extractState.isExtracting) {
     const seconds = extractState.secondsRemaining == null ? "" : ` ${Math.ceil(extractState.secondsRemaining)}s`;
@@ -758,13 +759,15 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
     return "已脱离封锁区\n等待清点收益";
   }
 
-  if (extractState.isOpen) {
-    return waitingCount > 0
-      ? `队伍归营火已点燃\n圈内 ${insideCount}/${aliveMembers.length} 人，等待队友`
-      : (hasBackpackCargo(state) ? "队伍归营火已点燃\n带货者进圈即走" : "队伍归营火已点燃\n进圈完成会合撤离");
+  if (extractState.isOpen && waitingCount > 0) {
+    return `队伍归营火已点燃\n圈内 ${insideCount}/${aliveMembers.length} 人，等待队友`;
   }
 
-  if (cargoValue > 0 && isCorpseFogCounterattacking(state)) {
+  if (cargoValue > 0 && pressurePhase.kind === "intensified") {
+    return `估值 ${cargoLabel} 正在报废\n尸雾加剧，立刻进圈`;
+  }
+
+  if (cargoValue > 0 && pressurePhase.kind === "counterattack") {
     return extractState.isOpen
       ? `估值 ${cargoLabel} 正在折损\n别再贪箱，直接进圈`
       : `估值 ${cargoLabel} 已入包\n尸毒已起，提前回撤`;
@@ -776,12 +779,24 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
       : `估值 ${cargoLabel} 已入包\n等火点燃就别恋战`;
   }
 
-  if (isCorpseFogCounterattacking(state)) {
+  if (pressurePhase.kind === "intensified") {
+    return "尸雾加剧\n视野与生命都在流失";
+  }
+
+  if (pressurePhase.kind === "counterattack") {
     return "尸毒反噬已起\n生命会持续流失";
   }
 
   if (state.secondsRemaining !== null && state.secondsRemaining <= 60) {
     return "封锁将尽\n立刻转向归营火";
+  }
+
+  if (extractState.isOpen) {
+    return hasBackpackCargo(state) ? "队伍归营火已点燃\n带货者进圈即走" : "队伍归营火已点燃\n进圈完成会合撤离";
+  }
+
+  if (pressurePhase.kind === "preopen" && pressurePhase.secondsUntilExtractOpen <= 90) {
+    return "归营火即将点燃\n清路线，别再深压";
   }
 
   return hasBackpackCargo(state) ? "已有收益入包\n别为贪点硬换血" : "先清外围资源\n再压向中圈高价值点";
@@ -832,6 +847,7 @@ function resolvePressureHint(state: MatchViewState, extractState: ExtractUiState
   const aliveMembers = members.filter((member) => member.isAlive && !member.isSettled);
   const insideCount = aliveMembers.filter((member) => member.isInsideZone).length;
   const waitingCount = Math.max(0, aliveMembers.length - insideCount);
+  const pressurePhase = resolveExtractionPressurePhase(state);
 
   const player = state.players.find((entry) => entry.id === state.selfPlayerId);
   const hpRatio = player && player.maxHp > 0 ? player.hp / player.maxHp : 1;
@@ -842,10 +858,20 @@ function resolvePressureHint(state: MatchViewState, extractState: ExtractUiState
       : "低血状态，先拉开怪群\n稳住交战线。";
   }
 
-  if (isCorpseFogCounterattacking(state)) {
+  if (pressurePhase.kind === "intensified") {
+    return extractState.isOpen
+      ? "加剧期 5hp/s，别再换血\n进圈完成读条。"
+      : "尸雾已加剧\n放弃外圈资源。";
+  }
+
+  if (pressurePhase.kind === "counterattack") {
     return extractState.isOpen
       ? "尸毒已开始扣血\n继续贪收益会折损战利品。"
       : "尸毒正在逼近\n提前规划回撤路线。";
+  }
+
+  if (pressurePhase.kind === "preopen" && pressurePhase.secondsUntilExtractOpen <= 90) {
+    return `距归营火 ${formatSeconds(pressurePhase.secondsUntilExtractOpen)}\n带货就向中圈收缩。`;
   }
 
   if (hasBackpackCargo(state)) {
@@ -864,9 +890,44 @@ function hasBackpackCargo(state: MatchViewState): boolean {
 }
 
 function isCorpseFogCounterattacking(state: MatchViewState): boolean {
-  return getElapsedSeconds(state.startedAt) >= 8 * 60;
+  return resolveExtractionPressurePhase(state).kind !== "preopen";
 }
 
 function getElapsedSeconds(startedAt: number): number {
   return startedAt > 0 ? Math.max(0, (Date.now() - startedAt) / 1000) : 0;
+}
+
+const MATCH_DURATION_SEC = 15 * 60;
+const EXTRACT_WINDOW_OPEN_SEC = 8 * 60;
+const CORPSE_FOG_INTENSIFIED_SEC = 12 * 60;
+
+type ExtractionPressurePhase =
+  | { kind: "preopen"; elapsedSec: number; secondsUntilExtractOpen: number }
+  | { kind: "counterattack"; elapsedSec: number }
+  | { kind: "intensified"; elapsedSec: number };
+
+function resolveExtractionPressurePhase(state: MatchViewState): ExtractionPressurePhase {
+  const elapsedSec = resolveMatchElapsedSeconds(state);
+
+  if (elapsedSec >= CORPSE_FOG_INTENSIFIED_SEC) {
+    return { kind: "intensified", elapsedSec };
+  }
+
+  if (elapsedSec >= EXTRACT_WINDOW_OPEN_SEC) {
+    return { kind: "counterattack", elapsedSec };
+  }
+
+  return {
+    kind: "preopen",
+    elapsedSec,
+    secondsUntilExtractOpen: Math.max(0, EXTRACT_WINDOW_OPEN_SEC - elapsedSec)
+  };
+}
+
+function resolveMatchElapsedSeconds(state: MatchViewState): number {
+  if (state.secondsRemaining !== null) {
+    return Math.max(0, MATCH_DURATION_SEC - state.secondsRemaining);
+  }
+
+  return getElapsedSeconds(state.startedAt);
 }
