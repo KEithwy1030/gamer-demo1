@@ -73,6 +73,27 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
     }
   });
 
+  const copyNoteButton = document.createElement("button");
+  copyNoteButton.type = "button";
+  copyNoteButton.className = "results-dismiss results-dismiss--secondary";
+  copyNoteButton.textContent = "复制测评记录";
+  copyNoteButton.addEventListener("click", async () => {
+    if (copyNoteButton.disabled || !latestSettlement) {
+      return;
+    }
+    try {
+      await navigator.clipboard?.writeText(buildPlaytestNote(latestSettlement));
+      copyNoteButton.textContent = "已复制";
+      window.setTimeout(() => {
+        if (!copyNoteButton.disabled) {
+          copyNoteButton.textContent = "复制测评记录";
+        }
+      }, 1200);
+    } catch {
+      // ignore clipboard failures
+    }
+  });
+
   const dismissButton = document.createElement("button");
   dismissButton.type = "button";
   dismissButton.className = "results-dismiss results-dismiss--secondary";
@@ -81,20 +102,23 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
     api.hide();
   });
 
-  actions.append(returnButton, dismissButton);
+  actions.append(copyNoteButton, returnButton, dismissButton);
   itemsSection.append(itemsLabel, itemsList);
   card.append(eyebrow, title, subtitle, stats, itemsSection, actions);
   element.append(card);
+  let latestSettlement: SettlementPayload | null = null;
 
   const api: ResultsOverlayApi = {
     element,
     show(settlement) {
+      latestSettlement = settlement;
       render({
         visible: true,
         settlement
       });
     },
     hide() {
+      latestSettlement = null;
       render({
         visible: false,
         settlement: null
@@ -103,6 +127,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
     setReturning(isReturning) {
       returnButton.disabled = isReturning;
       dismissButton.disabled = isReturning;
+      copyNoteButton.disabled = isReturning || !latestSettlement;
       returnButton.textContent = isReturning ? "正在返回..." : "返回大厅";
     }
   };
@@ -138,6 +163,26 @@ export function buildSettlementCopy(settlement: SettlementPayload): SettlementCo
     summaryReason,
     lobbySummary
   };
+}
+
+export function buildPlaytestNote(settlement: SettlementPayload): string {
+  const copy = buildSettlementCopy(settlement);
+  return [
+    `Manual playtest - ${new Date().toISOString().slice(0, 10)}`,
+    "Build: <commit>",
+    `Outcome: ${settlement.result}`,
+    `Duration: ${formatDuration(settlement.survivedSeconds)}`,
+    `Reason: ${copy.summaryReason}`,
+    `Player kills: ${settlement.playerKills}`,
+    `Monster kills: ${settlement.monsterKills}`,
+    `Recovered gold: ${settlement.extractedGold}`,
+    `Net delta: ${formatSignedNumber(settlement.profileGoldDelta)}`,
+    `Extracted items: ${settlement.extractedItems.length}`,
+    "Scores: loop clarity _, combat _, greed _, extract _, death _, market _, visual _, replay _",
+    "Decision that mattered:",
+    "Issue list:",
+    "Next tuning recommendation:"
+  ].join("\n");
 }
 
 function formatSettlementReason(settlement: SettlementPayload): string {

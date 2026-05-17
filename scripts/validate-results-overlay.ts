@@ -12,6 +12,8 @@ assert.match(source, /SettlementItemDetail/, "results overlay should accept sett
 assert.match(source, /replaceItems\(itemsList, settlement\.result === "success" \? settlement\.extractedItemDetails \?\? \[\] : settlement\.lostItemDetails \?\? \[\]\)/, "results overlay should render extracted or lost item details rather than raw names");
 assert.match(source, /results-item-card__icon/, "results overlay should render structured loot cards");
 assert.match(source, /formatItemValue\(item\)/, "results overlay should surface value metadata on loot cards");
+assert.match(source, /buildPlaytestNote\(latestSettlement\)/, "results overlay should expose a copyable playtest note for manual release-feel sessions");
+assert.match(source, /复制测评记录/, "results overlay should surface a playtest note copy action");
 
 assert.match(styles, /\.results-items-list \{[\s\S]*grid-template-columns:\s*repeat\(auto-fit, minmax\(170px, 1fr\)\);/s, "results overlay cards should use a responsive grid");
 assert.match(styles, /\.results-item-card \{[\s\S]*grid-template-columns:\s*28px minmax\(0, 1fr\) auto;/s, "results loot cards should keep icon, body, and value lanes stable");
