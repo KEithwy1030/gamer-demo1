@@ -1527,6 +1527,12 @@ body.stash-dragging * {
   width: 100%;
   margin-top: 10px;
 }
+.market-primary--secondary {
+  margin-top: 6px;
+  border-color: rgba(127, 180, 194, 0.42);
+  background: rgba(127, 180, 194, 0.1);
+  color: var(--ice);
+}
 .market-primary:disabled {
   cursor: default;
   opacity: 0.45;

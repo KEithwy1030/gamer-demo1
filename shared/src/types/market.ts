@@ -35,3 +35,14 @@ export interface UpdateMarketListingPayload {
   playerId: string;
   price: number;
 }
+
+export interface SystemSellMarketPayload {
+  playerId: string;
+  itemInstanceId: string;
+}
+
+export interface SystemSellMarketResult {
+  item: MarketListingItem;
+  goldDelta: number;
+  profileGold: number;
+}

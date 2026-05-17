@@ -4,6 +4,9 @@ import path from "node:path";
 import type {
   CreateMarketListingPayload,
   MarketListing,
+  MarketListingItem,
+  SystemSellMarketPayload,
+  SystemSellMarketResult,
   UpdateMarketListingPayload
 } from "@gamer/shared";
 import type { ProfileStore } from "./profile-store.js";
@@ -37,17 +40,7 @@ export class MarketStore {
     const listing: MarketListing = {
       listingId: `listing-${randomUUID()}`,
       playerId,
-      item: {
-        instanceId: item.instanceId,
-        definitionId: item.definitionId,
-        name: item.name ?? item.definitionId,
-        kind: item.kind,
-        rarity: item.rarity,
-        width: template?.width,
-        height: template?.height,
-        modifiers: item.modifiers ? { ...item.modifiers } : undefined,
-        affixes: item.affixes ? item.affixes.map((affix) => ({ ...affix })) : undefined
-      },
+      item: buildListingItem(item, template),
       price: normalizePrice(payload.price),
       createdAt: now,
       updatedAt: now
@@ -58,6 +51,24 @@ export class MarketStore {
     this.listingsByPlayerId.set(listing.playerId, listings);
     this.save();
     return cloneListing(listing);
+  }
+
+  sellToSystem(payload: SystemSellMarketPayload): SystemSellMarketResult {
+    const playerId = requirePlayerId(payload.playerId);
+    const itemInstanceId = String(payload.itemInstanceId ?? "").trim();
+    if (!itemInstanceId) {
+      throw new Error("itemInstanceId is required.");
+    }
+    const item = this.profileStore.removeItemForMarket(playerId, itemInstanceId);
+    const template = safeTemplate(item.definitionId);
+    const listingItem = buildListingItem(item, template);
+    const goldDelta = estimateSystemSellPrice(listingItem);
+    const profile = this.profileStore.addGold(playerId, goldDelta);
+    return {
+      item: listingItem,
+      goldDelta,
+      profileGold: profile.gold
+    };
   }
 
   update(listingId: string, payload: UpdateMarketListingPayload): MarketListing {
@@ -136,6 +147,32 @@ function safeTemplate(templateId: string): ReturnType<typeof getItemTemplate> | 
   } catch {
     return undefined;
   }
+}
+
+function buildListingItem(
+  item: ReturnType<ProfileStore["removeItemForMarket"]>,
+  template: ReturnType<typeof getItemTemplate> | undefined
+): MarketListingItem {
+  return {
+    instanceId: item.instanceId,
+    definitionId: item.definitionId,
+    name: item.name ?? item.definitionId,
+    kind: item.kind,
+    rarity: item.rarity,
+    width: template?.width,
+    height: template?.height,
+    modifiers: item.modifiers ? { ...item.modifiers } : undefined,
+    affixes: item.affixes ? item.affixes.map((affix) => ({ ...affix })) : undefined
+  };
+}
+
+function estimateSystemSellPrice(item: MarketListingItem): number {
+  const rarityBase: Record<string, number> = { common: 180, uncommon: 420, rare: 950, epic: 2200 };
+  const size = Math.max(1, (item.width ?? 1) * (item.height ?? 1));
+  const statCount = Object.values(item.modifiers ?? {}).filter((value) => typeof value === "number" && value !== 0).length
+    + (item.affixes?.length ?? 0);
+  const openMarketPrice = Math.round((rarityBase[item.rarity ?? "common"] ?? 300) * size * (1 + statCount * 0.18));
+  return Math.max(1, Math.floor(openMarketPrice * 0.55));
 }
 
 function requirePlayerId(value: string | undefined): string {

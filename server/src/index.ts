@@ -14,6 +14,7 @@ import type {
   RoomErrorPayload,
   RoomStartPayload,
   SetCapacityPayload,
+  SystemSellMarketPayload,
   UpdateMarketListingPayload,
   SkillCastPayload
 } from "@gamer/shared";
@@ -134,6 +135,15 @@ app.post("/market/listings", (request, response) => {
     response.status(201).json(marketStore.create(payload));
   } catch (error) {
     response.status(400).json({ message: error instanceof Error ? error.message : "Failed to create listing." });
+  }
+});
+
+app.post("/market/system-sell", (request, response) => {
+  try {
+    const payload = request.body as SystemSellMarketPayload;
+    response.status(200).json(marketStore.sellToSystem(payload));
+  } catch (error) {
+    response.status(400).json({ message: error instanceof Error ? error.message : "Failed to sell item." });
   }
 });
 

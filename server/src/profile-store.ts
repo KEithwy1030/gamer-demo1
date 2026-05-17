@@ -196,6 +196,14 @@ export class ProfileStore {
     return cloneProfile(profile);
   }
 
+  addGold(profileId: string, amount: number): ProfileSnapshot {
+    const profile = this.getMutable(profileId);
+    profile.gold = normalizeGold(profile.gold + amount);
+    profile.version += 1;
+    this.save();
+    return cloneProfile(profile);
+  }
+
   private getMutable(profileId: string): ProfileSnapshot {
     const id = normalizeProfileId(profileId);
     let profile = this.profiles.get(id);

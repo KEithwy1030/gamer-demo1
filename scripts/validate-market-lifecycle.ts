@@ -64,7 +64,18 @@ try {
   assert(marketStore.list(profileId).length === 0, "cancelled listing should be removed");
   assert(listProfileItems(profileStore.get(profileId)).includes(pendingItem.instanceId), "cancelled recovered item should return to profile");
 
-  console.log("[market-lifecycle] PASS settleRun -> create -> update -> cancel preserves recovered item ownership");
+  const goldBeforeSystemSell = profileStore.get(profileId).gold;
+  const systemSale = marketStore.sellToSystem({
+    playerId: profileId,
+    itemInstanceId: pendingItem.instanceId
+  });
+  const afterSystemSell = profileStore.get(profileId);
+  assert(systemSale.item.instanceId === pendingItem.instanceId, "system sale should preserve sold item identity in the receipt");
+  assert(systemSale.goldDelta > 0, "system sale should produce a positive gold payout");
+  assert(afterSystemSell.gold === goldBeforeSystemSell + systemSale.goldDelta, "system sale should add gold to the profile");
+  assert(!listProfileItems(afterSystemSell).includes(pendingItem.instanceId), "system sold item should be removed from the profile");
+
+  console.log("[market-lifecycle] PASS settleRun -> create -> update -> cancel -> systemSell preserves ownership and payout");
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

@@ -1,4 +1,4 @@
-import type { MarketListing, MarketListingItem } from "@gamer/shared";
+import type { MarketListing, MarketListingItem, SystemSellMarketResult } from "@gamer/shared";
 import type { LocalProfile, LocalProfileItem } from "../profile/localProfile";
 import { resolveServerUrl } from "../network/serverUrl";
 
@@ -57,6 +57,9 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
   const createButton = el("button", "market-primary", "挂出") as HTMLButtonElement;
   createButton.type = "button";
   createButton.disabled = true;
+  const quickSellButton = el("button", "market-primary market-primary--secondary", "急售给系统") as HTMLButtonElement;
+  quickSellButton.type = "button";
+  quickSellButton.disabled = true;
   const status = el("div", "market-status");
   detailPanel.append(
     panelTitle("挂单", "设置卖价"),
@@ -66,6 +69,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
     selectedHint,
     priceInput,
     createButton,
+    quickSellButton,
     status
   );
 
@@ -100,6 +104,31 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
       renderAll();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "挂单失败。", true);
+      renderAll();
+    }
+  });
+
+  quickSellButton.addEventListener("click", async () => {
+    const profile = currentProfile;
+    const selected = candidates.find((item) => item.instanceId === selectedItemId);
+    if (!profile || !selected) {
+      setStatus("需要先选择一件物资。", true);
+      return;
+    }
+
+    createButton.disabled = true;
+    quickSellButton.disabled = true;
+    try {
+      const result = await systemSell(profile.profileId, selected);
+      candidates = candidates.filter((item) => item.instanceId !== selected.instanceId);
+      selectedItemId = null;
+      priceInput.value = "";
+      goldValue.textContent = result.profileGold.toLocaleString("zh-CN");
+      setStatus(`系统急售完成，入账 ${formatNumber(result.goldDelta)} 金币。`);
+      callbacks.onProfileChanged?.();
+      renderAll();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "急售失败。", true);
       renderAll();
     }
   });
@@ -155,6 +184,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
       selectedStats.replaceChildren();
       selectedHint.textContent = "选择物资后生成建议价";
       createButton.disabled = true;
+      quickSellButton.disabled = true;
       priceInput.value = "";
       return;
     }
@@ -164,6 +194,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
     selectedStats.replaceChildren(...formatStats(item).map((line) => el("div", "market-stat", line)));
     selectedHint.textContent = formatSuggestionHint(item);
     createButton.disabled = false;
+    quickSellButton.disabled = false;
   }
 
   function renderListingRows(): HTMLElement[] {
@@ -383,6 +414,19 @@ async function createListing(profileId: string, item: LocalProfileItem, price: n
   });
   if (!response.ok) throw new Error("挂单失败。");
   return await response.json() as MarketListing;
+}
+
+async function systemSell(profileId: string, item: LocalProfileItem): Promise<SystemSellMarketResult> {
+  const response = await fetch(`${resolveServerUrl()}/market/system-sell`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      playerId: profileId,
+      itemInstanceId: item.instanceId
+    })
+  });
+  if (!response.ok) throw new Error("急售失败。");
+  return await response.json() as SystemSellMarketResult;
 }
 
 async function updateListing(profileId: string, listingId: string, price: number): Promise<MarketListing> {
