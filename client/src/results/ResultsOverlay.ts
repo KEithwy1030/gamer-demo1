@@ -56,6 +56,16 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
   const itemsList = document.createElement("ul");
   itemsList.className = "results-items-list";
 
+  const nextRun = document.createElement("div");
+  nextRun.className = "results-next-run";
+
+  const nextRunLabel = document.createElement("p");
+  nextRunLabel.className = "results-next-run__label";
+  nextRunLabel.textContent = "下一局目标";
+
+  const nextRunText = document.createElement("p");
+  nextRunText.className = "results-next-run__text";
+
   const actions = document.createElement("div");
   actions.className = "results-actions";
 
@@ -106,9 +116,10 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
     api.hide();
   });
 
+  nextRun.append(nextRunLabel, nextRunText);
   actions.append(copyNoteButton, returnButton, dismissButton);
   itemsSection.append(itemsLabel, itemsList);
-  card.append(eyebrow, buildTag, title, subtitle, stats, itemsSection, actions);
+  card.append(eyebrow, buildTag, title, subtitle, stats, itemsSection, nextRun, actions);
   element.append(card);
   let latestSettlement: SettlementPayload | null = null;
 
@@ -152,6 +163,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
     subtitle.textContent = copy.subtitle;
     replaceStats(stats, settlement);
     replaceItems(itemsList, settlement.result === "success" ? settlement.extractedItemDetails ?? [] : settlement.lostItemDetails ?? []);
+    nextRunText.textContent = buildNextRunPrompt(settlement);
   }
 }
 
@@ -175,6 +187,7 @@ export function buildPlaytestNote(settlement: SettlementPayload): string {
   const copy = buildSettlementCopy(settlement);
   const itemCount = settlement.result === "success" ? settlement.extractedItems.length : settlement.lostItems.length;
   const itemValue = sumSettlementItemValue(settlement.result === "success" ? settlement.extractedItemDetails : settlement.lostItemDetails);
+  const nextRunPrompt = buildNextRunPrompt(settlement);
   return [
     `Manual playtest - ${new Date().toISOString().slice(0, 10)}`,
     `Build: ${getBuildCommit()}`,
@@ -192,6 +205,7 @@ export function buildPlaytestNote(settlement: SettlementPayload): string {
     `Item detail value: ${itemValue}`,
     `Loadout lost: ${settlement.loadoutLost ? "yes" : "no"}`,
     `Inventory decision recorded: ${itemCount > 0 ? "yes - review greed/value tradeoff" : "no - note why loot did not matter"}`,
+    `Next run prompt: ${nextRunPrompt}`,
     "Key timestamps:",
     "- 00:00 spawn / first search target:",
     "- 02:00 first combat or pickup:",
@@ -223,6 +237,7 @@ export function buildManualPlaytestTemplate(): string {
     "Item detail value:",
     "Loadout lost:",
     "Inventory decision recorded:",
+    "Next run prompt:",
     "Key timestamps:",
     "- 00:00 spawn / first search target:",
     "- 02:00 first combat or pickup:",
@@ -255,6 +270,32 @@ function formatPressurePhase(survivedSeconds: number): string {
 
 function sumSettlementItemValue(items: SettlementItemDetail[] | undefined): number {
   return (items ?? []).reduce((sum, item) => sum + item.goldValue + item.treasureValue, 0);
+}
+
+export function buildNextRunPrompt(settlement: SettlementPayload): string {
+  const itemValue = sumSettlementItemValue(settlement.result === "success" ? settlement.extractedItemDetails : settlement.lostItemDetails);
+
+  if (settlement.result === "success") {
+    if (itemValue >= 300 || settlement.profileGoldDelta >= 300) {
+      return "先去黑市处理高价值物资，再带一件保命补给挑战争夺箱。";
+    }
+
+    if (settlement.survivedSeconds >= 480) {
+      return "这次撤离节奏成立，下一局尝试多贪一个资源点但别错过 12 分钟前撤离。";
+    }
+
+    return "带出物资后别空跑，下一局把背包格子留给珍品和消耗品。";
+  }
+
+  if (settlement.reason === "corpseFog" || settlement.survivedSeconds >= 720) {
+    return "下一局提前在 8 分钟转向撤离，尸毒抗性药只用来补最后一段路。";
+  }
+
+  if (settlement.loadoutLost || settlement.reason === "killed") {
+    return "下一局轻装进场，先补武器和止血，再找击杀你的路线复仇。";
+  }
+
+  return "下一局先完成一次搜索和撤离，不要让空背包进入结算。";
 }
 
 function formatSettlementReason(settlement: SettlementPayload): string {

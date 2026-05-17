@@ -26,6 +26,7 @@ assert.doesNotMatch(lobbySource, /runPlaytestCopy\.disabled = !this\.latestPlayt
 assert.match(overlaySource, /results-item-card__value/, "results overlay should render value-aware loot cards");
 assert.match(overlaySource, /formatPressurePhase\(settlement\.survivedSeconds\)/, "playtest note should preserve the run's pressure phase from settlement data");
 assert.match(overlaySource, /sumSettlementItemValue\(settlement\.result === "success" \? settlement\.extractedItemDetails : settlement\.lostItemDetails\)/, "playtest note should include item-value evidence for greed decisions");
+assert.match(overlaySource, /Next run prompt: \$\{nextRunPrompt\}/, "playtest note should preserve the visible replay prompt");
 assert.match(overlaySource, /export function buildManualPlaytestTemplate/, "results note helpers should export a pre-run manual playtest template");
 
 console.log("validate-settlement-details: ok");

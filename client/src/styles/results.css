@@ -268,6 +268,34 @@
   text-align: center;
 }
 
+.results-next-run {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid rgba(212, 178, 76, 0.32);
+  background: rgba(212, 178, 76, 0.08);
+}
+
+.results-next-run__label,
+.results-next-run__text {
+  margin: 0;
+}
+
+.results-next-run__label {
+  font-family: "JetBrains Mono", "Noto Sans SC", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--results-caution);
+}
+
+.results-next-run__text {
+  margin-top: 6px;
+  font-family: "Noto Sans SC", "Inter Tight", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--results-bone);
+}
+
 .results-actions {
   display: flex;
   gap: 10px;
