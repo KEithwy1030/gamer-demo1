@@ -10,4 +10,5 @@ export * from "./domain/inventory.js";
 export * from "./domain/extractionPressure.js";
 export * from "./data/constants.js";
 export * from "./data/weapons.js";
+export * from "./data/skills.js";
 export * from "./data/items.js";

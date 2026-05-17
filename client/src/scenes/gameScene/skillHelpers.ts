@@ -1,30 +1,12 @@
-import type { SkillId, WeaponType } from "@gamer/shared";
+import {
+  PRIMARY_SKILL_BY_WEAPON,
+  SKILLS_BY_WEAPON,
+  getSkillCooldownMs,
+  getSkillWindupMs,
+  type SkillId,
+  type WeaponType
+} from "@gamer/shared";
 import type { MatchViewState } from "../../game";
-
-const PRIMARY_SKILL_BY_WEAPON: Record<WeaponType, SkillId> = {
-  sword: "sword_dashSlash",
-  blade: "blade_sweep",
-  spear: "spear_heavyThrust"
-};
-
-const SKILLS_BY_WEAPON: Record<WeaponType, [SkillId, SkillId, SkillId]> = {
-  sword: ["sword_dashSlash", "sword_bladeFlurry", "sword_shadowStep"],
-  blade: ["blade_sweep", "blade_guard", "blade_overpower"],
-  spear: ["spear_heavyThrust", "spear_warCry", "spear_draggingStrike"]
-};
-
-const SKILL_COOLDOWNS_MS: Record<SkillId, number> = {
-  sword_dashSlash: 6000,
-  sword_bladeFlurry: 10000,
-  sword_shadowStep: 12000,
-  blade_sweep: 7000,
-  blade_guard: 12000,
-  blade_overpower: 10000,
-  spear_heavyThrust: 8000,
-  spear_warCry: 12000,
-  spear_draggingStrike: 9000,
-  common_dodge: 5000
-};
 
 export function resolvePrimarySkill(state: MatchViewState | null): SkillId | null {
   const self = state?.players.find((player) => player.id === state.selfPlayerId);
@@ -38,11 +20,11 @@ export function resolveSkillBySlot(state: MatchViewState | null, slotIndex: numb
 }
 
 export function getPrimarySkillCooldownMs(skillId: SkillId): number {
-  return SKILL_COOLDOWNS_MS[skillId] ?? 3000;
+  return getSkillCooldownMs(skillId);
 }
 
 export function getPrimarySkillWindupMs(skillId: SkillId): number {
-  return skillId === "spear_heavyThrust" ? 450 : 0;
+  return getSkillWindupMs(skillId);
 }
 
 export function getPrimarySkillLabel(skillId: SkillId): string {

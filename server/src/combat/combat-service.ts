@@ -5,7 +5,7 @@ import type {
   StatusEffectType
 } from "@gamer/shared";
 import type { WeaponType } from "@gamer/shared";
-import { WEAPON_DEFINITIONS } from "@gamer/shared";
+import { WEAPON_DEFINITIONS, getSkillCooldownMs } from "@gamer/shared";
 import {
   ATTACK_CONE_BLADE_DEG,
   LOCK_ASSIST_ACQUIRE_RANGE_BUFFER,
@@ -48,24 +48,11 @@ export interface PlayerDeathPayload {
   timestamp: number;
 }
 
-const SKILL_COOLDOWN_MS = 4000;
 const SKILL_DAMAGE = {
   swordDashSlash: 18,
   bladeSweep: 22,
   spearHeavyThrust: 24
 } as const;
-const SKILL_COOLDOWNS_MS: Partial<Record<SkillCastPayload["skillId"], number>> = {
-  common_dodge: 4000,
-  sword_dashSlash: 6000,
-  sword_bladeFlurry: 10000,
-  sword_shadowStep: 12000,
-  blade_sweep: 7000,
-  blade_guard: 12000,
-  blade_overpower: 10000,
-  spear_heavyThrust: 8000,
-  spear_warCry: 12000,
-  spear_draggingStrike: 9000
-};
 
 export function resolvePlayerAttack(
   room: RuntimeRoom,
@@ -128,7 +115,7 @@ export function resolvePlayerSkillCast(
 
   switch (payload.skillId) {
     case "common_dodge": {
-      if (lastCastAt && now - lastCastAt < SKILL_COOLDOWN_MS) {
+      if (lastCastAt && now - lastCastAt < getSkillCooldownMs(payload.skillId)) {
         throw new Error("Dodge is on cooldown.");
       }
 
@@ -633,10 +620,6 @@ export function tickPlayerCombatEffects(
     }
   }
   return { combatEvents, deaths };
-}
-
-function getSkillCooldownMs(skillId: SkillCastPayload["skillId"]): number {
-  return SKILL_COOLDOWNS_MS[skillId] ?? SKILL_COOLDOWN_MS;
 }
 
 function buildBasicAttackHitEffect(
