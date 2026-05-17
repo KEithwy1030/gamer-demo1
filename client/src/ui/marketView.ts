@@ -75,7 +75,8 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
 
   const listingList = el("div", "market-listings");
   const salesList = el("div", "market-sales");
-  listingsPanel.append(panelTitle("我的挂单", "独立玩家内存货架"), listingList, panelTitle("近期成交", "模拟买家回执"), salesList);
+  const salesSummary = el("div", "market-sales-summary", "近4笔成交 / +0 金币");
+  listingsPanel.append(panelTitle("我的挂单", "独立玩家内存货架"), listingList, panelTitle("近期成交", "模拟买家回执"), salesSummary, salesList);
   layout.append(sourcePanel, detailPanel, listingsPanel);
   element.append(header, layout);
 
@@ -159,6 +160,8 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
     sourceList.replaceChildren(...renderCandidateRows(available));
     renderSelected(available.find((item) => item.instanceId === selectedItemId) ?? null);
     listingList.replaceChildren(...renderListingRows());
+    const recentSalesTotal = recentSales.reduce((sum, receipt) => sum + receipt.price, 0);
+    salesSummary.textContent = `近${Math.min(4, recentSales.length)}笔成交 / +${formatNumber(recentSalesTotal)} 金币`;
     salesList.replaceChildren(...renderSaleRows());
   }
 

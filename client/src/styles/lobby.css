@@ -1435,6 +1435,14 @@ body.stash-dragging * {
   overflow: auto;
   padding-right: 4px;
 }
+.market-sales-summary {
+  margin-top: 2px;
+  color: var(--bone-low);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
 .market-sale-row {
   border-color: rgba(127, 180, 194, 0.26);
   background: rgba(127, 180, 194, 0.06);
