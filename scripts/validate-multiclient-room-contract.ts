@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { setTimeout as delay } from "node:timers/promises";
 import { io, type Socket } from "socket.io-client";
 import { SocketEvent } from "../shared/src/protocol/events.js";
 import type { MatchStartedPayload } from "../shared/src/types/game.js";
 import type { RoomSummary } from "../shared/src/types/lobby.js";
 
 const serverUrl = process.env.MULTICLIENT_SERVER_URL ?? "http://127.0.0.1:3210";
+const ownsServer = !process.env.MULTICLIENT_SERVER_URL;
 
 main().catch((error) => {
   console.error(error);
@@ -13,20 +16,25 @@ main().catch((error) => {
 });
 
 async function main(): Promise<void> {
-  assertRoomCodeUxContract();
+  const managedServer = ownsServer ? await startManagedServer() : null;
+  try {
+    assertRoomCodeUxContract();
 
-  const exactRoomCode = await validateTwoClientJoin({
-    hostName: "HostExact",
-    guestName: "GuestExact",
-    joinCode: (code) => code
-  });
-  const aliasRoomCode = await validateTwoClientJoin({
-    hostName: "HostAlias",
-    guestName: "GuestAlias",
-    joinCode: (code) => code.replace(/\u8DEF/g, "\u00B7")
-  });
+    const exactRoomCode = await validateTwoClientJoin({
+      hostName: "HostExact",
+      guestName: "GuestExact",
+      joinCode: (code) => code
+    });
+    const aliasRoomCode = await validateTwoClientJoin({
+      hostName: "HostAlias",
+      guestName: "GuestAlias",
+      joinCode: (code) => code.replace(/\u8DEF/g, "\u00B7")
+    });
 
-  console.log(`[multiclient-room-contract] PASS serverUrl=${serverUrl} exact=${exactRoomCode} alias=${aliasRoomCode}`);
+    console.log(`[multiclient-room-contract] PASS serverUrl=${serverUrl} exact=${exactRoomCode} alias=${aliasRoomCode}`);
+  } finally {
+    await stopManagedServer(managedServer);
+  }
 }
 
 function assertRoomCodeUxContract(): void {
@@ -41,6 +49,69 @@ function assertRoomCodeUxContract(): void {
   assert.ok(mockLobbyController.includes(".slice(0, 16)"), "mock lobby should not truncate current generated room codes");
   assert.ok(lobbyView.includes("this.roomCodeInput.maxLength = 16;"), "room-code input should allow current generated room codes");
   assert.ok(lobbyView.includes('this.roomCodeInput.placeholder = "例如 STONE路89";'), "room-code placeholder should match server-generated format");
+}
+
+async function startManagedServer(): Promise<ChildProcessWithoutNullStreams> {
+  runNpm(["run", "build", "--workspace", "shared"]);
+  runNpm(["run", "build", "--workspace", "server"]);
+
+  const server = spawn("node", ["dist/index.js"], {
+    cwd: "server",
+    env: {
+      ...process.env,
+      PORT: "3210"
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true
+  });
+  const logs: string[] = [];
+  server.stdout.on("data", (chunk) => logs.push(String(chunk)));
+  server.stderr.on("data", (chunk) => logs.push(String(chunk)));
+
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    if (server.exitCode !== null) {
+      throw new Error(`Managed multiclient server exited early.\n${logs.join("")}`);
+    }
+    try {
+      const response = await fetch(`${serverUrl}/health`);
+      if (response.ok) {
+        return server;
+      }
+    } catch {
+      // Keep waiting until the server binds.
+    }
+    await delay(250);
+  }
+
+  server.kill();
+  throw new Error(`Timed out waiting for managed multiclient server.\n${logs.join("")}`);
+}
+
+function runNpm(args: string[]): void {
+  const npmCommand = process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : "npm";
+  const npmArgs = process.platform === "win32" ? ["/d", "/s", "/c", "npm", ...args] : args;
+  const result = spawnSync(npmCommand, npmArgs, {
+    cwd: process.cwd(),
+    stdio: "inherit"
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`npm ${args.join(" ")} failed with status ${result.status ?? "unknown"}`);
+  }
+}
+
+async function stopManagedServer(server: ChildProcessWithoutNullStreams | null): Promise<void> {
+  if (!server || server.exitCode !== null) {
+    return;
+  }
+  server.kill();
+  await Promise.race([
+    new Promise<void>((resolve) => server.once("close", () => resolve())),
+    delay(2_000).then(() => undefined)
+  ]);
 }
 
 async function validateTwoClientJoin(options: {
