@@ -25,6 +25,19 @@ export interface MarketListingsPayload {
   listings: MarketListing[];
 }
 
+export interface MarketSettlementReceipt {
+  listingId: string;
+  item: MarketListingItem;
+  price: number;
+  soldAt: number;
+}
+
+export interface MarketSettlementResult {
+  listings: MarketListing[];
+  sold: MarketSettlementReceipt[];
+  profileGold: number;
+}
+
 export interface CreateMarketListingPayload {
   playerId: string;
   itemInstanceId: string;

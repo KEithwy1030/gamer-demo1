@@ -5,6 +5,8 @@ import type {
   CreateMarketListingPayload,
   MarketListing,
   MarketListingItem,
+  MarketSettlementReceipt,
+  MarketSettlementResult,
   SystemSellMarketPayload,
   SystemSellMarketResult,
   UpdateMarketListingPayload
@@ -13,13 +15,16 @@ import type { ProfileStore } from "./profile-store.js";
 import { getItemTemplate } from "./inventory/catalog.js";
 
 const DEFAULT_DATA_FILE = path.resolve(process.cwd(), "server/data/market-listings.json");
+const DEFAULT_BUYER_SETTLEMENT_MS = 45_000;
+const BUYER_MAX_PRICE_RATIO = 1.15;
 
 export class MarketStore {
   private readonly listingsByPlayerId = new Map<string, MarketListing[]>();
 
   constructor(
     private readonly profileStore: ProfileStore,
-    private readonly filePath = process.env.MARKET_STORE_PATH ?? DEFAULT_DATA_FILE
+    private readonly filePath = process.env.MARKET_STORE_PATH ?? DEFAULT_DATA_FILE,
+    private readonly buyerSettlementMs = normalizeSettlementMs(process.env.MARKET_BUYER_SETTLEMENT_MS)
   ) {
     this.load();
   }
@@ -68,6 +73,47 @@ export class MarketStore {
       item: listingItem,
       goldDelta,
       profileGold: profile.gold
+    };
+  }
+
+  settle(playerId: string): MarketSettlementResult {
+    const ownerId = requirePlayerId(playerId);
+    const now = Date.now();
+    const listings = this.listingsByPlayerId.get(ownerId) ?? [];
+    const sold: MarketSettlementReceipt[] = [];
+    const active: MarketListing[] = [];
+
+    for (const listing of listings) {
+      if (shouldSystemBuyerPurchase(listing, now, this.buyerSettlementMs)) {
+        sold.push({
+          listingId: listing.listingId,
+          item: cloneListing(listing).item,
+          price: listing.price,
+          soldAt: now
+        });
+      } else {
+        active.push(listing);
+      }
+    }
+
+    let profileGold = this.profileStore.get(ownerId).gold;
+    for (const receipt of sold) {
+      profileGold = this.profileStore.addGold(ownerId, receipt.price).gold;
+    }
+
+    if (active.length > 0) {
+      this.listingsByPlayerId.set(ownerId, active);
+    } else {
+      this.listingsByPlayerId.delete(ownerId);
+    }
+    if (sold.length > 0) {
+      this.save();
+    }
+
+    return {
+      listings: active.map(cloneListing),
+      sold,
+      profileGold
     };
   }
 
@@ -167,12 +213,26 @@ function buildListingItem(
 }
 
 function estimateSystemSellPrice(item: MarketListingItem): number {
+  return Math.max(1, Math.floor(estimateOpenMarketPrice(item) * 0.55));
+}
+
+function estimateOpenMarketPrice(item: MarketListingItem): number {
   const rarityBase: Record<string, number> = { common: 180, uncommon: 420, rare: 950, epic: 2200 };
   const size = Math.max(1, (item.width ?? 1) * (item.height ?? 1));
   const statCount = Object.values(item.modifiers ?? {}).filter((value) => typeof value === "number" && value !== 0).length
     + (item.affixes?.length ?? 0);
-  const openMarketPrice = Math.round((rarityBase[item.rarity ?? "common"] ?? 300) * size * (1 + statCount * 0.18));
-  return Math.max(1, Math.floor(openMarketPrice * 0.55));
+  return Math.round((rarityBase[item.rarity ?? "common"] ?? 300) * size * (1 + statCount * 0.18));
+}
+
+function shouldSystemBuyerPurchase(listing: MarketListing, now: number, buyerSettlementMs: number): boolean {
+  const matured = now - listing.updatedAt >= buyerSettlementMs;
+  const fairPrice = listing.price <= Math.ceil(estimateOpenMarketPrice(listing.item) * BUYER_MAX_PRICE_RATIO);
+  return matured && fairPrice;
+}
+
+function normalizeSettlementMs(value: string | undefined): number {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_BUYER_SETTLEMENT_MS;
 }
 
 function requirePlayerId(value: string | undefined): string {

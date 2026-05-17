@@ -1,4 +1,4 @@
-import type { MarketListing, MarketListingItem, SystemSellMarketResult } from "@gamer/shared";
+import type { MarketListing, MarketListingItem, MarketSettlementResult, SystemSellMarketResult } from "@gamer/shared";
 import type { LocalProfile, LocalProfileItem } from "../profile/localProfile";
 import { resolveServerUrl } from "../network/serverUrl";
 
@@ -251,9 +251,17 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
   async function refreshListings(playerId: string): Promise<void> {
     const version = ++requestVersion;
     try {
-      listings = await listListings(playerId);
+      const settlement = await settleListings(playerId);
       if (version === requestVersion) {
-        setStatus("");
+        listings = settlement.listings;
+        goldValue.textContent = settlement.profileGold.toLocaleString("zh-CN");
+        if (settlement.sold.length > 0) {
+          const soldGold = settlement.sold.reduce((sum, receipt) => sum + receipt.price, 0);
+          setStatus(`黑市买家成交 ${settlement.sold.length} 件，入账 ${formatNumber(soldGold)} 金币。`);
+          callbacks.onProfileChanged?.();
+        } else {
+          setStatus("");
+        }
         renderAll();
       }
     } catch {
@@ -395,11 +403,14 @@ function formatRelativeTime(timestamp: number): string {
   return `${Math.floor(minutes / 60)} 小时前`;
 }
 
-async function listListings(playerId: string): Promise<MarketListing[]> {
-  const response = await fetch(`${resolveServerUrl()}/market/listings?playerId=${encodeURIComponent(playerId)}`);
-  if (!response.ok) throw new Error("Failed to load market listings.");
-  const payload = await response.json() as { listings?: MarketListing[] };
-  return payload.listings ?? [];
+async function settleListings(playerId: string): Promise<MarketSettlementResult> {
+  const response = await fetch(`${resolveServerUrl()}/market/settle`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ playerId })
+  });
+  if (!response.ok) throw new Error("Failed to settle market listings.");
+  return await response.json() as MarketSettlementResult;
 }
 
 async function createListing(profileId: string, item: LocalProfileItem, price: number): Promise<MarketListing> {

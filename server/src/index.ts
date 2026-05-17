@@ -129,6 +129,15 @@ app.get("/market/listings", (request, response) => {
   response.json({ listings: marketStore.list(playerId) });
 });
 
+app.post("/market/settle", (request, response) => {
+  try {
+    const playerId = String(request.body?.playerId ?? "").trim();
+    response.status(200).json(marketStore.settle(playerId));
+  } catch (error) {
+    response.status(400).json({ message: error instanceof Error ? error.message : "Failed to settle listings." });
+  }
+});
+
 app.post("/market/listings", (request, response) => {
   try {
     const payload = request.body as CreateMarketListingPayload;

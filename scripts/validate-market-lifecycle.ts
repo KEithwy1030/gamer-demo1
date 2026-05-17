@@ -24,7 +24,7 @@ const tmp = mkdtempSync(path.join(tmpdir(), "gamer-market-"));
 
 try {
   const profileStore = new ProfileStore(path.join(tmp, "profiles.json"));
-  const marketStore = new MarketStore(profileStore, path.join(tmp, "market.json"));
+  const marketStore = new MarketStore(profileStore, path.join(tmp, "market.json"), 0);
   const profileId = "profile-market-contract";
   const settlementInventory = createOverflowSettlementInventory();
   const settledProfile = profileStore.settleRun(profileId, {
@@ -75,7 +75,24 @@ try {
   assert(afterSystemSell.gold === goldBeforeSystemSell + systemSale.goldDelta, "system sale should add gold to the profile");
   assert(!listProfileItems(afterSystemSell).includes(pendingItem.instanceId), "system sold item should be removed from the profile");
 
-  console.log("[market-lifecycle] PASS settleRun -> create -> update -> cancel -> systemSell preserves ownership and payout");
+  const buyerItem = { ...pendingItem, instanceId: "buyer-settlement-item" };
+  profileStore.returnMarketItem(profileId, buyerItem);
+  assert(listProfileItems(profileStore.get(profileId)).includes(buyerItem.instanceId), "buyer settlement fixture item should be visible in profile before listing");
+  const buyerListing = marketStore.create({
+    playerId: profileId,
+    itemInstanceId: buyerItem.instanceId,
+    price: 300
+  });
+  const goldBeforeBuyerSettlement = profileStore.get(profileId).gold;
+  const buyerSettlement = marketStore.settle(profileId);
+  const afterBuyerSettlement = profileStore.get(profileId);
+  assert(buyerSettlement.sold.length === 1, "fair matured listing should sell to a simulated buyer");
+  assert(buyerSettlement.sold[0]?.listingId === buyerListing.listingId, "buyer settlement receipt should identify the listing");
+  assert(buyerSettlement.listings.length === 0, "sold listing should be removed from active market listings");
+  assert(afterBuyerSettlement.gold === goldBeforeBuyerSettlement + buyerListing.price, "buyer settlement should pay listing price to profile");
+  assert(!listProfileItems(afterBuyerSettlement).includes(buyerItem.instanceId), "buyer-settled item should stay out of profile inventory");
+
+  console.log("[market-lifecycle] PASS settleRun -> create -> update -> cancel -> systemSell -> buyerSettle preserves ownership and payout");
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
