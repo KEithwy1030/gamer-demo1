@@ -9,6 +9,10 @@ const gameClientSource = readText("client/src/scenes/createGameClient.ts");
 const inventoryPanelSource = readText("client/src/ui/InventoryPanel.ts");
 const inventoryCss = readText("client/src/styles/inventory.css");
 
+const SKILL_SLOT_CENTER_Y_RATIO = 0.5;
+const SKILL_KEY_LABEL_Y_RATIO = -0.3;
+const SKILL_NAME_LABEL_Y_RATIO = 0.08;
+
 assert.doesNotMatch(
   gameClientSource,
   /slice\(0,\s*4\)/,
@@ -49,6 +53,16 @@ assert.match(
   hudSource,
   /this\.skillNameTexts = this\.layout\.skillSlots\.map/,
   "HUD skill panel should dedicate a stable text layer for skill names"
+);
+assert.match(
+  hudSource,
+  /const SKILL_SLOT_CENTER_Y_RATIO = 0\.5;/,
+  "HUD skill slots should sit high enough inside the bottom action frame"
+);
+assert.match(
+  hudSource,
+  /const SKILL_NAME_LABEL_Y_RATIO = 0\.08;/,
+  "HUD skill names should avoid the bottom edge of the action frame"
 );
 assert.match(
   hudSource,
@@ -286,6 +300,11 @@ function validateHudLayout(): void {
     for (const [index, slot] of layout.skillSlots.entries()) {
       assert.ok(slot.width >= 32, `${scenario.label}: skill slot ${index} should keep width budget for cooldown digits`);
       assert.ok(slot.height >= 34, `${scenario.label}: skill slot ${index} should keep height budget for name/cooldown separation`);
+      const keyY = slot.y + slot.height / 2 + slot.height * SKILL_KEY_LABEL_Y_RATIO;
+      const nameY = slot.y + slot.height / 2 + slot.height * SKILL_NAME_LABEL_Y_RATIO;
+      assert.ok(keyY >= slot.y + slot.height * 0.14, `${scenario.label}: skill slot ${index} key label should stay inside the slot top`);
+      assert.ok(nameY <= slot.y + slot.height * 0.62, `${scenario.label}: skill slot ${index} name label should stay above the frame lip`);
+      assert.ok(nameY - keyY >= slot.height * 0.32, `${scenario.label}: skill slot ${index} labels should keep readable vertical separation`);
     }
   }
 }
@@ -323,6 +342,7 @@ function buildHudLayoutForValidation(width: number, height: number, isTouchDevic
   const command = rect(commandX, Math.round(commandAnchorY - commandH), commandW, commandH);
   const slotW = Math.round(skills.width * 0.096);
   const slotH = Math.round(skills.height * 0.56);
+  const slotCenterY = skills.y + skills.height * SKILL_SLOT_CENTER_Y_RATIO;
 
   return {
     status,
@@ -331,10 +351,10 @@ function buildHudLayoutForValidation(width: number, height: number, isTouchDevic
     command,
     skills,
     skillSlots: [
-      rect(skills.x + skills.width * 0.26 - slotW / 2, skills.y + skills.height * 0.54 - slotH / 2, slotW, slotH),
-      rect(skills.x + skills.width * 0.43 - slotW / 2, skills.y + skills.height * 0.54 - slotH / 2, slotW, slotH),
-      rect(skills.x + skills.width * 0.6 - slotW / 2, skills.y + skills.height * 0.54 - slotH / 2, slotW, slotH),
-      rect(skills.x + skills.width * 0.77 - slotW / 2, skills.y + skills.height * 0.54 - slotH / 2, slotW, slotH)
+      rect(skills.x + skills.width * 0.26 - slotW / 2, slotCenterY - slotH / 2, slotW, slotH),
+      rect(skills.x + skills.width * 0.43 - slotW / 2, slotCenterY - slotH / 2, slotW, slotH),
+      rect(skills.x + skills.width * 0.6 - slotW / 2, slotCenterY - slotH / 2, slotW, slotH),
+      rect(skills.x + skills.width * 0.77 - slotW / 2, slotCenterY - slotH / 2, slotW, slotH)
     ]
   };
 }

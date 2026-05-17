@@ -20,6 +20,10 @@ const HUD_ASSETS = {
   skills: "hud_panel_skills"
 } as const;
 
+const SKILL_SLOT_CENTER_Y_RATIO = 0.5;
+const SKILL_KEY_LABEL_Y_RATIO = -0.3;
+const SKILL_NAME_LABEL_Y_RATIO = 0.08;
+
 type HudLayout = {
   status: Phaser.Geom.Rectangle;
   hpBar: Phaser.Geom.Rectangle;
@@ -219,13 +223,13 @@ export class GameHudOverlay {
       wordWrap: { width: Math.max(228, command.width - 138), useAdvancedWrap: true }
     }).setOrigin(0.5);
 
-    this.skillKeyTexts = this.layout.skillSlots.map((slot, index) => this.scene.add.text(slot.x, slot.y - slot.height * 0.34, index === 3 ? "SHIFT" : ["Q", "R", "T"][index] ?? "--", {
+    this.skillKeyTexts = this.layout.skillSlots.map((slot, index) => this.scene.add.text(slot.x, slot.y + slot.height * SKILL_KEY_LABEL_Y_RATIO, index === 3 ? "SHIFT" : ["Q", "R", "T"][index] ?? "--", {
       fontFamily: GAMEPLAY_THEME.fonts.mono,
       fontSize: this.isTouchDevice ? "10px" : "11px",
       color: "#6f5534",
       align: "center"
     }).setOrigin(0.5));
-    this.skillNameTexts = this.layout.skillSlots.map((slot, index) => this.scene.add.text(slot.x, slot.y + slot.height * 0.18, index === 3 ? "翻滚" : "--", {
+    this.skillNameTexts = this.layout.skillSlots.map((slot, index) => this.scene.add.text(slot.x, slot.y + slot.height * SKILL_NAME_LABEL_Y_RATIO, index === 3 ? "翻滚" : "--", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
       fontSize: this.isTouchDevice ? "11px" : "12px",
       color: "#251a12",
@@ -732,10 +736,10 @@ function buildHudLayout(width: number, height: number, isTouchDevice: boolean): 
     skills,
     commandAnchorY,
     skillSlots: [
-      { x: skills.x + skills.width * 0.26, y: skills.y + skills.height * 0.54, width: slotW, height: slotH },
-      { x: skills.x + skills.width * 0.43, y: skills.y + skills.height * 0.54, width: slotW, height: slotH },
-      { x: skills.x + skills.width * 0.60, y: skills.y + skills.height * 0.54, width: slotW, height: slotH },
-      { x: skills.x + skills.width * 0.77, y: skills.y + skills.height * 0.54, width: slotW, height: slotH }
+      { x: skills.x + skills.width * 0.26, y: skills.y + skills.height * SKILL_SLOT_CENTER_Y_RATIO, width: slotW, height: slotH },
+      { x: skills.x + skills.width * 0.43, y: skills.y + skills.height * SKILL_SLOT_CENTER_Y_RATIO, width: slotW, height: slotH },
+      { x: skills.x + skills.width * 0.60, y: skills.y + skills.height * SKILL_SLOT_CENTER_Y_RATIO, width: slotW, height: slotH },
+      { x: skills.x + skills.width * 0.77, y: skills.y + skills.height * SKILL_SLOT_CENTER_Y_RATIO, width: slotW, height: slotH }
     ]
   };
 }
