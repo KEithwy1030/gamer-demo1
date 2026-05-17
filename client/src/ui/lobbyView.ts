@@ -5,12 +5,12 @@ import type {
   LobbyRuntimeApi,
   LobbyController,
 } from "../app/lobbyTypes";
-import { DEFAULT_ROOM_CAPACITY, MAX_ROOM_CAPACITY } from "@gamer/shared";
+import { DEFAULT_ROOM_CAPACITY, MAX_ROOM_CAPACITY, type SettlementPayload } from "@gamer/shared";
 import { LobbyBackground } from "./lobbyBackground";
 import { createStashView, type StashViewApi } from "./stashView";
 import { createMarketView, type MarketViewApi } from "./marketView";
 import { attachViewportScaler, type ViewportScaler } from "./viewportScaler";
-import { buildSettlementCopy } from "../results/ResultsOverlay";
+import { buildPlaytestNote, buildSettlementCopy } from "../results/ResultsOverlay";
 import {
   getProfileLoadoutCount,
   getProfileAssetValue,
@@ -92,6 +92,8 @@ export class LobbyView {
   private readonly resultGold: HTMLElement;
   private readonly recoveredSummary: HTMLElement;
   private readonly recoveredItems: HTMLElement;
+  private readonly runPlaytestCopy: HTMLButtonElement;
+  private latestPlaytestSettlement: SettlementPayload | null = null;
 
   constructor(_controller: LobbyController, runtimeApi: LobbyRuntimeApi, callbacks: LobbyViewCallbacks) {
     this.runtimeApi = runtimeApi;
@@ -359,6 +361,27 @@ export class LobbyView {
     this.resultKills = appendRunStat(runStats, "斩获", "0 / 0");
     this.resultDuration = appendRunStat(runStats, "存活", "00:00");
     this.resultGold = appendRunStat(runStats, "收益", "+0", "color: var(--signal);");
+    const runActions = createElement("div", "run-actions");
+    this.runPlaytestCopy = createElement("button", "room-code-copy", "复制测评记录") as HTMLButtonElement;
+    this.runPlaytestCopy.type = "button";
+    this.runPlaytestCopy.disabled = true;
+    this.runPlaytestCopy.addEventListener("click", async () => {
+      if (this.runPlaytestCopy.disabled || !this.latestPlaytestSettlement) {
+        return;
+      }
+      try {
+        await navigator.clipboard?.writeText(buildPlaytestNote(this.latestPlaytestSettlement));
+        this.runPlaytestCopy.textContent = "已复制";
+        window.setTimeout(() => {
+          if (!this.runPlaytestCopy.disabled) {
+            this.runPlaytestCopy.textContent = "复制测评记录";
+          }
+        }, 1200);
+      } catch {
+        // ignore clipboard failures
+      }
+    });
+    runActions.append(this.runPlaytestCopy);
     const recovered = createElement("div", "run-recovered");
     recovered.append(createElement("span", "stamp-label", "收获"));
     const recoveredBody = createElement("div", "run-recovered-body");
@@ -367,7 +390,7 @@ export class LobbyView {
     this.recoveredItems.append(createElement("span", "run-item", "等待本次结算"));
     recoveredBody.append(this.recoveredSummary, this.recoveredItems);
     recovered.append(recoveredBody);
-    runCard.append(verdict, runStats, recovered);
+    runCard.append(verdict, runActions, runStats, recovered);
     resultPanel.append(runCard);
     rightPanel.append(resultPanel);
 
@@ -406,6 +429,13 @@ export class LobbyView {
     this.updateNavIndicators(state);
     this.stashView.render(state.profile);
     this.marketView.render(state.profile);
+    this.latestPlaytestSettlement = state.profile.lastRun
+      ? buildPlaytestSettlement(state.profile.lastRun)
+      : null;
+    this.runPlaytestCopy.disabled = !this.latestPlaytestSettlement;
+    if (this.runPlaytestCopy.disabled) {
+      this.runPlaytestCopy.textContent = "复制测评记录";
+    }
 
     const loadoutCount = getProfileLoadoutCount(state.profile);
     this.loadoutWeapon.textContent = getProfilePrimaryWeapon(state.profile);
@@ -675,4 +705,24 @@ function formatDuration(totalSeconds: number): string {
   const minutes = Math.max(0, Math.floor(totalSeconds / 60));
   const seconds = Math.max(0, totalSeconds % 60);
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function buildPlaytestSettlement(lastRun: LocalRunSummary): SettlementPayload {
+  return {
+    result: lastRun.result,
+    reason: lastRun.reason,
+    survivedSeconds: lastRun.survivedSeconds,
+    playerKills: lastRun.playerKills,
+    monsterKills: lastRun.monsterKills,
+    extractedGold: Math.max(0, lastRun.goldDelta),
+    extractedTreasureValue: 0,
+    extractedItems: [...lastRun.items],
+    extractedItemDetails: lastRun.itemDetails?.map((item) => ({ ...item })),
+    retainedItems: [...lastRun.items],
+    retainedItemDetails: lastRun.itemDetails?.map((item) => ({ ...item })),
+    lostItems: [],
+    lostItemDetails: [],
+    loadoutLost: lastRun.result === "failure",
+    profileGoldDelta: lastRun.goldDelta,
+  };
 }

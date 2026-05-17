@@ -851,6 +851,11 @@ button { font-family: inherit; cursor: pointer; }
   text-align: right;
   line-height: 1.4;
 }
+.run-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
 .run-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -910,7 +915,6 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--signal);
 }
 .run-item.rare { background: rgba(127, 180, 194, 0.08); border-color: rgba(127, 180, 194, 0.3); color: var(--ice); }
-
 /* ============ STASH / MARKET VIEWS ============ */
 .view-header {
   display: flex;

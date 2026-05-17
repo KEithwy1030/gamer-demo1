@@ -18,6 +18,8 @@ assert.match(serviceSource, /lostItemDetails: lostItems\.details/, "failure sett
 assert.match(profileSource, /itemDetails: settlement\.result === "success" \? settlement\.extractedItemDetails : settlement\.lostItemDetails/, "profile lastRun should retain item detail payloads");
 assert.match(lobbySource, /formatLastRunValueSummary\(state\.profile\.lastRun\)/, "lobby should render a total last-run value summary");
 assert.match(lobbySource, /buildLastRunItemChips\(state\.profile\.lastRun\)/, "lobby should render last-run item details when available");
+assert.match(lobbySource, /buildPlaytestNote\(this\.latestPlaytestSettlement\)/, "lobby should reuse the playtest note export for the recent-run copy action");
+assert.match(lobbySource, /runPlaytestCopy\.disabled = !this\.latestPlaytestSettlement/, "lobby should disable the playtest copy button when there is no last run");
 assert.match(overlaySource, /results-item-card__value/, "results overlay should render value-aware loot cards");
 
 console.log("validate-settlement-details: ok");
