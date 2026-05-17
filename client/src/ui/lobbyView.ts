@@ -13,6 +13,7 @@ import { attachViewportScaler, type ViewportScaler } from "./viewportScaler";
 import { buildSettlementCopy } from "../results/ResultsOverlay";
 import {
   getProfileLoadoutCount,
+  getProfileAssetValue,
   getProfilePrimaryWeapon,
   getProfileStashItemCount,
   type LocalRunSummary,
@@ -81,6 +82,7 @@ export class LobbyView {
   private readonly loadoutWeapon: HTMLElement;
   private readonly loadoutWeaponTier: HTMLElement;
   private readonly stashGold: HTMLElement;
+  private readonly stashAssetValue: HTMLElement;
   private readonly stashItems: HTMLElement;
   private readonly stashDifficulty: HTMLElement;
   private readonly resultVerdict: HTMLElement;
@@ -338,6 +340,7 @@ export class LobbyView {
     loadoutPanel.append(loadoutRow);
     const stashRow = createElement("div", "stash-row");
     this.stashGold = appendStashCell(stashRow, "金币", "0", "hot");
+    this.stashAssetValue = appendStashCell(stashRow, "营地估值", "0", "warn");
     this.stashItems = appendStashCell(stashRow, "行囊物件", "0");
     this.stashDifficulty = appendStashCell(stashRow, "敌队 Bot", "中等", "warn");
     loadoutPanel.append(stashRow);
@@ -408,6 +411,7 @@ export class LobbyView {
     this.loadoutWeapon.textContent = getProfilePrimaryWeapon(state.profile);
     this.loadoutWeaponTier.textContent = loadoutCount > 1 ? `${loadoutCount} 件可用` : "基础出战";
     this.stashGold.textContent = state.profile.gold.toLocaleString("zh-CN");
+    this.stashAssetValue.textContent = getProfileAssetValue(state.profile).toLocaleString("zh-CN");
     this.stashItems.textContent = String(getProfileStashItemCount(state.profile));
     this.stashDifficulty.textContent = state.botDifficulty === "easy" ? "简单" : state.botDifficulty === "hard" ? "困难" : "中等";
 

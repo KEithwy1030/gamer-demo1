@@ -262,6 +262,18 @@ export function getProfileStashItemCount(profile: LocalProfile): number {
   return profile.stash.pages.reduce((sum, page) => sum + page.items.length, 0);
 }
 
+export function getProfileAssetValue(profile: LocalProfile): number {
+  const storedItems = profile.stash.pages.flatMap((page) => page.items);
+  const equippedItems = Object.values(profile.equipment).filter((item): item is LocalProfileItem => Boolean(item));
+  const itemValue = [...storedItems, ...profile.inventory.items, ...equippedItems].reduce((sum, item) => sum + getProfileItemValue(item), 0);
+  const pendingValue = profile.pendingReturn?.items.reduce((sum, item) => sum + getProfileItemValue(item), 0) ?? 0;
+  return profile.gold + itemValue + pendingValue;
+}
+
+function getProfileItemValue(item: Pick<LocalProfileItem, "goldValue" | "treasureValue">): number {
+  return Math.max(0, item.goldValue ?? 0) + Math.max(0, item.treasureValue ?? 0);
+}
+
 export function buildProfileLoadoutSnapshot(profile: LocalProfile): InventorySnapshotPayload {
   return {
     inventory: {

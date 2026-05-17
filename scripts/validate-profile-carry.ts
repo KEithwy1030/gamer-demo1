@@ -2,6 +2,7 @@ import { webcrypto } from "node:crypto";
 import {
   applySettlementToProfile,
   buildProfileLoadoutSnapshot,
+  getProfileAssetValue,
   loadLocalProfile,
   moveProfileItem,
   type LocalProfile,
@@ -57,7 +58,11 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
-function makeTreasure(instanceId: string, index: number): LocalProfileItem {
+function makeTreasure(
+  instanceId: string,
+  index: number,
+  value: Pick<LocalProfileItem, "goldValue" | "treasureValue"> = {}
+): LocalProfileItem {
   return {
     instanceId,
     definitionId: "treasure_small_idol",
@@ -65,7 +70,8 @@ function makeTreasure(instanceId: string, index: number): LocalProfileItem {
     kind: "treasure",
     rarity: "common",
     width: 1,
-    height: 1
+    height: 1,
+    ...value
   };
 }
 
@@ -88,6 +94,32 @@ function fillStash(profile: LocalProfile): LocalProfile {
 }
 
 function main(): void {
+  const assetBase = loadLocalProfile();
+  const valuedProfile: LocalProfile = {
+    ...assetBase,
+    gold: 120,
+    inventory: {
+      ...assetBase.inventory,
+      items: [{ ...makeTreasure("inventory-value", 10, { goldValue: 10, treasureValue: 15 }), x: 0, y: 0 }]
+    },
+    equipment: {
+      weapon: { ...makeTreasure("weapon-value", 11, { goldValue: 30, treasureValue: 5 }), equipmentSlot: "weapon" }
+    },
+    stash: {
+      ...assetBase.stash,
+      pages: assetBase.stash.pages.map((page, pageIndex) => ({
+        ...page,
+        items: pageIndex === 0
+          ? [{ ...makeTreasure("stash-value", 12, { goldValue: 20, treasureValue: 25 }), x: 0, y: 0 }]
+          : []
+      }))
+    },
+    pendingReturn: {
+      items: [makeTreasure("pending-value", 13, { goldValue: 40, treasureValue: 50 })]
+    }
+  };
+  assert(getProfileAssetValue(valuedProfile) === 315, "profile asset value should include gold, loadout, stash, and pending return items");
+
   const initial = fillStash(loadLocalProfile());
   const carried = makeTreasure("carry-contract-idol", 1);
   const runtimeInventory: MatchInventoryState = {
