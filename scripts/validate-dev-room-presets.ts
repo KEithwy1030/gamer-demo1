@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { buildMatchLayout } from "../server/src/match-layout.js";
 import { InventoryService } from "../server/src/inventory/service.js";
+import { spawnChests } from "../server/src/chests/chest-manager.js";
 import { applyDevRoomPreset } from "../server/src/dev-test-hooks.js";
 import { spawnInitialMonsters } from "../server/src/monsters/monster-manager.js";
 import { initializeExtractState } from "../server/src/extract/index.js";
@@ -24,6 +25,7 @@ const DEV_PRESET_THREAT_CLEAR_RADIUS = 720;
 assertBossPreset();
 assertExtractPreset();
 assertInventoryPreset();
+assertContestedPreset();
 
 console.log("validate-dev-room-presets: ok");
 
@@ -89,6 +91,23 @@ function assertInventoryPreset(): void {
   const distance = Math.hypot(player.state!.x - nearest.x, player.state!.y - nearest.y);
   assert.ok(distance <= 100, `inventory preset drop should be within pickup/drag showcase range, got ${distance}`);
   assertMatchPayloadIncludesPlayerPosition(room, player);
+}
+
+function assertContestedPreset(): void {
+  const room = createRoom();
+  spawnChests(room);
+  applyDevRoomPreset(room, "contested");
+  const player = getHuman(room);
+  assert.ok(player.state, "contested preset requires human state");
+  assert.ok(player.openingChest, "contested preset should start a chest opening channel");
+  const chest = room.chests!.get(player.openingChest.chestId);
+  assert.ok(chest, "contested preset should target an existing chest");
+  assert.equal(chest?.lane, "contested", "contested preset should target a contested chest lane");
+  assert.equal(room.contestedChestNoise?.chestId, chest?.id, "contested preset should seed contested chest noise");
+  assert.ok(
+    room.contestedChestNoise?.aggroedMonsterIds.length ?? 0,
+    "contested preset should alert nearby guards"
+  );
 }
 
 function assertMatchPayloadIncludesPlayerPosition(room: RuntimeRoom, player: RuntimePlayer): void {

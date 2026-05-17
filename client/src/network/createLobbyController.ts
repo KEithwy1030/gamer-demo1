@@ -6,13 +6,13 @@ import type {
 import type { LobbyRuntimeApi } from "../app/lobbyTypes";
 import { GameSocketClient } from "./socketClient";
 
-function resolveDevRoomPreset(): "boss" | "extract" | "inventory" | undefined {
+function resolveDevRoomPreset(): "boss" | "extract" | "inventory" | "contested" | undefined {
   if (typeof window === "undefined") {
     return undefined;
   }
 
   const preset = new URLSearchParams(window.location.search).get("devRoomPreset");
-  return preset === "boss" || preset === "extract" || preset === "inventory"
+  return preset === "boss" || preset === "extract" || preset === "inventory" || preset === "contested"
     ? preset
     : undefined;
 }

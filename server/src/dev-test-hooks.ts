@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
 import type { MatchLayoutSpawnZone } from "@gamer/shared";
 import { ITEM_DEFINITIONS } from "@gamer/shared";
+import { startChestOpening } from "./chests/chest-manager.js";
 import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "./internal-constants.js";
 import type { DropState, InventoryItem, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "./types.js";
 
-export type DevRoomPreset = "boss" | "extract" | "inventory";
+export type DevRoomPreset = "boss" | "extract" | "inventory" | "contested";
 
 const ENABLE_TEST_HOOKS = process.env.ENABLE_TEST_HOOKS === "1";
 const BOSS_LOCK_CHASE_DISTANCE = 220;
@@ -24,7 +25,7 @@ export function resolveEnabledDevRoomPreset(value: unknown): DevRoomPreset | und
     return undefined;
   }
 
-  return value === "boss" || value === "extract" || value === "inventory"
+  return value === "boss" || value === "extract" || value === "inventory" || value === "contested"
     ? value
     : undefined;
 }
@@ -44,6 +45,9 @@ export function applyDevRoomPreset(room: RuntimeRoom, preset: DevRoomPreset): vo
       break;
     case "inventory":
       applyInventoryPreset(room, player);
+      break;
+    case "contested":
+      applyContestedPreset(room, player);
       break;
   }
 }
@@ -114,6 +118,17 @@ function applyInventoryPreset(room: RuntimeRoom, player: RuntimePlayer): void {
     y: spawnY + INVENTORY_DROP_OFFSET_Y
   });
   room.drops.set(drop.id, drop);
+}
+
+function applyContestedPreset(room: RuntimeRoom, player: RuntimePlayer): void {
+  const chest = [...(room.chests?.values() ?? [])].find((entry) => entry.lane === "contested");
+  if (!chest || !player.state) {
+    return;
+  }
+
+  placePlayer(player, chest.x, chest.y, normalizeDirection({ x: chest.x - player.state.x, y: chest.y - player.state.y }));
+  stabilizePlayer(player);
+  startChestOpening(room, player.id, chest.id);
 }
 
 function getPointAtDistanceFromAnchor(anchor: { x: number; y: number }, distance: number): { x: number; y: number } {
