@@ -11,6 +11,7 @@ const extractService = readText("server/src/extract/service.ts");
 assert.match(source, /SettlementItemDetail/, "results overlay should accept settlement item detail payloads");
 assert.match(source, /replaceItems\(itemsList, settlement\.result === "success" \? settlement\.extractedItemDetails \?\? \[\] : settlement\.lostItemDetails \?\? \[\]\)/, "results overlay should render extracted or lost item details rather than raw names");
 assert.match(source, /results-item-card__icon/, "results overlay should render structured loot cards");
+assert.match(source, /results-item-card__name">\$\{escapeHtml\(presentation\.displayName\)\}/, "results overlay should show item presentation display names on payoff cards");
 assert.match(source, /formatItemValue\(item\)/, "results overlay should surface value metadata on loot cards");
 assert.match(source, /buildPlaytestNote\(latestSettlement\)/, "results overlay should expose a copyable playtest note for manual release-feel sessions");
 assert.match(source, /Build: \$\{getBuildCommit\(\)\}/, "playtest note should include the current build commit when copied");

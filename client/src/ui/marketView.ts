@@ -179,7 +179,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
     return items.map((item) => {
       const row = el("button", `market-source-row${item.instanceId === selectedItemId ? " active" : ""}`) as HTMLButtonElement;
       row.type = "button";
-      row.append(itemThumb(item), itemText(item.name, item.rarity ?? "common", formatItemMeta(item)));
+      row.append(itemThumb(item), itemText(itemDisplayName(item), item.rarity ?? "common", formatItemMeta(item)));
       row.addEventListener("click", () => {
         selectedItemId = item.instanceId;
         priceInput.value = String(suggestPrice(item));
@@ -202,7 +202,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
       return;
     }
 
-    selectedName.textContent = item.name;
+    selectedName.textContent = itemDisplayName(item);
     selectedMeta.textContent = `${formatRarity(item.rarity)} / ${formatItemMeta(item)}`;
     selectedStats.replaceChildren(...formatStats(item).map((line) => el("div", "market-stat", line)));
     selectedHint.textContent = formatSuggestionHint(item);
@@ -254,7 +254,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
 
       const actions = el("div", "market-listing-actions");
       actions.append(price, update, cancel);
-      const text = itemText(listing.item.name, listing.item.rarity ?? "common", formatListingMeta(listing));
+      const text = itemText(itemDisplayName(listing.item), listing.item.rarity ?? "common", formatListingMeta(listing));
       text.append(el("div", "market-row-hint", formatListingSuggestion(listing)));
       row.append(itemThumb(listing.item), text, actions);
       return row;
@@ -270,7 +270,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
       const row = el("div", "market-sale-row");
       row.append(
         itemThumb(receipt.item),
-        itemText(receipt.item.name, receipt.item.rarity ?? "common", `${formatNumber(receipt.price)} 金币 / ${formatRelativeTime(receipt.soldAt)}`)
+        itemText(itemDisplayName(receipt.item), receipt.item.rarity ?? "common", `${formatNumber(receipt.price)} 金币 / ${formatRelativeTime(receipt.soldAt)}`)
       );
       return row;
     });
@@ -349,6 +349,10 @@ function itemThumb(item: Pick<MarketListingItem, "definitionId" | "name" | "rari
   const presentation = getItemPresentation(item);
   thumb.innerHTML = presentation.iconSvg;
   return thumb;
+}
+
+function itemDisplayName(item: Pick<MarketListingItem, "definitionId" | "name" | "rarity" | "kind">): string {
+  return getItemPresentation(item).displayName;
 }
 
 function itemText(name: string, rarity: string, meta: string): HTMLElement {

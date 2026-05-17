@@ -323,7 +323,7 @@ function replaceItems(container: HTMLElement, items: SettlementItemDetail[]): vo
       entry.innerHTML = `
         <span class="results-item-card__icon">${presentation.iconSvg}</span>
         <span class="results-item-card__body">
-          <span class="results-item-card__name">${escapeHtml(item.name)}</span>
+          <span class="results-item-card__name">${escapeHtml(presentation.displayName)}</span>
           <span class="results-item-card__meta">${escapeHtml(presentation.detailLabel)}</span>
         </span>
         <span class="results-item-card__value">${formatItemValue(item)}</span>

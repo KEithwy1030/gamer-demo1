@@ -11,6 +11,7 @@ import { createStashView, type StashViewApi } from "./stashView";
 import { createMarketView, type MarketViewApi } from "./marketView";
 import { attachViewportScaler, type ViewportScaler } from "./viewportScaler";
 import { buildManualPlaytestTemplate, buildPlaytestNote, buildSettlementCopy, getBuildCommit } from "../results/ResultsOverlay";
+import { getItemPresentation } from "./itemPresentation";
 import {
   getProfileLoadoutCount,
   getProfileAssetValue,
@@ -601,7 +602,7 @@ function buildLastRunItemChips(lastRun: LocalRunSummary): string[] {
   if (details.length > 0) {
     return details.slice(0, 4).map((item) => {
       const value = item.treasureValue > 0 ? ` +${item.treasureValue}` : item.goldValue > 0 ? ` +${item.goldValue}` : "";
-      return `${item.name}${value}`;
+      return `${getItemPresentation(item).displayName}${value}`;
     });
   }
   return lastRun.items.length > 0 ? lastRun.items.slice(0, 4) : ["No loot"];

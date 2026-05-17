@@ -103,6 +103,14 @@ function assertMarketUiCopyMatchesSettlementContract(): void {
   const marketView = readFileSync(new URL("../client/src/ui/marketView.ts", import.meta.url), "utf8");
   assert(marketView.includes("模拟买家成交已接线"), "market header should tell players simulated buyer settlement is available");
   assert(!marketView.includes("成交暂不开放"), "market header should not claim settlement is unavailable after buyer settlement is implemented");
+  assert(marketView.includes("function itemDisplayName"), "market rows should centralize display-name presentation");
+  assert(marketView.includes("itemText(itemDisplayName(item)"), "market candidate rows should use item presentation display names");
+  assert(marketView.includes("selectedName.textContent = itemDisplayName(item)"), "market selected item should use item presentation display names");
+  assert(marketView.includes("itemText(itemDisplayName(listing.item)"), "market listings should use item presentation display names");
+  assert(marketView.includes("itemText(itemDisplayName(receipt.item)"), "market sale receipts should use item presentation display names");
+  assert(!marketView.includes("itemText(item.name"), "market rows should not render raw local item names");
+  assert(!marketView.includes("itemText(listing.item.name"), "market listings should not render raw listing item names");
+  assert(!marketView.includes("itemText(receipt.item.name"), "market receipts should not render raw receipt item names");
 }
 
 function createOverflowSettlementInventory(): InventoryState {
