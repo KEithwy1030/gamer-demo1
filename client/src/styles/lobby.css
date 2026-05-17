@@ -1485,6 +1485,23 @@ body.stash-dragging * {
   font-family: var(--mono);
   font-size: 11px;
 }
+.market-selected-hint,
+.market-row-hint {
+  color: var(--signal);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+.market-selected-hint {
+  margin: -6px 0 10px;
+  padding: 7px 9px;
+  border: 1px solid rgba(232, 96, 44, 0.24);
+  background: rgba(232, 96, 44, 0.07);
+}
+.market-row-hint {
+  margin-top: 4px;
+  color: var(--bone-low);
+}
 .market-price-input,
 .market-row-price {
   width: 100%;

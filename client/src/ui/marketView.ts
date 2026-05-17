@@ -48,6 +48,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
   const selectedName = el("div", "market-selected-name", "未选择物资");
   const selectedMeta = el("div", "market-selected-meta", "从左侧选择一件物资");
   const selectedStats = el("div", "market-selected-stats");
+  const selectedHint = el("div", "market-selected-hint", "选择物资后生成建议价");
   const priceInput = el("input", "market-price-input") as HTMLInputElement;
   priceInput.type = "number";
   priceInput.min = "1";
@@ -62,6 +63,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
     selectedName,
     selectedMeta,
     selectedStats,
+    selectedHint,
     priceInput,
     createButton,
     status
@@ -151,6 +153,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
       selectedName.textContent = "未选择物资";
       selectedMeta.textContent = "从左侧选择一件物资";
       selectedStats.replaceChildren();
+      selectedHint.textContent = "选择物资后生成建议价";
       createButton.disabled = true;
       priceInput.value = "";
       return;
@@ -159,6 +162,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
     selectedName.textContent = item.name;
     selectedMeta.textContent = `${formatRarity(item.rarity)} / ${formatItemMeta(item)}`;
     selectedStats.replaceChildren(...formatStats(item).map((line) => el("div", "market-stat", line)));
+    selectedHint.textContent = formatSuggestionHint(item);
     createButton.disabled = false;
   }
 
@@ -206,7 +210,9 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
 
       const actions = el("div", "market-listing-actions");
       actions.append(price, update, cancel);
-      row.append(itemThumb(listing.item), itemText(listing.item.name, listing.item.rarity ?? "common", formatListingMeta(listing)), actions);
+      const text = itemText(listing.item.name, listing.item.rarity ?? "common", formatListingMeta(listing));
+      text.append(el("div", "market-row-hint", formatListingSuggestion(listing)));
+      row.append(itemThumb(listing.item), text, actions);
       return row;
     });
   }
@@ -317,12 +323,25 @@ function formatStatKey(key: string): string {
   return labels[key] ?? key;
 }
 
-function suggestPrice(item: LocalProfileItem): number {
+function suggestPrice(item: Pick<MarketListingItem, "rarity" | "width" | "height" | "modifiers" | "affixes">): number {
   const rarityBase: Record<string, number> = { common: 180, uncommon: 420, rare: 950, epic: 2200 };
   const size = Math.max(1, (item.width ?? 1) * (item.height ?? 1));
   const statCount = Object.values(item.modifiers ?? {}).filter((value) => typeof value === "number" && value !== 0).length
     + (item.affixes?.length ?? 0);
   return Math.round((rarityBase[item.rarity ?? "common"] ?? 300) * size * (1 + statCount * 0.18));
+}
+
+function formatSuggestionHint(item: Pick<MarketListingItem, "rarity" | "width" | "height" | "modifiers" | "affixes">): string {
+  return `建议挂价 ${formatNumber(suggestPrice(item))} 金币`;
+}
+
+function formatListingSuggestion(listing: MarketListing): string {
+  const suggested = suggestPrice(listing.item);
+  const delta = listing.price - suggested;
+  if (delta === 0) {
+    return `建议价 ${formatNumber(suggested)}`;
+  }
+  return `建议价 ${formatNumber(suggested)} / ${formatSignedNumber(delta)}`;
 }
 
 function formatRarity(rarity?: string): string {
@@ -331,6 +350,10 @@ function formatRarity(rarity?: string): string {
 
 function formatNumber(value: number): string {
   return value.toLocaleString("zh-CN");
+}
+
+function formatSignedNumber(value: number): string {
+  return `${value >= 0 ? "+" : ""}${formatNumber(value)}`;
 }
 
 function formatRelativeTime(timestamp: number): string {
