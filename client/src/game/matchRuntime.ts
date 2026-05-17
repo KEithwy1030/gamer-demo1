@@ -13,6 +13,8 @@ export interface MatchInventoryItem {
   y?: number;
   slot?: string;
   equipmentSlot?: string;
+  goldValue?: number;
+  treasureValue?: number;
   healAmount?: number;
   affixes?: Array<{ key: string; value: number }>;
   modifiers?: Partial<{

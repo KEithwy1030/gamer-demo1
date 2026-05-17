@@ -791,7 +791,26 @@ function resolveInventoryLabel(state: MatchViewState): string {
     return sum + Math.max(1, item.width ?? 1) * Math.max(1, item.height ?? 1);
   }, 0);
 
+  const cargoValue = resolveInventoryCargoValue(state);
+  if (cargoValue > 0) {
+    return `载荷 ${used}/${total} · 估值 ${formatCompactValue(cargoValue)}`;
+  }
+
   return hasBackpackCargo(state) ? `载荷 ${used}/${total}` : `背包 ${used}/${total}`;
+}
+
+function resolveInventoryCargoValue(state: MatchViewState): number {
+  return (state.inventory?.items ?? []).reduce((sum, item) => {
+    return sum + Math.max(0, item.goldValue ?? 0) + Math.max(0, item.treasureValue ?? 0);
+  }, 0);
+}
+
+function formatCompactValue(value: number): string {
+  if (value >= 1000) {
+    return `${Math.round(value / 100) / 10}k`;
+  }
+
+  return Math.round(value).toString();
 }
 
 function resolvePressureHint(state: MatchViewState, extractState: ExtractUiState): string {

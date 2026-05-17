@@ -65,6 +65,21 @@ assert.match(
   /lineSpacing: 3,/,
   "HUD objective and combat copy should use explicit compact line spacing"
 );
+assert.match(
+  hudSource,
+  /function resolveInventoryCargoValue\(state: MatchViewState\): number \{/,
+  "HUD should compute carried loot value from live match inventory"
+);
+assert.match(
+  hudSource,
+  /载荷 \$\{used\}\/\$\{total\} · 估值 \$\{formatCompactValue\(cargoValue\)\}/,
+  "HUD load label should include compact carried value when loot has gold or treasure value"
+);
+assert.match(
+  gameClientSource,
+  /goldValue: asNumber\(item\.goldValue, 0\),[\s\S]*treasureValue: asNumber\(item\.treasureValue, 0\),/,
+  "match inventory normalization should preserve item value for in-match risk decisions"
+);
 
 assert.match(
   inventoryPanelSource,

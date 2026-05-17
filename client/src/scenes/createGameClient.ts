@@ -409,6 +409,8 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
         y: asOptionalNumber(entry.y),
         slot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot),
         equipmentSlot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot),
+        goldValue: asNumber(item.goldValue, 0),
+        treasureValue: asNumber(item.treasureValue, 0),
         healAmount: asOptionalNumber(item.healAmount),
         modifiers: normalizeItemModifiers(item.modifiers),
         affixes: normalizeAffixes(item.affixes)
@@ -431,6 +433,8 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
           height: asOptionalNumber(item.height),
           slot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot) ?? slot,
           equipmentSlot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot) ?? slot,
+          goldValue: asNumber(item.goldValue, 0),
+          treasureValue: asNumber(item.treasureValue, 0),
           healAmount: asOptionalNumber(item.healAmount),
           modifiers: normalizeItemModifiers(item.modifiers),
           affixes: normalizeAffixes(item.affixes)
