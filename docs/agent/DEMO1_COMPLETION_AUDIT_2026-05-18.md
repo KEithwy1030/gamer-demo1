@@ -46,7 +46,7 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 - Manual long-session balance: 9-12 minute ideal extraction timing cannot be proven by deterministic tests; `MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md` now defines the required evidence format.
 - Real multi-human PvPvE feel: socket contracts prove protocol shape, not player tension or combat readability under human pressure.
 - Commercial art polish: the lobby / black-market entry and results overlay now use a generated bitmap backdrop, and a local preview screenshot confirmed the lobby shell renders with the new art, but the rest of the commercial art pass is still incomplete.
-- Browser/mobile hands-on comfort: automation can catch layout and console failures, but not actual play feel.
+- Browser/mobile hands-on comfort: desktop-style lobby and settlement screens still render on a 390px mobile viewport, but they compress to a very small scale; automation can catch layout and console failures, yet a dedicated mobile-responsive pass is still needed for real play comfort.
 - Human playtest note capture: the note-copy action now exists in both the results overlay and lobby recent-run summary, but the session itself still needs to be run and rated.
 - Player death loot race: deterministic enemy kill, full drop, and opposing pickup is now covered; live multi-human contest tension still needs manual playtest.
 
