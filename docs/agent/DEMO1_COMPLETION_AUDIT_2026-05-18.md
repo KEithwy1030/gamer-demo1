@@ -28,7 +28,7 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 | Search/fight/extract single-run loop | `validate:carry-loop-release`, `validate:lategame-smoke`, `validate:profile-carry` | Covered structurally across three consecutive runs; full long-session feel manual |
 | Three weapons and three active skills each | `shared/src/data/weaponSkills.ts`, `server/src/combat/combat-service.ts`, `validate:skill-contract` | Covered by branch contract; animation feel manual |
 | Dodge and lock/approach assist | `server/src/combat/combat-service.ts`, `validate:lock-assist`, `validate:skill-contract` | Covered structurally |
-| Normal and elite monsters | `server/src/monsters/monster-manager.ts`, `validate:elite-encounter`, `validate:combat-readability` | Covered structurally |
+| Normal and elite monsters | `server/src/monsters/monster-manager.ts`, `server/src/internal-constants.ts`, `validate:monster-tuning-contract`, `validate:elite-encounter`, `validate:combat-readability` | Covered structurally; base GDD speed/range/damage/aggro/leash tuning is now directly locked in the release gate |
 | Equipment, weapons, gold, treasure drops | `shared/src/data/items.ts`, `server/src/loot/loot-manager.ts`, `validate:loot-depth`, `validate:chest-contract` | Covered |
 | Tactical consumables | `shared/src/data/items.ts`, `server/src/inventory/service.ts`, `client/src/ui/itemPresentation.ts`, `validate:tactical-consumables` | Covered for bandage cleanse, stimulant speed boost, miasma mitigation, distinct bitmap icons, and payoff-surface icon reuse |
 | Backpack grid and equipment slots | `shared/src/domain/inventory.ts`, `client/src/ui/InventoryPanel.ts`, `validate:profile-carry`, `validate:drag-contracts` | Covered, but drag UI is not in release gate due existing dirty harness boundary |
@@ -81,6 +81,7 @@ Latest automated evidence captured on 2026-05-18:
 - `validate:dev-cors-contract` now guards the `ENABLE_TEST_HOOKS=1` CORS path used by dev acceptance launchers and late-game smoke.
 - `validate:tactical-consumables` now guards consumable effects, distinct bitmap icons, and reuse of those icons on settlement and black-market payoff surfaces.
 - `validate:audio-hooks` now guards combat/extract synthesized cues plus the black-market payoff cue.
+- `validate:monster-tuning-contract` now guards normal/elite monster speed, attack range, attack damage, aggro range, and leash range against GDD section 18.3.
 - `validate:mobile-controls-contract` now guards mobile combat/action button coverage, cooldown display, and dead-state input disabling inside the GDD release gate.
 - The latest launch gate also verified the market audio teardown cleanup from `9642a97` with `npm run validate:audio-hooks` and `npm run typecheck`, and post-run checks found no lingering listeners on `3000`, `5173`, `4173`, `8791`, `9323`, `3191`, `3210`, or `3212`.
 - Playwright visual spot-check confirmed the lobby recent-run card renders a build tag on `http://127.0.0.1:5173/`.
