@@ -64,6 +64,8 @@ export interface InventoryItemInstance {
   kind?: ItemCategory;
   rarity?: ItemRarity;
   name?: string;
+  goldValue?: number;
+  treasureValue?: number;
   tags?: ItemTag[];
   healAmount?: number;
   affixes?: Affix[];

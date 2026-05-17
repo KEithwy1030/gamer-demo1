@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { buildMatchLayout } from "../server/src/match-layout.js";
 import { GAME_CAMERA_CONFIG, GAME_RENDER_CONFIG } from "../client/src/scenes/gameScene/renderConfig";
 import { buildRiverVisualPlan } from "../client/src/scenes/gameScene/riverVisualPlan";
+
+const repoRoot = fileURLToPath(new URL("../", import.meta.url));
+const dropMarkerSource = readText("client/src/game/entities/DropMarker.ts");
+const gameClientSource = readText("client/src/scenes/createGameClient.ts");
 
 assert.equal(GAME_RENDER_CONFIG.pixelArt, false, "renderer should not use pixelArt mode");
 assert.equal(GAME_RENDER_CONFIG.antialias, true, "renderer should keep antialias enabled for smooth assets");
@@ -10,6 +16,21 @@ assert.equal(GAME_RENDER_CONFIG.roundPixels, false, "renderer should avoid round
 assert.equal(GAME_RENDER_CONFIG.minFilter, "LINEAR", "renderer min filter should remain linear");
 assert.equal(GAME_RENDER_CONFIG.magFilter, "LINEAR", "renderer mag filter should remain linear");
 assert.equal(GAME_CAMERA_CONFIG.roundPixels, false, "camera should not round pixels");
+assert.match(
+  dropMarkerSource,
+  /function getDropValue\(drop: WorldDrop\): number \{/,
+  "world drops should compute visible carried value from item payload"
+);
+assert.match(
+  dropMarkerSource,
+  /\$\{name\} · \+\$\{formatCompactValue\(value\)\}/,
+  "world drop labels should expose compact loot value"
+);
+assert.match(
+  gameClientSource,
+  /goldValue: asNumber\(item\.goldValue, 0\),[\s\S]*treasureValue: asNumber\(item\.treasureValue, 0\)/,
+  "drop normalization should preserve item value for world labels"
+);
 
 const layout = buildMatchLayout({
   roomCode: "RIVR",
@@ -41,3 +62,7 @@ for (const crossing of layout.safeCrossings) {
 }
 
 console.log("validate-visual-clarity: ok");
+
+function readText(relativePath: string): string {
+  return readFileSync(`${repoRoot}${relativePath}`, "utf8");
+}

@@ -495,7 +495,15 @@ function normalizeDropsState(payload: WorldDrop[] | unknown): WorldDrop[] {
       id,
       item: {
         instanceId: asString(item.instanceId, id),
-        definitionId: asString(item.definitionId, asString(item.templateId, "unknown"))
+        definitionId: asString(item.definitionId, asString(item.templateId, "unknown")),
+        name: translateItemName(
+          asString(item.name, asString(item.templateId, "Loot")),
+          asString(item.templateId, asString(item.definitionId, "unknown"))
+        ),
+        kind: asOptionalStringValue(item.kind) as WorldDrop["item"]["kind"],
+        rarity: asOptionalStringValue(item.rarity) as WorldDrop["item"]["rarity"],
+        goldValue: asNumber(item.goldValue, 0),
+        treasureValue: asNumber(item.treasureValue, 0)
       },
       definitionId: asString(entry.definitionId, asString(item.definitionId, asString(item.templateId, "unknown"))),
       x: asNumber(entry.x, 0),

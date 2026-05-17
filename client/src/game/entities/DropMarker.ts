@@ -8,16 +8,18 @@ export class DropMarker {
   constructor(scene: Phaser.Scene, drop: WorldDrop) {
     this.id = drop.id;
 
+    const cargoValue = getDropValue(drop);
+    const isValuable = cargoValue >= 100;
     const ring = scene.add.ellipse(0, 20, 42, 14, 0x0e0b08, 0.36);
-    const scan = scene.add.rectangle(0, -12, 46, 3, 0xe8602c, 0.64);
+    const scan = scene.add.rectangle(0, -12, 46, 3, isValuable ? 0xf6c453 : 0xe8602c, isValuable ? 0.84 : 0.64);
     const sprite = scene.add.sprite(0, 0, "drop");
     sprite.setDisplaySize(68, 68);
 
-    const label = scene.add.text(0, 36, formatDropLabel(drop.definitionId), {
+    const label = scene.add.text(0, 36, formatDropLabel(drop), {
       fontFamily: "Arial",
       fontSize: "10px",
-      color: "#e8dfc8",
-      backgroundColor: "rgba(22,19,15,0.72)",
+      color: isValuable ? "#ffe7a3" : "#e8dfc8",
+      backgroundColor: isValuable ? "rgba(55, 32, 12, 0.82)" : "rgba(22,19,15,0.72)",
       padding: { x: 5, y: 2 }
     });
     label.setOrigin(0.5, 0);
@@ -49,15 +51,20 @@ export class DropMarker {
   }
 }
 
-function formatDropLabel(definitionId: string | undefined): string {
-  const map: Record<string, string> = {
-    "gold_pouch": "金币袋",
-    "jade_idol": "古玉像",
-    "trail_greaves": "径行腿甲",
-    "scavenger_coat": "拾荒者大衣",
-    "raider_blade": "突击者之刃",
-    "hunter_spear": "猎人长矛",
-    "leather_hood": "皮质兜帽"
-  };
-  return map[definitionId ?? ""] ?? (definitionId ?? "战利品").replace(/_/g, " ");
+function formatDropLabel(drop: WorldDrop): string {
+  const name = drop.item.name ?? (drop.definitionId ?? "Loot").replace(/_/g, " ");
+  const value = getDropValue(drop);
+  return value > 0 ? `${name} · +${formatCompactValue(value)}` : name;
+}
+
+function getDropValue(drop: WorldDrop): number {
+  return Math.max(0, drop.item.goldValue ?? 0) + Math.max(0, drop.item.treasureValue ?? 0);
+}
+
+function formatCompactValue(value: number): string {
+  if (value >= 1000) {
+    return `${Math.round(value / 100) / 10}k`;
+  }
+
+  return Math.round(value).toString();
 }
