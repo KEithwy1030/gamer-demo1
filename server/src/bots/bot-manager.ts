@@ -50,6 +50,8 @@ const BOT_CARGO_EXTRACT_BONUS = 0.12;
 const BOT_PRESSURE_CARGO_THRESHOLD = 2;
 const BOT_PRESSURE_MONSTER_THRESHOLD = 1;
 const BOT_RETREAT_RESET_MS = 2400;
+const CONTESTED_CHEST_NOISE_BOT_RADIUS = 1500;
+const CONTESTED_CHEST_NOISE_STAGING_DISTANCE = 96;
 
 const botInventoryService = new InventoryService();
 
@@ -117,6 +119,25 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
     bot.botTargetDropId = undefined;
     bot.botPatrolPoint = extractPressure.point;
     bot.moveInput = getTravelDirection(context, botState, extractPressure.point);
+    return;
+  }
+
+  const noisyChest = resolveContestedChestNoiseIntent(context, bot, profile, hpRatio, now);
+  if (noisyChest?.enemy?.state) {
+    bot.botGoal = "hunt";
+    bot.botTargetPlayerId = noisyChest.enemy.id;
+    bot.botTargetDropId = undefined;
+    bot.botPatrolPoint = undefined;
+    bot.moveInput = getTravelDirection(context, botState, noisyChest.enemy.state);
+    return;
+  }
+
+  if (noisyChest?.point) {
+    bot.botGoal = "patrol";
+    bot.botTargetPlayerId = undefined;
+    bot.botTargetDropId = undefined;
+    bot.botPatrolPoint = noisyChest.point;
+    bot.moveInput = getTravelDirection(context, botState, noisyChest.point);
     return;
   }
 
@@ -561,6 +582,49 @@ function resolveExtractPressurePoint(bot: RuntimePlayer, zone: { zoneId: string;
   return {
     x: clamp(zone.x + Math.cos(angle) * ringDistance, 24, MATCH_MAP_WIDTH - 24),
     y: clamp(zone.y + Math.sin(angle) * ringDistance, 24, MATCH_MAP_HEIGHT - 24)
+  };
+}
+
+function resolveContestedChestNoiseIntent(
+  context: RuntimeContext,
+  bot: RuntimePlayer,
+  profile: BotDifficultyProfile,
+  hpRatio: number,
+  now: number
+): ExtractPressureIntent | undefined {
+  if (!bot.state || bot.squadId === "player" || hpRatio <= profile.fleeHpRatio) {
+    return undefined;
+  }
+
+  const noise = context.room.contestedChestNoise;
+  if (!noise) {
+    return undefined;
+  }
+
+  if (now > noise.expiresAt) {
+    context.room.contestedChestNoise = undefined;
+    return undefined;
+  }
+
+  if (distance(bot.state, noise) > CONTESTED_CHEST_NOISE_BOT_RADIUS) {
+    return undefined;
+  }
+
+  const opener = context.room.players.get(noise.playerId);
+  if (opener?.state?.isAlive && opener.squadId !== bot.squadId && distance(bot.state, opener.state) <= profile.aggroRange * 1.35) {
+    return { enemy: opener };
+  }
+
+  return { point: resolveNoisyChestPressurePoint(bot, noise) };
+}
+
+function resolveNoisyChestPressurePoint(bot: RuntimePlayer, noise: { chestId: string; x: number; y: number }): Vector2 {
+  const angleSeed = [...`${bot.id}:${noise.chestId}`].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const angle = (angleSeed % 360) * (Math.PI / 180);
+  const ringDistance = CONTESTED_CHEST_NOISE_STAGING_DISTANCE + ((angleSeed % 3) * 28);
+  return {
+    x: clamp(noise.x + Math.cos(angle) * ringDistance, 24, MATCH_MAP_WIDTH - 24),
+    y: clamp(noise.y + Math.sin(angle) * ringDistance, 24, MATCH_MAP_HEIGHT - 24)
   };
 }
 

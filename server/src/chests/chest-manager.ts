@@ -19,6 +19,7 @@ export const CHEST_OPEN_DURATION_MS = 2_000;
 const CHEST_INTERACT_RANGE = 80;
 const CHEST_OPEN_MOVE_TOLERANCE = 28;
 const CHEST_NOISE_RADIUS = 720;
+const CONTESTED_CHEST_NOISE_TTL_MS = 18_000;
 
 function pickStarterLootItem(): InventoryItem | undefined {
   const templateId = STARTER_LOOT_TEMPLATES[Math.floor(Math.random() * STARTER_LOOT_TEMPLATES.length)];
@@ -136,6 +137,7 @@ export function openChest(
   }));
   const spawnedDrops = spawnChestDrops(room, chest, loot);
   const aggroedMonsterIds = alertMonstersToChestNoise(room, playerId, chest);
+  recordContestedChestNoise(room, playerId, chest, aggroedMonsterIds);
 
   return { chest, loot, spawnedDrops, aggroedMonsterIds };
 }
@@ -319,6 +321,23 @@ function alertMonstersToChestNoise(room: RuntimeRoom, playerId: string, chest: C
   }
 
   return aggroedMonsterIds;
+}
+
+function recordContestedChestNoise(room: RuntimeRoom, playerId: string, chest: Chest, aggroedMonsterIds: string[]): void {
+  if (chest.lane !== "contested") {
+    return;
+  }
+
+  const now = Date.now();
+  room.contestedChestNoise = {
+    chestId: chest.id,
+    playerId,
+    x: chest.x,
+    y: chest.y,
+    createdAt: now,
+    expiresAt: now + CONTESTED_CHEST_NOISE_TTL_MS,
+    aggroedMonsterIds
+  };
 }
 
 function pickWeighted<T extends { weight: number }>(entries: T[]): T {

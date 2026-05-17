@@ -411,6 +411,15 @@ export interface RuntimeRoom {
   pendingMonsterRespawns?: MonsterRespawnEntry[];
   drops?: Map<string, DropState>;
   chests?: Map<string, Chest>;
+  contestedChestNoise?: {
+    chestId: string;
+    playerId: string;
+    x: number;
+    y: number;
+    createdAt: number;
+    expiresAt: number;
+    aggroedMonsterIds: string[];
+  };
   extract?: RuntimeRoomExtractState;
   matchLayout?: MatchLayout;
 }
