@@ -30,6 +30,7 @@ type ItemPresentationPreset = ItemPresentationCore & {
 
 const ITEM_PRESETS: Record<string, ItemPresentationPreset> = {
   starter_sword: { icon: "⚔", badge: "剑", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_sword_v2.png", names: ["制式长剑", "Starter Sword", "Sword"] },
+  "iron-sword": { icon: "⚔", badge: "剑", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_sword_v2.png", names: ["制式长剑", "Iron Sword"] },
   weapon_sword_basic: { icon: "⚔", badge: "剑", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_sword_v2.png", names: ["锈蚀长剑", "锈剑", "Rust Sword"] },
   raider_blade: { icon: "🗡", badge: "刃", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_blade_v2.png", names: ["突袭弯刃", "突击者之刃", "Raider Blade", "Blade"] },
   weapon_blade_basic: { icon: "🗡", badge: "刃", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_blade_v2.png", names: ["突袭弯刃", "掠袭短刃", "Raider Blade"] },
@@ -42,6 +43,10 @@ const ITEM_PRESETS: Record<string, ItemPresentationPreset> = {
   armor_hands_common: { icon: "✊", badge: "手", categoryLabel: "护甲", slotLabel: "手部", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_hands_v2.png", names: ["握柄手套", "Grip Gloves"] },
   trail_greaves: { icon: "👢", badge: "靴", categoryLabel: "护甲", slotLabel: "鞋子", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_feet_v2.png", names: ["径行胫甲", "径行腿甲", "Trail Greaves"] },
   armor_feet_common: { icon: "👢", badge: "靴", categoryLabel: "护甲", slotLabel: "鞋子", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_feet_v2.png", names: ["旅者短靴", "旅途皮靴", "Road Boots"] },
+  hunter_cowl: { icon: "⛑", badge: "头", categoryLabel: "护甲", slotLabel: "头部", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_head_v2.png", names: ["缇夜猎屏", "Hunter Cowl"] },
+  runner_boots: { icon: "👢", badge: "靴", categoryLabel: "护甲", slotLabel: "鞋子", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_feet_v2.png", names: ["步境蹈靴", "Runner Boots"] },
+  duelist_blade: { icon: "🗡", badge: "刃", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_blade_v2.png", names: ["双刃绿刀", "Duelist Blade"] },
+  warlord_cuirass: { icon: "🜁", badge: "甲", categoryLabel: "护甲", slotLabel: "胸甲", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_chest_v2.png", names: ["战主钉胸甲", "Warlord Cuirass"] },
   jade_idol: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_small_idol_v2.png", names: ["古玉偶像", "古玉像", "Jade Idol"] },
   treasure_small_idol: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_small_idol_v2.png", names: ["小型偶像", "小型神像", "Small Idol"] },
   treasure_medium_tablet: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_stone_tablet_v2.png", names: ["石刻碑板", "Stone Tablet"] },
@@ -51,7 +56,8 @@ const ITEM_PRESETS: Record<string, ItemPresentationPreset> = {
   health_potion: { icon: "🧪", badge: "药", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_health_potion_v2.png", names: ["回血药剂", "回血药", "Health Potion"] },
   coagulant_bandage: { icon: "🧪", badge: "绷", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_consumable_bandage_v1.png", names: ["凝血绷带", "Coagulant Bandage"] },
   rust_stimulant: { icon: "🧪", badge: "兴", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_consumable_stimulant_v1.png", names: ["锈热兴奋剂", "Rust Stimulant"] },
-  miasma_tonic: { icon: "🧪", badge: "抗", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_consumable_miasma_tonic_v1.png", names: ["尸毒抗性药", "Miasma Tonic"] }
+  miasma_tonic: { icon: "🧪", badge: "抗", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_consumable_miasma_tonic_v1.png", names: ["尸毒抗性药", "Miasma Tonic"] },
+  extract_torch: { icon: "◈", badge: "火", categoryLabel: "任务", variant: "quest", assetPath: "assets/generated/image2_processed/items/icon_treasure_small_idol_v2.png", names: ["归营火种", "Extract Torch"] }
 };
 
 const NAME_LOOKUP = new Map<string, string>();
