@@ -415,8 +415,13 @@ export function handlePlayerSkill(
   }
 }
 
+type EliteGuardRole = "sentinel" | "hunter" | "bruiser";
+
 function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
-  const stats = getMonsterStats(spawn.type);
+  const baseStats = getMonsterStats(spawn.type);
+  const stats = spawn.type === "elite"
+    ? applyEliteGuardRoleStats(baseStats, getEliteGuardRole(spawn.id))
+    : baseStats;
   return {
     id: `monster_${spawn.id}_${crypto.randomUUID().slice(0, 8)}`,
     spawnId: spawn.id,
@@ -468,6 +473,53 @@ function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
     pendingAttackTargetId: undefined,
     lastAttackAt: undefined,
     lastDamagedAt: undefined
+  };
+}
+
+function getEliteGuardRole(spawnId: string): EliteGuardRole {
+  const match = /_(\d+)$/.exec(spawnId);
+  const index = match ? Math.max(1, Number.parseInt(match[1]!, 10)) : 1;
+  const roleIndex = (index - 1) % 3;
+  if (roleIndex === 1) {
+    return "hunter";
+  }
+  if (roleIndex === 2) {
+    return "bruiser";
+  }
+  return "sentinel";
+}
+
+function applyEliteGuardRoleStats(stats: ReturnType<typeof getMonsterStats>, role: EliteGuardRole): ReturnType<typeof getMonsterStats> {
+  if (role === "hunter") {
+    return {
+      ...stats,
+      aggroRange: stats.aggroRange + 90,
+      leashRange: stats.leashRange + 140,
+      moveSpeed: stats.moveSpeed + 24,
+      attackCooldownMs: Math.max(520, stats.attackCooldownMs - 90),
+      patrolRadius: stats.patrolRadius + 36,
+      guardRadius: stats.guardRadius + 80
+    };
+  }
+
+  if (role === "bruiser") {
+    return {
+      ...stats,
+      maxHp: stats.maxHp + 18,
+      attackDamage: stats.attackDamage + 3,
+      moveSpeed: Math.max(120, stats.moveSpeed - 8),
+      attackCooldownMs: stats.attackCooldownMs + 80,
+      patrolRadius: Math.max(54, stats.patrolRadius - 18)
+    };
+  }
+
+  return {
+    ...stats,
+    aggroRange: Math.max(220, stats.aggroRange - 35),
+    leashRange: Math.max(420, stats.leashRange - 60),
+    attackCooldownMs: stats.attackCooldownMs + 120,
+    patrolRadius: Math.max(48, stats.patrolRadius - 30),
+    guardRadius: Math.max(160, stats.guardRadius - 45)
   };
 }
 

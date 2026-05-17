@@ -28,6 +28,10 @@ function assertElitePressureNearContestedResources(): void {
   const elites = [...room.monsters!.values()].filter((monster) => monster.type === "elite");
   assert.ok(contestedChests.length >= 3, "map should include contested resource chests");
   assert.ok(elites.length >= 3, "resource pressure requires elite monsters");
+  assert.ok(
+    new Set(elites.map((elite) => `${elite.moveSpeed}:${elite.attackDamage}:${elite.patrolRadius}:${elite.guardRadius}`)).size >= 3,
+    "elite resource pressure should split into multiple guard profiles instead of one flat elite template"
+  );
 
   for (const chest of contestedChests) {
     const nearestEliteDistance = Math.min(...elites.map((elite) => Math.hypot(elite.x - chest.x, elite.y - chest.y)));
