@@ -46,6 +46,11 @@ assert.match(
   "miasma shader uniforms should be updated from the active pipeline every frame"
 );
 assert.match(
+  gameSceneSource,
+  /const intensity = Phaser\.Math\.Clamp\(elapsedSec \/ 1100, 0\.28, 0\.68\);/,
+  "miasma pressure should stay readable instead of saturating the whole HUD"
+);
+assert.match(
   pipelineSource,
   /Stable value noise keeps the post effect deterministic across browsers\./,
   "miasma shader should document the deterministic value-noise choice"

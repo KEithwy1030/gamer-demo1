@@ -1037,7 +1037,7 @@ export class GameScene extends Phaser.Scene {
     const radius = Math.max(80, Math.max(this.latestState.width, this.latestState.height) * 0.78 * fogState.visibilityPercent);
     const screenRadius = radius * camera.zoom;
     const elapsedSec = (Date.now() - this.latestState.startedAt) / 1000;
-    const intensity = Phaser.Math.Clamp(elapsedSec / 900, 0.4, 0.98);
+    const intensity = Phaser.Math.Clamp(elapsedSec / 1100, 0.28, 0.68);
 
     this.miasmaPipeline.setMiasma(screenX, screenY, screenRadius, intensity);
   }
