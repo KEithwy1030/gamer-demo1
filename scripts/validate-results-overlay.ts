@@ -18,6 +18,7 @@ assert.match(source, /Pressure phase: \$\{formatPressurePhase\(settlement\.survi
 assert.match(source, /Combat contacts: \$\{settlement\.playerKills \+ settlement\.monsterKills\}/, "playtest note should summarize combat contacts for manual review");
 assert.match(source, /Inventory decision recorded:/, "playtest note should force a greed or inventory-decision observation");
 assert.match(source, /buildNextRunPrompt\(settlement\)/, "results overlay should derive a replay-facing next-run prompt from settlement data");
+assert.match(source, /from "\.\/replayPrompt"/, "results overlay should consume the pure replay prompt helper");
 assert.match(source, /Next run prompt: \$\{nextRunPrompt\}/, "playtest note should include the replay prompt for manual replay-intent review");
 assert.match(source, /results-next-run/, "results overlay should render a visible next-run target card");
 assert.match(source, /Key timestamps:/, "playtest note should include the manual protocol timestamp scaffold");
