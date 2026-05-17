@@ -342,8 +342,30 @@ function normalizeLastRun(raw: unknown): ProfileRunSummary | null {
     playerKills: normalizeNonNegativeInt(raw.playerKills, 0),
     monsterKills: normalizeNonNegativeInt(raw.monsterKills, 0),
     goldDelta: typeof raw.goldDelta === "number" && Number.isFinite(raw.goldDelta) ? Math.floor(raw.goldDelta) : 0,
-    items: Array.isArray(raw.items) ? raw.items.map(String).filter(Boolean) : []
+    items: Array.isArray(raw.items) ? raw.items.map(String).filter(Boolean) : [],
+    itemDetails: Array.isArray(raw.itemDetails) ? raw.itemDetails.flatMap(normalizeRunItemDetail) : undefined
   };
+}
+
+function normalizeRunItemDetail(raw: unknown): NonNullable<ProfileRunSummary["itemDetails"]>[number][] {
+  if (!isRecord(raw)) {
+    return [];
+  }
+  const definitionId = typeof raw.definitionId === "string" && raw.definitionId.trim() ? raw.definitionId : "";
+  const name = typeof raw.name === "string" && raw.name.trim() ? raw.name : "";
+  const kind = typeof raw.kind === "string" ? raw.kind : "";
+  if (!definitionId || !name || !kind) {
+    return [];
+  }
+  return [{
+    instanceId: typeof raw.instanceId === "string" && raw.instanceId.trim() ? raw.instanceId : definitionId,
+    definitionId,
+    name,
+    kind: kind as NonNullable<ProfileRunSummary["itemDetails"]>[number]["kind"],
+    rarity: typeof raw.rarity === "string" ? raw.rarity as NonNullable<ProfileRunSummary["itemDetails"]>[number]["rarity"] : undefined,
+    goldValue: normalizeNonNegativeInt(raw.goldValue, 0),
+    treasureValue: normalizeNonNegativeInt(raw.treasureValue, 0)
+  }];
 }
 
 function normalizePlacedItem(raw: unknown): InventoryPlacedItem | null {
@@ -433,7 +455,8 @@ function buildRunSummary(settlement: SettlementPayload, goldDelta: number): Prof
     playerKills: settlement.playerKills,
     monsterKills: settlement.monsterKills,
     goldDelta,
-    items: settlement.result === "success" ? settlement.extractedItems : settlement.lostItems
+    items: settlement.result === "success" ? settlement.extractedItems : settlement.lostItems,
+    itemDetails: settlement.result === "success" ? settlement.extractedItemDetails : settlement.lostItemDetails
   };
 }
 
@@ -665,7 +688,13 @@ function cloneProfile(profile: ProfileSnapshot): ProfileSnapshot {
     pendingReturn: profile.pendingReturn
       ? { items: profile.pendingReturn.items.map(stripGridPosition) }
       : null,
-    lastRun: profile.lastRun ? { ...profile.lastRun, items: [...profile.lastRun.items] } : null
+    lastRun: profile.lastRun
+      ? {
+          ...profile.lastRun,
+          items: [...profile.lastRun.items],
+          itemDetails: profile.lastRun.itemDetails?.map((item) => ({ ...item }))
+        }
+      : null
   };
 }
 

@@ -132,7 +132,8 @@ function toLocalProfile(snapshot: ProfileSnapshot): LocalProfile {
           playerKills: snapshot.lastRun.playerKills,
           monsterKills: snapshot.lastRun.monsterKills,
           goldDelta: snapshot.lastRun.goldDelta,
-          items: [...snapshot.lastRun.items]
+          items: [...snapshot.lastRun.items],
+          itemDetails: snapshot.lastRun.itemDetails?.map((item) => ({ ...item }))
         }
       : null,
     botDifficulty: snapshot.botDifficulty

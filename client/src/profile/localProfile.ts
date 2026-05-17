@@ -11,6 +11,7 @@ import {
   type InventorySnapshotPayload,
   type ItemCategory,
   type ItemRarity,
+  type SettlementItemDetail,
   type SettlementPayload
 } from "@gamer/shared";
 import type { MatchInventoryItem, MatchInventoryState } from "../game/matchRuntime";
@@ -23,6 +24,7 @@ export interface LocalRunSummary {
   monsterKills: number;
   goldDelta: number;
   items: string[];
+  itemDetails?: SettlementItemDetail[];
 }
 
 export interface LocalProfileItem extends MatchInventoryItem {
@@ -147,7 +149,8 @@ export function applySettlementToProfile(
       playerKills: settlement.playerKills,
       monsterKills: settlement.monsterKills,
       goldDelta: settlement.profileGoldDelta ?? 0,
-      items: extracted.length > 0 ? extracted.map((item) => item.name) : settlement.extractedItems ?? []
+      items: extracted.length > 0 ? extracted.map((item) => item.name) : settlement.extractedItems ?? [],
+      itemDetails: settlement.result === "success" ? settlement.extractedItemDetails : settlement.lostItemDetails
     },
     botDifficulty: profile.botDifficulty
   };
@@ -465,8 +468,30 @@ function normalizeLastRun(value: unknown): LocalRunSummary | null {
     playerKills: toNumber(value.playerKills, 0),
     monsterKills: toNumber(value.monsterKills, 0),
     goldDelta: toNumber(value.goldDelta, 0),
-    items: Array.isArray(value.items) ? value.items.map(String).filter(Boolean) : []
+    items: Array.isArray(value.items) ? value.items.map(String).filter(Boolean) : [],
+    itemDetails: Array.isArray(value.itemDetails) ? value.itemDetails.flatMap(normalizeSettlementItemDetail) : undefined
   };
+}
+
+function normalizeSettlementItemDetail(raw: unknown): SettlementItemDetail[] {
+  if (!isRecord(raw)) {
+    return [];
+  }
+  const definitionId = asString(raw.definitionId, "");
+  const name = asString(raw.name, "");
+  const kind = asString(raw.kind, "");
+  if (!definitionId || !name || !kind) {
+    return [];
+  }
+  return [{
+    instanceId: asString(raw.instanceId, definitionId),
+    definitionId,
+    name,
+    kind: kind as SettlementItemDetail["kind"],
+    rarity: typeof raw.rarity === "string" ? raw.rarity as SettlementItemDetail["rarity"] : undefined,
+    goldValue: toNumber(raw.goldValue, 0),
+    treasureValue: toNumber(raw.treasureValue, 0)
+  }];
 }
 
 function normalizeProfileItem(raw: unknown): LocalProfileItem | null {
@@ -867,7 +892,13 @@ function cloneProfile(profile: LocalProfile): LocalProfile {
     pendingReturn: profile.pendingReturn
       ? { items: profile.pendingReturn.items.map((item) => ({ ...item })) }
       : null,
-    lastRun: profile.lastRun ? { ...profile.lastRun, items: [...profile.lastRun.items] } : null
+    lastRun: profile.lastRun
+      ? {
+          ...profile.lastRun,
+          items: [...profile.lastRun.items],
+          itemDetails: profile.lastRun.itemDetails?.map((item) => ({ ...item }))
+        }
+      : null
   };
 }
 

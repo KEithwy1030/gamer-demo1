@@ -15,6 +15,7 @@ import {
   getProfileLoadoutCount,
   getProfilePrimaryWeapon,
   getProfileStashItemCount,
+  type LocalRunSummary,
   type LocalProfileMovePayload
 } from "../profile/localProfile";
 
@@ -428,7 +429,7 @@ export class LobbyView {
       this.resultDuration.textContent = formatDuration(state.profile.lastRun.survivedSeconds);
       this.resultGold.textContent = `${state.profile.lastRun.goldDelta >= 0 ? "+" : ""}${state.profile.lastRun.goldDelta.toLocaleString("zh-CN")}`;
       this.recoveredItems.replaceChildren(
-        ...(state.profile.lastRun.items.length > 0 ? state.profile.lastRun.items.slice(0, 4) : ["无带回物资"]).map((item) => createElement("span", "run-item", item)),
+        ...buildLastRunItemChips(state.profile.lastRun).map((item) => createElement("span", "run-item", item)),
       );
     }
 
@@ -554,6 +555,18 @@ function buildArmorSlot(kind: string, name: string) {
   const slot = createElement("div", "loadout-slot");
   slot.append(buildLoadoutText(kind, name), createElement("div", "loadout-tier", "等待接入"), createElement("div", "loadout-glyph", "甲"));
   return slot;
+}
+
+function buildLastRunItemChips(lastRun: LocalRunSummary): string[] {
+  const details = [...(lastRun.itemDetails ?? [])]
+    .sort((a, b) => (b.treasureValue + b.goldValue) - (a.treasureValue + a.goldValue));
+  if (details.length > 0) {
+    return details.slice(0, 4).map((item) => {
+      const value = item.treasureValue > 0 ? ` +${item.treasureValue}` : item.goldValue > 0 ? ` +${item.goldValue}` : "";
+      return `${item.name}${value}`;
+    });
+  }
+  return lastRun.items.length > 0 ? lastRun.items.slice(0, 4) : ["No loot"];
 }
 
 function appendMetaCell(parent: HTMLElement, label: string, value: string, extraClass?: string) {

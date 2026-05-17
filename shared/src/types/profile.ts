@@ -1,4 +1,4 @@
-import type { BotDifficulty, SettlementPayload } from "./game";
+import type { BotDifficulty, SettlementItemDetail, SettlementPayload } from "./game";
 import type { EquipmentSlot, InventoryItemInstance, InventoryState } from "./inventory";
 
 export interface ProfileRunSummary {
@@ -9,6 +9,7 @@ export interface ProfileRunSummary {
   monsterKills: number;
   goldDelta: number;
   items: string[];
+  itemDetails?: SettlementItemDetail[];
 }
 
 export interface ProfileStashState {
