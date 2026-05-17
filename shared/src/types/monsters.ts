@@ -1,6 +1,7 @@
 import type { Vector2 } from "./game.js";
 
 export type MonsterType = "normal" | "elite" | "boss";
+export type EliteMonsterRole = "sentinel" | "hunter" | "bruiser";
 
 export type MonsterBehaviorPhase = "idle" | "hunt" | "windup" | "charge" | "recover";
 export type MonsterSkillState = "smash" | "charge";
@@ -15,6 +16,7 @@ export interface MonsterTelegraphState {
 export interface MonsterState {
   id: string;
   type: MonsterType;
+  eliteRole?: EliteMonsterRole;
   name?: string;
   x: number;
   y: number;

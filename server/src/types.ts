@@ -347,6 +347,7 @@ export interface RuntimePlayer extends LobbyPlayer {
 
 export interface RuntimeMonster extends MonsterState {
   spawnId: string;
+  eliteRole?: "sentinel" | "hunter" | "bruiser";
   spawnX: number;
   spawnY: number;
   patrolX: number;

@@ -155,6 +155,7 @@ export function listMonsterStates(room: RuntimeRoom): MonsterState[] {
   return [...ensureMonsterState(room).values()].map((monster) => ({
     id: monster.id,
     type: monster.type,
+    eliteRole: monster.eliteRole,
     name: getMonsterDisplayName(monster),
     x: Math.round(monster.x),
     y: Math.round(monster.y),
@@ -419,13 +420,15 @@ type EliteGuardRole = "sentinel" | "hunter" | "bruiser";
 
 function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
   const baseStats = getMonsterStats(spawn.type);
+  const eliteRole = spawn.type === "elite" ? getEliteGuardRole(spawn.id) : undefined;
   const stats = spawn.type === "elite"
-    ? applyEliteGuardRoleStats(baseStats, getEliteGuardRole(spawn.id))
+    ? applyEliteGuardRoleStats(baseStats, eliteRole!)
     : baseStats;
   return {
     id: `monster_${spawn.id}_${crypto.randomUUID().slice(0, 8)}`,
     spawnId: spawn.id,
     type: spawn.type,
+    eliteRole,
     name: spawn.type === "boss" ? "灾厄监工" : undefined,
     x: spawn.x,
     y: spawn.y,

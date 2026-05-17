@@ -52,8 +52,19 @@ export function getMonsterLabel(monster: MonsterState): string {
   }
 
   if (monster.type === "elite") {
-    return monster.behaviorPhase === "windup" ? "ELITE STRIKE" : "ELITE";
+    const role = `ELITE ${getEliteRoleLabel(monster)}`;
+    return monster.behaviorPhase === "windup" ? `${role} STRIKE` : role;
   }
 
   return monster.behaviorPhase === "windup" ? "ATTACK" : "MONSTER";
+}
+
+export function getEliteRoleLabel(monster: Pick<MonsterState, "eliteRole">): string {
+  if (monster.eliteRole === "hunter") {
+    return "HUNTER";
+  }
+  if (monster.eliteRole === "bruiser") {
+    return "BRUISER";
+  }
+  return "SENTINEL";
 }

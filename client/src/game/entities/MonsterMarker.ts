@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { MonsterState } from "@gamer/shared";
-import { getMonsterLabel, getMonsterReadabilitySnapshot } from "./monsterReadability";
+import { getEliteRoleLabel, getMonsterLabel, getMonsterReadabilitySnapshot } from "./monsterReadability";
 import {
   getMonsterAction,
   getMonsterAnimationKey,
@@ -109,7 +109,7 @@ export class MonsterMarker {
     this.hpFill = scene.add.rectangle(-(hpWidth / 2), hpY, hpWidth, 9, isBoss ? 0xdc2626 : isElite ? 0xf97316 : 0xb8371f, 1);
     this.hpFill.setOrigin(0, 0.5);
 
-    this.crown = scene.add.text(0, profile.crownY, isBoss ? "BOSS" : isElite ? "ELITE" : "", {
+    this.crown = scene.add.text(0, profile.crownY, isBoss ? "BOSS" : isElite ? getEliteRoleLabel(monster) : "", {
       fontFamily: "monospace",
       fontSize: isBoss ? "10px" : "9px",
       fontStyle: "bold",
@@ -195,7 +195,11 @@ export class MonsterMarker {
     }
 
     this.label.setText(getMonsterLabel(monster));
-    this.crown.setText(snapshot.isBoss ? (monster.isEnraged ? "BOSS RAGE" : "BOSS") : snapshot.isElite ? "ELITE" : "");
+    this.crown.setText(snapshot.isBoss
+      ? (monster.isEnraged ? "BOSS RAGE" : "BOSS")
+      : snapshot.isElite
+        ? getEliteRoleLabel(monster)
+        : "");
     this.crown.setVisible(snapshot.isBoss || snapshot.isElite);
 
     this.hpFill.setFillStyle(

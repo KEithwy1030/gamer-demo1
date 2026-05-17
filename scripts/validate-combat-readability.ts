@@ -114,7 +114,7 @@ function assertNormalAndEliteTelegraph(): void {
   tickUntil(() => {
     const result = tickMonsters(context);
     const state = result.monsters.find((monster) => monster.id === eliteRuntime.id);
-    return state?.behaviorPhase === "windup" && getMonsterLabel(state) === "ELITE STRIKE";
+    return state?.behaviorPhase === "windup" && getMonsterLabel(state) === "ELITE SENTINEL STRIKE";
   }, "elite monster should expose visible windup state");
 }
 
