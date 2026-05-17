@@ -177,6 +177,7 @@ export function applyEnvironmentalDamage(
     amount: mitigatedAmount,
     damageType: "environment",
     damageSourceId: sourceId,
+    interruptsExtract: false,
     targetHp: player.state.hp,
     targetAlive: player.state.isAlive
   };

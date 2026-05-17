@@ -168,6 +168,7 @@ function assertUnifiedDamageFeedback(): void {
   const event = applyEnvironmentalDamage(hazardVictim, 7, "corpse_fog", now);
   assert.equal(event?.damageType, "environment", "environment damage should emit a combat payload");
   assert.equal(event?.attackerId, "corpse_fog", "environment damage should preserve source id");
+  assert.equal(event?.interruptsExtract, false, "environment pressure should not make late extraction structurally impossible");
   assert.equal(drainPendingCombatEvents(hazardVictim).length, 0, "environment damage should not rely on a separate pending queue");
   const feedbackFxSource = fs.readFileSync(new URL("../client/src/scenes/gameScene/feedbackFx.ts", import.meta.url), "utf8");
   const bleedFontSize = Number(/bleed:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1] ?? 0);

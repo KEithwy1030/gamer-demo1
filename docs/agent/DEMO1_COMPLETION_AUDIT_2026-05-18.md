@@ -31,7 +31,7 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 | Normal and elite monsters | `server/src/monsters/monster-manager.ts`, `validate:elite-encounter`, `validate:combat-readability` | Covered structurally |
 | Equipment, weapons, gold, treasure drops | `shared/src/data/items.ts`, `server/src/loot/loot-manager.ts`, `validate:loot-depth`, `validate:chest-contract` | Covered |
 | Backpack grid and equipment slots | `shared/src/domain/inventory.ts`, `client/src/ui/InventoryPanel.ts`, `validate:profile-carry`, `validate:drag-contracts` | Covered, but drag UI is not in release gate due existing dirty harness boundary |
-| Death full loss | `server/src/settlement.ts`, `server/src/inventory/service.ts`, `validate:results-overlay`, `validate:combat-readability` | Partially covered by contracts; live player-versus-player death pickup remains weakly verified |
+| Death full loss | `server/src/inventory/service.ts`, `server/src/combat/combat-service.ts`, `validate:death-loot-contract`, `validate:results-overlay`, `validate:combat-readability` | Covered structurally for enemy kill, full death drop, and opposing pickup |
 | Success/failure settlement UI | `client/src/results/ResultsOverlay.ts`, `validate:results-overlay`, `validate:profile-carry` | Covered structurally |
 | Black-market listing and sale flow | `client/src/ui/marketView.ts`, `server/src/market`, `validate:market-lifecycle` | Covered for Demo 1 simulated buyer/system sale |
 | Long-term asset accumulation | `client/src/profile/localProfile.ts`, `client/src/ui/lobbyView.ts`, `validate:profile-carry`, `validate:market-lifecycle` | Covered structurally |
@@ -44,11 +44,11 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 - Real multi-human PvPvE feel: socket contracts prove protocol shape, not player tension or combat readability under human pressure.
 - Commercial art polish: generated assets and visual clarity tests exist, but the game is not yet at final store-ready art direction.
 - Browser/mobile hands-on comfort: automation can catch layout and console failures, but not actual play feel.
-- Player death loot race: full-loss mechanics are present, but live PvP death-to-pickup contest needs a stronger targeted smoke or manual pass.
+- Player death loot race: deterministic enemy kill, full drop, and opposing pickup is now covered; live multi-human contest tension still needs manual playtest.
 
 ## Next implementation target
 
-The highest-value next slice is to close the weak PvP death-loot evidence gap: create a deterministic two-client or server contract where one player dies with backpack/equipment, all carried items drop, and another opposing player can pick at least one dropped item. This directly supports the `死亡 x 全失` and PvPvE threat pillars.
+The highest-value next slice is manual/playtest-facing: run a focused 9-12 minute extraction session and record whether corpse-fog pressure, contested resources, black-market payoff, and death-loss tension feel readable and worth replaying. Automation now covers the major structural Demo 1 contracts, but it cannot prove human tension.
 
 ## Verification command
 
