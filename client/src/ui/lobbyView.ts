@@ -541,6 +541,8 @@ export class LobbyView {
   }
 
   destroy() {
+    this.stashView.destroy();
+    this.marketView.destroy();
     this.scaler.destroy();
     this.background.stop();
   }

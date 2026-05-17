@@ -9,6 +9,7 @@ export interface MarketViewApi {
   show(): void;
   hide(): void;
   render(profile: LocalProfile): void;
+  destroy(): void;
 }
 
 export interface MarketViewCallbacks {
@@ -312,6 +313,9 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
     show() { element.hidden = false; },
     hide() { element.hidden = true; },
     render,
+    destroy() {
+      audio.destroy();
+    }
   };
 }
 
