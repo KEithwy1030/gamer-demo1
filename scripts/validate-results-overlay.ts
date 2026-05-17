@@ -13,6 +13,7 @@ assert.match(source, /replaceItems\(itemsList, settlement\.result === "success" 
 assert.match(source, /results-item-card__icon/, "results overlay should render structured loot cards");
 assert.match(source, /formatItemValue\(item\)/, "results overlay should surface value metadata on loot cards");
 assert.match(source, /buildPlaytestNote\(latestSettlement\)/, "results overlay should expose a copyable playtest note for manual release-feel sessions");
+assert.match(source, /Build: \$\{getBuildCommit\(\)\}/, "playtest note should include the current build commit when copied");
 assert.match(source, /Pressure phase: \$\{formatPressurePhase\(settlement\.survivedSeconds\)\}/, "playtest note should classify the run's extraction-pressure phase");
 assert.match(source, /Combat contacts: \$\{settlement\.playerKills \+ settlement\.monsterKills\}/, "playtest note should summarize combat contacts for manual review");
 assert.match(source, /Inventory decision recorded:/, "playtest note should force a greed or inventory-decision observation");
@@ -29,6 +30,10 @@ assert.match(styles, /@media \(max-width: 560px\) \{[\s\S]*\.results-actions \{[
 assert.match(extractService, /extractedItemDetails: extractedItems\.details/, "server settlement should expose extracted item details");
 assert.match(extractService, /lostItemDetails: lostItems\.details/, "server failure settlement should expose lost item details");
 assert.match(extractService, /kind: normalizeSettlementItemKind\(item\.kind\)/, "server settlement should normalize item kinds for UI");
+
+const viteConfig = readText("client/vite.config.ts");
+assert.match(viteConfig, /git rev-parse --short HEAD/, "client build should inject the current Git short SHA for manual playtest evidence");
+assert.match(viteConfig, /VITE_APP_COMMIT/, "client build should expose the injected commit to the result note");
 
 console.log("validate-results-overlay: ok");
 

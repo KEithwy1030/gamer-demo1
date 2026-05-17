@@ -1,6 +1,22 @@
 import { defineConfig } from "vite";
+import { execSync } from "node:child_process";
+
+function readGitCommit(): string {
+  try {
+    return execSync("git rev-parse --short HEAD", {
+      cwd: new URL("..", import.meta.url),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"]
+    }).trim();
+  } catch {
+    return "unknown";
+  }
+}
 
 export default defineConfig({
+  define: {
+    "import.meta.env.VITE_APP_COMMIT": JSON.stringify(readGitCommit())
+  },
   resolve: {
     extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".json"]
   },

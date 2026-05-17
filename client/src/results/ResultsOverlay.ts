@@ -171,7 +171,7 @@ export function buildPlaytestNote(settlement: SettlementPayload): string {
   const itemValue = sumSettlementItemValue(settlement.result === "success" ? settlement.extractedItemDetails : settlement.lostItemDetails);
   return [
     `Manual playtest - ${new Date().toISOString().slice(0, 10)}`,
-    "Build: <commit>",
+    `Build: ${getBuildCommit()}`,
     `Outcome: ${settlement.result}`,
     `Duration: ${formatDuration(settlement.survivedSeconds)}`,
     `Reason: ${copy.summaryReason}`,
@@ -197,6 +197,10 @@ export function buildPlaytestNote(settlement: SettlementPayload): string {
     "Issue list:",
     "Next tuning recommendation:"
   ].join("\n");
+}
+
+function getBuildCommit(): string {
+  return import.meta.env.VITE_APP_COMMIT || "<commit>";
 }
 
 function formatPressurePhase(survivedSeconds: number): string {
