@@ -11,6 +11,7 @@ export interface ExtractUiState {
   didSucceed: boolean;
   carrier?: ExtractCarrierState;
   squadStatus?: ExtractSquadStatus;
+  pressure?: ExtractProgressPayload["pressure"];
   x?: number;
   y?: number;
   radius?: number;
@@ -65,6 +66,7 @@ export function normalizeExtractProgress(payload: ExtractProgressPayload | numbe
   const interrupted = payload?.status === "interrupted";
   const active = !interrupted && (payload?.status === "started" || payload?.status === "progress");
   const didSucceed = !interrupted && progress === 1;
+  const exposed = Boolean(active && payload?.pressure);
 
   return {
     phase: interrupted ? "interrupted" : (didSucceed ? "succeeded" : (active ? "extracting" : "idle")),
@@ -74,7 +76,8 @@ export function normalizeExtractProgress(payload: ExtractProgressPayload | numbe
     secondsRemaining,
     message: interrupted ? "撤离被打断，立即拉开重进。" : (active ? "撤离读条中，受击会中断。" : (didSucceed ? "撤离完成，收益结算中。" : "撤离点待命")),
     didSucceed,
-    squadStatus: payload?.squadStatus
+    squadStatus: payload?.squadStatus,
+    pressure: exposed ? payload?.pressure : undefined
   };
 }
 
@@ -89,7 +92,8 @@ export function normalizeExtractOpened(current: ExtractUiState, payload: Extract
     progress: hasActiveProgress ? current.progress : null,
     secondsRemaining: hasActiveProgress ? current.secondsRemaining : resolveCountdownSeconds(payload),
     message: hasActiveProgress ? current.message : buildExtractMessage(payload),
-    didSucceed: current.didSucceed
+    didSucceed: current.didSucceed,
+    pressure: hasActiveProgress ? current.pressure : undefined
   };
 }
 

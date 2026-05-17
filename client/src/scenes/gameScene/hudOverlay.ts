@@ -91,6 +91,7 @@ export class GameHudOverlay {
   private lastExtractProgressValue = -1;
   private lastExtractProgressLabel = "";
   private lastExtractProgressActive: boolean | null = null;
+  private lastExtractProgressExposed: boolean | null = null;
   private lastChestProgressValue = -1;
   private lastChestProgressLabel = "";
   private lastChestProgressActive: boolean | null = null;
@@ -653,30 +654,36 @@ export class GameHudOverlay {
       this.extractProgressLabel.setVisible(active);
       this.lastExtractProgressActive = active;
     }
-    if (!active) return;
+    if (!active) {
+      this.lastExtractProgressExposed = null;
+      return;
+    }
 
     const progress = Phaser.Math.Clamp(extractState.progress ?? 0, 0, 1);
+    const exposed = Boolean(extractState.pressure);
     const barWidth = Math.min(520, this.scene.scale.width - 80);
     const x = this.scene.scale.width / 2 - barWidth / 2;
     const y = Math.max(116, this.layout.objective.bottom + 18);
 
-    if (Math.abs(this.lastExtractProgressValue - progress) > 0.005) {
+    if (Math.abs(this.lastExtractProgressValue - progress) > 0.005 || this.lastExtractProgressExposed !== exposed) {
       this.extractProgressTrack.clear();
       this.extractProgressTrack.fillStyle(0x130e0a, 0.9);
       this.extractProgressTrack.fillRoundedRect(x, y, barWidth, 24, 8);
-      this.extractProgressTrack.lineStyle(2, 0xd4b24c, 0.82);
+      this.extractProgressTrack.lineStyle(2, exposed ? 0xfb923c : 0xd4b24c, 0.82);
       this.extractProgressTrack.strokeRoundedRect(x, y, barWidth, 24, 8);
       this.extractProgressFill.clear();
-      this.extractProgressFill.fillStyle(0xd4b24c, 1);
+      this.extractProgressFill.fillStyle(exposed ? 0xfb923c : 0xd4b24c, 1);
       this.extractProgressFill.fillRoundedRect(x + 8, y + 8, (barWidth - 16) * progress, 8, 4);
       this.lastExtractProgressValue = progress;
+      this.lastExtractProgressExposed = exposed;
     }
 
     const seconds = extractState.secondsRemaining == null ? "" : ` ${Math.ceil(extractState.secondsRemaining)}s`;
     const label = `撤离读条${seconds}`;
-    if (this.lastExtractProgressLabel !== label) {
-      this.extractProgressLabel.setText(label);
-      this.lastExtractProgressLabel = label;
+    const displayLabel = exposed ? `\u5f52\u8425\u706b\u58f0\u5df2\u66b4\u9732${seconds}` : label;
+    if (this.lastExtractProgressLabel !== displayLabel) {
+      this.extractProgressLabel.setText(displayLabel);
+      this.lastExtractProgressLabel = displayLabel;
     }
   }
 }
@@ -755,6 +762,9 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
 
   if (extractState.isExtracting) {
     const seconds = extractState.secondsRemaining == null ? "" : ` ${Math.ceil(extractState.secondsRemaining)}s`;
+    if (extractState.pressure) {
+      return `\u5f52\u8425\u706b\u58f0\u5df2\u66b4\u9732${seconds}\n\u5b88\u5708\uff1a\u654c\u4eba\u4f1a\u5411\u8fd9\u91cc\u6536\u7f29`;
+    }
     return waitingCount > 0
       ? `撤离读条${seconds}\n等 ${waitingCount} 名队友进圈`
       : `撤离读条${seconds}\n守住圈内别掉点`;

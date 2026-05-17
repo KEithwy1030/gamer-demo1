@@ -199,9 +199,33 @@ export function createGameClientController(
       const selfPlayerId = controller.getSelfPlayerId();
       if (payload && typeof payload === "object" && "playerId" in payload) {
         const playerId = typeof payload.playerId === "string" ? payload.playerId : undefined;
-        if (playerId && playerId !== selfPlayerId) return;
+        if (playerId && playerId !== selfPlayerId) {
+          if (payload.pressure && (payload.status === "started" || payload.status === "progress")) {
+            if (payload.status === "started") {
+              audio.play("warning");
+            }
+            controller.setExtractState({
+              isOpen: true,
+              message: "\u654c\u65b9\u5df2\u70b9\u4eae\u5f52\u8425\u706b\uff0c\u4e2d\u5708\u6b63\u5728\u53d8\u6210\u4ea4\u706b\u70b9\u3002",
+              pressure: payload.pressure
+            });
+          } else if (extractState.pressure?.playerId === playerId) {
+            controller.setExtractState({
+              message: null,
+              pressure: undefined
+            });
+          }
+          return;
+        }
       }
-      controller.setExtractState(normalizeExtractProgress(payload));
+      if (payload && typeof payload === "object" && payload.status === "started" && payload.pressure) {
+        audio.play("warning");
+      }
+      const normalizedExtract = normalizeExtractProgress(payload);
+      if (payload && typeof payload === "object" && payload.pressure && (payload.status === "started" || payload.status === "progress")) {
+        normalizedExtract.message = "\u5f52\u8425\u706b\u58f0\u5df2\u66b4\u9732\uff0c\u654c\u4eba\u4f1a\u5411\u8fd9\u91cc\u6536\u7f29\u3002";
+      }
+      controller.setExtractState(normalizedExtract);
     }),
     network.onExtractSuccess((payload) => {
       const selfPlayerId = controller.getSelfPlayerId();
@@ -215,6 +239,7 @@ export function createGameClientController(
         secondsRemaining: 0,
         message: "撤离完成，正在结算",
         didSucceed: true,
+        pressure: undefined,
         squadStatus: payload?.squadStatus
       });
     }),
@@ -253,7 +278,8 @@ export function createGameClientController(
         progress: settlement.result === "success" ? 1 : null,
         secondsRemaining: 0,
         message: settlement.result === "success" ? "已成功带出物资" : `撤离失败：${settlement.reason ?? "未知原因"}`,
-        didSucceed: settlement.result === "success"
+        didSucceed: settlement.result === "success",
+        pressure: undefined
       });
       options.onSettlement?.(settlement);
     }),

@@ -116,6 +116,16 @@ assert.match(
   "client should consume self chest progress events and preserve contested chest metadata for HUD pressure"
 );
 assert.match(
+  gameClientSource,
+  /payload\.pressure[\s\S]*audio\.play\("warning"\)[\s\S]*normalizeExtractProgress\(payload\)/s,
+  "extract pressure progress should trigger warning audio before normalized HUD state"
+);
+assert.match(
+  gameClientSource,
+  /playerId && playerId !== selfPlayerId[\s\S]*payload\.pressure[\s\S]*\\u654c\\u65b9\\u5df2\\u70b9\\u4eae\\u5f52\\u8425\\u706b/s,
+  "enemy extract pressure should surface as a HUD alert instead of being dropped by self-player filtering"
+);
+assert.match(
   hudSource,
   /chestProgress\?: \{ progress: number; remainingMs: number; lane\?: "starter" \| "contested"; noiseRadius\?: number \}/,
   "HUD chest progress state should carry lane metadata"
@@ -129,6 +139,16 @@ assert.match(
   hudSource,
   /\\u9ad8\\u5371\\u5b9d\\u7bb1\\u00b7\\u5b88\\u536b\\u5df2\\u8b66\\u89c9/,
   "contested chest progress should tell the player guards are alerted"
+);
+assert.match(
+  hudSource,
+  /extractState\.pressure[\s\S]*\\u5f52\\u8425\\u706b\\u58f0\\u5df2\\u66b4\\u9732/s,
+  "active extract pressure should give the player explicit exposure copy"
+);
+assert.match(
+  hudSource,
+  /exposed \? 0xfb923c : 0xd4b24c/,
+  "exposed extract progress should use danger coloring instead of normal extraction gold"
 );
 
 assert.match(
