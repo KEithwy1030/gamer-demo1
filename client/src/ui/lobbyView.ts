@@ -10,7 +10,7 @@ import { LobbyBackground } from "./lobbyBackground";
 import { createStashView, type StashViewApi } from "./stashView";
 import { createMarketView, type MarketViewApi } from "./marketView";
 import { attachViewportScaler, type ViewportScaler } from "./viewportScaler";
-import { buildPlaytestNote, buildSettlementCopy, getBuildCommit } from "../results/ResultsOverlay";
+import { buildManualPlaytestTemplate, buildPlaytestNote, buildSettlementCopy, getBuildCommit } from "../results/ResultsOverlay";
 import {
   getProfileLoadoutCount,
   getProfileAssetValue,
@@ -364,20 +364,17 @@ export class LobbyView {
     this.resultDuration = appendRunStat(runStats, "存活", "00:00");
     this.resultGold = appendRunStat(runStats, "收益", "+0", "color: var(--signal);");
     const runActions = createElement("div", "run-actions");
-    this.runPlaytestCopy = createElement("button", "room-code-copy", "复制测评记录") as HTMLButtonElement;
+    this.runPlaytestCopy = createElement("button", "room-code-copy", "复制测评模板") as HTMLButtonElement;
     this.runPlaytestCopy.type = "button";
-    this.runPlaytestCopy.disabled = true;
     this.runPlaytestCopy.addEventListener("click", async () => {
-      if (this.runPlaytestCopy.disabled || !this.latestPlaytestSettlement) {
-        return;
-      }
       try {
-        await navigator.clipboard?.writeText(buildPlaytestNote(this.latestPlaytestSettlement));
+        const note = this.latestPlaytestSettlement
+          ? buildPlaytestNote(this.latestPlaytestSettlement)
+          : buildManualPlaytestTemplate();
+        await navigator.clipboard?.writeText(note);
         this.runPlaytestCopy.textContent = "已复制";
         window.setTimeout(() => {
-          if (!this.runPlaytestCopy.disabled) {
-            this.runPlaytestCopy.textContent = "复制测评记录";
-          }
+          this.runPlaytestCopy.textContent = this.latestPlaytestSettlement ? "复制测评记录" : "复制测评模板";
         }, 1200);
       } catch {
         // ignore clipboard failures
@@ -434,10 +431,7 @@ export class LobbyView {
     this.latestPlaytestSettlement = state.profile.lastRun
       ? buildPlaytestSettlement(state.profile.lastRun)
       : null;
-    this.runPlaytestCopy.disabled = !this.latestPlaytestSettlement;
-    if (this.runPlaytestCopy.disabled) {
-      this.runPlaytestCopy.textContent = "复制测评记录";
-    }
+    this.runPlaytestCopy.textContent = this.latestPlaytestSettlement ? "复制测评记录" : "复制测评模板";
 
     const loadoutCount = getProfileLoadoutCount(state.profile);
     this.loadoutWeapon.textContent = getProfilePrimaryWeapon(state.profile);

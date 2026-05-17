@@ -205,6 +205,37 @@ export function buildPlaytestNote(settlement: SettlementPayload): string {
   ].join("\n");
 }
 
+export function buildManualPlaytestTemplate(): string {
+  return [
+    `Manual playtest - ${new Date().toISOString().slice(0, 10)}`,
+    `Build: ${getBuildCommit()}`,
+    "Outcome: extracted | died | timeout | crash",
+    "Duration:",
+    "Reason:",
+    "Pressure phase:",
+    "Player kills:",
+    "Monster kills:",
+    "Combat contacts:",
+    "Recovered gold:",
+    "Recovered treasure value:",
+    "Net delta:",
+    "Item count:",
+    "Item detail value:",
+    "Loadout lost:",
+    "Inventory decision recorded:",
+    "Key timestamps:",
+    "- 00:00 spawn / first search target:",
+    "- 02:00 first combat or pickup:",
+    "- 05:00 risk pull / contested resource:",
+    "- 08:00 corpse-fog or extraction pressure:",
+    "- End settlement / stash / market follow-through:",
+    "Scores: loop clarity _, combat _, greed _, extract _, death _, market _, visual _, replay _",
+    "Decision that mattered:",
+    "Issue list:",
+    "Next tuning recommendation:"
+  ].join("\n");
+}
+
 export function getBuildCommit(): string {
   return import.meta.env.VITE_APP_COMMIT || "<commit>";
 }

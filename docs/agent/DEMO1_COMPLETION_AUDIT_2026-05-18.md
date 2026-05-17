@@ -39,7 +39,7 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 | Release-level verification gate | `package.json` `validate:gdd-demo1-contract` and `validate:release-readiness` | Passed on 2026-05-18 after adding `validate:dev-cors-contract`; includes multiclient, combat, loot, carry, extract, market, pressure, typecheck, build, and late-game smoke |
 | Browser visual acceptance | `package.json` `accept:visual-readiness`, `.codex-artifacts/game-feel-baseline/` screenshots | Passed on 2026-05-18; covers boss combat HUD, inventory overlay, and late-game extraction pressure visibility; not a manual fun signoff |
 | Manual release-feel protocol | `docs/agent/MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md` | Defines the required 9-12 minute human playtest scorecard, pass/fail rules, and output format; still requires execution |
-| Playtest note export | `client/src/results/ResultsOverlay.ts`, `client/src/ui/lobbyView.ts`, `client/vite.config.ts`, `scripts/validate-results-overlay.ts`, `scripts/validate-settlement-details.ts` | Results overlay and lobby recent-run card both expose a structured copyable manual playtest note from settlement data, including build commit, pressure phase, combat contacts, item value, loadout loss, and timestamp prompts; both the results card and lobby recent-run card now show the build tag directly so testers can capture the required evidence quickly |
+| Playtest note export | `client/src/results/ResultsOverlay.ts`, `client/src/ui/lobbyView.ts`, `client/vite.config.ts`, `scripts/validate-results-overlay.ts`, `scripts/validate-settlement-details.ts` | Results overlay and lobby recent-run card both expose a structured copyable manual playtest note from settlement data, including build commit, pressure phase, combat contacts, item value, loadout loss, and timestamp prompts; the lobby also copies a build-stamped blank playtest template before the first run, and both the results card and lobby recent-run card show the build tag directly so testers can capture the required evidence quickly |
 
 ## Explicitly uncovered or weak areas
 
@@ -47,7 +47,7 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 - Real multi-human PvPvE feel: socket contracts prove protocol shape, not player tension or combat readability under human pressure.
 - Commercial art polish: the lobby / black-market entry and results overlay now use a generated bitmap backdrop, and a local preview screenshot confirmed the lobby shell renders with the new art, but the rest of the commercial art pass is still incomplete.
 - Browser/mobile hands-on comfort: the lobby now uses a stacked mobile layout on a 390px viewport, verified by a Chromium screenshot, and the settlement overlay now has dedicated mobile single-column and scroll rules, verified by a synthetic results overlay screenshot; both are guarded by `validate:mobile-shell` inside the Demo 1 gate.
-- Human playtest note capture: the note-copy action now exists in both the results overlay and lobby recent-run summary, and it now pre-fills build commit, structured pressure, combat, item-value, loadout-loss, and timestamp evidence; both surfaces now also show the build tag directly. The session itself still needs to be run and rated.
+- Human playtest note capture: the note-copy action now exists in both the results overlay and lobby recent-run summary, pre-run lobby use copies a build-stamped blank template, and post-run use pre-fills structured pressure, combat, item-value, loadout-loss, and timestamp evidence; both surfaces now also show the build tag directly. The session itself still needs to be run and rated.
 - Player death loot race: deterministic enemy kill, full drop, and opposing pickup is now covered; live multi-human contest tension still needs manual playtest.
 
 ## Next implementation target
@@ -73,3 +73,4 @@ Latest automated evidence captured on 2026-05-18:
 - Playwright visual spot-check confirmed the lobby recent-run card renders `Build: 51fd3c2` on `http://127.0.0.1:5173/`.
 - The shared lobby/results backdrop asset at `client/public/assets/generated/lobby-black-market-backdrop.png` was replaced with a fuller battlefield/black-market scene; the spot-check screenshot is stored at `.codex-artifacts/lobby-buildtag-backdrop-check.png`.
 - `npm run accept:visual-readiness` passed again after the backdrop replacement.
+- Playwright DOM spot-check confirmed the pre-run lobby playtest button is enabled and shows `复制测评模板`.

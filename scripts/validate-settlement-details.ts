@@ -21,10 +21,12 @@ assert.match(lobbySource, /buildLastRunItemChips\(state\.profile\.lastRun\)/, "l
 assert.match(lobbySource, /run-build/, "lobby should render the build tag on the recent-run card");
 assert.match(lobbySource, /Build: \$\{getBuildCommit\(\)\}/, "lobby should show the current build tag text");
 assert.match(lobbySource, /buildPlaytestNote\(this\.latestPlaytestSettlement\)/, "lobby should reuse the playtest note export for the recent-run copy action");
-assert.match(lobbySource, /runPlaytestCopy\.disabled = !this\.latestPlaytestSettlement/, "lobby should disable the playtest copy button when there is no last run");
+assert.match(lobbySource, /buildManualPlaytestTemplate\(\)/, "lobby should copy a build-stamped manual playtest template before any last run exists");
+assert.doesNotMatch(lobbySource, /runPlaytestCopy\.disabled = !this\.latestPlaytestSettlement/, "lobby should not block pre-run manual playtest template capture");
 assert.match(overlaySource, /results-item-card__value/, "results overlay should render value-aware loot cards");
 assert.match(overlaySource, /formatPressurePhase\(settlement\.survivedSeconds\)/, "playtest note should preserve the run's pressure phase from settlement data");
 assert.match(overlaySource, /sumSettlementItemValue\(settlement\.result === "success" \? settlement\.extractedItemDetails : settlement\.lostItemDetails\)/, "playtest note should include item-value evidence for greed decisions");
+assert.match(overlaySource, /export function buildManualPlaytestTemplate/, "results note helpers should export a pre-run manual playtest template");
 
 console.log("validate-settlement-details: ok");
 
