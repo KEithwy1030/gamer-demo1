@@ -50,6 +50,16 @@ export interface ExtractProgressPayload {
   durationMs: number;
   reason?: "damaged" | "left_zone" | "dead" | "timeout";
   squadStatus?: ExtractSquadStatus;
+  pressure?: {
+    zoneId: string;
+    playerId: string;
+    squadId: string;
+    x: number;
+    y: number;
+    radius: number;
+    startedAt: number;
+    expiresAt: number;
+  };
 }
 
 export interface ExtractSuccessPayload {

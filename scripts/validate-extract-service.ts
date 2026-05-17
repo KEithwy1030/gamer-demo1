@@ -209,6 +209,10 @@ function main(): void {
   assert(start.opened?.zones[0].isOpen === true, "torch squad should open ready zone");
   assert(start.opened?.squadStatus?.activeSquadId === "player", "extract should bind to carrier squad");
   assert(start.progressEvents[0]?.status === "started", "torch squad should receive started progress");
+  assert(room.extract?.activePressure?.playerId === "player-1", "extract channel should record active pressure source");
+  assert(room.extract?.activePressure?.zoneId === "extract-test", "extract pressure should point at the active zone");
+  assert((room.extract?.activePressure?.radius ?? 0) > zoneRadius, "extract pressure radius should reach beyond the zone");
+  assert(start.progressEvents[0]?.pressure?.playerId === "player-1", "started progress payload should expose extract pressure");
 
   const squadMateStart = startPlayerExtract(room, "player-2", now + 25);
   assert(squadMateStart.progressEvents[0]?.status === "started", "same squad member inside zone should be able to join extract");
@@ -248,6 +252,7 @@ function main(): void {
     leftZone.progressEvents.some((event) => event.status === "interrupted" && event.reason === "left_zone" && event.playerId === "player-1"),
     "player clearly outside grace radius should be interrupted"
   );
+  assert(!hysteresisRoom.extract?.activePressure, "extract pressure should clear once the only channeling player is interrupted");
 
   hysteresisRoom.players.get("player-1")!.state!.x = hysteresisZone.x + getStartRadius(hysteresisZone.radius) - 3;
   const restarted = startPlayerExtract(hysteresisRoom, "player-1", now + 375);
@@ -259,6 +264,7 @@ function main(): void {
   assert(successIds.has("player-2"), "inside-zone squadmate should extract with carrier");
   assert(!successIds.has("player-3"), "outside-zone squadmate should not be extracted");
   assert(!successIds.has("enemy-1"), "enemy squad should not be extracted");
+  assert(!room.extract?.activePressure, "extract pressure should clear after the active squad extracts");
 
   const carrierSettlement = settled.settlementEvents.find((event) => event.playerId === "player-1")?.settlement;
   const insideSettlement = settled.settlementEvents.find((event) => event.playerId === "player-2")?.settlement;

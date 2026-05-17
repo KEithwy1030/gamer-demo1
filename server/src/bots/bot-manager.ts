@@ -106,7 +106,7 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
   const corpseFogExtractPressure = pressurePhase.kind === "intensified"
     || (pressurePhase.kind === "counterattack" && (hasCargo || hpRatio <= profile.fleeHpRatio + 0.12));
 
-  const extractPressure = resolveExtractPressureIntent(context, bot, hpRatio);
+  const extractPressure = resolveExtractPressureIntent(context, bot, hpRatio, now);
   if (extractPressure?.enemy?.state) {
     bot.botGoal = shouldRetreat ? "retreat" : "hunt";
     bot.botTargetPlayerId = extractPressure.enemy.id;
@@ -525,10 +525,32 @@ function resolveBotPressurePhase(context: RuntimeContext, now: number): ReturnTy
 function resolveExtractPressureIntent(
   context: RuntimeContext,
   bot: RuntimePlayer,
-  hpRatio: number
+  hpRatio: number,
+  now: number
 ): ExtractPressureIntent | undefined {
   if (!bot.state || bot.squadId === "player") {
     return undefined;
+  }
+
+  const activePressure = context.room.extract?.activePressure;
+  if (activePressure) {
+    if (now > activePressure.expiresAt) {
+      context.room.extract!.activePressure = undefined;
+    } else if (distance(bot.state, activePressure) <= activePressure.radius) {
+      const channelingEnemy = context.room.players.get(activePressure.playerId);
+      if (
+        channelingEnemy?.state?.isAlive
+        && channelingEnemy.squadId !== bot.squadId
+        && channelingEnemy.extract?.zoneId === activePressure.zoneId
+        && channelingEnemy.extract?.completesAt
+        && hpRatio > 0.16
+      ) {
+        return { enemy: channelingEnemy };
+      }
+
+      const pressureZone = context.room.extract?.zones.find((zone) => zone.zoneId === activePressure.zoneId);
+      return { point: resolveExtractPressurePoint(bot, pressureZone ?? { ...activePressure, radius: 80 }) };
+    }
   }
 
   const openZones = (context.room.extract?.zones ?? []).filter((zone) => zone.isOpen);

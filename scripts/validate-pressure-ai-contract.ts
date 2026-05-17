@@ -16,8 +16,9 @@ assertBotInvestigatesContestedChestNoise();
 assertBotWithCargoPrioritizesExtract();
 assertBotWithHighValueCargoPrioritizesExtract();
 assertBotExtractsWhenCorpseFogIntensifies();
+assertBotStagesOnActiveExtractPressure();
 
-console.log("[pressure-ai-contract] PASS elite resource pressure, bot chest channel, contested chest noise response, bot cargo extract intent, high-value cargo extract intent, intensified fog extract intent");
+console.log("[pressure-ai-contract] PASS elite resource pressure, bot chest channel, contested chest noise response, bot cargo extract intent, high-value cargo extract intent, intensified fog extract intent, active extract pressure staging");
 
 function assertElitePressureNearContestedResources(): void {
   const room = createRoom();
@@ -156,6 +157,37 @@ function assertBotExtractsWhenCorpseFogIntensifies(): void {
   assert.ok(
     Math.hypot(bot.botPatrolPoint!.x - extractZone.x, bot.botPatrolPoint!.y - extractZone.y) <= 1,
     "intensified-fog bot should route toward active extract zone"
+  );
+}
+
+function assertBotStagesOnActiveExtractPressure(): void {
+  const room = createRoom();
+  initializeExtractState(room);
+  const human = room.players.get("player-1")!;
+  const bot = room.players.get("bot_alpha_1")!;
+  const extractZone = room.extract!.zones[0]!;
+  human.state!.x = extractZone.x + 900;
+  human.state!.y = extractZone.y;
+  bot.state!.x = extractZone.x + 1060;
+  bot.state!.y = extractZone.y;
+  bot.botNextDecisionAt = 0;
+  room.extract!.activePressure = {
+    zoneId: extractZone.zoneId,
+    playerId: human.id,
+    squadId: human.squadId,
+    x: extractZone.x,
+    y: extractZone.y,
+    radius: 1500,
+    startedAt: now,
+    expiresAt: now + 2_000
+  };
+
+  tickBots({ room, roomState: room as any }, now + 100);
+  assert.equal(bot.botGoal, "patrol", "enemy bot should collapse toward active extract pressure even before direct contact");
+  assert.ok(bot.botPatrolPoint, "extract-pressure bot should set a staging point");
+  assert.ok(
+    Math.hypot(bot.botPatrolPoint!.x - extractZone.x, bot.botPatrolPoint!.y - extractZone.y) <= extractZone.radius + 160,
+    "extract-pressure bot should stage around the active extract zone"
   );
 }
 

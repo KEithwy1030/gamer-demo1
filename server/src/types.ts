@@ -228,12 +228,24 @@ export interface RuntimeRoomExtractZone extends MatchLayoutExtractZone {
   openedAt?: number;
 }
 
+export interface RuntimeExtractPressureState {
+  zoneId: string;
+  playerId: string;
+  squadId: SquadId;
+  x: number;
+  y: number;
+  radius: number;
+  startedAt: number;
+  expiresAt: number;
+}
+
 export interface RuntimeRoomExtractState {
   zones: RuntimeRoomExtractZone[];
   matchEndedAt?: number;
   carrier?: ExtractCarrierState;
   activeSquadId?: SquadId | null;
   activeZoneId?: string | null;
+  activePressure?: RuntimeExtractPressureState;
 }
 
 export interface ExtractOpenedPayload {
@@ -260,6 +272,7 @@ export interface ExtractProgressPayload {
   durationMs: number;
   reason?: "damaged" | "left_zone" | "dead" | "timeout";
   squadStatus?: ExtractSquadStatus;
+  pressure?: RuntimeExtractPressureState;
 }
 
 export interface ExtractSuccessPayload {

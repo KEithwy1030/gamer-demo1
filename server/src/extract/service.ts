@@ -33,6 +33,8 @@ const EXTRACT_START_INSET_MIN = 10;
 const EXTRACT_START_INSET_MAX = 16;
 const EXTRACT_LEAVE_GRACE_MIN = 8;
 const EXTRACT_LEAVE_GRACE_MAX = 14;
+const EXTRACT_CHANNEL_PRESSURE_RADIUS = 1500;
+const EXTRACT_CHANNEL_PRESSURE_GRACE_MS = 2_500;
 const inventoryService = new InventoryService();
 
 interface SettlementItemDetail {
@@ -154,6 +156,7 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
     completesAt: now + zone.channelDurationMs,
     lastProgressBroadcastAt: now
   };
+  recordExtractPressure(room, player, zone, now);
 
   return {
     opened: buildOpenedPayload(room),
@@ -181,6 +184,7 @@ export function interruptPlayerExtract(
   player.extract.completesAt = undefined;
   player.extract.lastProgressBroadcastAt = now;
   player.extract.zoneId = undefined;
+  clearExtractPressureIfIdle(room, zoneId);
 
   return buildProgressPayload(room, player, zoneId, "interrupted", 0, reason);
 }
@@ -260,6 +264,7 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
     const success = settleSquadExtraction(room, player, zone, now);
     successEvents.push(...success.successEvents);
     settlementEvents.push(...success.settlementEvents);
+    clearExtractPressureIfIdle(room, zone.zoneId);
   }
 
   if (shouldFailureSettleUnsettledHumans(room)) {
@@ -281,6 +286,9 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
   const shouldCloseRoom = room.extract!.matchEndedAt !== undefined || areAllPlayersSettled(room);
   if (shouldCloseRoom && !room.extract?.matchEndedAt) {
     room.extract!.matchEndedAt = now;
+  }
+  if (shouldCloseRoom) {
+    room.extract!.activePressure = undefined;
   }
 
   return {
@@ -536,6 +544,7 @@ function syncExtractCarrier(room: RuntimeRoom): void {
 
   room.extract.activeSquadId = null;
   room.extract.activeZoneId = null;
+  room.extract.activePressure = undefined;
   for (const zone of room.extract.zones) {
     zone.isOpen = false;
     zone.openedAt = undefined;
@@ -596,7 +605,8 @@ function buildProgressPayload(
     remainingMs,
     durationMs: zone?.channelDurationMs ?? EXTRACT_CHANNEL_DURATION_MS,
     reason,
-    squadStatus: buildSquadStatus(room)
+    squadStatus: buildSquadStatus(room),
+    pressure: room.extract?.activePressure?.zoneId === zoneId ? room.extract.activePressure : undefined
   };
 }
 
@@ -675,6 +685,41 @@ function openZoneForSquad(room: RuntimeRoom, zone: RuntimeRoomExtractZone, playe
   };
   room.extract.carrier.holderPlayerId = player.id;
   room.extract.carrier.holderSquadId = player.squadId;
+}
+
+function recordExtractPressure(room: RuntimeRoom, player: RuntimePlayer, zone: RuntimeRoomExtractZone, now: number): void {
+  if (!room.extract) {
+    return;
+  }
+
+  room.extract.activePressure = {
+    zoneId: zone.zoneId,
+    playerId: player.id,
+    squadId: player.squadId,
+    x: zone.x,
+    y: zone.y,
+    radius: EXTRACT_CHANNEL_PRESSURE_RADIUS,
+    startedAt: now,
+    expiresAt: now + zone.channelDurationMs + EXTRACT_CHANNEL_PRESSURE_GRACE_MS
+  };
+}
+
+function clearExtractPressureIfIdle(room: RuntimeRoom, zoneId: string): void {
+  if (!room.extract?.activePressure || room.extract.activePressure.zoneId !== zoneId) {
+    return;
+  }
+
+  const hasChannelingMember = [...room.players.values()].some((player) => (
+    player.squadId === room.extract?.activePressure?.squadId
+    && player.state?.isAlive
+    && !player.extract?.settledAt
+    && player.extract?.zoneId === zoneId
+    && Boolean(player.extract?.completesAt)
+  ));
+
+  if (!hasChannelingMember) {
+    room.extract.activePressure = undefined;
+  }
 }
 
 function resolveOccupiedExtractZone(room: RuntimeRoom, player: RuntimePlayer): RuntimeRoomExtractZone | undefined {
