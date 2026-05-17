@@ -76,6 +76,16 @@ assert.match(
   "HUD load label should include compact carried value when loot has gold or treasure value"
 );
 assert.match(
+  hudSource,
+  /估值 \$\{cargoLabel\} 可带出\\n向归营火撤离/,
+  "HUD pressure hint should turn carried value into an immediate extraction decision when extract is open"
+);
+assert.match(
+  hudSource,
+  /估值 \$\{cargoLabel\} 正在折损\\n别再贪箱，直接进圈/,
+  "HUD pressure hint should escalate carried-value warning during corpse fog"
+);
+assert.match(
   gameClientSource,
   /goldValue: asNumber\(item\.goldValue, 0\),[\s\S]*treasureValue: asNumber\(item\.treasureValue, 0\),/,
   "match inventory normalization should preserve item value for in-match risk decisions"

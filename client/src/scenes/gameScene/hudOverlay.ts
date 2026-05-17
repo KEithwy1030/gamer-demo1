@@ -744,6 +744,8 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
   const aliveMembers = members.filter((member) => member.isAlive && !member.isSettled);
   const insideCount = aliveMembers.filter((member) => member.isInsideZone).length;
   const waitingCount = Math.max(0, aliveMembers.length - insideCount);
+  const cargoValue = resolveInventoryCargoValue(state);
+  const cargoLabel = formatCompactValue(cargoValue);
 
   if (extractState.isExtracting) {
     const seconds = extractState.secondsRemaining == null ? "" : ` ${Math.ceil(extractState.secondsRemaining)}s`;
@@ -760,6 +762,18 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
     return waitingCount > 0
       ? `队伍归营火已点燃\n圈内 ${insideCount}/${aliveMembers.length} 人，等待队友`
       : (hasBackpackCargo(state) ? "队伍归营火已点燃\n带货者进圈即走" : "队伍归营火已点燃\n进圈完成会合撤离");
+  }
+
+  if (cargoValue > 0 && isCorpseFogCounterattacking(state)) {
+    return extractState.isOpen
+      ? `估值 ${cargoLabel} 正在折损\n别再贪箱，直接进圈`
+      : `估值 ${cargoLabel} 已入包\n尸毒已起，提前回撤`;
+  }
+
+  if (cargoValue > 0) {
+    return extractState.isOpen
+      ? `估值 ${cargoLabel} 可带出\n向归营火撤离`
+      : `估值 ${cargoLabel} 已入包\n等火点燃就别恋战`;
   }
 
   if (isCorpseFogCounterattacking(state)) {
