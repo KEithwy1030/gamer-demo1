@@ -14,8 +14,9 @@ assertElitePressureNearContestedResources();
 assertBotScavengesChestThroughChannel();
 assertBotInvestigatesContestedChestNoise();
 assertBotWithCargoPrioritizesExtract();
+assertBotWithHighValueCargoPrioritizesExtract();
 
-console.log("[pressure-ai-contract] PASS elite resource pressure, bot chest channel, contested chest noise response, bot cargo extract intent");
+console.log("[pressure-ai-contract] PASS elite resource pressure, bot chest channel, contested chest noise response, bot cargo extract intent, high-value cargo extract intent");
 
 function assertElitePressureNearContestedResources(): void {
   const room = createRoom();
@@ -110,6 +111,25 @@ function assertBotWithCargoPrioritizesExtract(): void {
     Math.hypot(bot.botPatrolPoint!.x - extractZone.x, bot.botPatrolPoint!.y - extractZone.y) <= 1,
     "extracting bot should route toward active extract zone"
   );
+}
+
+function assertBotWithHighValueCargoPrioritizesExtract(): void {
+  const room = createRoom();
+  initializeExtractState(room);
+  room.players.get("player-1")!.state!.isAlive = false;
+  const bot = room.players.get("bot_alpha_1")!;
+  const extractZone = room.extract!.zones[0]!;
+  extractZone.isOpen = true;
+  bot.inventory!.items.push(
+    { item: buildInventoryItem("treasure_large_statue", "elite")!, x: 0, y: 0 }
+  );
+  bot.state!.x = extractZone.x - 200;
+  bot.state!.y = extractZone.y;
+  bot.botNextDecisionAt = 0;
+
+  tickBots({ room, roomState: room as any }, now);
+  assert.equal(bot.botGoal, "extract", "bot with a single high-value treasure should prioritize extraction when extract is open");
+  assert.ok(bot.botPatrolPoint, "high-value extract bot should set extract patrol point");
 }
 
 function createRoom(): RuntimeRoom {

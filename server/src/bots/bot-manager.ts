@@ -48,6 +48,7 @@ const BOT_SCAVENGE_VISION_RANGE = 420;
 const BOT_SCAVENGE_INTERACT_RANGE = 86;
 const BOT_CARGO_EXTRACT_BONUS = 0.12;
 const BOT_PRESSURE_CARGO_THRESHOLD = 2;
+const BOT_PRESSURE_VALUE_THRESHOLD = 100;
 const BOT_PRESSURE_MONSTER_THRESHOLD = 1;
 const BOT_RETREAT_RESET_MS = 2400;
 const CONTESTED_CHEST_NOISE_BOT_RADIUS = 1500;
@@ -98,8 +99,9 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
   const nearestOpenExtract = extractZones.filter((zone) => zone.isOpen).sort((a, b) => distance(botState, a) - distance(botState, b))[0];
   const hasCargo = hasBackpackCargo(bot);
   const cargoCount = getBackpackCargoCount(bot);
+  const cargoValue = getBackpackCargoValue(bot);
   const monsterThreat = findNearestMonster(context, bot, profile.monsterPressureRange);
-  const shouldRetreat = hpRatio <= profile.fleeHpRatio || (hasCargo && hpRatio <= profile.fleeHpRatio + 0.08);
+  const shouldRetreat = hpRatio <= profile.fleeHpRatio || (hasCargo && hpRatio <= profile.fleeHpRatio + 0.08) || cargoValue >= BOT_PRESSURE_VALUE_THRESHOLD * 2;
 
   const extractPressure = resolveExtractPressureIntent(context, bot, hpRatio);
   if (extractPressure?.enemy?.state) {
@@ -141,7 +143,8 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
     return;
   }
 
-  if (nearestOpenExtract && (shouldRetreat || cargoCount >= BOT_PRESSURE_CARGO_THRESHOLD || Math.random() < Math.min(0.92, profile.extractChance + (hasCargo ? BOT_CARGO_EXTRACT_BONUS : 0)))) {
+  const cargoPressure = cargoCount >= BOT_PRESSURE_CARGO_THRESHOLD || cargoValue >= BOT_PRESSURE_VALUE_THRESHOLD;
+  if (nearestOpenExtract && (shouldRetreat || cargoPressure || Math.random() < Math.min(0.92, profile.extractChance + (hasCargo ? BOT_CARGO_EXTRACT_BONUS : 0)))) {
     bot.botGoal = "extract";
     bot.botTargetPlayerId = undefined;
     bot.botTargetDropId = undefined;
@@ -186,7 +189,7 @@ function chooseBotIntent(context: RuntimeContext, bot: RuntimePlayer, profile: B
     return;
   }
 
-  if (nearestOpenExtract && (shouldRetreat || (hasCargo && monsterThreat && cargoCount >= BOT_PRESSURE_MONSTER_THRESHOLD))) {
+  if (nearestOpenExtract && (shouldRetreat || (hasCargo && monsterThreat && (cargoCount >= BOT_PRESSURE_MONSTER_THRESHOLD || cargoValue >= BOT_PRESSURE_VALUE_THRESHOLD)))) {
     bot.botGoal = "extract";
     bot.botTargetPlayerId = undefined;
     bot.botTargetDropId = undefined;
@@ -498,6 +501,12 @@ function getBackpackCargoCount(bot: RuntimePlayer): number {
     || entry.item.kind === "weapon"
     || entry.item.kind === "consumable"
   )).length;
+}
+
+function getBackpackCargoValue(bot: RuntimePlayer): number {
+  return (bot.inventory?.items ?? []).reduce((sum, entry) => {
+    return sum + Math.max(0, entry.item.goldValue ?? 0) + Math.max(0, entry.item.treasureValue ?? 0);
+  }, 0);
 }
 
 function canBotUseSkill(bot: RuntimePlayer, profile: BotDifficultyProfile): boolean {
