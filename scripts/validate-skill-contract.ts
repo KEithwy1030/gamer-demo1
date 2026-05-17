@@ -5,13 +5,14 @@ import {
   SKILLS_BY_WEAPON,
   getSkillCooldownMs,
   getSkillWindupMs,
-  type SkillId
+  type SkillId,
+  type WeaponType
 } from "@gamer/shared";
 import {
   getPrimarySkillCooldownMs,
   getPrimarySkillWindupMs
 } from "../client/src/scenes/gameScene/skillHelpers.js";
-import { resolvePlayerSkillCast } from "../server/src/combat/combat-service.js";
+import { resolvePlayerAttack, resolvePlayerSkillCast } from "../server/src/combat/combat-service.js";
 import type { RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
 const ALL_SKILLS: SkillId[] = [
@@ -30,6 +31,7 @@ const ALL_SKILLS: SkillId[] = [
 validateSharedSkillCoverage();
 validateClientConsumesSharedTiming();
 validateServerDodgeCooldownContract();
+validateServerWeaponSkillBranches();
 
 console.log("validate-skill-contract: ok");
 
@@ -73,6 +75,41 @@ function validateServerDodgeCooldownContract(): void {
   );
 }
 
+function validateServerWeaponSkillBranches(): void {
+  const damageSkillCases: Array<{ skillId: SkillId; weaponType: WeaponType }> = [
+    { skillId: "sword_dashSlash", weaponType: "sword" },
+    { skillId: "blade_sweep", weaponType: "blade" },
+    { skillId: "spear_heavyThrust", weaponType: "spear" }
+  ];
+
+  for (const { skillId, weaponType } of damageSkillCases) {
+    const { room, caster, target } = createSkillRoom(weaponType);
+    const result = resolvePlayerSkillCast(room, caster.id, { skillId });
+    assert.ok(result.combatEvents.some((event) => event.targetId === target.id && event.amount > 0), `${skillId} should resolve server-side damage`);
+  }
+
+  const bladeGuard = createSkillRoom("blade");
+  resolvePlayerSkillCast(bladeGuard.room, bladeGuard.caster.id, { skillId: "blade_guard" });
+  assert.ok(bladeGuard.caster.state?.statusEffects.some((effect) => effect.type === "damageReduction"), "blade guard should apply a visible damage reduction state");
+
+  const bladeOverpower = createSkillRoom("blade");
+  resolvePlayerSkillCast(bladeOverpower.room, bladeOverpower.caster.id, { skillId: "blade_overpower" });
+  assert.ok(bladeOverpower.caster.state?.statusEffects.some((effect) => effect.type === "attackBoost"), "blade overpower should apply a visible attack boost state");
+
+  const spearWarCry = createSkillRoom("spear");
+  resolvePlayerSkillCast(spearWarCry.room, spearWarCry.caster.id, { skillId: "spear_warCry" });
+  assert.ok(spearWarCry.caster.state?.statusEffects.some((effect) => effect.type === "damageReduction"), "spear war cry should apply damage reduction");
+  assert.ok(spearWarCry.caster.state?.statusEffects.some((effect) => effect.type === "moveSpeedBoost"), "spear war cry should apply move speed boost");
+
+  const spearDraggingStrike = createSkillRoom("spear");
+  resolvePlayerSkillCast(spearDraggingStrike.room, spearDraggingStrike.caster.id, { skillId: "spear_draggingStrike" });
+  const basicResult = resolvePlayerAttack(spearDraggingStrike.room, spearDraggingStrike.caster.id, { attackId: "dragging-followup" });
+  assert.ok(
+    basicResult.combatEvents.some((event) => event.targetId === spearDraggingStrike.target.id && event.statusApplied?.includes("slow")),
+    "spear dragging strike should prime the next basic attack with a slow"
+  );
+}
+
 function createRoom(): RuntimeRoom {
   return {
     code: "SKIL",
@@ -86,7 +123,22 @@ function createRoom(): RuntimeRoom {
   };
 }
 
-function createPlayer(id: string): RuntimePlayer {
+function createSkillRoom(weaponType: WeaponType): { room: RuntimeRoom; caster: RuntimePlayer; target: RuntimePlayer } {
+  const room = createRoom();
+  const caster = createPlayer("caster", weaponType, "player", 300, 300);
+  const target = createPlayer("target", "sword", "bot_alpha", 405, 300);
+  room.players.set(caster.id, caster);
+  room.players.set(target.id, target);
+  return { room, caster, target };
+}
+
+function createPlayer(
+  id: string,
+  weaponType: WeaponType = "sword",
+  squadId: RuntimePlayer["squadId"] = "player",
+  x = 300,
+  y = 300
+): RuntimePlayer {
   return {
     id,
     name: id,
@@ -94,18 +146,18 @@ function createPlayer(id: string): RuntimePlayer {
     isHost: true,
     ready: true,
     joinedAt: Date.now(),
-    squadId: "player",
-    squadType: "human",
-    isBot: false,
+    squadId,
+    squadType: squadId === "player" ? "human" : "bot",
+    isBot: squadId !== "player",
     state: {
       id,
       name: id,
-      x: 300,
-      y: 300,
+      x,
+      y,
       direction: { x: 1, y: 0 },
       hp: 100,
       maxHp: 100,
-      weaponType: "sword",
+      weaponType,
       isAlive: true,
       moveSpeed: 300,
       attackPower: 0,
@@ -116,13 +168,13 @@ function createPlayer(id: string): RuntimePlayer {
       statusEffects: [],
       killsPlayers: 0,
       killsMonsters: 0,
-      squadId: "player",
-      squadType: "human",
-      isBot: false
+      squadId,
+      squadType: squadId === "player" ? "human" : "bot",
+      isBot: squadId !== "player"
     },
     baseStats: {
       maxHp: 100,
-      weaponType: "sword",
+      weaponType,
       moveSpeed: 300,
       attackPower: 0,
       attackSpeed: 0,
