@@ -23,8 +23,9 @@
   place-items: center;
   padding: 24px;
   background:
+    linear-gradient(180deg, rgba(14, 11, 8, 0.68), rgba(14, 11, 8, 0.88)),
     radial-gradient(circle at top, rgba(232, 96, 44, 0.16), transparent 42%),
-    linear-gradient(180deg, rgba(14, 11, 8, 0.58), rgba(14, 11, 8, 0.84));
+    url("/assets/generated/lobby-black-market-backdrop.png") center center / cover no-repeat;
   backdrop-filter: blur(10px);
   z-index: 30;
 }
