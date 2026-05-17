@@ -884,6 +884,19 @@ button { font-family: inherit; cursor: pointer; }
   border-top: 1px solid var(--iron-600);
   margin-top: 4px;
 }
+.run-recovered-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.run-recovered-summary {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--bone-low);
+  text-transform: uppercase;
+}
 .run-recovered-items {
   display: flex; gap: 4px; flex-wrap: wrap;
 }

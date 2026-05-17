@@ -16,6 +16,7 @@ assert.match(serviceSource, /extractedItemDetails: extractedItems\.details/, "su
 assert.match(serviceSource, /retainedItemDetails: extractedItems\.details/, "success settlement should mirror extracted item details for post-run stash handling");
 assert.match(serviceSource, /lostItemDetails: lostItems\.details/, "failure settlement should expose lost item details");
 assert.match(profileSource, /itemDetails: settlement\.result === "success" \? settlement\.extractedItemDetails : settlement\.lostItemDetails/, "profile lastRun should retain item detail payloads");
+assert.match(lobbySource, /formatLastRunValueSummary\(state\.profile\.lastRun\)/, "lobby should render a total last-run value summary");
 assert.match(lobbySource, /buildLastRunItemChips\(state\.profile\.lastRun\)/, "lobby should render last-run item details when available");
 assert.match(overlaySource, /results-item-card__value/, "results overlay should render value-aware loot cards");
 

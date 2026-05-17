@@ -88,6 +88,7 @@ export class LobbyView {
   private readonly resultKills: HTMLElement;
   private readonly resultDuration: HTMLElement;
   private readonly resultGold: HTMLElement;
+  private readonly recoveredSummary: HTMLElement;
   private readonly recoveredItems: HTMLElement;
 
   constructor(_controller: LobbyController, runtimeApi: LobbyRuntimeApi, callbacks: LobbyViewCallbacks) {
@@ -357,9 +358,12 @@ export class LobbyView {
     this.resultGold = appendRunStat(runStats, "收益", "+0", "color: var(--signal);");
     const recovered = createElement("div", "run-recovered");
     recovered.append(createElement("span", "stamp-label", "收获"));
+    const recoveredBody = createElement("div", "run-recovered-body");
+    this.recoveredSummary = createElement("div", "run-recovered-summary", "总价值 +0");
     this.recoveredItems = createElement("div", "run-recovered-items");
     this.recoveredItems.append(createElement("span", "run-item", "等待本次结算"));
-    recovered.append(this.recoveredItems);
+    recoveredBody.append(this.recoveredSummary, this.recoveredItems);
+    recovered.append(recoveredBody);
     runCard.append(verdict, runStats, recovered);
     resultPanel.append(runCard);
     rightPanel.append(resultPanel);
@@ -428,6 +432,7 @@ export class LobbyView {
       this.resultKills.textContent = `${state.profile.lastRun.playerKills}/${state.profile.lastRun.monsterKills}`;
       this.resultDuration.textContent = formatDuration(state.profile.lastRun.survivedSeconds);
       this.resultGold.textContent = `${state.profile.lastRun.goldDelta >= 0 ? "+" : ""}${state.profile.lastRun.goldDelta.toLocaleString("zh-CN")}`;
+      this.recoveredSummary.textContent = formatLastRunValueSummary(state.profile.lastRun);
       this.recoveredItems.replaceChildren(
         ...buildLastRunItemChips(state.profile.lastRun).map((item) => createElement("span", "run-item", item)),
       );
@@ -465,6 +470,7 @@ export class LobbyView {
         this.resultKills.textContent = "0 / 0";
         this.resultDuration.textContent = "00:00";
         this.resultGold.textContent = "+0";
+        this.recoveredSummary.textContent = "总价值 +0";
         this.recoveredItems.replaceChildren(createElement("span", "run-item", "等待本次结算"));
       }
       return;
@@ -567,6 +573,15 @@ function buildLastRunItemChips(lastRun: LocalRunSummary): string[] {
     });
   }
   return lastRun.items.length > 0 ? lastRun.items.slice(0, 4) : ["No loot"];
+}
+
+function formatLastRunValueSummary(lastRun: LocalRunSummary): string {
+  const details = lastRun.itemDetails ?? [];
+  const totalValue = details.reduce((sum, item) => sum + item.treasureValue + item.goldValue, 0);
+  if (details.length === 0) {
+    return "总价值 +0";
+  }
+  return `总价值 +${totalValue.toLocaleString("zh-CN")} / ${details.length} 件`;
 }
 
 function appendMetaCell(parent: HTMLElement, label: string, value: string, extraClass?: string) {
