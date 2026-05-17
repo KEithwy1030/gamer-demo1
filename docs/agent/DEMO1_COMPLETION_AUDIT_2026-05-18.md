@@ -71,3 +71,4 @@ Latest automated evidence captured on 2026-05-18:
 - `npm run accept:visual-readiness` passed.
 - `validate:dev-cors-contract` now guards the `ENABLE_TEST_HOOKS=1` CORS path used by dev acceptance launchers and late-game smoke.
 - Playwright visual spot-check confirmed the lobby recent-run card renders `Build: 51fd3c2` on `http://127.0.0.1:5173/`.
+- The shared lobby/results backdrop asset at `client/public/assets/generated/lobby-black-market-backdrop.png` was replaced with a fuller battlefield/black-market scene; the spot-check screenshot is stored at `.codex-artifacts/lobby-buildtag-backdrop-check.png`.
