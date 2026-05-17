@@ -11,7 +11,7 @@ export function createCorsOriginResolver(
   }
 
   if (configuredOrigins === true) {
-    return allowLoopbackOrigin;
+    return true;
   }
 
   const exactOrigins = new Set(Array.isArray(configuredOrigins) ? configuredOrigins : []);

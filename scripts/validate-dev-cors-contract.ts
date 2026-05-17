@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { createCorsOriginResolver } from "../server/src/cors.js";
 
 async function main(): Promise<void> {
+  const openResolver = createCorsOriginResolver(true, true);
+  assert.equal(openResolver, true, "open cors config should remain boolean true when test hooks allow loopback");
+
   const resolver = createCorsOriginResolver(["http://localhost:5180", "http://127.0.0.1:5180"], true);
   assert.equal(typeof resolver, "function", "dev cors resolver should expose a callback for loopback handling");
 

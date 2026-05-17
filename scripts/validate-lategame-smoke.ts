@@ -2,16 +2,6 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import {
-  cleanup,
-  createClient,
-  ensureServerBuild,
-  getPreferredExtractZone,
-  movePlayerAlongSafeRoute,
-  waitForCondition,
-  waitForServerReady,
-  waitForSocketConnect
-} from "./test-loop.mjs";
 
 const HOST = "127.0.0.1";
 const SERVER_PORT = Number.parseInt(process.env.LATEGAME_SERVER_PORT ?? "3191", 10);
@@ -19,6 +9,16 @@ const RUN_ID = process.env.LATEGAME_RUN_ID ?? `lategame-smoke-${new Date().toISO
 const ARTIFACT_DIR = resolve(".codex-artifacts", "lategame-smoke", RUN_ID);
 const SERVER_DIR = resolve("server");
 const SERVER_URL = `http://${HOST}:${SERVER_PORT}`;
+process.env.TEST_SERVER_PORT = String(SERVER_PORT);
+
+let cleanup: typeof import("./test-loop.mjs").cleanup;
+let createClient: typeof import("./test-loop.mjs").createClient;
+let ensureServerBuild: typeof import("./test-loop.mjs").ensureServerBuild;
+let getPreferredExtractZone: typeof import("./test-loop.mjs").getPreferredExtractZone;
+let movePlayerAlongSafeRoute: typeof import("./test-loop.mjs").movePlayerAlongSafeRoute;
+let waitForCondition: typeof import("./test-loop.mjs").waitForCondition;
+let waitForServerReady: typeof import("./test-loop.mjs").waitForServerReady;
+let waitForSocketConnect: typeof import("./test-loop.mjs").waitForSocketConnect;
 
 mkdirSync(ARTIFACT_DIR, { recursive: true });
 
@@ -58,13 +58,24 @@ function startServer() {
 }
 
 async function run() {
+  ({
+    cleanup,
+    createClient,
+    ensureServerBuild,
+    getPreferredExtractZone,
+    movePlayerAlongSafeRoute,
+    waitForCondition,
+    waitForServerReady,
+    waitForSocketConnect
+  } = await import("./test-loop.mjs"));
+
   await ensureServerBuild();
   const serverProcess = startServer();
   const clients: Array<ReturnType<typeof createClient>> = [];
 
   try {
     await waitForServerReady(serverProcess, 20_000);
-    await delay(800);
+    await delay(2_000);
 
     const playerA = createClient("PlayerA");
     const playerB = createClient("PlayerB");
