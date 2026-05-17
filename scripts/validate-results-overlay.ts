@@ -13,6 +13,10 @@ assert.match(source, /replaceItems\(itemsList, settlement\.result === "success" 
 assert.match(source, /results-item-card__icon/, "results overlay should render structured loot cards");
 assert.match(source, /formatItemValue\(item\)/, "results overlay should surface value metadata on loot cards");
 assert.match(source, /buildPlaytestNote\(latestSettlement\)/, "results overlay should expose a copyable playtest note for manual release-feel sessions");
+assert.match(source, /Pressure phase: \$\{formatPressurePhase\(settlement\.survivedSeconds\)\}/, "playtest note should classify the run's extraction-pressure phase");
+assert.match(source, /Combat contacts: \$\{settlement\.playerKills \+ settlement\.monsterKills\}/, "playtest note should summarize combat contacts for manual review");
+assert.match(source, /Inventory decision recorded:/, "playtest note should force a greed or inventory-decision observation");
+assert.match(source, /Key timestamps:/, "playtest note should include the manual protocol timestamp scaffold");
 assert.match(source, /复制测评记录/, "results overlay should surface a playtest note copy action");
 
 assert.match(styles, /\.results-items-list \{[\s\S]*grid-template-columns:\s*repeat\(auto-fit, minmax\(170px, 1fr\)\);/s, "results overlay cards should use a responsive grid");

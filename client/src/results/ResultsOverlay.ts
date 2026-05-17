@@ -167,22 +167,53 @@ export function buildSettlementCopy(settlement: SettlementPayload): SettlementCo
 
 export function buildPlaytestNote(settlement: SettlementPayload): string {
   const copy = buildSettlementCopy(settlement);
+  const itemCount = settlement.result === "success" ? settlement.extractedItems.length : settlement.lostItems.length;
+  const itemValue = sumSettlementItemValue(settlement.result === "success" ? settlement.extractedItemDetails : settlement.lostItemDetails);
   return [
     `Manual playtest - ${new Date().toISOString().slice(0, 10)}`,
     "Build: <commit>",
     `Outcome: ${settlement.result}`,
     `Duration: ${formatDuration(settlement.survivedSeconds)}`,
     `Reason: ${copy.summaryReason}`,
+    `Pressure phase: ${formatPressurePhase(settlement.survivedSeconds)}`,
     `Player kills: ${settlement.playerKills}`,
     `Monster kills: ${settlement.monsterKills}`,
+    `Combat contacts: ${settlement.playerKills + settlement.monsterKills}`,
     `Recovered gold: ${settlement.extractedGold}`,
+    `Recovered treasure value: ${settlement.extractedTreasureValue}`,
     `Net delta: ${formatSignedNumber(settlement.profileGoldDelta)}`,
-    `Extracted items: ${settlement.extractedItems.length}`,
+    `Item count: ${itemCount}`,
+    `Item detail value: ${itemValue}`,
+    `Loadout lost: ${settlement.loadoutLost ? "yes" : "no"}`,
+    `Inventory decision recorded: ${itemCount > 0 ? "yes - review greed/value tradeoff" : "no - note why loot did not matter"}`,
+    "Key timestamps:",
+    "- 00:00 spawn / first search target:",
+    "- 02:00 first combat or pickup:",
+    "- 05:00 risk pull / contested resource:",
+    "- 08:00 corpse-fog or extraction pressure:",
+    "- End settlement / stash / market follow-through:",
     "Scores: loop clarity _, combat _, greed _, extract _, death _, market _, visual _, replay _",
     "Decision that mattered:",
     "Issue list:",
     "Next tuning recommendation:"
   ].join("\n");
+}
+
+function formatPressurePhase(survivedSeconds: number): string {
+  if (survivedSeconds >= 720) {
+    return "12:00+ lethal fog";
+  }
+  if (survivedSeconds >= 480) {
+    return "08:00-12:00 extraction pressure";
+  }
+  if (survivedSeconds >= 300) {
+    return "05:00-08:00 contested buildup";
+  }
+  return "00:00-05:00 search buildup";
+}
+
+function sumSettlementItemValue(items: SettlementItemDetail[] | undefined): number {
+  return (items ?? []).reduce((sum, item) => sum + item.goldValue + item.treasureValue, 0);
 }
 
 function formatSettlementReason(settlement: SettlementPayload): string {

@@ -21,6 +21,8 @@ assert.match(lobbySource, /buildLastRunItemChips\(state\.profile\.lastRun\)/, "l
 assert.match(lobbySource, /buildPlaytestNote\(this\.latestPlaytestSettlement\)/, "lobby should reuse the playtest note export for the recent-run copy action");
 assert.match(lobbySource, /runPlaytestCopy\.disabled = !this\.latestPlaytestSettlement/, "lobby should disable the playtest copy button when there is no last run");
 assert.match(overlaySource, /results-item-card__value/, "results overlay should render value-aware loot cards");
+assert.match(overlaySource, /formatPressurePhase\(settlement\.survivedSeconds\)/, "playtest note should preserve the run's pressure phase from settlement data");
+assert.match(overlaySource, /sumSettlementItemValue\(settlement\.result === "success" \? settlement\.extractedItemDetails : settlement\.lostItemDetails\)/, "playtest note should include item-value evidence for greed decisions");
 
 console.log("validate-settlement-details: ok");
 
