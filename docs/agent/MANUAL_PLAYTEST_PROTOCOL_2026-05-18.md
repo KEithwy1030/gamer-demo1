@@ -26,6 +26,8 @@ Before starting, confirm:
 - Lobby create/join is usable.
 - Inventory, equipment, stash, and market panels open without console errors.
 - Audio is not muted if audio feedback is part of the pass.
+- In the lobby recent-run card, click `复制测评模板` before starting to copy a build-stamped blank note.
+- After settlement, click `复制测评记录` in the results overlay or lobby recent-run card to copy the populated run note.
 
 ## Required Notes
 
