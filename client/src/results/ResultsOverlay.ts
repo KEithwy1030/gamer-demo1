@@ -205,7 +205,7 @@ export function buildPlaytestNote(settlement: SettlementPayload): string {
   ].join("\n");
 }
 
-function getBuildCommit(): string {
+export function getBuildCommit(): string {
   return import.meta.env.VITE_APP_COMMIT || "<commit>";
 }
 

@@ -10,7 +10,7 @@ import { LobbyBackground } from "./lobbyBackground";
 import { createStashView, type StashViewApi } from "./stashView";
 import { createMarketView, type MarketViewApi } from "./marketView";
 import { attachViewportScaler, type ViewportScaler } from "./viewportScaler";
-import { buildPlaytestNote, buildSettlementCopy } from "../results/ResultsOverlay";
+import { buildPlaytestNote, buildSettlementCopy, getBuildCommit } from "../results/ResultsOverlay";
 import {
   getProfileLoadoutCount,
   getProfileAssetValue,
@@ -87,6 +87,7 @@ export class LobbyView {
   private readonly stashDifficulty: HTMLElement;
   private readonly resultVerdict: HTMLElement;
   private readonly resultRoute: HTMLElement;
+  private readonly resultBuildTag: HTMLElement;
   private readonly resultKills: HTMLElement;
   private readonly resultDuration: HTMLElement;
   private readonly resultGold: HTMLElement;
@@ -356,7 +357,8 @@ export class LobbyView {
     this.resultVerdict = createElement("div", "run-verdict-text", "待出征");
     verdictWrap.append(this.resultVerdict);
     this.resultRoute = createElement("div", "run-verdict-meta", "封锁区尚未选定\n等待建立频道");
-    verdict.append(verdictWrap, this.resultRoute);
+    this.resultBuildTag = createElement("div", "run-build", `Build: ${getBuildCommit()}`);
+    verdict.append(verdictWrap, this.resultBuildTag, this.resultRoute);
     const runStats = createElement("div", "run-stats");
     this.resultKills = appendRunStat(runStats, "斩获", "0 / 0");
     this.resultDuration = appendRunStat(runStats, "存活", "00:00");
