@@ -17,7 +17,7 @@ import type {
   Vector2,
   WeaponType
 } from "@gamer/shared";
-import type { Affix, ItemRarity, MonsterState, MonsterType, SkillId, StatusEffectType } from "@gamer/shared";
+import type { Affix, ConsumableEffect, ItemRarity, MonsterState, MonsterType, SkillId, StatusEffectType } from "@gamer/shared";
 import type { MonsterBehaviorPhase, MonsterSkillState } from "@gamer/shared";
 import type { Socket } from "socket.io";
 
@@ -58,6 +58,7 @@ export interface InventoryItem {
   goldValue: number;
   treasureValue: number;
   healAmount?: number;
+  consumableEffects?: ConsumableEffect[];
   modifiers?: ItemStatModifiers;
   affixes: Affix[];
 }

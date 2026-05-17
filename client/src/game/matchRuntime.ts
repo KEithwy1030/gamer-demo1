@@ -1,4 +1,4 @@
-import type { MonsterState, PlayerState, RoomRuntimeSnapshot, WorldDrop, MatchLayout, MatchLayoutExtractZone } from "@gamer/shared";
+import type { ConsumableEffect, MonsterState, PlayerState, RoomRuntimeSnapshot, WorldDrop, MatchLayout, MatchLayoutExtractZone } from "@gamer/shared";
 
 export interface MatchInventoryItem {
   instanceId: string;
@@ -16,6 +16,7 @@ export interface MatchInventoryItem {
   goldValue?: number;
   treasureValue?: number;
   healAmount?: number;
+  consumableEffects?: ConsumableEffect[];
   affixes?: Array<{ key: string; value: number }>;
   modifiers?: Partial<{
     attackPower: number;

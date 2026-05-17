@@ -274,6 +274,7 @@ export function buildProfileLoadoutSnapshot(profile: LocalProfile): InventorySna
         rarity: item.rarity as ItemRarity | undefined,
         name: item.name,
         healAmount: item.healAmount,
+        consumableEffects: item.consumableEffects?.map((effect) => ({ ...effect })),
         affixes: item.affixes ? item.affixes.map((affix) => ({ ...affix } as Affix)) : undefined,
         modifiers: item.modifiers ? { ...item.modifiers } : undefined,
         x: item.x,
@@ -293,6 +294,7 @@ export function buildProfileLoadoutSnapshot(profile: LocalProfile): InventorySna
           rarity: item.rarity as ItemRarity | undefined,
           name: item.name,
           healAmount: item.healAmount,
+          consumableEffects: item.consumableEffects?.map((effect) => ({ ...effect })),
           affixes: item.affixes ? item.affixes.map((affix) => ({ ...affix } as Affix)) : undefined,
           modifiers: item.modifiers ? { ...item.modifiers } : undefined
         }]];
@@ -519,6 +521,9 @@ function normalizeProfileItem(raw: unknown): LocalProfileItem | null {
     width: size.width,
     height: size.height,
     healAmount: asOptionalNumber(raw.healAmount),
+    consumableEffects: Array.isArray(raw.consumableEffects)
+      ? raw.consumableEffects.flatMap((effect) => isRecord(effect) ? [{ ...effect } as any] : [])
+      : undefined,
     modifiers: isRecord(raw.modifiers) ? {
       attackPower: asOptionalNumber(raw.modifiers.attackPower),
       attackSpeed: asOptionalNumber(raw.modifiers.attackSpeed),

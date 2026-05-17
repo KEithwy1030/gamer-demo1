@@ -408,6 +408,9 @@ function normalizeItem(raw: unknown): InventoryItemInstance | null {
     rarity: normalizeItemRarity(raw.rarity, template),
     name: typeof raw.name === "string" && raw.name.trim() ? raw.name : template?.name,
     healAmount: typeof raw.healAmount === "number" && Number.isFinite(raw.healAmount) ? raw.healAmount : template?.healAmount,
+    consumableEffects: Array.isArray(raw.consumableEffects)
+      ? raw.consumableEffects.flatMap((effect) => isRecord(effect) ? [{ ...(effect as any) }] : [])
+      : template?.consumableEffects?.map((effect) => ({ ...effect })),
     modifiers: isRecord(raw.modifiers) ? normalizeModifiers(raw.modifiers) : template?.modifiers ? { ...template.modifiers } : undefined,
     affixes: Array.isArray(raw.affixes)
       ? raw.affixes.flatMap((affix) => isRecord(affix) && typeof affix.key === "string" && typeof affix.value === "number"
@@ -450,6 +453,7 @@ function runtimeItemToProfileItem(item: InventoryItem): InventoryItemInstance {
     rarity: item.rarity,
     name: item.name,
     healAmount: item.healAmount,
+    consumableEffects: item.consumableEffects?.map((effect) => ({ ...effect })),
     modifiers: item.modifiers ? { ...item.modifiers } : undefined,
     affixes: item.affixes.map((affix) => ({ ...affix }))
   };

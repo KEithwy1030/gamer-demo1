@@ -28,7 +28,9 @@ const NORMAL_DROP_TABLE: WeightedDefinition[] = [
   { definitionId: "armor_feet_common", weight: 15 },
   { definitionId: "weapon_sword_basic", weight: 14 },
   { definitionId: "weapon_blade_basic", weight: 14 },
-  { definitionId: "health_potion", weight: 12 }
+  { definitionId: "health_potion", weight: 12 },
+  { definitionId: "coagulant_bandage", weight: 8 },
+  { definitionId: "rust_stimulant", weight: 6 }
 ];
 
 const ELITE_DROP_TABLE: WeightedDefinition[] = [
@@ -39,7 +41,10 @@ const ELITE_DROP_TABLE: WeightedDefinition[] = [
   { definitionId: "armor_head_common", weight: 12 },
   { definitionId: "armor_chest_common", weight: 12 },
   { definitionId: "weapon_spear_basic", weight: 10 },
-  { definitionId: "health_potion", weight: 18 }
+  { definitionId: "health_potion", weight: 18 },
+  { definitionId: "coagulant_bandage", weight: 12 },
+  { definitionId: "rust_stimulant", weight: 10 },
+  { definitionId: "miasma_tonic", weight: 8 }
 ];
 
 const BOSS_DROP_TABLE: WeightedDefinition[] = [
@@ -49,7 +54,9 @@ const BOSS_DROP_TABLE: WeightedDefinition[] = [
   { definitionId: "treasure_large_statue", weight: 20 },
   { definitionId: "treasure_medium_tablet", weight: 16 },
   { definitionId: "weapon_spear_basic", weight: 14 },
-  { definitionId: "health_potion", weight: 16 }
+  { definitionId: "health_potion", weight: 16 },
+  { definitionId: "miasma_tonic", weight: 12 },
+  { definitionId: "rust_stimulant", weight: 8 }
 ];
 
 const BOSS_HIGH_VALUE_DROP_TABLE: WeightedDefinition[] = [
@@ -191,6 +198,7 @@ export function buildInventoryItem(
     goldValue: definition.goldAmount ?? 0,
     treasureValue: definition.treasureValue ?? 0,
     healAmount: definition.healAmount,
+    consumableEffects: definition.consumableEffects?.map((effect) => ({ ...effect })),
     modifiers: definition.stats
       ? {
           maxHp: definition.stats.maxHpBonus,

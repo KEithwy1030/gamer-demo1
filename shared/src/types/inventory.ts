@@ -1,3 +1,4 @@
+import type { StatusEffectType } from "./combat";
 import type { WeaponType } from "./game";
 
 export type EquipmentSlot = "weapon" | "head" | "chest" | "hands" | "shoes";
@@ -40,6 +41,7 @@ export interface ItemDefinition {
   treasureValue?: number;
   tags?: ItemTag[];
   healAmount?: number;
+  consumableEffects?: ConsumableEffect[];
   stats?: Partial<{
     attackPower: number;
     attackSpeedBonus: number;
@@ -58,6 +60,24 @@ export interface Affix {
   value: number;
 }
 
+export type ConsumableEffect =
+  | {
+      kind: "cleanse";
+      statusTypes: StatusEffectType[];
+    }
+  | {
+      kind: "timedModifier";
+      type: StatusEffectType;
+      durationMs: number;
+      magnitude: number;
+      attackDamageMultiplier?: number;
+      attackSpeedMultiplier?: number;
+      basicAttackBonusDamage?: number;
+      damageReductionBonus?: number;
+      moveSpeedMultiplier?: number;
+      dodgeRateBonus?: number;
+    };
+
 export interface InventoryItemInstance {
   instanceId: string;
   definitionId: string;
@@ -68,6 +88,7 @@ export interface InventoryItemInstance {
   treasureValue?: number;
   tags?: ItemTag[];
   healAmount?: number;
+  consumableEffects?: ConsumableEffect[];
   affixes?: Affix[];
   modifiers?: Partial<{
     attackPower: number;

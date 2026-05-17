@@ -185,6 +185,8 @@ function enrichItem(item: InventoryItemInstance, forcedSlot?: EquipmentSlot): Lo
     width: size.width,
     height: size.height,
     healAmount: item.healAmount ?? definition?.healAmount,
+    consumableEffects: item.consumableEffects?.map((effect) => ({ ...effect }))
+      ?? definition?.consumableEffects?.map((effect) => ({ ...effect })),
     modifiers: item.modifiers ? { ...item.modifiers } : undefined,
     affixes: item.affixes ? item.affixes.map((affix) => ({ ...affix })) : undefined
   };

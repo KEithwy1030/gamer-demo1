@@ -15,6 +15,7 @@ import {
   WorldDrop
 } from "@gamer/shared";
 import type { InventoryUpdateEvent, SettlementEnvelope } from "../network";
+import type { ConsumableEffect, StatusEffectType } from "@gamer/shared";
 import { GameSocketClient, type GameSocketClientOptions, type Unsubscribe } from "../network";
 import { MatchRuntimeStore, type MatchInventoryState } from "../game";
 import type { MatchInventoryItem } from "../game/matchRuntime";
@@ -431,6 +432,7 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
         goldValue: asNumber(item.goldValue, 0),
         treasureValue: asNumber(item.treasureValue, 0),
         healAmount: asOptionalNumber(item.healAmount),
+        consumableEffects: normalizeConsumableEffects(item.consumableEffects),
         modifiers: normalizeItemModifiers(item.modifiers),
         affixes: normalizeAffixes(item.affixes)
       }];
@@ -455,6 +457,7 @@ function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryS
           goldValue: asNumber(item.goldValue, 0),
           treasureValue: asNumber(item.treasureValue, 0),
           healAmount: asOptionalNumber(item.healAmount),
+          consumableEffects: normalizeConsumableEffects(item.consumableEffects),
           modifiers: normalizeItemModifiers(item.modifiers),
           affixes: normalizeAffixes(item.affixes)
         }]];
@@ -487,6 +490,38 @@ function normalizeItemModifiers(value: unknown): MatchInventoryItem["modifiers"]
     hpRegen: asOptionalNumber(value.hpRegen),
     dodgeRate: asOptionalNumber(value.dodgeRate)
   };
+}
+
+function normalizeConsumableEffects(value: unknown): MatchInventoryItem["consumableEffects"] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const effects: ConsumableEffect[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) continue;
+    if (entry.kind === "cleanse" && Array.isArray(entry.statusTypes)) {
+      effects.push({ kind: "cleanse", statusTypes: entry.statusTypes.map(String) as StatusEffectType[] });
+      continue;
+    }
+    if (
+      entry.kind === "timedModifier"
+      && typeof entry.type === "string"
+      && typeof entry.durationMs === "number"
+      && typeof entry.magnitude === "number"
+    ) {
+      effects.push({
+        kind: "timedModifier",
+        type: entry.type as StatusEffectType,
+        durationMs: entry.durationMs,
+        magnitude: entry.magnitude,
+        attackDamageMultiplier: asOptionalNumber(entry.attackDamageMultiplier),
+        attackSpeedMultiplier: asOptionalNumber(entry.attackSpeedMultiplier),
+        basicAttackBonusDamage: asOptionalNumber(entry.basicAttackBonusDamage),
+        damageReductionBonus: asOptionalNumber(entry.damageReductionBonus),
+        moveSpeedMultiplier: asOptionalNumber(entry.moveSpeedMultiplier),
+        dodgeRateBonus: asOptionalNumber(entry.dodgeRateBonus)
+      });
+    }
+  }
+  return effects.length > 0 ? effects : undefined;
 }
 
 function normalizeAffixes(value: unknown): MatchInventoryItem["affixes"] | undefined {

@@ -19,7 +19,7 @@ import {
   PLAYER_BASE_MOVE_SPEED
 } from "../internal-constants.js";
 import { canPlaceRect, findFirstFitRect, INVENTORY_HEIGHT, INVENTORY_WIDTH } from "@gamer/shared";
-import { setPlayerBaseStats } from "../combat/player-effects.js";
+import { addTimedModifier, removeStatusEffects, setPlayerBaseStats } from "../combat/player-effects.js";
 import { getItemTemplate, listSeedDropTemplateIds } from "./catalog.js";
 
 const PICKUP_RADIUS_PX = 140;
@@ -333,7 +333,7 @@ export class InventoryService {
     }
 
     const [entry] = inventory.items.splice(entryIndex, 1);
-    if (entry.item.kind !== "consumable" || !entry.item.healAmount) {
+    if (entry.item.kind !== "consumable" || !isUsableConsumable(entry.item)) {
       inventory.items.splice(entryIndex, 0, entry);
       throw new Error("Item cannot be used.");
     }
@@ -342,7 +342,29 @@ export class InventoryService {
       throw new Error("Player is not active in the match.");
     }
 
-    player.state.hp = Math.min(player.state.maxHp, player.state.hp + entry.item.healAmount);
+    const now = Date.now();
+    if (entry.item.healAmount) {
+      player.state.hp = Math.min(player.state.maxHp, player.state.hp + entry.item.healAmount);
+    }
+    for (const effect of entry.item.consumableEffects ?? []) {
+      if (effect.kind === "cleanse") {
+        removeStatusEffects(player, effect.statusTypes, now);
+        continue;
+      }
+
+      addTimedModifier(player, {
+        sourceId: entry.item.templateId,
+        type: effect.type,
+        expiresAt: now + effect.durationMs,
+        magnitude: effect.magnitude,
+        attackDamageMultiplier: effect.attackDamageMultiplier,
+        attackSpeedMultiplier: effect.attackSpeedMultiplier,
+        basicAttackBonusDamage: effect.basicAttackBonusDamage,
+        damageReductionBonus: effect.damageReductionBonus,
+        moveSpeedMultiplier: effect.moveSpeedMultiplier,
+        dodgeRateBonus: effect.dodgeRateBonus
+      }, now);
+    }
 
     return {
       inventoryUpdate: this.buildInventoryUpdate(player),
@@ -497,6 +519,7 @@ export class InventoryService {
       goldValue: template.goldValue,
       treasureValue: template.treasureValue,
       healAmount: template.healAmount,
+      consumableEffects: template.consumableEffects?.map((effect) => ({ ...effect })),
       modifiers: template.modifiers ? { ...template.modifiers } : undefined,
       affixes: []
     };
@@ -712,6 +735,7 @@ function cloneItem(item: InventoryItem): InventoryItem {
   return {
     ...item,
     tags: item.tags ? [...item.tags] : undefined,
+    consumableEffects: item.consumableEffects?.map((effect) => ({ ...effect })),
     modifiers: item.modifiers ? { ...item.modifiers } : undefined,
     affixes: (item.affixes ?? []).map((affix) => ({ ...affix }))
   };
@@ -797,6 +821,7 @@ function createItemFromSnapshot(
     rarity?: string;
     name?: string;
     healAmount?: number;
+    consumableEffects?: InventoryItem["consumableEffects"];
     modifiers?: Partial<InventoryItem["modifiers"]>;
     affixes?: InventoryItem["affixes"];
   },
@@ -818,6 +843,8 @@ function createItemFromSnapshot(
       goldValue: template.goldValue,
       treasureValue: template.treasureValue,
       healAmount: snapshot.healAmount ?? template.healAmount,
+      consumableEffects: snapshot.consumableEffects?.map((effect) => ({ ...effect }))
+        ?? template.consumableEffects?.map((effect) => ({ ...effect })),
       modifiers: snapshot.modifiers ? { ...snapshot.modifiers } : template.modifiers ? { ...template.modifiers } : undefined,
       affixes: Array.isArray(snapshot.affixes) ? snapshot.affixes.map((affix) => ({ ...affix })) : []
     };
@@ -830,6 +857,10 @@ function normalizeInventoryItemKind(value: string | undefined): InventoryItem["k
   return value === "weapon" || value === "equipment" || value === "treasure" || value === "currency" || value === "consumable" || value === "quest"
     ? value
     : undefined;
+}
+
+function isUsableConsumable(item: InventoryItem): boolean {
+  return Boolean(item.healAmount) || (item.consumableEffects?.length ?? 0) > 0;
 }
 
 function isExtractKeyItem(item: InventoryItem): boolean {

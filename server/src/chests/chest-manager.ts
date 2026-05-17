@@ -10,6 +10,8 @@ const STARTER_LOOT_TEMPLATES = [
   "weapon_sword_basic",
   "weapon_blade_basic",
   "health_potion",
+  "coagulant_bandage",
+  "rust_stimulant",
   "treasure_small_idol"
 ] as const;
 
@@ -38,6 +40,9 @@ function pickContestedLootItem(): InventoryItem | undefined {
     { templateId: "treasure_large_statue", weight: 10 },
     { templateId: "treasure_medium_tablet", weight: 10 },
     { templateId: "weapon_spear_basic", weight: 8 },
+    { templateId: "miasma_tonic", weight: 7 },
+    { templateId: "rust_stimulant", weight: 6 },
+    { templateId: "coagulant_bandage", weight: 6 },
     { templateId: "weapon_blade_basic", weight: 5 },
     { templateId: "weapon_sword_basic", weight: 4 }
   ]).templateId;

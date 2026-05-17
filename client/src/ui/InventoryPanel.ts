@@ -295,6 +295,12 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     if (item.kind === "consumable" && item.healAmount) {
       stats.append(createStatLine("heal", item.healAmount, `治疗 +${item.healAmount}`));
     }
+    for (const line of describeConsumableEffects(item.consumableEffects)) {
+      const effectLine = document.createElement("div");
+      effectLine.className = "stat-line";
+      effectLine.textContent = line;
+      stats.append(effectLine);
+    }
 
     if (!stats.childElementCount) {
       const empty = document.createElement("div");
@@ -355,6 +361,45 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     const sign = value >= 0 ? "+" : "";
     line.textContent = `${STAT_LABELS[key] ?? key} ${sign}${amount}`;
     return line;
+  }
+
+  function describeConsumableEffects(effects: MatchInventoryItem["consumableEffects"] | undefined): string[] {
+    if (!effects?.length) return [];
+    return effects.flatMap((effect) => {
+      if (effect.kind === "cleanse" && Array.isArray(effect.statusTypes)) {
+        return [`清除 ${effect.statusTypes.map((value) => formatStatusLabel(String(value))).join(" / ")}`];
+      }
+      if (effect.kind === "timedModifier") {
+        const duration = typeof effect.durationMs === "number" ? Math.round(effect.durationMs / 1000) : 0;
+        if (effect.type === "moveSpeedBoost" && typeof effect.moveSpeedMultiplier === "number") {
+          return [`移速 +${Math.round(effect.moveSpeedMultiplier * 100)}% · ${duration}s`];
+        }
+        if (effect.type === "damageReduction" && typeof effect.damageReductionBonus === "number") {
+          return [`减伤 +${Math.round(effect.damageReductionBonus * 100)}% · ${duration}s`];
+        }
+        return [`${formatStatusLabel(String(effect.type))} · ${duration}s`];
+      }
+      return [];
+    });
+  }
+
+  function formatStatusLabel(value: string): string {
+    switch (value) {
+      case "slow":
+        return "减速";
+      case "bleed":
+        return "流血";
+      case "damageReduction":
+        return "减伤";
+      case "moveSpeedBoost":
+        return "加速";
+      case "attackBoost":
+        return "加攻";
+      case "attackSpeedBoost":
+        return "攻速";
+      default:
+        return value;
+    }
   }
 
   function cleanupOrphanGhosts(): void {

@@ -103,6 +103,19 @@ export function addTimedModifier(
   syncPlayerCombatState(player, now);
 }
 
+export function removeStatusEffects(
+  player: RuntimePlayer,
+  statusTypes: RuntimeTimedCombatModifier["type"][],
+  now = Date.now()
+): number {
+  const combatState = ensureCombatState(player);
+  const before = combatState.activeModifiers.length;
+  const blocked = new Set(statusTypes);
+  combatState.activeModifiers = combatState.activeModifiers.filter((modifier) => !blocked.has(modifier.type));
+  syncPlayerCombatState(player, now);
+  return before - combatState.activeModifiers.length;
+}
+
 export function setPendingBasicAttack(
   player: RuntimePlayer,
   modifier: PendingBasicAttackModifier

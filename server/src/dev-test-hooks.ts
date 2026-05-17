@@ -313,6 +313,7 @@ function buildInventoryItem(templateId: string): InventoryItem {
     goldValue: definition.goldAmount ?? 0,
     treasureValue: definition.treasureValue ?? 0,
     healAmount: definition.healAmount,
+    consumableEffects: definition.consumableEffects?.map((effect) => ({ ...effect })),
     modifiers: definition.stats ? {
       maxHp: definition.stats.maxHpBonus,
       attackPower: definition.stats.attackPower,

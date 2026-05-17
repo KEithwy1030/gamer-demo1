@@ -262,6 +262,37 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
     size: { width: 1, height: 1 },
     healAmount: 30
   },
+  coagulant_bandage: {
+    id: "coagulant_bandage",
+    name: "Coagulant Bandage",
+    category: "consumable",
+    rarity: "common",
+    size: { width: 1, height: 1 },
+    healAmount: 10,
+    consumableEffects: [
+      { kind: "cleanse", statusTypes: ["bleed"] }
+    ]
+  },
+  rust_stimulant: {
+    id: "rust_stimulant",
+    name: "Rust Stimulant",
+    category: "consumable",
+    rarity: "uncommon",
+    size: { width: 1, height: 1 },
+    consumableEffects: [
+      { kind: "timedModifier", type: "moveSpeedBoost", durationMs: 6000, magnitude: 0.22, moveSpeedMultiplier: 0.22 }
+    ]
+  },
+  miasma_tonic: {
+    id: "miasma_tonic",
+    name: "Miasma Tonic",
+    category: "consumable",
+    rarity: "uncommon",
+    size: { width: 1, height: 2 },
+    consumableEffects: [
+      { kind: "timedModifier", type: "damageReduction", durationMs: 7000, magnitude: 0.35, damageReductionBonus: 0.35 }
+    ]
+  },
   extract_torch: {
     id: "extract_torch",
     name: "归营火种",

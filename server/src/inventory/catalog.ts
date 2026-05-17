@@ -5,7 +5,7 @@ import type {
   InventoryItemKind,
   ItemStatModifiers
 } from "../types.js";
-import type { ItemDefinition, ItemRarity } from "@gamer/shared";
+import type { ConsumableEffect, ItemDefinition, ItemRarity } from "@gamer/shared";
 
 interface ItemTemplate {
   templateId: string;
@@ -20,6 +20,7 @@ interface ItemTemplate {
   goldValue: number;
   treasureValue: number;
   healAmount?: number;
+  consumableEffects?: ConsumableEffect[];
   modifiers?: ItemStatModifiers;
 }
 
@@ -61,6 +62,7 @@ function definitionToTemplate(definition: ItemDefinition): ItemTemplate {
     goldValue: definition.goldAmount ?? 0,
     treasureValue: definition.treasureValue ?? 0,
     healAmount: definition.healAmount,
+    consumableEffects: definition.consumableEffects?.map((effect) => ({ ...effect })),
     modifiers: definition.stats ? toRuntimeModifiers(definition.stats) : undefined
   };
 }
