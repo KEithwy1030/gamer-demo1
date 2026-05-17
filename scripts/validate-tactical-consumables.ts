@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ITEM_DEFINITIONS } from "@gamer/shared";
+import { getItemPresentation } from "../client/src/ui/itemPresentation.ts";
 import { addTimedModifier, applyEnvironmentalDamage } from "../server/src/combat/player-effects.js";
 import { InventoryService } from "../server/src/inventory/service.js";
 import { buildInventoryItem } from "../server/src/loot/loot-manager.js";
 import type { InventoryItem, RuntimePlayer, RuntimeRoom } from "../server/src/types.js";
 
 const now = Date.now();
+const repoRoot = fileURLToPath(new URL("../", import.meta.url));
 
 validateDefinitions();
 validateBandageCleanse();
@@ -15,6 +20,7 @@ validateMiasmaTonicMitigation();
 console.log("validate-tactical-consumables: ok");
 
 function validateDefinitions(): void {
+  const seenAssetPaths = new Set<string>();
   for (const id of ["coagulant_bandage", "rust_stimulant", "miasma_tonic"]) {
     const definition = ITEM_DEFINITIONS[id];
     assert.ok(definition, `${id} definition should exist`);
@@ -23,6 +29,21 @@ function validateDefinitions(): void {
     assert.ok(item, `${id} should build into a runtime inventory item`);
     assert.equal(item?.kind, "consumable", `${id} runtime kind should stay consumable`);
     assert.ok((item?.consumableEffects?.length ?? 0) > 0, `${id} should carry tactical effects`);
+
+    const presentation = getItemPresentation({ definitionId: id });
+    const assetPath = /src="([^"]+)"/.exec(presentation.iconSvg)?.[1];
+    assert.ok(assetPath, `${id} should render with a bitmap inventory icon`);
+    assert.notEqual(
+      assetPath,
+      "assets/generated/image2_processed/items/icon_health_potion_v2.png",
+      `${id} should not reuse the generic health potion icon`
+    );
+    assert.ok(!seenAssetPaths.has(assetPath), `${id} should have a distinct tactical consumable icon`);
+    seenAssetPaths.add(assetPath);
+    assert.ok(
+      existsSync(path.join(repoRoot, "client", "public", ...assetPath.split("/"))),
+      `${id} icon asset should exist on disk: ${assetPath}`
+    );
   }
 }
 
