@@ -30,13 +30,14 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 | Dodge and lock/approach assist | `server/src/combat/combat-service.ts`, `validate:lock-assist`, `validate:skill-contract` | Covered structurally |
 | Normal and elite monsters | `server/src/monsters/monster-manager.ts`, `validate:elite-encounter`, `validate:combat-readability` | Covered structurally |
 | Equipment, weapons, gold, treasure drops | `shared/src/data/items.ts`, `server/src/loot/loot-manager.ts`, `validate:loot-depth`, `validate:chest-contract` | Covered |
+| Tactical consumables | `shared/src/data/items.ts`, `server/src/inventory/service.ts`, `client/src/ui/itemPresentation.ts`, `validate:tactical-consumables` | Covered for bandage cleanse, stimulant speed boost, miasma mitigation, distinct bitmap icons, and payoff-surface icon reuse |
 | Backpack grid and equipment slots | `shared/src/domain/inventory.ts`, `client/src/ui/InventoryPanel.ts`, `validate:profile-carry`, `validate:drag-contracts` | Covered, but drag UI is not in release gate due existing dirty harness boundary |
 | Death full loss | `server/src/inventory/service.ts`, `server/src/combat/combat-service.ts`, `validate:death-loot-contract`, `validate:results-overlay`, `validate:combat-readability` | Covered structurally for enemy kill, full death drop, and opposing pickup |
-| Success/failure settlement UI | `client/src/results/ResultsOverlay.ts`, `validate:results-overlay`, `validate:profile-carry` | Covered structurally |
-| Black-market listing and sale flow | `client/src/ui/marketView.ts`, `server/src/market`, `validate:market-lifecycle` | Covered for Demo 1 simulated buyer/system sale |
+| Success/failure settlement UI | `client/src/results/ResultsOverlay.ts`, `validate:results-overlay`, `validate:profile-carry` | Covered structurally; settlement item cards now reuse bitmap item presentation |
+| Black-market listing and sale flow | `client/src/ui/marketView.ts`, `server/src/market`, `validate:market-lifecycle`, `validate:audio-hooks` | Covered for Demo 1 simulated buyer/system sale; listing/sale payoff now has bitmap item thumbnails and a synthesized market cue |
 | Long-term asset accumulation | `client/src/profile/localProfile.ts`, `client/src/ui/lobbyView.ts`, `validate:profile-carry`, `validate:market-lifecycle` | Covered structurally |
-| Dark medieval scavenger atmosphere | `client/public/assets/generated/`, `client/src/scenes/gameScene/worldBackdrop.ts`, `validate:visual-clarity`, browser smoke evidence | Partially covered; commercial art pass remains open |
-| Release-level verification gate | `package.json` `validate:gdd-demo1-contract` and `validate:release-readiness` | Passed on 2026-05-18 after adding `validate:dev-cors-contract`; includes multiclient, combat, loot, carry, extract, market, pressure, typecheck, build, and late-game smoke |
+| Dark medieval scavenger atmosphere | `client/public/assets/generated/`, `client/src/scenes/gameScene/worldBackdrop.ts`, `client/src/audio/gameAudio.ts`, `validate:visual-clarity`, `validate:audio-hooks`, browser smoke evidence | Partially covered; lobby/results backdrop, payoff icons, and synthesized feedback are improved, but final commercial art/audio signoff remains manual |
+| Release-level verification gate | `package.json` `validate:gdd-demo1-contract` and `validate:release-readiness` | Passed on 2026-05-18 after adding `validate:dev-cors-contract`, `validate:tactical-consumables`, and `validate:audio-hooks`; includes multiclient, combat, loot, tactical consumables, carry, extract, audio, market, pressure, typecheck, build, and late-game smoke |
 | Browser visual acceptance | `package.json` `accept:visual-readiness`, `.codex-artifacts/game-feel-baseline/` screenshots | Passed on 2026-05-18; covers boss combat HUD, inventory overlay, and late-game extraction pressure visibility; not a manual fun signoff |
 | Manual release-feel protocol | `docs/agent/MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md` | Defines the required 9-12 minute human playtest scorecard, pass/fail rules, and output format; still requires execution |
 | Playtest note export | `client/src/results/ResultsOverlay.ts`, `client/src/ui/lobbyView.ts`, `client/vite.config.ts`, `scripts/validate-results-overlay.ts`, `scripts/validate-settlement-details.ts` | Results overlay and lobby recent-run card both expose a structured copyable manual playtest note from settlement data, including build commit, pressure phase, combat contacts, item value, loadout loss, and timestamp prompts; the lobby also copies a build-stamped blank playtest template before the first run, and both the results card and lobby recent-run card show the build tag directly so testers can capture the required evidence quickly |
@@ -45,7 +46,7 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 
 - Manual long-session balance: 9-12 minute ideal extraction timing cannot be proven by deterministic tests; `MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md` now defines the required evidence format.
 - Real multi-human PvPvE feel: socket contracts prove protocol shape, not player tension or combat readability under human pressure.
-- Commercial art polish: the lobby / black-market entry and results overlay now use a generated bitmap backdrop, and a local preview screenshot confirmed the lobby shell renders with the new art, but the rest of the commercial art pass is still incomplete.
+- Commercial art/audio polish: the lobby / black-market entry and results overlay now use a generated bitmap backdrop, tactical consumables have distinct bitmap icons, payoff screens reuse itemPresentation icons, and black-market sale/listing actions play a synthesized market cue. The rest of the commercial art/audio pass is still incomplete.
 - Browser/mobile hands-on comfort: the lobby now uses a stacked mobile layout on a 390px viewport, verified by a Chromium screenshot, and the settlement overlay now has dedicated mobile single-column and scroll rules, verified by a synthetic results overlay screenshot; both are guarded by `validate:mobile-shell` inside the Demo 1 gate.
 - Human playtest note capture: the note-copy action now exists in both the results overlay and lobby recent-run summary, pre-run lobby use copies a build-stamped blank template, and post-run use pre-fills structured pressure, combat, item-value, loadout-loss, and timestamp evidence; both surfaces now also show the build tag directly. The session itself still needs to be run and rated.
 - Player death loot race: deterministic enemy kill, full drop, and opposing pickup is now covered; live multi-human contest tension still needs manual playtest.
@@ -73,9 +74,11 @@ This now expands to the broader GDD Demo 1 contract, including the isolated-port
 
 Latest automated evidence captured on 2026-05-18:
 
-- `npm run validate:release-readiness` passed.
+- `npm run validate:release-readiness` passed at `b8a136c` after `validate:tactical-consumables` and `validate:audio-hooks` were added to `validate:gdd-demo1-contract`.
 - `npm run accept:visual-readiness` passed.
 - `validate:dev-cors-contract` now guards the `ENABLE_TEST_HOOKS=1` CORS path used by dev acceptance launchers and late-game smoke.
+- `validate:tactical-consumables` now guards consumable effects, distinct bitmap icons, and reuse of those icons on settlement and black-market payoff surfaces.
+- `validate:audio-hooks` now guards combat/extract synthesized cues plus the black-market payoff cue.
 - Playwright visual spot-check confirmed the lobby recent-run card renders `Build: 51fd3c2` on `http://127.0.0.1:5173/`.
 - The shared lobby/results backdrop asset at `client/public/assets/generated/lobby-black-market-backdrop.png` was replaced with a fuller battlefield/black-market scene; the spot-check screenshot is stored at `.codex-artifacts/lobby-buildtag-backdrop-check.png`.
 - `npm run accept:visual-readiness` passed again after the backdrop replacement.
