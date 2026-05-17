@@ -211,9 +211,9 @@ export class GameSocketClient {
     return this.on(SocketEvent.ChestOpened, listener);
   }
 
-  // onChestProgress(listener: (payload: ChestProgressPayload) => void): Unsubscribe {
-  //   return this.on(SocketEvent.ChestProgress, listener);
-  // }
+  onChestProgress(listener: (payload: ChestProgressPayload) => void): Unsubscribe {
+    return this.on(SocketEvent.ChestProgress, listener);
+  }
 
   onSettlement(listener: (payload: SettlementEnvelope | unknown) => void): Unsubscribe {
     return this.on(SocketEvent.MatchSettlement, listener);

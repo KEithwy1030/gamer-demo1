@@ -55,7 +55,7 @@ export interface MatchViewState {
   inventory: MatchInventoryState | null;
   lastCombatText: string | null;
   layout: MatchLayout | null;
-  chestProgress: { progress: number; remainingMs: number } | null;
+  chestProgress: { progress: number; remainingMs: number; lane?: "starter" | "contested"; noiseRadius?: number } | null;
 }
 
 type Listener = (state: MatchViewState) => void;
@@ -137,7 +137,7 @@ export class MatchRuntimeStore {
     this.emit();
   }
 
-  setChestProgress(progress: { progress: number; remainingMs: number } | null): void {
+  setChestProgress(progress: { progress: number; remainingMs: number; lane?: "starter" | "contested"; noiseRadius?: number } | null): void {
     this.state = { ...this.state, chestProgress: progress };
     this.emit();
   }

@@ -217,6 +217,24 @@ export function createGameClientController(
         squadStatus: payload?.squadStatus
       });
     }),
+    network.onChestProgress((payload) => {
+      const selfPlayerId = controller.getSelfPlayerId();
+      if (payload.playerId !== selfPlayerId) return;
+      if (payload.status === "interrupted") {
+        runtime.setChestProgress(null);
+        audio.play("warning");
+        return;
+      }
+      runtime.setChestProgress({
+        progress: Phaser.Math.Clamp(1 - payload.remainingMs / Math.max(payload.durationMs, 1), 0, 1),
+        remainingMs: payload.remainingMs,
+        lane: payload.lane,
+        noiseRadius: payload.noiseRadius
+      });
+      if (payload.status === "started" && payload.lane === "contested") {
+        audio.play("warning");
+      }
+    }),
     network.onSettlement((payload) => {
       const selfPlayerId = controller.getSelfPlayerId();
       if (payload && typeof payload === "object" && "playerId" in payload) {
@@ -241,6 +259,7 @@ export function createGameClientController(
     network.onChestOpened((payload) => {
       if (!payload || payload.playerId === controller.getSelfPlayerId()) {
         audio.play("chest");
+        runtime.setChestProgress(null);
       }
     })
   );

@@ -596,7 +596,7 @@ export class GameHudOverlay {
     });
   }
 
-  private syncChestProgress(chestProgress?: { progress: number; remainingMs: number } | null): void {
+  private syncChestProgress(chestProgress?: { progress: number; remainingMs: number; lane?: "starter" | "contested"; noiseRadius?: number } | null): void {
     if (!this.chestProgressTrack || !this.chestProgressFill || !this.chestProgressLabel || !this.layout) return;
 
     const active = Boolean(chestProgress && chestProgress.progress > 0 && chestProgress.progress < 1);
@@ -609,6 +609,7 @@ export class GameHudOverlay {
     if (!active || !chestProgress) return;
 
     const progress = Phaser.Math.Clamp(chestProgress.progress, 0, 1);
+    const isContested = chestProgress.lane === "contested";
     const barWidth = Math.min(420, this.scene.scale.width - 120);
     const x = this.scene.scale.width / 2 - barWidth / 2;
     const y = Math.max(116, this.layout.objective.bottom + 18);
@@ -617,19 +618,22 @@ export class GameHudOverlay {
       this.chestProgressTrack.clear();
       this.chestProgressTrack.fillStyle(0x130e0a, 0.9);
       this.chestProgressTrack.fillRoundedRect(x, y, barWidth, 20, 6);
-      this.chestProgressTrack.lineStyle(2, 0x4ade80, 0.82);
+      this.chestProgressTrack.lineStyle(2, isContested ? 0xfb923c : 0x4ade80, 0.82);
       this.chestProgressTrack.strokeRoundedRect(x, y, barWidth, 20, 6);
       this.chestProgressFill.clear();
-      this.chestProgressFill.fillStyle(0x4ade80, 1);
+      this.chestProgressFill.fillStyle(isContested ? 0xfb923c : 0x4ade80, 1);
       this.chestProgressFill.fillRoundedRect(x + 6, y + 6, (barWidth - 12) * progress, 8, 3);
       this.lastChestProgressValue = progress;
     }
 
     const seconds = ` ${Math.ceil(chestProgress.remainingMs / 1000)}s`;
     const label = `开启宝箱${seconds}`;
-    if (this.lastChestProgressLabel !== label) {
-      this.chestProgressLabel.setText(label);
-      this.lastChestProgressLabel = label;
+    const displayLabel = isContested
+      ? `\u9ad8\u5371\u5b9d\u7bb1\u00b7\u5b88\u536b\u5df2\u8b66\u89c9${seconds}`
+      : label.replace(/.*/, `\u5f00\u542f\u5b9d\u7bb1${seconds}`);
+    if (this.lastChestProgressLabel !== displayLabel) {
+      this.chestProgressLabel.setText(displayLabel);
+      this.lastChestProgressLabel = displayLabel;
     }
   }
 

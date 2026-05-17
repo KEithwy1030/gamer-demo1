@@ -110,6 +110,26 @@ assert.match(
   /goldValue: asNumber\(item\.goldValue, 0\),[\s\S]*treasureValue: asNumber\(item\.treasureValue, 0\),/,
   "match inventory normalization should preserve item value for in-match risk decisions"
 );
+assert.match(
+  gameClientSource,
+  /network\.onChestProgress\(\(payload\) => \{[\s\S]*payload\.playerId !== selfPlayerId[\s\S]*runtime\.setChestProgress\(\{[\s\S]*lane: payload\.lane,[\s\S]*noiseRadius: payload\.noiseRadius/s,
+  "client should consume self chest progress events and preserve contested chest metadata for HUD pressure"
+);
+assert.match(
+  hudSource,
+  /chestProgress\?: \{ progress: number; remainingMs: number; lane\?: "starter" \| "contested"; noiseRadius\?: number \}/,
+  "HUD chest progress state should carry lane metadata"
+);
+assert.match(
+  hudSource,
+  /isContested \? 0xfb923c : 0x4ade80/,
+  "contested chest progress should use danger coloring instead of the safe starter color"
+);
+assert.match(
+  hudSource,
+  /\\u9ad8\\u5371\\u5b9d\\u7bb1\\u00b7\\u5b88\\u536b\\u5df2\\u8b66\\u89c9/,
+  "contested chest progress should tell the player guards are alerted"
+);
 
 assert.match(
   inventoryPanelSource,
