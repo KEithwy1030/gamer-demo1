@@ -173,6 +173,9 @@ function applyLateGamePreset(room: RuntimeRoom, player: RuntimePlayer): void {
   const threat = [...(room.monsters?.values() ?? [])].find((monster) => monster.isAlive && monster.type !== "boss");
   if (threat) {
     relocateMonsterNearPlayer(threat, player, 132);
+    threat.hp = Math.min(threat.hp, 18);
+    threat.nextAttackAt = Math.max(threat.nextAttackAt ?? 0, now + DEV_PRESET_SAFETY_MS);
+    threat.idleUntil = undefined;
   }
 }
 

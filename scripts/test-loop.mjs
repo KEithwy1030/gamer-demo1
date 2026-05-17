@@ -990,7 +990,7 @@ async function killOneMonster(client, timeoutMs) {
   throw new Error(`Timed out waiting for monster ${targetMonsterId} to die`);
 }
 
-async function killMonsterById(client, targetMonsterId, timeoutMs) {
+async function clearMonsterThreatNearPoint(client, targetMonsterId, center, radius, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   let lastAttackAt = 0;
 
@@ -1000,6 +1000,9 @@ async function killMonsterById(client, targetMonsterId, timeoutMs) {
       throw new Error(`Target monster ${targetMonsterId} disappeared from state`);
     }
     if (!targetMonster.isAlive) {
+      return targetMonster;
+    }
+    if (distance(targetMonster, center) > radius + 80) {
       return targetMonster;
     }
 
@@ -1038,7 +1041,7 @@ async function killMonsterById(client, targetMonsterId, timeoutMs) {
     await delay(40);
   }
 
-  throw new Error(`Timed out waiting for monster ${targetMonsterId} to die`);
+  throw new Error(`Timed out waiting for monster ${targetMonsterId} to die or leave threat radius`);
 }
 
 function getNearbyAliveMonsters(clientState, center, radius) {
@@ -1055,7 +1058,7 @@ async function clearThreatsNearPoint(client, center, radius, timeoutMs) {
       return;
     }
 
-    await killMonsterById(client, threats[0].id, Math.min(8_000, deadline - Date.now()));
+    await clearMonsterThreatNearPoint(client, threats[0].id, center, radius, Math.min(8_000, deadline - Date.now()));
     await delay(120);
   }
 

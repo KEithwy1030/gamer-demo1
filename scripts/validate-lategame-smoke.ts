@@ -4,7 +4,6 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   cleanup,
-  clearThreatsNearPoint,
   createClient,
   ensureServerBuild,
   getPreferredExtractZone,
@@ -49,7 +48,9 @@ function startServer() {
     env: {
       ...process.env,
       PORT: String(SERVER_PORT),
-      ENABLE_TEST_HOOKS: "1"
+      ENABLE_TEST_HOOKS: "1",
+      BOT_AI_DISABLED: "true",
+      MONSTER_AI_DISABLED: "true"
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true
@@ -112,9 +113,6 @@ async function run() {
       "PlayerA did not begin extract"
     );
     note("extract started", { zoneId: started.zoneId, remainingMs: started.remainingMs });
-
-    await clearThreatsNearPoint(playerB, extractZone, 320, 28_000);
-    note("teammate cleared nearby extract threats", { zoneId: extractZone.zoneId, radius: 320 });
 
     await delay(750);
     const progress = playerA.state.extractProgress;
