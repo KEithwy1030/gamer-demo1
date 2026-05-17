@@ -1,4 +1,4 @@
-import type { MarketListing, MarketListingItem, MarketSettlementResult, SystemSellMarketResult } from "@gamer/shared";
+import type { MarketListing, MarketListingItem, MarketSettlementReceipt, MarketSettlementResult, SystemSellMarketResult } from "@gamer/shared";
 import type { LocalProfile, LocalProfileItem } from "../profile/localProfile";
 import { resolveServerUrl } from "../network/serverUrl";
 
@@ -74,13 +74,15 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
   );
 
   const listingList = el("div", "market-listings");
-  listingsPanel.append(panelTitle("我的挂单", "独立玩家内存货架"), listingList);
+  const salesList = el("div", "market-sales");
+  listingsPanel.append(panelTitle("我的挂单", "独立玩家内存货架"), listingList, panelTitle("近期成交", "模拟买家回执"), salesList);
   layout.append(sourcePanel, detailPanel, listingsPanel);
   element.append(header, layout);
 
   let currentProfile: LocalProfile | null = null;
   let candidates: LocalProfileItem[] = [];
   let listings: MarketListing[] = [];
+  let recentSales: MarketSettlementReceipt[] = [];
   let selectedItemId: string | null = null;
   let requestVersion = 0;
 
@@ -156,6 +158,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
     sourceList.replaceChildren(...renderCandidateRows(available));
     renderSelected(available.find((item) => item.instanceId === selectedItemId) ?? null);
     listingList.replaceChildren(...renderListingRows());
+    salesList.replaceChildren(...renderSaleRows());
   }
 
   function renderCandidateRows(items: LocalProfileItem[]): HTMLElement[] {
@@ -248,6 +251,21 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
     });
   }
 
+  function renderSaleRows(): HTMLElement[] {
+    if (recentSales.length === 0) {
+      return [empty("暂无成交回执")];
+    }
+
+    return recentSales.map((receipt) => {
+      const row = el("div", "market-sale-row");
+      row.append(
+        itemThumb(receipt.item),
+        itemText(receipt.item.name, receipt.item.rarity ?? "common", `${formatNumber(receipt.price)} 金币 / ${formatRelativeTime(receipt.soldAt)}`)
+      );
+      return row;
+    });
+  }
+
   async function refreshListings(playerId: string): Promise<void> {
     const version = ++requestVersion;
     try {
@@ -257,6 +275,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
         goldValue.textContent = settlement.profileGold.toLocaleString("zh-CN");
         if (settlement.sold.length > 0) {
           const soldGold = settlement.sold.reduce((sum, receipt) => sum + receipt.price, 0);
+          recentSales = [...settlement.sold, ...recentSales].slice(0, 4);
           setStatus(`黑市买家成交 ${settlement.sold.length} 件，入账 ${formatNumber(soldGold)} 金币。`);
           callbacks.onProfileChanged?.();
         } else {

@@ -1405,7 +1405,8 @@ body.stash-dragging * {
   padding-right: 4px;
 }
 .market-source-row,
-.market-listing-row {
+.market-listing-row,
+.market-sale-row {
   width: 100%;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
@@ -1424,6 +1425,19 @@ body.stash-dragging * {
 }
 .market-listing-row {
   grid-template-columns: 44px minmax(0, 1fr) minmax(190px, auto);
+}
+.market-sales {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: 180px;
+  overflow: auto;
+  padding-right: 4px;
+}
+.market-sale-row {
+  border-color: rgba(127, 180, 194, 0.26);
+  background: rgba(127, 180, 194, 0.06);
 }
 .market-item-thumb {
   width: 44px;
