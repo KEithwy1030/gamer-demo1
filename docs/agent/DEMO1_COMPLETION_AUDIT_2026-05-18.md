@@ -37,8 +37,8 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 | Black-market listing and sale flow | `client/src/ui/marketView.ts`, `server/src/market`, `validate:market-lifecycle`, `validate:audio-hooks` | Covered for Demo 1 simulated buyer/system sale; listing/sale payoff now has bitmap item thumbnails and a synthesized market cue |
 | Long-term asset accumulation | `client/src/profile/localProfile.ts`, `client/src/ui/lobbyView.ts`, `validate:profile-carry`, `validate:market-lifecycle` | Covered structurally |
 | Dark medieval scavenger atmosphere | `client/public/assets/generated/`, `client/src/scenes/gameScene/worldBackdrop.ts`, `client/src/audio/gameAudio.ts`, `validate:visual-clarity`, `validate:audio-hooks`, browser smoke evidence | Partially covered; lobby/results backdrop, payoff icons, and synthesized feedback are improved, but final commercial art/audio signoff remains manual |
-| Release-level verification gate | `package.json` `validate:gdd-demo1-contract` and `validate:release-readiness` | Passed on 2026-05-18 at `9642a97`; includes multiclient, combat, loot, tactical consumables, carry, extract, audio, market, pressure, mobile action controls, typecheck, build, and late-game smoke |
-| Browser visual acceptance | `package.json` `accept:visual-readiness`, `.codex-artifacts/game-feel-baseline/` screenshots | Passed on 2026-05-18 at `9642a97`; covers boss combat HUD, inventory overlay, and late-game extraction pressure visibility; not a manual fun signoff |
+| Release-level verification gate | `package.json` `validate:gdd-demo1-contract` and `validate:release-readiness` | Passed on 2026-05-18 at `8ad90ed`; includes multiclient, combat, loot, tactical consumables, carry, extract, audio, market, pressure, monster tuning, mobile action controls, typecheck, build, and late-game smoke |
+| Browser visual acceptance | `package.json` `accept:visual-readiness`, `.codex-artifacts/game-feel-baseline/` screenshots | Passed on 2026-05-18 at `8ad90ed`; covers boss combat HUD, inventory overlay, and late-game extraction pressure visibility; not a manual fun signoff |
 | Mobile action surface | `client/src/input/mobileControls.ts`, `client/src/scenes/gameScene/inputBridge.ts`, `client/src/styles/mobile.css`, `validate:mobile-controls-contract` | Covered structurally for attack, three skills, dodge, pickup, extract, inventory, cooldown display, and dead-state input disablement |
 | Manual release-feel protocol | `docs/agent/MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md` | Defines the required 9-12 minute human playtest scorecard, pass/fail rules, and output format; still requires execution |
 | Playtest note export | `client/src/results/ResultsOverlay.ts`, `client/src/ui/lobbyView.ts`, `client/vite.config.ts`, `scripts/validate-results-overlay.ts`, `scripts/validate-settlement-details.ts` | Results overlay and lobby recent-run card both expose a structured copyable manual playtest note from settlement data, including build commit, pressure phase, combat contacts, item value, loadout loss, next-run prompt, and timestamp prompts; the lobby also copies a build-stamped blank playtest template before the first run, and both the results card and lobby recent-run card show the build tag directly so testers can capture the required evidence quickly |
@@ -75,7 +75,7 @@ This now expands to the broader GDD Demo 1 contract, including the isolated-port
 
 Latest automated evidence captured on 2026-05-18:
 
-- `npm run validate:launch-readiness` passed at `9642a97` and is tagged as `launch-readiness-checkpoint-20260518-f`.
+- `npm run validate:launch-readiness` passed at `8ad90ed` and is tagged as `launch-readiness-checkpoint-20260518-g`.
 - `npm run validate:release-readiness` passed inside that launch gate after `validate:dev-cors-contract`, `validate:tactical-consumables`, `validate:audio-hooks`, and `validate:mobile-controls-contract` were added to `validate:gdd-demo1-contract`.
 - `npm run accept:visual-readiness` passed inside that launch gate.
 - `validate:dev-cors-contract` now guards the `ENABLE_TEST_HOOKS=1` CORS path used by dev acceptance launchers and late-game smoke.
@@ -84,7 +84,7 @@ Latest automated evidence captured on 2026-05-18:
 - `validate:monster-tuning-contract` now guards normal/elite monster speed, attack range, attack damage, aggro range, and leash range against GDD section 18.3.
 - `validate:results-overlay` and `validate:settlement-details` now guard the settlement next-run prompt and copied playtest note replay-intent field.
 - `validate:mobile-controls-contract` now guards mobile combat/action button coverage, cooldown display, and dead-state input disabling inside the GDD release gate.
-- The latest launch gate also verified the market audio teardown cleanup from `9642a97` with `npm run validate:audio-hooks` and `npm run typecheck`, and post-run checks found no lingering listeners on `3000`, `5173`, `4173`, `8791`, `9323`, `3191`, `3210`, or `3212`.
+- The latest launch gate also verified the market audio teardown cleanup lineage, expanded monster tuning contract, and settlement replay prompt wiring; post-run checks found no lingering listeners on `3000`, `5173`, `4173`, `8791`, `9323`, `3191`, `3210`, or `3212`.
 - Playwright visual spot-check confirmed the lobby recent-run card renders a build tag on `http://127.0.0.1:5173/`.
 - The shared lobby/results backdrop asset at `client/public/assets/generated/lobby-black-market-backdrop.png` was replaced with a fuller battlefield/black-market scene; the spot-check screenshot is stored at `.codex-artifacts/lobby-buildtag-backdrop-check.png`.
 - `npm run accept:visual-readiness` passed again after the backdrop replacement.
