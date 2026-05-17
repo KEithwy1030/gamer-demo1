@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { MarketStore } from "../server/src/market-store.ts";
@@ -23,6 +23,8 @@ function listProfileItems(profile: ReturnType<ProfileStore["get"]>): string[] {
 const tmp = mkdtempSync(path.join(tmpdir(), "gamer-market-"));
 
 try {
+  assertMarketUiCopyMatchesSettlementContract();
+
   const profileStore = new ProfileStore(path.join(tmp, "profiles.json"));
   const marketStore = new MarketStore(profileStore, path.join(tmp, "market.json"), 0);
   const profileId = "profile-market-contract";
@@ -95,6 +97,12 @@ try {
   console.log("[market-lifecycle] PASS settleRun -> create -> update -> cancel -> systemSell -> buyerSettle preserves ownership and payout");
 } finally {
   rmSync(tmp, { recursive: true, force: true });
+}
+
+function assertMarketUiCopyMatchesSettlementContract(): void {
+  const marketView = readFileSync(new URL("../client/src/ui/marketView.ts", import.meta.url), "utf8");
+  assert(marketView.includes("模拟买家成交已接线"), "market header should tell players simulated buyer settlement is available");
+  assert(!marketView.includes("成交暂不开放"), "market header should not claim settlement is unavailable after buyer settlement is implemented");
 }
 
 function createOverflowSettlementInventory(): InventoryState {

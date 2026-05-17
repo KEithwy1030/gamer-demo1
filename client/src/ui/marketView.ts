@@ -29,7 +29,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
   left.append(
     stamp("BLACK MARKET"),
     title("黑市"),
-    sub("挂单流程已接线；成交暂不开放。"),
+    sub("挂单、急售与模拟买家成交已接线。"),
   );
   const right = el("div", "view-header-right");
   right.append(stamp("金库"));
