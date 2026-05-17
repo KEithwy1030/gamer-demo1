@@ -38,10 +38,11 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 | Dark medieval scavenger atmosphere | `client/public/assets/generated/`, `client/src/scenes/gameScene/worldBackdrop.ts`, `validate:visual-clarity`, browser smoke evidence | Partially covered; commercial art pass remains open |
 | Release-level verification gate | `package.json` `validate:gdd-demo1-contract` and `validate:release-readiness` | Added in this slice; must be run before checkpoint |
 | Browser visual acceptance | `package.json` `accept:visual-readiness`, `.codex-artifacts/game-feel-baseline/` screenshots | Covers boss combat HUD, inventory overlay, and late-game extraction pressure visibility; not a manual fun signoff |
+| Manual release-feel protocol | `docs/agent/MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md` | Defines the required 9-12 minute human playtest scorecard, pass/fail rules, and output format; still requires execution |
 
 ## Explicitly uncovered or weak areas
 
-- Manual long-session balance: 9-12 minute ideal extraction timing cannot be proven by deterministic tests.
+- Manual long-session balance: 9-12 minute ideal extraction timing cannot be proven by deterministic tests; `MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md` now defines the required evidence format.
 - Real multi-human PvPvE feel: socket contracts prove protocol shape, not player tension or combat readability under human pressure.
 - Commercial art polish: generated assets and visual clarity tests exist, but the game is not yet at final store-ready art direction.
 - Browser/mobile hands-on comfort: automation can catch layout and console failures, but not actual play feel.
@@ -49,7 +50,7 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 
 ## Next implementation target
 
-The highest-value next slice is manual/playtest-facing: run a focused 9-12 minute extraction session and record whether corpse-fog pressure, contested resources, black-market payoff, and death-loss tension feel readable and worth replaying. Automation now covers the major structural Demo 1 contracts, but it cannot prove human tension.
+The highest-value next slice is manual/playtest-facing: run the focused 9-12 minute extraction session defined in `MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md` and record whether corpse-fog pressure, contested resources, black-market payoff, and death-loss tension feel readable and worth replaying. Automation now covers the major structural Demo 1 contracts, but it cannot prove human tension.
 
 ## Verification command
 
