@@ -46,6 +46,7 @@ const ITEM_PRESETS: Record<string, ItemPresentationPreset> = {
   treasure_small_idol: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_small_idol_v2.png", names: ["小型偶像", "小型神像", "Small Idol"] },
   treasure_medium_tablet: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_stone_tablet_v2.png", names: ["石刻碑板", "Stone Tablet"] },
   treasure_large_statue: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_broken_statue_v2.png", names: ["残破雕像", "残损雕像", "Broken Statue"] },
+  treasure_cursed_reliquary: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_broken_statue_v2.png", names: ["咒缚遗钉", "Cursed Reliquary"] },
   gold_pouch: { icon: "◎", badge: "金", categoryLabel: "金币", variant: "currency", assetPath: "assets/generated/image2_processed/items/icon_gold_pouch_v2.png", names: ["金币袋", "Gold Pouch"] },
   health_potion: { icon: "🧪", badge: "药", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_health_potion_v2.png", names: ["回血药剂", "回血药", "Health Potion"] },
   coagulant_bandage: { icon: "🧪", badge: "绷", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_consumable_bandage_v1.png", names: ["凝血绷带", "Coagulant Bandage"] },

@@ -239,7 +239,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   },
   treasure_cursed_reliquary: {
     id: "treasure_cursed_reliquary",
-    name: "咒绱遗钉",
+    name: "咒缚遗钉",
     category: "treasure",
     rarity: "epic",
     size: { width: 2, height: 2 },

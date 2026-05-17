@@ -64,7 +64,7 @@ export function createNetworkLobbyController(
         pendingVoidAction = null;
         runtimeApi?.setState({
           screen: "transitioning",
-          infoMessage: "鍖归厤宸插紑濮嬶紝姝ｅ湪杩涘叆浣滄垬鍦板浘...",
+          infoMessage: "匹配已开始，正在进入作战地图...",
           errorMessage: null
         });
         onMatchStarted?.(payload);
