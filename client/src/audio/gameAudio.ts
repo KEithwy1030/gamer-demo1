@@ -5,6 +5,7 @@ export type GameAudioCue =
   | "pickup"
   | "chest"
   | "extract"
+  | "market"
   | "death"
   | "warning";
 
@@ -23,6 +24,7 @@ const CUE_SHAPES: Record<GameAudioCue, CueShape> = {
   pickup: { frequency: 520, durationMs: 90, type: "triangle", gain: 0.045, slideTo: 760 },
   chest: { frequency: 310, durationMs: 160, type: "triangle", gain: 0.05, slideTo: 210 },
   extract: { frequency: 220, durationMs: 240, type: "sine", gain: 0.06, slideTo: 440 },
+  market: { frequency: 620, durationMs: 130, type: "triangle", gain: 0.044, slideTo: 930 },
   death: { frequency: 88, durationMs: 240, type: "sawtooth", gain: 0.07, slideTo: 38 },
   warning: { frequency: 190, durationMs: 150, type: "square", gain: 0.042, slideTo: 190 }
 };

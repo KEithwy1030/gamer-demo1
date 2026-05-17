@@ -3,8 +3,9 @@ import { readFileSync } from "node:fs";
 
 const audioSource = readFileSync("client/src/audio/gameAudio.ts", "utf8");
 const clientSource = readFileSync("client/src/scenes/createGameClient.ts", "utf8");
+const marketSource = readFileSync("client/src/ui/marketView.ts", "utf8");
 
-for (const cue of ["attack", "hit", "hurt", "pickup", "chest", "extract", "death", "warning"]) {
+for (const cue of ["attack", "hit", "hurt", "pickup", "chest", "extract", "market", "death", "warning"]) {
   assert.match(audioSource, new RegExp(`${cue}:\\s*\\{`), `audio cue ${cue} should have a synthesized shape`);
 }
 
@@ -18,5 +19,7 @@ for (const cue of ["attack", "hit", "hurt", "pickup", "chest", "extract", "death
 }
 
 assert.match(clientSource, /audio\.destroy\(\)/, "game client should clean up audio listeners on destroy");
+assert.match(marketSource, /new GameAudioController\(\)/, "black-market UI should own a lightweight audio controller");
+assert.match(marketSource, /audio\.play\("market"\)/, "black-market payoff actions should play the market cue");
 
 console.log("[audio-hooks] PASS synthesized audio cues are wired to gameplay events");

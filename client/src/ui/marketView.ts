@@ -1,4 +1,5 @@
 import type { MarketListing, MarketListingItem, MarketSettlementReceipt, MarketSettlementResult, SystemSellMarketResult } from "@gamer/shared";
+import { GameAudioController } from "../audio/gameAudio";
 import type { LocalProfile, LocalProfileItem } from "../profile/localProfile";
 import { resolveServerUrl } from "../network/serverUrl";
 import { getItemPresentation } from "./itemPresentation";
@@ -22,6 +23,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
 };
 
 export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketViewApi {
+  const audio = new GameAudioController();
   const element = el("section", "view-market");
   element.hidden = true;
 
@@ -104,6 +106,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
       selectedItemId = null;
       priceInput.value = "";
       setStatus("已挂出，等待买家。");
+      audio.play("market");
       callbacks.onProfileChanged?.();
       renderAll();
     } catch (error) {
@@ -130,6 +133,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
       goldValue.textContent = result.profileGold.toLocaleString("zh-CN");
       recentSales = [result.receipt, ...recentSales].slice(0, 4);
       setStatus(`系统急售完成，入账 ${formatNumber(result.goldDelta)} 金币。`);
+      audio.play("market");
       callbacks.onProfileChanged?.();
       renderAll();
     } catch (error) {
@@ -282,6 +286,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
         if (settlement.sold.length > 0) {
           const soldGold = settlement.sold.reduce((sum, receipt) => sum + receipt.price, 0);
           setStatus(`黑市买家成交 ${settlement.sold.length} 件，入账 ${formatNumber(soldGold)} 金币。`);
+          audio.play("market");
           callbacks.onProfileChanged?.();
         } else {
           setStatus("");
