@@ -78,6 +78,12 @@ async function validateTwoClientJoin(options: {
 
     const hostMatchPromise = waitForMatchStarted(host);
     const guestMatchPromise = waitForMatchStarted(guest);
+    const hostPlayersPromise = waitForSocketEvent<Array<{ id: string; name: string }>>(host, SocketEvent.StatePlayers, "host state players");
+    const guestPlayersPromise = waitForSocketEvent<Array<{ id: string; name: string }>>(guest, SocketEvent.StatePlayers, "guest state players");
+    const monstersPromise = waitForSocketEvent<unknown[]>(host, SocketEvent.StateMonsters, "state monsters");
+    const dropsPromise = waitForSocketEvent<unknown[]>(host, SocketEvent.StateDrops, "state drops");
+    const timerPromise = waitForSocketEvent<number>(host, SocketEvent.MatchTimer, "match timer");
+    const chestsPromise = waitForSocketEvent<unknown[]>(host, SocketEvent.ChestsInit, "chests init");
     host.emit(SocketEvent.RoomStart, { botDifficulty: "normal" });
     const [hostMatch, guestMatch] = await Promise.all([hostMatchPromise, guestMatchPromise]);
     assert.equal(hostMatch.room.code, hostRoom.code, "host match payload should preserve room code");
@@ -89,6 +95,21 @@ async function validateTwoClientJoin(options: {
     assert.ok(hostMatch.room.players.some((player) => player.isBot && player.squadId === "bot_alpha"), "match payload should include bot opposition");
     assert.equal(hostMatch.selfPlayerId, host.id, "host should receive a host-specific match payload");
     assert.equal(guestMatch.selfPlayerId, guest.id, "guest should receive a guest-specific match payload");
+
+    const [hostPlayers, guestPlayers, monsters, drops, timer, chests] = await Promise.all([
+      hostPlayersPromise,
+      guestPlayersPromise,
+      monstersPromise,
+      dropsPromise,
+      timerPromise,
+      chestsPromise
+    ]);
+    assert.ok(hostPlayers.some((player) => player.name === options.hostName), "host should receive started player state stream");
+    assert.ok(guestPlayers.some((player) => player.name === options.guestName), "guest should receive started player state stream");
+    assert.ok(monsters.length > 0, "started match should broadcast initial monsters");
+    assert.ok(Array.isArray(drops), "started match should broadcast initial drop state");
+    assert.ok(Number.isFinite(timer) && timer > 0, "started match should broadcast remaining timer");
+    assert.ok(chests.length > 0, "started match should broadcast initial chest state");
 
     return hostRoom.code;
   } finally {
@@ -115,6 +136,30 @@ function emitAndWaitForRoomState(socket: Socket, eventName: string, payload: unk
   const promise = waitForRoomState(socket);
   socket.emit(eventName, payload);
   return promise;
+}
+
+function waitForSocketEvent<T>(socket: Socket, eventName: string, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for ${label}`));
+    }, 5_000);
+    const onEvent = (payload: T) => {
+      cleanup();
+      resolve(payload);
+    };
+    const onError = (payload: { message?: string }) => {
+      cleanup();
+      reject(new Error(payload.message ?? "Room error"));
+    };
+    const cleanup = () => {
+      clearTimeout(timeout);
+      socket.off(eventName, onEvent);
+      socket.off(SocketEvent.RoomError, onError);
+    };
+    socket.on(eventName, onEvent);
+    socket.on(SocketEvent.RoomError, onError);
+  });
 }
 
 function waitForMatchStarted(socket: Socket): Promise<MatchStartedPayload> {
