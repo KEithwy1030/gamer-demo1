@@ -23,6 +23,7 @@
     "validate:map-hazards": "tsx scripts/validate-map-hazards.ts",
     "validate:miasma-pipeline": "tsx scripts/validate-miasma-pipeline.ts",
     "validate:extraction-pressure": "npm run build --workspace shared && tsx scripts/validate-extraction-pressure.ts",
+    "validate:loot-depth": "npm run build --workspace shared && tsx scripts/validate-loot-depth.ts",
     "validate:results-overlay": "tsx scripts/validate-results-overlay.ts",
     "validate:settlement-details": "tsx scripts/validate-settlement-details.ts",
     "validate:lock-assist": "tsx scripts/validate-lock-assist.ts",

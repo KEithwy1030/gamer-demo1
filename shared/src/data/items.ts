@@ -145,6 +145,50 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
     goldAmount: 14,
     stats: { moveSpeedBonus: 18 }
   },
+  hunter_cowl: {
+    id: "hunter_cowl",
+    name: "缇夜猎屏",
+    category: "armor",
+    rarity: "uncommon",
+    size: { width: 2, height: 2 },
+    slot: "head",
+    armorType: "head",
+    goldAmount: 24,
+    stats: { maxHpBonus: 8, dodgeRate: 0.03 }
+  },
+  runner_boots: {
+    id: "runner_boots",
+    name: "步境蹈靴",
+    category: "armor",
+    rarity: "uncommon",
+    size: { width: 2, height: 2 },
+    slot: "shoes",
+    armorType: "shoes",
+    goldAmount: 28,
+    stats: { moveSpeedBonus: 26, dodgeRate: 0.04 }
+  },
+  duelist_blade: {
+    id: "duelist_blade",
+    name: "双刃绿刀",
+    category: "weapon",
+    rarity: "rare",
+    size: { width: 1, height: 3 },
+    slot: "weapon",
+    weaponType: "blade",
+    goldAmount: 72,
+    stats: { attackPower: 6, attackSpeedBonus: 0.12, critRate: 0.05 }
+  },
+  warlord_cuirass: {
+    id: "warlord_cuirass",
+    name: "战主钉胸甲",
+    category: "armor",
+    rarity: "epic",
+    size: { width: 2, height: 3 },
+    slot: "chest",
+    armorType: "chest",
+    goldAmount: 120,
+    stats: { maxHpBonus: 32, damageReduction: 0.08, hpRegen: 1 }
+  },
   trail_greaves: {
     id: "trail_greaves",
     name: "径行胫甲",
@@ -192,6 +236,15 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
     size: { width: 2, height: 2 },
     treasureSize: "large",
     treasureValue: 220
+  },
+  treasure_cursed_reliquary: {
+    id: "treasure_cursed_reliquary",
+    name: "咒绱遗钉",
+    category: "treasure",
+    rarity: "epic",
+    size: { width: 2, height: 2 },
+    treasureSize: "large",
+    treasureValue: 360
   },
   gold_pouch: {
     id: "gold_pouch",

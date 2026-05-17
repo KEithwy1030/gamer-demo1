@@ -3,6 +3,8 @@ import { buildInventoryItem, ensureDropState } from "../loot/loot-manager.js";
 import type { Chest, ChestOpenedPayload, ChestProgressPayload, DropState, InventoryItem, RuntimeRoom } from "../types.js";
 
 const STARTER_LOOT_TEMPLATES = [
+  "hunter_cowl",
+  "runner_boots",
   "armor_hands_common",
   "armor_feet_common",
   "weapon_sword_basic",
@@ -28,14 +30,16 @@ function pickStarterLootItem(): InventoryItem | undefined {
 
 function pickContestedLootItem(): InventoryItem | undefined {
   const templateId = pickWeighted([
-    { templateId: "treasure_small_idol", weight: 12 },
-    { templateId: "treasure_medium_tablet", weight: 26 },
-    { templateId: "treasure_large_statue", weight: 14 },
-    { templateId: "armor_head_common", weight: 13 },
-    { templateId: "armor_chest_common", weight: 13 },
-    { templateId: "weapon_spear_basic", weight: 10 },
-    { templateId: "weapon_blade_basic", weight: 6 },
-    { templateId: "weapon_sword_basic", weight: 6 }
+    { templateId: "treasure_cursed_reliquary", weight: 10 },
+    { templateId: "duelist_blade", weight: 15 },
+    { templateId: "warlord_cuirass", weight: 12 },
+    { templateId: "runner_boots", weight: 13 },
+    { templateId: "hunter_cowl", weight: 13 },
+    { templateId: "treasure_large_statue", weight: 10 },
+    { templateId: "treasure_medium_tablet", weight: 10 },
+    { templateId: "weapon_spear_basic", weight: 8 },
+    { templateId: "weapon_blade_basic", weight: 5 },
+    { templateId: "weapon_sword_basic", weight: 4 }
   ]).templateId;
   return buildInventoryItem(templateId, "elite");
 }
@@ -56,7 +60,7 @@ function generateStarterChestLoot(): InventoryItem[] {
 
 function generateContestedChestLoot(): InventoryItem[] {
   const count = CONTESTED_MIN_LOOT + Math.floor(Math.random() * (CONTESTED_MAX_LOOT - CONTESTED_MIN_LOOT + 1));
-  const guaranteedTreasure = buildInventoryItem(Math.random() < 0.65 ? "treasure_medium_tablet" : "treasure_large_statue", "elite");
+  const guaranteedTreasure = buildInventoryItem("treasure_cursed_reliquary", "elite");
   const loot: InventoryItem[] = guaranteedTreasure ? [guaranteedTreasure] : [];
 
   while (loot.length < count) {

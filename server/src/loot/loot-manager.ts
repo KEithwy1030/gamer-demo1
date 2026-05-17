@@ -22,34 +22,40 @@ interface QualityWeight {
 
 const NORMAL_DROP_RATE = 0.5;
 const NORMAL_DROP_TABLE: WeightedDefinition[] = [
-  { definitionId: "treasure_small_idol", weight: 17 },
-  { definitionId: "armor_hands_common", weight: 17 },
-  { definitionId: "armor_feet_common", weight: 17 },
-  { definitionId: "weapon_sword_basic", weight: 17 },
-  { definitionId: "weapon_blade_basic", weight: 17 },
-  { definitionId: "health_potion", weight: 15 }
+  { definitionId: "hunter_cowl", weight: 24 },
+  { definitionId: "treasure_small_idol", weight: 16 },
+  { definitionId: "armor_hands_common", weight: 15 },
+  { definitionId: "armor_feet_common", weight: 15 },
+  { definitionId: "weapon_sword_basic", weight: 14 },
+  { definitionId: "weapon_blade_basic", weight: 14 },
+  { definitionId: "health_potion", weight: 12 }
 ];
 
 const ELITE_DROP_TABLE: WeightedDefinition[] = [
-  { definitionId: "treasure_medium_tablet", weight: 15 },
-  { definitionId: "treasure_large_statue", weight: 15 },
-  { definitionId: "armor_head_common", weight: 15 },
-  { definitionId: "armor_chest_common", weight: 15 },
-  { definitionId: "weapon_spear_basic", weight: 15 },
-  { definitionId: "health_potion", weight: 25 }
+  { definitionId: "duelist_blade", weight: 18 },
+  { definitionId: "runner_boots", weight: 14 },
+  { definitionId: "treasure_medium_tablet", weight: 14 },
+  { definitionId: "treasure_large_statue", weight: 12 },
+  { definitionId: "armor_head_common", weight: 12 },
+  { definitionId: "armor_chest_common", weight: 12 },
+  { definitionId: "weapon_spear_basic", weight: 10 },
+  { definitionId: "health_potion", weight: 18 }
 ];
 
 const BOSS_DROP_TABLE: WeightedDefinition[] = [
-  { definitionId: "treasure_large_statue", weight: 28 },
-  { definitionId: "treasure_medium_tablet", weight: 18 },
-  { definitionId: "weapon_spear_basic", weight: 18 },
-  { definitionId: "armor_chest_common", weight: 16 },
-  { definitionId: "health_potion", weight: 20 }
+  { definitionId: "warlord_cuirass", weight: 24 },
+  { definitionId: "duelist_blade", weight: 20 },
+  { definitionId: "runner_boots", weight: 10 },
+  { definitionId: "treasure_large_statue", weight: 20 },
+  { definitionId: "treasure_medium_tablet", weight: 16 },
+  { definitionId: "weapon_spear_basic", weight: 14 },
+  { definitionId: "health_potion", weight: 16 }
 ];
 
 const BOSS_HIGH_VALUE_DROP_TABLE: WeightedDefinition[] = [
-  { definitionId: "treasure_large_statue", weight: 3 },
-  { definitionId: "treasure_medium_tablet", weight: 2 }
+  { definitionId: "treasure_cursed_reliquary", weight: 3 },
+  { definitionId: "treasure_large_statue", weight: 2 },
+  { definitionId: "treasure_medium_tablet", weight: 1 }
 ];
 
 const NORMAL_QUALITY_WEIGHTS: QualityWeight[] = [
