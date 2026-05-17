@@ -305,7 +305,7 @@ function replaceItems(container: HTMLElement, items: SettlementItemDetail[]): vo
       entry.className = `results-item-card results-item-card--${presentation.variant}`;
       entry.setAttribute("data-rarity", item.rarity ?? "common");
       entry.innerHTML = `
-        <span class="results-item-card__icon">${presentation.icon}</span>
+        <span class="results-item-card__icon">${presentation.iconSvg}</span>
         <span class="results-item-card__body">
           <span class="results-item-card__name">${escapeHtml(item.name)}</span>
           <span class="results-item-card__meta">${escapeHtml(presentation.detailLabel)}</span>

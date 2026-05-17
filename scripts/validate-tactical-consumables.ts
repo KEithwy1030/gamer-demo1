@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ITEM_DEFINITIONS } from "@gamer/shared";
@@ -13,6 +13,7 @@ const now = Date.now();
 const repoRoot = fileURLToPath(new URL("../", import.meta.url));
 
 validateDefinitions();
+validateConsumableIconSurfaces();
 validateBandageCleanse();
 validateStimulantBoost();
 validateMiasmaTonicMitigation();
@@ -45,6 +46,22 @@ function validateDefinitions(): void {
       `${id} icon asset should exist on disk: ${assetPath}`
     );
   }
+}
+
+function validateConsumableIconSurfaces(): void {
+  const resultsOverlaySource = readFileSync(path.join(repoRoot, "client", "src", "results", "ResultsOverlay.ts"), "utf8");
+  const marketViewSource = readFileSync(path.join(repoRoot, "client", "src", "ui", "marketView.ts"), "utf8");
+
+  assert.match(
+    resultsOverlaySource,
+    /<span class="results-item-card__icon">\$\{presentation\.iconSvg\}<\/span>/,
+    "settlement cards should render item bitmap icons, not only glyph fallbacks"
+  );
+  assert.match(
+    marketViewSource,
+    /const presentation = getItemPresentation\(item\);[\s\S]*thumb\.innerHTML = presentation\.iconSvg;/,
+    "black-market rows should render the same item bitmap icons as the backpack"
+  );
 }
 
 function validateBandageCleanse(): void {

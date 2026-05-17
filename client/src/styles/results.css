@@ -227,6 +227,17 @@
   font-size: 16px;
 }
 
+.results-item-card__icon .inventory-item-icon__image {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.results-item-card__icon .inventory-item-icon__glyph {
+  color: var(--results-bone);
+  font-size: 16px;
+}
+
 .results-item-card__body {
   display: grid;
   min-width: 0;

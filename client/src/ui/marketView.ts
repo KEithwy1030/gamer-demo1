@@ -1,6 +1,7 @@
 import type { MarketListing, MarketListingItem, MarketSettlementReceipt, MarketSettlementResult, SystemSellMarketResult } from "@gamer/shared";
 import type { LocalProfile, LocalProfileItem } from "../profile/localProfile";
 import { resolveServerUrl } from "../network/serverUrl";
+import { getItemPresentation } from "./itemPresentation";
 
 export interface MarketViewApi {
   readonly element: HTMLElement;
@@ -334,9 +335,10 @@ function panelTitle(text: string, meta: string): HTMLElement {
   return head;
 }
 
-function itemThumb(item: Pick<MarketListingItem, "rarity" | "kind">): HTMLElement {
+function itemThumb(item: Pick<MarketListingItem, "definitionId" | "name" | "rarity" | "kind">): HTMLElement {
   const thumb = el("div", `market-item-thumb tier-${item.rarity ?? "common"}`);
-  thumb.append(el("div", "mt-shape", item.kind === "weapon" ? "刃" : item.kind === "armor" ? "甲" : "货"));
+  const presentation = getItemPresentation(item);
+  thumb.innerHTML = presentation.iconSvg;
   return thumb;
 }
 

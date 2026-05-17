@@ -1468,6 +1468,17 @@ body.stash-dragging * {
   font-size: 16px;
   font-weight: 700;
 }
+.market-item-thumb .inventory-item-icon__image {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+.market-item-thumb .inventory-item-icon__glyph {
+  color: var(--bone-dim);
+  font-family: var(--display-cn);
+  font-size: 16px;
+  font-weight: 700;
+}
 .market-item-text {
   min-width: 0;
 }
