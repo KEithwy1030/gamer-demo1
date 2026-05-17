@@ -17,6 +17,10 @@ assert.match(source, /复制测评记录/, "results overlay should surface a pla
 
 assert.match(styles, /\.results-items-list \{[\s\S]*grid-template-columns:\s*repeat\(auto-fit, minmax\(170px, 1fr\)\);/s, "results overlay cards should use a responsive grid");
 assert.match(styles, /\.results-item-card \{[\s\S]*grid-template-columns:\s*28px minmax\(0, 1fr\) auto;/s, "results loot cards should keep icon, body, and value lanes stable");
+assert.match(styles, /url\("\/assets\/generated\/lobby-black-market-backdrop\.png"\)/, "results overlay should reuse the generated camp backdrop");
+assert.match(styles, /@media \(max-width: 560px\) \{[\s\S]*\.results-card \{[\s\S]*max-height:\s*calc\(100dvh - 24px\);[\s\S]*overflow-y:\s*auto;/s, "mobile results card should stay scrollable within the viewport");
+assert.match(styles, /@media \(max-width: 560px\) \{[\s\S]*\.results-items-list \{[\s\S]*grid-template-columns:\s*1fr;/s, "mobile results loot list should collapse to one column");
+assert.match(styles, /@media \(max-width: 560px\) \{[\s\S]*\.results-actions \{[\s\S]*flex-direction:\s*column;/s, "mobile results actions should stack vertically");
 
 assert.match(extractService, /extractedItemDetails: extractedItems\.details/, "server settlement should expose extracted item details");
 assert.match(extractService, /lostItemDetails: lostItems\.details/, "server failure settlement should expose lost item details");
