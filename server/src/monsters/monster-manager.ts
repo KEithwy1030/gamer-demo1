@@ -41,6 +41,7 @@ import {
 } from "../internal-constants.js";
 import { createDropsForMonster, listWorldDrops } from "../loot/loot-manager.js";
 import {
+  addTimedModifier,
   consumePendingBasicAttack,
   getBasicAttackBonusDamage,
   scaleOutgoingDamage,
@@ -103,6 +104,8 @@ const BOSS_RECOVER_HP_PER_SECOND = 18;
 const MONSTER_ATTACK_WINDUP_MS = 280;
 const ELITE_ATTACK_WINDUP_MS = 420;
 const MONSTER_ATTACK_RECOVER_MS = 220;
+const ELITE_HEAVY_STRIKE_SLOW_MULTIPLIER = 0.25;
+const ELITE_HEAVY_STRIKE_SLOW_DURATION_MS = 1400;
 
 export interface PlayerAttackOutcome {
   monsters: MonsterState[];
@@ -1346,13 +1349,36 @@ function applyMonsterDamage(monster: RuntimeMonster, target: RuntimePlayer, base
     target.state!.direction = { x: 0, y: 1 };
   }
 
+  const statusApplied = applyEliteHeavyStrike(monster, target, now);
+
   return {
     attackerId: monster.id,
     targetId: target.id,
     amount: mitigatedDamage,
+    statusApplied,
     targetHp: target.state!.hp,
     targetAlive: target.state!.isAlive
   };
+}
+
+function applyEliteHeavyStrike(
+  monster: RuntimeMonster,
+  target: RuntimePlayer,
+  now: number
+): CombatEventPayload["statusApplied"] {
+  if (monster.type !== "elite" || !target.state?.isAlive) {
+    return undefined;
+  }
+
+  addTimedModifier(target, {
+    sourceId: monster.id,
+    type: "slow",
+    expiresAt: now + ELITE_HEAVY_STRIKE_SLOW_DURATION_MS,
+    magnitude: ELITE_HEAVY_STRIKE_SLOW_MULTIPLIER,
+    moveSpeedMultiplier: -ELITE_HEAVY_STRIKE_SLOW_MULTIPLIER
+  }, now);
+
+  return ["slow"];
 }
 
 function getNonBossAttackWindupMs(monster: RuntimeMonster): number {
