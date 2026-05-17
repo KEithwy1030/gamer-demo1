@@ -126,6 +126,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
       selectedItemId = null;
       priceInput.value = "";
       goldValue.textContent = result.profileGold.toLocaleString("zh-CN");
+      recentSales = [result.receipt, ...recentSales].slice(0, 4);
       setStatus(`系统急售完成，入账 ${formatNumber(result.goldDelta)} 金币。`);
       callbacks.onProfileChanged?.();
       renderAll();
@@ -273,9 +274,9 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
       if (version === requestVersion) {
         listings = settlement.listings;
         goldValue.textContent = settlement.profileGold.toLocaleString("zh-CN");
+        recentSales = settlement.sales;
         if (settlement.sold.length > 0) {
           const soldGold = settlement.sold.reduce((sum, receipt) => sum + receipt.price, 0);
-          recentSales = [...settlement.sold, ...recentSales].slice(0, 4);
           setStatus(`黑市买家成交 ${settlement.sold.length} 件，入账 ${formatNumber(soldGold)} 金币。`);
           callbacks.onProfileChanged?.();
         } else {

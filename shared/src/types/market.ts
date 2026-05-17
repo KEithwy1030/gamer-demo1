@@ -35,6 +35,7 @@ export interface MarketSettlementReceipt {
 export interface MarketSettlementResult {
   listings: MarketListing[];
   sold: MarketSettlementReceipt[];
+  sales: MarketSettlementReceipt[];
   profileGold: number;
 }
 
@@ -58,4 +59,5 @@ export interface SystemSellMarketResult {
   item: MarketListingItem;
   goldDelta: number;
   profileGold: number;
+  receipt: MarketSettlementReceipt;
 }

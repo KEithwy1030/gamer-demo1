@@ -20,6 +20,7 @@ const BUYER_MAX_PRICE_RATIO = 1.15;
 
 export class MarketStore {
   private readonly listingsByPlayerId = new Map<string, MarketListing[]>();
+  private readonly saleHistoryByPlayerId = new Map<string, MarketSettlementReceipt[]>();
 
   constructor(
     private readonly profileStore: ProfileStore,
@@ -31,6 +32,10 @@ export class MarketStore {
 
   list(playerId: string): MarketListing[] {
     return (this.listingsByPlayerId.get(playerId) ?? []).map(cloneListing);
+  }
+
+  listSales(playerId: string): MarketSettlementReceipt[] {
+    return (this.saleHistoryByPlayerId.get(playerId) ?? []).map((receipt) => ({ ...receipt, item: { ...receipt.item } }));
   }
 
   create(payload: CreateMarketListingPayload): MarketListing {
@@ -69,10 +74,21 @@ export class MarketStore {
     const listingItem = buildListingItem(item, template);
     const goldDelta = estimateSystemSellPrice(listingItem);
     const profile = this.profileStore.addGold(playerId, goldDelta);
+    const receipt: MarketSettlementReceipt = {
+      listingId: `system-${randomUUID()}`,
+      item: listingItem,
+      price: goldDelta,
+      soldAt: Date.now()
+    };
+    const history = this.saleHistoryByPlayerId.get(playerId) ?? [];
+    history.unshift(receipt);
+    this.saleHistoryByPlayerId.set(playerId, history.slice(0, 8));
+    this.save();
     return {
       item: listingItem,
       goldDelta,
-      profileGold: profile.gold
+      profileGold: profile.gold,
+      receipt
     };
   }
 
@@ -100,6 +116,11 @@ export class MarketStore {
     for (const receipt of sold) {
       profileGold = this.profileStore.addGold(ownerId, receipt.price).gold;
     }
+    if (sold.length > 0) {
+      const history = this.saleHistoryByPlayerId.get(ownerId) ?? [];
+      history.unshift(...sold);
+      this.saleHistoryByPlayerId.set(ownerId, history.slice(0, 8));
+    }
 
     if (active.length > 0) {
       this.listingsByPlayerId.set(ownerId, active);
@@ -113,6 +134,7 @@ export class MarketStore {
     return {
       listings: active.map(cloneListing),
       sold,
+      sales: this.listSales(ownerId).slice(0, 4),
       profileGold
     };
   }
@@ -165,8 +187,9 @@ export class MarketStore {
     }
     try {
       const parsed = JSON.parse(readFileSync(this.filePath, "utf8")) as unknown;
-      const records = isRecord(parsed) && Array.isArray(parsed.listings) ? parsed.listings : [];
-      for (const raw of records) {
+      const listingRecords = isRecord(parsed) && Array.isArray(parsed.listings) ? parsed.listings : [];
+      const saleRecords = isRecord(parsed) && Array.isArray(parsed.sales) ? parsed.sales : [];
+      for (const raw of listingRecords) {
         const listing = normalizeListing(raw);
         if (!listing) {
           continue;
@@ -175,15 +198,29 @@ export class MarketStore {
         listings.push(listing);
         this.listingsByPlayerId.set(listing.playerId, listings);
       }
+      for (const raw of saleRecords) {
+        const sale = normalizeSaleReceipt(raw);
+        if (!sale) {
+          continue;
+        }
+        const receipts = this.saleHistoryByPlayerId.get(sale.playerId) ?? [];
+        receipts.push(sale.receipt);
+        this.saleHistoryByPlayerId.set(sale.playerId, receipts);
+      }
     } catch {
       this.listingsByPlayerId.clear();
+      this.saleHistoryByPlayerId.clear();
     }
   }
 
   private save(): void {
     mkdirSync(path.dirname(this.filePath), { recursive: true });
     const listings = [...this.listingsByPlayerId.values()].flat().map(cloneListing);
-    writeFileSync(this.filePath, JSON.stringify({ listings }, null, 2), "utf8");
+    const sales = [...this.saleHistoryByPlayerId.entries()].flatMap(([playerId, receipts]) => receipts.map((receipt) => ({
+      playerId,
+      receipt: cloneSaleReceipt(receipt)
+    })));
+    writeFileSync(this.filePath, JSON.stringify({ listings, sales }, null, 2), "utf8");
   }
 }
 
@@ -262,6 +299,15 @@ function cloneListing(listing: MarketListing): MarketListing {
   };
 }
 
+function cloneSaleReceipt(receipt: MarketSettlementReceipt): MarketSettlementReceipt {
+  return {
+    ...receipt,
+    item: {
+      ...receipt.item
+    }
+  };
+}
+
 function normalizeListing(raw: unknown): MarketListing | undefined {
   if (!isRecord(raw) || !isRecord(raw.item)) {
     return undefined;
@@ -291,6 +337,40 @@ function normalizeListing(raw: unknown): MarketListing | undefined {
     price: normalizePrice(typeof raw.price === "number" ? raw.price : 1),
     createdAt: typeof raw.createdAt === "number" && Number.isFinite(raw.createdAt) ? raw.createdAt : Date.now(),
     updatedAt: typeof raw.updatedAt === "number" && Number.isFinite(raw.updatedAt) ? raw.updatedAt : Date.now()
+  };
+}
+
+function normalizeSaleReceipt(raw: unknown): { playerId: string; receipt: MarketSettlementReceipt } | undefined {
+  if (!isRecord(raw) || !isRecord(raw.receipt)) {
+    return undefined;
+  }
+  const playerId = typeof raw.playerId === "string" && raw.playerId.trim() ? raw.playerId : undefined;
+  const listingId = typeof raw.receipt.listingId === "string" && raw.receipt.listingId.trim() ? raw.receipt.listingId : undefined;
+  if (!playerId || !listingId) {
+    return undefined;
+  }
+  return {
+    playerId,
+    receipt: {
+      listingId,
+      item: {
+        instanceId: typeof raw.receipt.item?.instanceId === "string" ? raw.receipt.item.instanceId : listingId,
+        definitionId: typeof raw.receipt.item?.definitionId === "string" ? raw.receipt.item.definitionId : undefined,
+        name: typeof raw.receipt.item?.name === "string" ? raw.receipt.item.name : listingId,
+        kind: typeof raw.receipt.item?.kind === "string" ? raw.receipt.item.kind : undefined,
+        rarity: typeof raw.receipt.item?.rarity === "string" ? raw.receipt.item.rarity : undefined,
+        width: typeof raw.receipt.item?.width === "number" ? raw.receipt.item.width : undefined,
+        height: typeof raw.receipt.item?.height === "number" ? raw.receipt.item.height : undefined,
+        modifiers: isRecord(raw.receipt.item?.modifiers) ? { ...raw.receipt.item.modifiers } as any : undefined,
+        affixes: Array.isArray(raw.receipt.item?.affixes)
+          ? raw.receipt.item.affixes.flatMap((affix: unknown) => isRecord(affix) && typeof affix.key === "string" && typeof affix.value === "number"
+            ? [{ key: affix.key, value: affix.value }]
+            : [])
+          : undefined
+      },
+      price: normalizePrice(typeof raw.receipt.price === "number" ? raw.receipt.price : 1),
+      soldAt: typeof raw.receipt.soldAt === "number" && Number.isFinite(raw.receipt.soldAt) ? raw.receipt.soldAt : Date.now()
+    }
   };
 }
 
