@@ -1,8 +1,11 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 function runNpmScript(scriptName) {
   if (process.platform === "win32") {
-    return spawn("cmd.exe", ["/d", "/s", "/c", `npm run ${scriptName}`], { stdio: ["ignore", "pipe", "pipe"] });
+    return spawn("cmd.exe", ["/d", "/s", "/c", `npm run ${scriptName}`], {
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true
+    });
   }
   return spawn("npm", ["run", scriptName], { stdio: ["ignore", "pipe", "pipe"] });
 }
@@ -14,16 +17,31 @@ const children = [
 
 let shuttingDown = false;
 
+function stopChildTree(child) {
+  if (child.killed || child.exitCode !== null) return;
+
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+      stdio: "ignore",
+      windowsHide: true
+    });
+    return;
+  }
+
+  child.kill("SIGTERM");
+}
+
 function stopAll(exitCode = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
   for (const child of children) {
-    if (!child.killed) {
-      child.kill();
-    }
+    stopChildTree(child);
   }
   process.exit(exitCode);
 }
+
+console.log(`[dev] root pid ${process.pid}; child pids ${children.map((child) => child.pid).join(", ")}`);
+console.log("[dev] Press Ctrl+C to stop server and client process trees.");
 
 for (const child of children) {
   child.stdout?.pipe(process.stdout);

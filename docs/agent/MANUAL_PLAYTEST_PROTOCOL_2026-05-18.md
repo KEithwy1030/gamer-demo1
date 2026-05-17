@@ -16,8 +16,8 @@ Run one focused browser playtest and record whether the current Demo 1 loop deli
 
 - Branch: `feat-frontend-optimization`.
 - Preflight: run `npm run validate:launch-readiness` after code changes and before counting a session as release-feel evidence.
-- Start server: `npm run dev:server`.
-- Start client: `npm run dev:client`.
+- Start server and client together: `npm run dev`.
+- Resource hygiene: keep the printed root PID visible, and stop the session with `Ctrl+C` so the server and client process trees are cleaned together.
 - URL: `http://localhost:5173/`.
 - Recommended run: one 9-12 minute human-controlled session using the normal room flow.
 - Optional stronger run: two browser clients in the same room, one active player and one observer or second player.
