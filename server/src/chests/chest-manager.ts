@@ -186,6 +186,9 @@ export function startChestOpening(
     startX: player.state.x,
     startY: player.state.y
   };
+
+  const aggroedMonsterIds = alertMonstersToChestNoise(room, playerId, chest);
+  recordContestedChestNoise(room, playerId, chest, aggroedMonsterIds);
 }
 
 export function interruptChestOpening(room: RuntimeRoom, playerId: string): boolean {

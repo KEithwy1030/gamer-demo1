@@ -16,10 +16,11 @@ const now = Date.now();
 assertSpawnChestsFromLayout();
 assertOpenChestGuardsAndWorldDrops();
 assertOpeningChannelCompletesAndInterrupts();
+assertContestedOpeningChannelAlertsGuardsImmediately();
 assertContestedChestTelegraphsRiskAndNoiseAggrosNearbyMonsters();
 assertFullBackpackKeepsLootAsWorldDrops();
 
-console.log("[chest-contract] PASS layout spawn, guard rails, channel opening, interrupts, contested risk telegraph, contested noise, world-drop loot, duplicate-open, full-backpack retention");
+console.log("[chest-contract] PASS layout spawn, guard rails, channel opening, interrupts, contested risk telegraph, contested opening pressure, contested noise, world-drop loot, duplicate-open, full-backpack retention");
 
 function assertSpawnChestsFromLayout(): void {
   const room = createRoom();
@@ -128,6 +129,25 @@ function assertOpeningChannelCompletesAndInterrupts(): void {
   assert.equal(interruptPlayer.openingChest?.chestId, interruptChest.id, "restarting after movement interrupt should be allowed");
   interruptChestOpening(interruptRoom, interruptPlayer.id);
   assert.equal(interruptPlayer.openingChest, undefined, "damage/manual interrupt should clear opening state");
+}
+
+function assertContestedOpeningChannelAlertsGuardsImmediately(): void {
+  const room = createRoom();
+  spawnChests(room);
+  const player = room.players.get("player-1")!;
+  const chest = room.chests!.get("contested_center")!;
+  player.state!.x = chest.x;
+  player.state!.y = chest.y;
+  const monster = createMonster("elite-channel-guard", chest.x + 140, chest.y);
+  room.monsters = new Map([[monster.id, monster]]);
+
+  startChestOpening(room, player.id, chest.id, now);
+
+  assert.equal(chest.isOpen, false, "starting contested chest channel should not open the chest immediately");
+  assert.equal(room.drops?.size ?? 0, 0, "starting contested chest channel should not spawn loot immediately");
+  assert.equal(room.contestedChestNoise?.chestId, chest.id, "starting contested chest channel should create the contested noise marker");
+  assert.deepEqual(room.contestedChestNoise?.aggroedMonsterIds, [monster.id], "starting contested chest channel should record alerted guard ids");
+  assert.equal(room.monsters.get(monster.id)?.targetPlayerId, player.id, "starting contested chest channel should immediately aggro nearby guards");
 }
 
 function assertContestedChestTelegraphsRiskAndNoiseAggrosNearbyMonsters(): void {
