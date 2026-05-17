@@ -65,7 +65,10 @@ function main(): void {
   assert(hostPayload, "host should receive match:started payload");
   assert(hostPayload.room.players.length === started.roomState.capacity, "match payload should include full runtime roster");
   assert(hostPayload.room.players.filter((player) => player.squadId === "player").length === 2, "player squad should contain both humans");
+  assert(hostPayload.room.players.filter((player) => player.squadId === "player").every((player) => !player.isBot), "player squad should contain humans only");
   assert(hostPayload.room.players.some((player) => player.isBot && player.squadId !== "player"), "match payload should include bot opposition outside player squad");
+  assert(hostPayload.room.players.filter((player) => player.isBot).every((player) => player.squadId === "bot_alpha"), "active bot opposition should stay in bot_alpha");
+  assert(!hostPayload.room.players.some((player) => player.squadId === "bot_beta" || player.squadId === "bot_gamma"), "reserved bot squads should stay inactive in Demo 1");
 
   inventoryService.initializeRoom(started.room);
   const host = started.room.players.get(hostSession.playerId);
