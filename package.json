@@ -47,6 +47,7 @@
     "validate:lategame-smoke": "tsx scripts/validate-lategame-smoke.ts",
     "validate:mobile-controls-contract": "tsx scripts/validate-mobile-controls-contract.ts",
     "validate:drag-contracts": "npm run validate:inventory-drag-contract && npm run validate:profile-drag-contract && npm run validate:inventory-drag-ui",
+    "validate:release-readiness": "npm run validate:multiclient-room-contract && npm run validate:lategame-smoke && npm run validate:skill-contract && npm run validate:combat-readability && npm run validate:market-lifecycle && npm run validate:profile-carry && npm run typecheck && npm run build",
     "accept:game-feel": "node scripts/accept-game-feel-baseline.mjs"
   },
   "devDependencies": {

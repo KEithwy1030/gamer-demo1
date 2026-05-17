@@ -4,10 +4,10 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   cleanup,
+  clearThreatsNearPoint,
   createClient,
   ensureServerBuild,
   getPreferredExtractZone,
-  killOneMonster,
   movePlayerAlongSafeRoute,
   waitForCondition,
   waitForServerReady,
@@ -113,8 +113,8 @@ async function run() {
     );
     note("extract started", { zoneId: started.zoneId, remainingMs: started.remainingMs });
 
-    const killed = await killOneMonster(playerB, 18_000);
-    note("teammate cleared threat", { monsterId: killed.id, type: killed.type });
+    await clearThreatsNearPoint(playerB, extractZone, 320, 28_000);
+    note("teammate cleared nearby extract threats", { zoneId: extractZone.zoneId, radius: 320 });
 
     await delay(750);
     const progress = playerA.state.extractProgress;
