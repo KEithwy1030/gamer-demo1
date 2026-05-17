@@ -299,11 +299,15 @@
 
 @media (max-width: 560px) {
   .results-overlay {
-    padding: 16px;
+    align-items: start;
+    padding: 12px;
   }
 
   .results-card {
-    padding: 22px 18px 18px;
+    width: min(100%, 560px);
+    max-height: calc(100dvh - 24px);
+    padding: 20px 16px 16px;
+    overflow-y: auto;
   }
 
   .results-stats {
@@ -322,8 +326,13 @@
     font-size: 16px;
   }
 
+  .results-items-list {
+    grid-template-columns: 1fr;
+  }
+
   .results-actions {
     width: 100%;
+    flex-direction: column;
   }
 
   .results-dismiss {
