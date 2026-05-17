@@ -87,18 +87,8 @@ assert.match(
 );
 assert.match(
   hudSource,
-  /const EXTRACT_WINDOW_OPEN_SEC = 8 \* 60;/,
-  "HUD extraction pressure phase should align with the GDD eight-minute extract window"
-);
-assert.match(
-  hudSource,
-  /const CORPSE_FOG_INTENSIFIED_SEC = 12 \* 60;/,
-  "HUD extraction pressure phase should align with the GDD twelve-minute intensified fog window"
-);
-assert.match(
-  hudSource,
-  /function resolveExtractionPressurePhase\(state: MatchViewState\): ExtractionPressurePhase \{/,
-  "HUD should resolve a reusable extraction pressure phase instead of a single corpse-fog boolean"
+  /import \{ MATCH_DURATION_SEC, resolveExtractionPressurePhase \} from "@gamer\/shared";/,
+  "HUD should consume shared extraction pressure timing instead of duplicating GDD constants"
 );
 assert.match(
   hudSource,

@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { MATCH_DURATION_SEC, resolveExtractionPressurePhase } from "@gamer/shared";
 import type { MatchViewState } from "../../game";
 import type { ExtractUiState } from "../createGameClient";
 import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
@@ -746,7 +747,7 @@ function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewSta
   const waitingCount = Math.max(0, aliveMembers.length - insideCount);
   const cargoValue = resolveInventoryCargoValue(state);
   const cargoLabel = formatCompactValue(cargoValue);
-  const pressurePhase = resolveExtractionPressurePhase(state);
+  const pressurePhase = resolveExtractionPressurePhase(resolveMatchElapsedSeconds(state));
 
   if (extractState.isExtracting) {
     const seconds = extractState.secondsRemaining == null ? "" : ` ${Math.ceil(extractState.secondsRemaining)}s`;
@@ -847,7 +848,7 @@ function resolvePressureHint(state: MatchViewState, extractState: ExtractUiState
   const aliveMembers = members.filter((member) => member.isAlive && !member.isSettled);
   const insideCount = aliveMembers.filter((member) => member.isInsideZone).length;
   const waitingCount = Math.max(0, aliveMembers.length - insideCount);
-  const pressurePhase = resolveExtractionPressurePhase(state);
+  const pressurePhase = resolveExtractionPressurePhase(resolveMatchElapsedSeconds(state));
 
   const player = state.players.find((entry) => entry.id === state.selfPlayerId);
   const hpRatio = player && player.maxHp > 0 ? player.hp / player.maxHp : 1;
@@ -890,38 +891,11 @@ function hasBackpackCargo(state: MatchViewState): boolean {
 }
 
 function isCorpseFogCounterattacking(state: MatchViewState): boolean {
-  return resolveExtractionPressurePhase(state).kind !== "preopen";
+  return resolveExtractionPressurePhase(resolveMatchElapsedSeconds(state)).kind !== "preopen";
 }
 
 function getElapsedSeconds(startedAt: number): number {
   return startedAt > 0 ? Math.max(0, (Date.now() - startedAt) / 1000) : 0;
-}
-
-const MATCH_DURATION_SEC = 15 * 60;
-const EXTRACT_WINDOW_OPEN_SEC = 8 * 60;
-const CORPSE_FOG_INTENSIFIED_SEC = 12 * 60;
-
-type ExtractionPressurePhase =
-  | { kind: "preopen"; elapsedSec: number; secondsUntilExtractOpen: number }
-  | { kind: "counterattack"; elapsedSec: number }
-  | { kind: "intensified"; elapsedSec: number };
-
-function resolveExtractionPressurePhase(state: MatchViewState): ExtractionPressurePhase {
-  const elapsedSec = resolveMatchElapsedSeconds(state);
-
-  if (elapsedSec >= CORPSE_FOG_INTENSIFIED_SEC) {
-    return { kind: "intensified", elapsedSec };
-  }
-
-  if (elapsedSec >= EXTRACT_WINDOW_OPEN_SEC) {
-    return { kind: "counterattack", elapsedSec };
-  }
-
-  return {
-    kind: "preopen",
-    elapsedSec,
-    secondsUntilExtractOpen: Math.max(0, EXTRACT_WINDOW_OPEN_SEC - elapsedSec)
-  };
 }
 
 function resolveMatchElapsedSeconds(state: MatchViewState): number {

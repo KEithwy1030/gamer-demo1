@@ -7,6 +7,7 @@ export * from "./types/monsters.js";
 export * from "./types/market.js";
 export * from "./types/profile.js";
 export * from "./domain/inventory.js";
+export * from "./domain/extractionPressure.js";
 export * from "./data/constants.js";
 export * from "./data/weapons.js";
 export * from "./data/items.js";
