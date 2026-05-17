@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { io, type Socket } from "socket.io-client";
 import { SocketEvent } from "../shared/src/protocol/events.js";
+import type { MatchStartedPayload } from "../shared/src/types/game.js";
 import type { RoomSummary } from "../shared/src/types/lobby.js";
 
 const serverUrl = process.env.MULTICLIENT_SERVER_URL ?? "http://127.0.0.1:3210";
@@ -75,6 +76,20 @@ async function validateTwoClientJoin(options: {
     const rebroadcastHostRoom = await hostRebroadcastPromise;
     assert.equal(rebroadcastHostRoom.players.length, 2, "host should receive guest join rebroadcast");
 
+    const hostMatchPromise = waitForMatchStarted(host);
+    const guestMatchPromise = waitForMatchStarted(guest);
+    host.emit(SocketEvent.RoomStart, { botDifficulty: "normal" });
+    const [hostMatch, guestMatch] = await Promise.all([hostMatchPromise, guestMatchPromise]);
+    assert.equal(hostMatch.room.code, hostRoom.code, "host match payload should preserve room code");
+    assert.equal(guestMatch.room.code, hostRoom.code, "guest match payload should preserve room code");
+    assert.ok(hostMatch.room.players.some((player) => player.name === options.hostName), "host match payload should include host");
+    assert.ok(hostMatch.room.players.some((player) => player.name === options.guestName), "host match payload should include guest");
+    assert.ok(guestMatch.room.players.some((player) => player.name === options.hostName), "guest match payload should include host");
+    assert.ok(guestMatch.room.players.some((player) => player.name === options.guestName), "guest match payload should include guest");
+    assert.ok(hostMatch.room.players.some((player) => player.isBot && player.squadId === "bot_alpha"), "match payload should include bot opposition");
+    assert.equal(hostMatch.selfPlayerId, host.id, "host should receive a host-specific match payload");
+    assert.equal(guestMatch.selfPlayerId, guest.id, "guest should receive a guest-specific match payload");
+
     return hostRoom.code;
   } finally {
     host.disconnect();
@@ -100,6 +115,30 @@ function emitAndWaitForRoomState(socket: Socket, eventName: string, payload: unk
   const promise = waitForRoomState(socket);
   socket.emit(eventName, payload);
   return promise;
+}
+
+function waitForMatchStarted(socket: Socket): Promise<MatchStartedPayload> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out waiting for match started"));
+    }, 5_000);
+    const onStarted = (payload: MatchStartedPayload) => {
+      cleanup();
+      resolve(payload);
+    };
+    const onError = (payload: { message?: string }) => {
+      cleanup();
+      reject(new Error(payload.message ?? "Room error"));
+    };
+    const cleanup = () => {
+      clearTimeout(timeout);
+      socket.off(SocketEvent.MatchStarted, onStarted);
+      socket.off(SocketEvent.RoomError, onError);
+    };
+    socket.on(SocketEvent.MatchStarted, onStarted);
+    socket.on(SocketEvent.RoomError, onError);
+  });
 }
 
 function waitForRoomState(socket: Socket, predicate: (room: RoomSummary) => boolean = () => true): Promise<RoomSummary> {
