@@ -59,6 +59,12 @@ The highest-value next slice is still manual/playtest-facing: run the focused 9-
 Run before the next checkpoint:
 
 ```bash
+npm run validate:launch-readiness
+```
+
+This combines the structural release gate and browser visual acceptance:
+
+```bash
 npm run validate:release-readiness
 npm run accept:visual-readiness
 ```
