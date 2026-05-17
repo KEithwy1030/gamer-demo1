@@ -191,14 +191,27 @@ export function startChestOpening(
   recordContestedChestNoise(room, playerId, chest, aggroedMonsterIds);
 }
 
-export function interruptChestOpening(room: RuntimeRoom, playerId: string): boolean {
+export function interruptChestOpening(
+  room: RuntimeRoom,
+  playerId: string
+): ChestProgressPayload | undefined {
   const player = room.players.get(playerId);
   if (!player?.openingChest) {
-    return false;
+    return undefined;
   }
 
+  const opening = player.openingChest;
+  const chest = room.chests?.get(opening.chestId);
   player.openingChest = undefined;
-  return true;
+  return {
+    chestId: opening.chestId,
+    playerId,
+    lane: chest?.lane,
+    noiseRadius: chest?.noiseRadius,
+    status: "interrupted",
+    remainingMs: 0,
+    durationMs: CHEST_OPEN_DURATION_MS
+  };
 }
 
 export function tickChestOpenings(

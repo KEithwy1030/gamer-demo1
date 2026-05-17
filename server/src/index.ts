@@ -291,7 +291,10 @@ function emitExtractInterruptForCombatEvent(
   if (interruption) {
     io.to(roomCode).emit(SocketEvent.ExtractProgress, interruption);
   }
-  interruptChestOpening(room, event.targetId);
+  const chestInterruption = interruptChestOpening(room, event.targetId);
+  if (chestInterruption) {
+    io.to(roomCode).emit(SocketEvent.ChestProgress, chestInterruption);
+  }
 }
 
 function applyRiverHazardTick(roomCode: string, now = Date.now()): void {

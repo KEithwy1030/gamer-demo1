@@ -127,7 +127,10 @@ function assertOpeningChannelCompletesAndInterrupts(): void {
 
   startChestOpening(interruptRoom, interruptPlayer.id, interruptChest.id, now);
   assert.equal(interruptPlayer.openingChest?.chestId, interruptChest.id, "restarting after movement interrupt should be allowed");
-  interruptChestOpening(interruptRoom, interruptPlayer.id);
+  const manualInterruption = interruptChestOpening(interruptRoom, interruptPlayer.id);
+  assert.equal(manualInterruption?.status, "interrupted", "manual damage interrupt should return a chest progress interruption");
+  assert.equal(manualInterruption?.chestId, interruptChest.id, "manual damage interrupt should identify the interrupted chest");
+  assert.equal(manualInterruption?.lane, "starter", "manual damage interrupt should preserve chest lane metadata");
   assert.equal(interruptPlayer.openingChest, undefined, "damage/manual interrupt should clear opening state");
 }
 
