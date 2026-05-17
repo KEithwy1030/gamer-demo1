@@ -838,7 +838,7 @@ function getAttackIntervalMs(player) {
   };
   const attacksPerSecond = attacksPerSecondByWeapon[player.weaponType] ?? attacksPerSecondByWeapon.sword;
   const cooldownMs = Math.round((1000 / attacksPerSecond) / Math.max(1 + (player.attackSpeed ?? 0), 0.1));
-  return cooldownMs + 120;
+  return cooldownMs + 260;
 }
 
 function getAttackRangePx(player) {

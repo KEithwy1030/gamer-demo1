@@ -25,7 +25,7 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 | Map 4800 x 4800 and center extract | `shared/src/data/constants.ts`, `server/src/match-layout.ts`, `validate:map-hazards` | Covered structurally |
 | Corpse-fog 0-8 / 8-12 / 12-15 pressure | `shared/src/domain/extractionPressure.ts`, `server/src/corpse-fog.ts`, `client/src/scenes/gameScene/hudOverlay.ts`, `validate:extraction-pressure`, `validate:miasma-pipeline` | Covered by deterministic tests; live feel manual |
 | Fixed extract opens at 8 minutes, 5 second channel | `shared/src/data/constants.ts`, `server/src/extract/service.ts`, `validate:extract-service`, `validate:lategame-smoke` | Covered |
-| Search/fight/extract single-run loop | `validate:carry-loop`, `validate:lategame-smoke`, `validate:profile-carry` | Mostly covered; full long-session feel manual |
+| Search/fight/extract single-run loop | `validate:carry-loop-release`, `validate:lategame-smoke`, `validate:profile-carry` | Covered structurally across three consecutive runs; full long-session feel manual |
 | Three weapons and three active skills each | `shared/src/data/weaponSkills.ts`, `server/src/combat/combat-service.ts`, `validate:skill-contract` | Covered by branch contract; animation feel manual |
 | Dodge and lock/approach assist | `server/src/combat/combat-service.ts`, `validate:lock-assist`, `validate:skill-contract` | Covered structurally |
 | Normal and elite monsters | `server/src/monsters/monster-manager.ts`, `validate:elite-encounter`, `validate:combat-readability` | Covered structurally |
@@ -58,4 +58,4 @@ Run before the next checkpoint:
 npm run validate:release-readiness
 ```
 
-This now expands to the broader GDD Demo 1 contract and then runs the late-game smoke.
+This now expands to the broader GDD Demo 1 contract, including the isolated-port carry loop, and then runs the late-game smoke.
