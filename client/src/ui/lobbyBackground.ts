@@ -1,13 +1,22 @@
 export class LobbyBackground {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
+  private readonly backdrop: HTMLImageElement;
   private animationId: number | null = null;
   private time = 0;
+  private backdropReady = false;
 
   constructor() {
     this.canvas = document.createElement("canvas");
     this.canvas.className = "lobby-background";
     this.ctx = this.canvas.getContext("2d")!;
+    this.backdrop = new Image();
+    this.backdrop.decoding = "async";
+    this.backdrop.onload = () => {
+      this.backdropReady = true;
+      this.draw();
+    };
+    this.backdrop.src = "/assets/generated/lobby-black-market-backdrop.png";
     
     window.addEventListener("resize", () => this.resize());
     this.resize();
@@ -43,24 +52,79 @@ export class LobbyBackground {
     const { width, height } = this.canvas;
     const ctx = this.ctx;
 
-    // 1. Clear with warm camp dusk gradient
-    const grad = ctx.createLinearGradient(0, 0, 0, height);
-    grad.addColorStop(0, "#18110b");
-    grad.addColorStop(0.52, "#0f0c08");
-    grad.addColorStop(1, "#060504");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, width, height);
+    if (this.backdropReady && this.backdrop.naturalWidth > 0) {
+      this.drawBackdrop(width, height);
+    } else {
+      // 1. Clear with warm camp dusk gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0, "#18110b");
+      grad.addColorStop(0.52, "#0f0c08");
+      grad.addColorStop(1, "#060504");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
 
-    this.drawGroundGrid(width, height);
+      this.drawSkyGlow(width, height);
+      this.drawGroundGrid(width, height);
 
-    // 3. Draw broken ridgelines and camp silhouettes
-    this.drawMountains(height * 0.62, "#14100b", 0.35);
-    this.drawMountains(height * 0.76, "#21170f", 0.62);
-    this.drawCampfires(width, height);
-    this.drawTornBanners(width, height);
+      // 3. Draw broken ridgelines and camp silhouettes
+      this.drawMountains(height * 0.62, "#14100b", 0.35);
+      this.drawMountains(height * 0.76, "#21170f", 0.62);
+      this.drawRoadLeadIn(width, height);
+      this.drawFortressSilhouette(width, height);
+      this.drawCampfires(width, height);
+      this.drawTornBanners(width, height);
+      this.drawBeacon(width, height);
+    }
 
     // 4. Draw drifting ash and ember particles
     this.drawParticles();
+    this.drawForegroundFog(width, height);
+  }
+
+  private drawBackdrop(width: number, height: number) {
+    const ctx = this.ctx;
+    const source = this.backdrop;
+    const sourceRatio = source.naturalWidth / source.naturalHeight;
+    const targetRatio = width / height;
+    let drawWidth = width;
+    let drawHeight = height;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (sourceRatio > targetRatio) {
+      drawHeight = height;
+      drawWidth = height * sourceRatio;
+      offsetX = (width - drawWidth) * 0.5;
+    } else {
+      drawWidth = width;
+      drawHeight = width / sourceRatio;
+      offsetY = (height - drawHeight) * 0.5;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = 0.97;
+    ctx.drawImage(source, offsetX, offsetY, drawWidth, drawHeight);
+    ctx.restore();
+
+    const wash = ctx.createLinearGradient(0, 0, 0, height);
+    wash.addColorStop(0, "rgba(11, 8, 7, 0.28)");
+    wash.addColorStop(0.45, "rgba(11, 8, 7, 0.12)");
+    wash.addColorStop(1, "rgba(11, 8, 7, 0.36)");
+    ctx.fillStyle = wash;
+    ctx.fillRect(0, 0, width, height);
+
+    this.drawSkyGlow(width, height);
+  }
+
+  private drawSkyGlow(width: number, height: number) {
+    const ctx = this.ctx;
+    const glow = ctx.createRadialGradient(width * 0.52, height * 0.2, 0, width * 0.52, height * 0.2, width * 0.65);
+    glow.addColorStop(0, "rgba(232, 96, 44, 0.10)");
+    glow.addColorStop(0.26, "rgba(212, 178, 76, 0.05)");
+    glow.addColorStop(0.58, "rgba(12, 10, 8, 0.0)");
+    glow.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, height);
   }
 
   private drawGroundGrid(width: number, height: number) {
@@ -121,6 +185,112 @@ export class LobbyBackground {
       ctx.fillRect(x, y, size * 2, size * 2);
     }
     ctx.globalAlpha = 1.0;
+  }
+
+  private drawRoadLeadIn(width: number, height: number) {
+    const ctx = this.ctx;
+    const roadTop = height * 0.48;
+    const roadBottom = height * 0.98;
+    const roadCenter = width * 0.53;
+    const roadWidthTop = width * 0.09;
+    const roadWidthBottom = width * 0.31;
+
+    const roadGlow = ctx.createLinearGradient(roadCenter, roadTop, roadCenter, roadBottom);
+    roadGlow.addColorStop(0, "rgba(232, 223, 200, 0.02)");
+    roadGlow.addColorStop(0.52, "rgba(232, 96, 44, 0.05)");
+    roadGlow.addColorStop(1, "rgba(0, 0, 0, 0.0)");
+    ctx.fillStyle = roadGlow;
+    ctx.beginPath();
+    ctx.moveTo(roadCenter - roadWidthTop, roadTop);
+    ctx.lineTo(roadCenter + roadWidthTop, roadTop);
+    ctx.lineTo(roadCenter + roadWidthBottom, roadBottom);
+    ctx.lineTo(roadCenter - roadWidthBottom, roadBottom);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(92, 67, 43, 0.45)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(roadCenter - roadWidthTop, roadTop);
+    ctx.lineTo(roadCenter - roadWidthBottom, roadBottom);
+    ctx.moveTo(roadCenter + roadWidthTop, roadTop);
+    ctx.lineTo(roadCenter + roadWidthBottom, roadBottom);
+    ctx.stroke();
+  }
+
+  private drawFortressSilhouette(width: number, height: number) {
+    const ctx = this.ctx;
+    const baseY = height * 0.44;
+    const left = width * 0.64;
+    const right = width * 0.93;
+    const keepX = width * 0.79;
+
+    ctx.fillStyle = "#120d08";
+    ctx.beginPath();
+    ctx.moveTo(left, baseY + 58);
+    ctx.lineTo(left + 24, baseY + 10);
+    ctx.lineTo(left + 42, baseY + 28);
+    ctx.lineTo(left + 58, baseY - 22);
+    ctx.lineTo(keepX - 18, baseY - 32);
+    ctx.lineTo(keepX - 8, baseY - 96);
+    ctx.lineTo(keepX + 18, baseY - 120);
+    ctx.lineTo(keepX + 34, baseY - 80);
+    ctx.lineTo(keepX + 42, baseY - 36);
+    ctx.lineTo(right - 52, baseY - 8);
+    ctx.lineTo(right - 18, baseY + 16);
+    ctx.lineTo(right, baseY + 56);
+    ctx.lineTo(left, baseY + 58);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(78, 57, 39, 0.26)";
+    ctx.fillRect(width * 0.71, baseY - 62, 24, 72);
+    ctx.fillRect(width * 0.83, baseY - 54, 18, 62);
+    ctx.fillRect(width * 0.88, baseY - 42, 14, 50);
+
+    ctx.strokeStyle = "rgba(232, 223, 200, 0.06)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(width * 0.69, baseY + 8);
+    ctx.lineTo(width * 0.72, baseY - 22);
+    ctx.lineTo(width * 0.76, baseY + 2);
+    ctx.stroke();
+  }
+
+  private drawBeacon(width: number, height: number) {
+    const ctx = this.ctx;
+    const x = width * 0.81;
+    const y = height * 0.43;
+    const pulse = 1 + Math.sin(this.time * 2.6) * 0.06;
+    const radius = 112 * pulse;
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    glow.addColorStop(0, "rgba(232, 96, 44, 0.34)");
+    glow.addColorStop(0.24, "rgba(212, 178, 76, 0.16)");
+    glow.addColorStop(1, "rgba(232, 96, 44, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+
+    ctx.strokeStyle = "rgba(232, 96, 44, 0.62)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 38 * pulse);
+    ctx.lineTo(x, y - 112 * pulse);
+    ctx.stroke();
+
+    ctx.fillStyle = "#e8602c";
+    ctx.fillRect(x - 2, y - 48, 4, 14);
+    ctx.fillStyle = "#d4b24c";
+    ctx.fillRect(x - 1, y - 62, 2, 6);
+  }
+
+  private drawForegroundFog(width: number, height: number) {
+    const ctx = this.ctx;
+    const fog = ctx.createLinearGradient(0, height * 0.56, 0, height);
+    fog.addColorStop(0, "rgba(10, 8, 6, 0)");
+    fog.addColorStop(0.72, "rgba(10, 8, 6, 0.2)");
+    fog.addColorStop(1, "rgba(10, 8, 6, 0.42)");
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, height * 0.56, width, height * 0.44);
   }
 
   private drawCampfires(width: number, height: number) {
