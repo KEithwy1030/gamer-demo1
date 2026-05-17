@@ -1686,6 +1686,143 @@ body.stash-dragging * {
   grid-template-columns: 82px 58px 58px;
 }
 
+@media (max-width: 900px) {
+  .viewport-scale-frame .stage {
+    width: 980px;
+    padding: 24px 16px 72px;
+  }
+
+  .viewport-scale-frame .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding-bottom: 14px;
+  }
+
+  .viewport-scale-frame .topbar-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .viewport-scale-frame .grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .viewport-scale-frame .center-stack,
+  .viewport-scale-frame .right-stack {
+    gap: 16px;
+  }
+
+  .viewport-scale-frame .squad-head,
+  .viewport-scale-frame .room-code,
+  .viewport-scale-frame .squad-invite,
+  .viewport-scale-frame .panel-head,
+  .viewport-scale-frame .panel-body,
+  .viewport-scale-frame .run-card {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .viewport-scale-frame .squad-invite {
+    width: calc(100% - 28px);
+    margin-left: 14px;
+    margin-right: 14px;
+  }
+
+  .viewport-scale-frame .deploy {
+    min-height: auto;
+  }
+
+  .viewport-scale-frame .deploy-inner {
+    min-height: auto;
+    padding: 20px 18px 18px;
+    grid-template-columns: 1fr;
+  }
+
+  .viewport-scale-frame .deploy-head-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .viewport-scale-frame .deploy-stamps {
+    align-items: flex-start;
+  }
+
+  .viewport-scale-frame .deploy-title {
+    font-size: 60px;
+  }
+
+  .viewport-scale-frame .deploy-sub {
+    max-width: none;
+  }
+
+  .viewport-scale-frame .deploy-meta-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 0;
+    margin: 16px -18px 0;
+    padding: 12px 18px;
+  }
+
+  .viewport-scale-frame .cta-row {
+    flex-direction: column;
+  }
+
+  .viewport-scale-frame .btn-secondary {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--iron-600);
+  }
+
+  .viewport-scale-frame .join-row {
+    grid-template-columns: 1fr;
+  }
+
+  .viewport-scale-frame .loadout-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .viewport-scale-frame .loadout-slot.primary {
+    grid-column: 1 / -1;
+  }
+
+  .viewport-scale-frame .run-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .viewport-scale-frame .run-recovered {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .viewport-scale-frame .ticker {
+    position: static;
+    margin-top: 12px;
+    padding: 10px 0 0;
+    white-space: normal;
+  }
+
+  .viewport-scale-frame .market-layout,
+  .viewport-scale-frame .stash-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .viewport-scale-frame .stash-detail {
+    grid-column: auto;
+  }
+
+  .viewport-scale-frame .market-source-list,
+  .viewport-scale-frame .market-listings {
+    max-height: none;
+  }
+
+  .viewport-scale-frame .view-header,
+  .viewport-scale-frame .view-header-right {
+    flex-direction: column;
+    text-align: left;
+  }
+}
+
 /* ============ FOOTER TICKER ============ */
 .ticker {
   position: fixed;
