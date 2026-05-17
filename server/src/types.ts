@@ -90,6 +90,8 @@ export interface Chest {
   x: number;
   y: number;
   isOpen: boolean;
+  lane: "starter" | "contested";
+  noiseRadius?: number;
   loot: InventoryItem[];
 }
 
@@ -108,12 +110,17 @@ export interface PlayerOpenChestPayload {
 export interface ChestOpenedPayload {
   chestId: string;
   playerId: string;
+  lane: Chest["lane"];
+  noiseRadius?: number;
+  aggroedMonsterIds?: string[];
   loot: InventoryItem[];
 }
 
 export interface ChestProgressPayload {
   chestId: string;
   playerId: string;
+  lane?: Chest["lane"];
+  noiseRadius?: number;
   status: "started" | "progress" | "interrupted";
   remainingMs: number;
   durationMs: number;

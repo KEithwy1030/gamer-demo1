@@ -62,21 +62,29 @@ export interface ExtractSuccessPayload {
 }
 
 export interface ChestState {
+  id?: string;
   chestId: string;
   x: number;
   y: number;
   isOpen: boolean;
+  lane?: "starter" | "contested";
+  noiseRadius?: number;
 }
 
 export interface ChestOpenedPayload {
   chestId: string;
   playerId: string;
+  lane?: "starter" | "contested";
+  noiseRadius?: number;
+  aggroedMonsterIds?: string[];
   loot: InventorySnapshotPayload["inventory"]["items"];
 }
 
 export interface ChestProgressPayload {
   chestId: string;
   playerId: string;
+  lane?: "starter" | "contested";
+  noiseRadius?: number;
   status: "started" | "progress" | "interrupted";
   remainingMs: number;
   durationMs: number;

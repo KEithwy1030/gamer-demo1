@@ -21,6 +21,8 @@ export class GameSceneInteractions {
   private readonly scene: Phaser.Scene;
   private readonly chestSprites = new Map<string, Phaser.GameObjects.Image>();
   private readonly chestLabels = new Map<string, Phaser.GameObjects.Text>();
+  private readonly chestDangerRings = new Map<string, Phaser.GameObjects.Graphics>();
+  private readonly chestMetadata = new Map<string, { lane?: ChestState["lane"]; noiseRadius?: number }>();
   private chestUnsubscribes: Array<() => void> = [];
   private interactionPrompt?: Phaser.GameObjects.Text;
   private extractAutoStarted = false;
@@ -44,38 +46,30 @@ export class GameSceneInteractions {
     this.chestUnsubscribes = [];
     if (subscribeChestsInit) {
       this.chestUnsubscribes.push(subscribeChestsInit((chests) => {
-        chests.forEach((chest) => {
-          if (!this.chestSprites.has(chest.chestId)) {
-            const sprite = this.scene.add.image(chest.x, chest.y, chest.isOpen ? "chest_open" : "chest_closed").setDepth(chest.y);
-            sprite.setDisplaySize(92, 92);
-            this.chestSprites.set(chest.chestId, sprite);
-            if (!chest.isOpen) {
-              const label = this.scene.add.text(chest.x, chest.y - 30, "宝箱", {
-                fontFamily: "monospace",
-                fontSize: "14px",
-                color: "#ffffff",
-                stroke: "#000000",
-                strokeThickness: 3
-              }).setOrigin(0.5).setDepth(chest.y + 1);
-              this.chestLabels.set(chest.chestId, label);
-            }
-          }
-        });
+        chests.forEach((chest) => this.syncChest(chest));
       }));
     }
 
     if (subscribeChestOpened) {
       this.chestUnsubscribes.push(subscribeChestOpened((payload) => {
         const sprite = this.chestSprites.get(payload.chestId);
-        if (sprite) {
-          sprite.setTexture("chest_open");
-          this.chestLabels.get(payload.chestId)?.destroy();
-          this.chestLabels.delete(payload.chestId);
+        if (!sprite) {
+          return;
+        }
+
+        sprite.setTexture("chest_open");
+        this.chestLabels.get(payload.chestId)?.destroy();
+        this.chestLabels.delete(payload.chestId);
+        this.chestDangerRings.get(payload.chestId)?.destroy();
+        this.chestDangerRings.delete(payload.chestId);
+
+        if (payload.lane === "contested") {
+          this.showContestedChestWarning(sprite.x, sprite.y, payload.aggroedMonsterIds?.length ?? 0);
         }
       }));
     }
 
-    this.interactionPrompt = this.scene.add.text(0, 0, "按 E 开箱", {
+    this.interactionPrompt = this.scene.add.text(0, 0, "\u6309 E \u5f00\u7bb1", {
       fontFamily: "monospace",
       fontSize: "16px",
       color: "#facc15",
@@ -101,7 +95,13 @@ export class GameSceneInteractions {
     if (nearest) {
       const chest = this.chestSprites.get(nearest);
       if (!chest) return;
-      this.interactionPrompt.setPosition(chest.x, chest.y - 50).setVisible(true).setData("chestId", nearest);
+      const metadata = this.chestMetadata.get(nearest);
+      this.interactionPrompt
+        .setText(metadata?.lane === "contested" ? "\u6309 E \u5f00\u9ad8\u5371\u7bb1" : "\u6309 E \u5f00\u7bb1")
+        .setColor(metadata?.lane === "contested" ? "#fb923c" : "#facc15")
+        .setPosition(chest.x, chest.y - 50)
+        .setVisible(true)
+        .setData("chestId", nearest);
       return;
     }
 
@@ -212,6 +212,83 @@ export class GameSceneInteractions {
     this.extractLastPhase = extractState.phase;
   }
 
+  private syncChest(chest: ChestState): void {
+    const chestId = chest.chestId ?? chest.id;
+    if (!chestId) {
+      return;
+    }
+
+    this.chestMetadata.set(chestId, { lane: chest.lane, noiseRadius: chest.noiseRadius });
+    if (this.chestSprites.has(chestId)) {
+      return;
+    }
+
+    const sprite = this.scene.add.image(chest.x, chest.y, chest.isOpen ? "chest_open" : "chest_closed").setDepth(chest.y);
+    sprite.setDisplaySize(92, 92);
+    this.chestSprites.set(chestId, sprite);
+
+    if (chest.isOpen) {
+      return;
+    }
+
+    if (chest.lane === "contested") {
+      const ring = this.scene.add.graphics().setDepth(chest.y - 1);
+      ring.lineStyle(2, 0xf97316, 0.72);
+      ring.strokeCircle(chest.x, chest.y, 76);
+      this.chestDangerRings.set(chestId, ring);
+    }
+
+    const label = this.scene.add.text(
+      chest.x,
+      chest.y - 30,
+      chest.lane === "contested" ? "\u9ad8\u5371\u5b9d\u7bb1" : "\u5b9d\u7bb1",
+      {
+        fontFamily: "monospace",
+        fontSize: "14px",
+        color: chest.lane === "contested" ? "#fed7aa" : "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 3
+      }
+    ).setOrigin(0.5).setDepth(chest.y + 1);
+    this.chestLabels.set(chestId, label);
+  }
+
+  private showContestedChestWarning(x: number, y: number, aggroedCount: number): void {
+    const ring = this.scene.add.graphics().setDepth(y + 3);
+    ring.lineStyle(3, 0xfb923c, 0.9);
+    ring.strokeCircle(x, y, 34);
+    this.scene.tweens.add({
+      targets: ring,
+      alpha: 0,
+      scaleX: 2.4,
+      scaleY: 2.4,
+      duration: 720,
+      ease: "Sine.easeOut",
+      onComplete: () => ring.destroy()
+    });
+
+    const text = this.scene.add.text(
+      x,
+      y - 78,
+      aggroedCount > 0 ? `\u566a\u97f3\u60ca\u52a8\u602a\u7269 x${aggroedCount}` : "\u566a\u97f3\u5411\u56db\u5468\u6269\u6563",
+      {
+        fontFamily: "monospace",
+        fontSize: "15px",
+        color: "#fed7aa",
+        stroke: "#2a1208",
+        strokeThickness: 4
+      }
+    ).setOrigin(0.5).setDepth(y + 4);
+    this.scene.tweens.add({
+      targets: text,
+      y: y - 104,
+      alpha: 0,
+      duration: 1300,
+      ease: "Sine.easeOut",
+      onComplete: () => text.destroy()
+    });
+  }
+
   private getExtractStartRadius(zoneRadius: number): number {
     const inset = Math.min(
       GameSceneInteractions.EXTRACT_START_INSET_MAX,
@@ -249,8 +326,11 @@ export class GameSceneInteractions {
     this.interactionPrompt = undefined;
     this.chestLabels.forEach((label) => label.destroy());
     this.chestSprites.forEach((sprite) => sprite.destroy());
+    this.chestDangerRings.forEach((ring) => ring.destroy());
     this.chestLabels.clear();
     this.chestSprites.clear();
+    this.chestDangerRings.clear();
+    this.chestMetadata.clear();
     this.extractAutoStarted = false;
     this.extractAutoRearmRequired = false;
     this.extractLastPhase = null;

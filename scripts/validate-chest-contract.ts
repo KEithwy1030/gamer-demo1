@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   CHEST_OPEN_DURATION_MS,
   interruptChestOpening,
+  listChests,
   openChest,
   spawnChests,
   startChestOpening,
@@ -15,10 +16,10 @@ const now = Date.now();
 assertSpawnChestsFromLayout();
 assertOpenChestGuardsAndWorldDrops();
 assertOpeningChannelCompletesAndInterrupts();
-assertContestedChestNoiseAggrosNearbyMonsters();
+assertContestedChestTelegraphsRiskAndNoiseAggrosNearbyMonsters();
 assertFullBackpackKeepsLootAsWorldDrops();
 
-console.log("[chest-contract] PASS layout spawn, guard rails, channel opening, interrupts, contested noise, world-drop loot, duplicate-open, full-backpack retention");
+console.log("[chest-contract] PASS layout spawn, guard rails, channel opening, interrupts, contested risk telegraph, contested noise, world-drop loot, duplicate-open, full-backpack retention");
 
 function assertSpawnChestsFromLayout(): void {
   const room = createRoom();
@@ -33,6 +34,9 @@ function assertSpawnChestsFromLayout(): void {
   assert.ok(contested, "contested chest should be keyed from layout chestId");
   assert.equal(starter.x, 900, "starter chest x should come from layout");
   assert.equal(starter.y, 1000, "starter chest y should come from layout");
+  assert.equal(starter.lane, "starter", "starter chest should preserve lane metadata");
+  assert.equal(contested.lane, "contested", "contested chest should preserve lane metadata");
+  assert.ok(contested.noiseRadius && contested.noiseRadius > 0, "contested chest should expose its noise radius");
   assert.ok(starter.loot.length >= 2 && starter.loot.length <= 3, "starter chest should roll starter loot count");
   assert.ok(contested.loot.length >= 3 && contested.loot.length <= 5, "contested chest should roll contested loot count");
   assert.ok(
@@ -103,6 +107,7 @@ function assertOpeningChannelCompletesAndInterrupts(): void {
   tick = tickChestOpenings(room, now + CHEST_OPEN_DURATION_MS);
   assert.equal(tick.openedEvents.length, 1, "opening should complete after channel duration");
   assert.equal(tick.openedEvents[0]!.chestId, chest.id, "completion event should identify chest");
+  assert.equal(tick.openedEvents[0]!.lane, "starter", "completion event should include chest lane");
   assert.equal(chest.isOpen, true, "completion tick should open chest");
   assert.ok((room.drops?.size ?? 0) > 0, "completion tick should spawn world drops");
   assert.equal(player.openingChest, undefined, "completion tick should clear opening state");
@@ -125,7 +130,7 @@ function assertOpeningChannelCompletesAndInterrupts(): void {
   assert.equal(interruptPlayer.openingChest, undefined, "damage/manual interrupt should clear opening state");
 }
 
-function assertContestedChestNoiseAggrosNearbyMonsters(): void {
+function assertContestedChestTelegraphsRiskAndNoiseAggrosNearbyMonsters(): void {
   const room = createRoom();
   spawnChests(room);
   const player = room.players.get("player-1")!;
@@ -135,8 +140,14 @@ function assertContestedChestNoiseAggrosNearbyMonsters(): void {
   const monster = createMonster("elite-near", chest.x + 120, chest.y);
   room.monsters = new Map([[monster.id, monster]]);
 
-  openChest(room, player.id, chest.id, chest.x, chest.y);
+  const listedContested = listChests(room).find((entry) => entry.chestId === chest.id);
+  assert.equal(listedContested?.lane, "contested", "client chest init should expose contested lane");
+  assert.equal(listedContested?.id, chest.id, "client chest init should keep server id for backward compatibility");
+  assert.ok(listedContested?.noiseRadius && listedContested.noiseRadius >= 700, "client chest init should expose contested pressure radius");
+
+  const result = openChest(room, player.id, chest.id, chest.x, chest.y);
   assert.equal(room.monsters.get(monster.id)?.targetPlayerId, player.id, "contested chest noise should aggro nearby elite");
+  assert.deepEqual(result.aggroedMonsterIds, [monster.id], "contested chest open should report aggroed monsters");
 }
 
 function assertFullBackpackKeepsLootAsWorldDrops(): void {

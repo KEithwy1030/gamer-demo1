@@ -78,15 +78,18 @@ export function spawnChests(room: RuntimeRoom): void {
       x: zone.x,
       y: zone.y,
       isOpen: false,
+      lane: zone.lane,
+      noiseRadius: zone.lane === "contested" ? CHEST_NOISE_RADIUS : undefined,
       loot: zone.lane === "contested" ? generateContestedChestLoot() : generateStarterChestLoot()
     };
     room.chests.set(chest.id, chest);
   }
 }
 
-export function listChests(room: RuntimeRoom): Chest[] {
+export function listChests(room: RuntimeRoom): Array<Chest & { chestId: string }> {
   return [...(room.chests?.values() ?? [])].map((chest) => ({
     ...chest,
+    chestId: chest.id,
     loot: chest.loot.map((item) => ({
       ...item,
       modifiers: item.modifiers ? { ...item.modifiers } : undefined,
@@ -101,7 +104,7 @@ export function openChest(
   chestId: string,
   playerX: number,
   playerY: number
-): { chest: Chest; loot: InventoryItem[]; spawnedDrops: DropState[] } {
+): { chest: Chest; loot: InventoryItem[]; spawnedDrops: DropState[]; aggroedMonsterIds: string[] } {
   const chest = room.chests?.get(chestId);
   if (!chest) {
     throw new Error("Chest not found.");
@@ -132,9 +135,9 @@ export function openChest(
     affixes: (item.affixes ?? []).map((affix) => ({ ...affix }))
   }));
   const spawnedDrops = spawnChestDrops(room, chest, loot);
-  alertMonstersToChestNoise(room, playerId, chest);
+  const aggroedMonsterIds = alertMonstersToChestNoise(room, playerId, chest);
 
-  return { chest, loot, spawnedDrops };
+  return { chest, loot, spawnedDrops, aggroedMonsterIds };
 }
 
 export function startChestOpening(
@@ -211,6 +214,8 @@ export function tickChestOpenings(
       progressEvents.push({
         chestId: opening.chestId,
         playerId: player.id,
+        lane: chest?.lane,
+        noiseRadius: chest?.noiseRadius,
         status: "interrupted",
         remainingMs: 0,
         durationMs: CHEST_OPEN_DURATION_MS
@@ -226,6 +231,8 @@ export function tickChestOpenings(
       progressEvents.push({
         chestId: opening.chestId,
         playerId: player.id,
+        lane: chest.lane,
+        noiseRadius: chest.noiseRadius,
         status: "interrupted",
         remainingMs: 0,
         durationMs: CHEST_OPEN_DURATION_MS
@@ -237,6 +244,8 @@ export function tickChestOpenings(
       progressEvents.push({
         chestId: opening.chestId,
         playerId: player.id,
+        lane: chest.lane,
+        noiseRadius: chest.noiseRadius,
         status: now - opening.startedAt < 100 ? "started" : "progress",
         remainingMs: opening.completesAt - now,
         durationMs: CHEST_OPEN_DURATION_MS
@@ -244,11 +253,14 @@ export function tickChestOpenings(
       continue;
     }
 
-    const { loot } = openChest(room, player.id, opening.chestId, state.x, state.y);
+    const { chest: openedChest, loot, aggroedMonsterIds } = openChest(room, player.id, opening.chestId, state.x, state.y);
     player.openingChest = undefined;
     openedEvents.push({
       chestId: opening.chestId,
       playerId: player.id,
+      lane: openedChest.lane,
+      noiseRadius: openedChest.noiseRadius,
+      aggroedMonsterIds,
       loot
     });
   }
@@ -283,12 +295,12 @@ function spawnChestDrops(room: RuntimeRoom, chest: Chest, loot: InventoryItem[])
   return drops;
 }
 
-function alertMonstersToChestNoise(room: RuntimeRoom, playerId: string, chest: Chest): void {
-  const layoutChest = room.matchLayout?.chestZones.find((entry) => entry.chestId === chest.id);
-  if (layoutChest?.lane !== "contested") {
-    return;
+function alertMonstersToChestNoise(room: RuntimeRoom, playerId: string, chest: Chest): string[] {
+  if (chest.lane !== "contested") {
+    return [];
   }
 
+  const aggroedMonsterIds: string[] = [];
   for (const monster of room.monsters?.values() ?? []) {
     if (!monster.isAlive) {
       continue;
@@ -303,7 +315,10 @@ function alertMonstersToChestNoise(room: RuntimeRoom, playerId: string, chest: C
     monster.lastAggroAt = Date.now();
     monster.idleUntil = undefined;
     monster.returningUntil = undefined;
+    aggroedMonsterIds.push(monster.id);
   }
+
+  return aggroedMonsterIds;
 }
 
 function pickWeighted<T extends { weight: number }>(entries: T[]): T {
