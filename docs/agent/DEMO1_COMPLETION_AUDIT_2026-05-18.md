@@ -23,7 +23,7 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 | Room capacity 6, 2 squads x 3 | `shared/src/data/constants.ts`, `validate:room-loadout-contract`, `validate:multiclient-room-contract` | Covered |
 | Bot substitutes enemy players only | `server/src/room-store.ts`, `server/src/bots/bot-manager.ts`, `validate:room-loadout-contract`, `validate:pressure-ai-contract` | Covered for Demo 1 contract |
 | Map 4800 x 4800 and center extract | `shared/src/data/constants.ts`, `server/src/match-layout.ts`, `validate:map-hazards` | Covered structurally |
-| Corpse-fog 0-8 / 8-12 / 12-15 pressure | `shared/src/domain/extractionPressure.ts`, `server/src/corpse-fog.ts`, `client/src/scenes/gameScene/hudOverlay.ts`, `validate:extraction-pressure`, `validate:miasma-pipeline` | Covered by deterministic tests; live feel manual |
+| Corpse-fog 0-8 / 8-12 / 12-15 pressure | `shared/src/domain/extractionPressure.ts`, `server/src/corpse-fog.ts`, `client/src/scenes/gameScene/hudOverlay.ts`, `validate:extraction-pressure`, `validate:miasma-pipeline`, `accept:lategame-extract` | Covered by deterministic tests and browser-visible pressure screenshots; live feel manual |
 | Fixed extract opens at 8 minutes, 5 second channel | `shared/src/data/constants.ts`, `server/src/extract/service.ts`, `validate:extract-service`, `validate:lategame-smoke` | Covered |
 | Search/fight/extract single-run loop | `validate:carry-loop-release`, `validate:lategame-smoke`, `validate:profile-carry` | Covered structurally across three consecutive runs; full long-session feel manual |
 | Three weapons and three active skills each | `shared/src/data/weaponSkills.ts`, `server/src/combat/combat-service.ts`, `validate:skill-contract` | Covered by branch contract; animation feel manual |
@@ -37,6 +37,7 @@ Deliver `流荒之路` as a commercial-ready direction, starting with a durable 
 | Long-term asset accumulation | `client/src/profile/localProfile.ts`, `client/src/ui/lobbyView.ts`, `validate:profile-carry`, `validate:market-lifecycle` | Covered structurally |
 | Dark medieval scavenger atmosphere | `client/public/assets/generated/`, `client/src/scenes/gameScene/worldBackdrop.ts`, `validate:visual-clarity`, browser smoke evidence | Partially covered; commercial art pass remains open |
 | Release-level verification gate | `package.json` `validate:gdd-demo1-contract` and `validate:release-readiness` | Added in this slice; must be run before checkpoint |
+| Browser visual acceptance | `package.json` `accept:visual-readiness`, `.codex-artifacts/game-feel-baseline/` screenshots | Covers boss combat HUD, inventory overlay, and late-game extraction pressure visibility; not a manual fun signoff |
 
 ## Explicitly uncovered or weak areas
 
@@ -56,6 +57,7 @@ Run before the next checkpoint:
 
 ```bash
 npm run validate:release-readiness
+npm run accept:visual-readiness
 ```
 
 This now expands to the broader GDD Demo 1 contract, including the isolated-port carry loop, and then runs the late-game smoke.

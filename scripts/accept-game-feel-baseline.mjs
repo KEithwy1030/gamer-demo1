@@ -6,15 +6,17 @@ import { chromium } from "playwright";
 const HOST = "127.0.0.1";
 const SERVER_PORT = Number.parseInt(process.env.GAME_FEEL_SERVER_PORT ?? "5715", 10);
 const CLIENT_PORT = Number.parseInt(process.env.GAME_FEEL_CLIENT_PORT ?? "6785", 10);
+const PRESET = process.env.GAME_FEEL_PRESET ?? "boss";
 const RUN_ID = process.env.GAME_FEEL_RUN_ID ?? `game-feel-baseline-${new Date().toISOString().replace(/[:.]/g, "-")}`;
 const ARTIFACT_DIR = resolve(".codex-artifacts", "game-feel-baseline", RUN_ID);
-const APP_URL = `http://${HOST}:${CLIENT_PORT}/?devRoomPreset=boss&p0bTestHooks=1`;
+const APP_URL = `http://${HOST}:${CLIENT_PORT}/?devRoomPreset=${encodeURIComponent(PRESET)}&p0bTestHooks=1`;
 const SERVER_URL = `http://${HOST}:${SERVER_PORT}`;
 
 mkdirSync(ARTIFACT_DIR, { recursive: true });
 
 const summary = {
   script: "accept-game-feel-baseline",
+  preset: PRESET,
   runId: RUN_ID,
   artifactDir: ARTIFACT_DIR,
   appUrl: APP_URL,
@@ -170,6 +172,22 @@ async function waitForEventAfter(page, name, afterTs = 0, timeoutMs = 20_000) {
   throw new Error(`Timed out waiting for ${name}`);
 }
 
+async function waitForExtractProgress(page, afterTs = 0, timeoutMs = 20_000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const event = await page.evaluate((minTs) => {
+      return (window.__GAME_FEEL_EVENTS__ ?? []).find((entry) => (
+        entry.ts >= minTs
+        && entry.name === "extract:progress"
+        && ["started", "progress"].includes(entry.payload?.status)
+      )) ?? null;
+    }, afterTs);
+    if (event) return event;
+    await sleep(100);
+  }
+  throw new Error("Timed out waiting for active extract progress");
+}
+
 async function screenshot(page, name, options = {}) {
   const path = join(ARTIFACT_DIR, name);
   await page.screenshot({ path, fullPage: options.fullPage ?? false });
@@ -215,6 +233,75 @@ async function triggerAndWaitForCombatResult(page, selfPlayerId, timeoutMs = 10_
   throw new Error("Timed out waiting for self combat:result after boss click loop");
 }
 
+async function finishWithEventDump(page) {
+  const events = await page.evaluate(() => window.__GAME_FEEL_EVENTS__ ?? []);
+  writeFileSync(join(ARTIFACT_DIR, "events.json"), `${JSON.stringify(events, null, 2)}\n`, "utf8");
+}
+
+async function runLateGameExtractAcceptance(page, matchStarted) {
+  await screenshot(page, "01-lategame-extract-ready.png");
+
+  const opened = await waitForEventAfter(page, "extract:opened", matchStarted.ts, 12_000);
+  note("captured late-game extract opened event", {
+    isOpen: opened.payload?.zones?.some((zone) => zone.isOpen) ?? null,
+    members: opened.payload?.squadStatus?.members?.length ?? null
+  });
+
+  const canvas = page.locator("canvas:not(.lobby-background)").first();
+  const canvasBox = await canvas.boundingBox();
+  if (!canvasBox) throw new Error("game canvas bounding box unavailable before late-game extract");
+  await canvas.click({
+    position: {
+      x: Math.round(canvasBox.width / 2),
+      y: Math.round(canvasBox.height / 2)
+    },
+    force: true
+  });
+  await page.keyboard.press("F");
+  note("requested late-game extract via keyboard");
+
+  const progress = await waitForExtractProgress(page, matchStarted.ts, 15_000);
+  if (!progress.payload?.pressure) {
+    throw new Error("Late-game extract progress should expose active pressure");
+  }
+  note("captured late-game extract pressure progress", {
+    status: progress.payload?.status ?? null,
+    remainingMs: progress.payload?.remainingMs ?? null,
+    pressureRadius: progress.payload?.pressure?.radius ?? null
+  });
+  await sleep(350);
+  await screenshot(page, "02-lategame-extract-pressure.png");
+
+  await sleep(1_500);
+  await screenshot(page, "03-lategame-extract-sustained-pressure.png");
+
+  await finishWithEventDump(page);
+  summary.result = "pass";
+  note("captured late-game extract ready and exposed pressure progress screenshots");
+}
+
+async function runBossCombatAcceptance(page, matchStarted) {
+  await screenshot(page, "01-combat-hud-boss-proximity.png");
+
+  const combatEvent = await triggerAndWaitForCombatResult(page, matchStarted.payload?.selfPlayerId);
+  note("captured combat result before hit-feedback screenshot", {
+    attackerId: combatEvent.payload?.attackerId ?? null,
+    targetId: combatEvent.payload?.targetId ?? null,
+    amount: combatEvent.payload?.amount ?? null,
+    damageType: combatEvent.payload?.damageType ?? null
+  });
+  await sleep(220);
+  await screenshot(page, "02-combat-hit-feedback-attempt.png");
+
+  await page.keyboard.press("i");
+  await sleep(600);
+  await screenshot(page, "03-combat-inventory-open.png");
+
+  await finishWithEventDump(page);
+  summary.result = "pass";
+  note("captured combat HUD, boss proximity, hit feedback attempt, and inventory baseline screenshots");
+}
+
 async function run() {
   startLauncher();
   await waitForHttp(SERVER_URL);
@@ -244,27 +331,12 @@ async function run() {
   await page.locator("canvas:not(.lobby-background)").first().waitFor({ state: "visible", timeout: 20_000 });
   await sleep(1_200);
 
-  await screenshot(page, "01-combat-hud-boss-proximity.png");
+  if (PRESET === "lategame") {
+    await runLateGameExtractAcceptance(page, matchStarted);
+    return;
+  }
 
-  const combatEvent = await triggerAndWaitForCombatResult(page, matchStarted.payload?.selfPlayerId);
-  note("captured combat result before hit-feedback screenshot", {
-    attackerId: combatEvent.payload?.attackerId ?? null,
-    targetId: combatEvent.payload?.targetId ?? null,
-    amount: combatEvent.payload?.amount ?? null,
-    damageType: combatEvent.payload?.damageType ?? null
-  });
-  await sleep(220);
-  await screenshot(page, "02-combat-hit-feedback-attempt.png");
-
-  await page.keyboard.press("i");
-  await sleep(600);
-  await screenshot(page, "03-combat-inventory-open.png");
-
-  const events = await page.evaluate(() => window.__GAME_FEEL_EVENTS__ ?? []);
-  writeFileSync(join(ARTIFACT_DIR, "events.json"), `${JSON.stringify(events, null, 2)}\n`, "utf8");
-
-  summary.result = "pass";
-  note("captured combat HUD, boss proximity, hit feedback attempt, and inventory baseline screenshots");
+  await runBossCombatAcceptance(page, matchStarted);
 }
 
 async function cleanup() {
