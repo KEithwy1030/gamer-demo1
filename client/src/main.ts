@@ -38,7 +38,9 @@ function shouldEnableP0BTestHooks(): boolean {
   }
 
   const search = new URLSearchParams(window.location.search);
-  return search.get("devRoomPreset") === "extract" || search.get("p0bTestHooks") === "1";
+  return search.get("devRoomPreset") === "extract"
+    || search.get("devRoomPreset") === "lategame"
+    || search.get("p0bTestHooks") === "1";
 }
 
 function clearP0BTestHooks(): void {

@@ -5,7 +5,7 @@ import { startChestOpening } from "./chests/chest-manager.js";
 import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "./internal-constants.js";
 import type { DropState, InventoryItem, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "./types.js";
 
-export type DevRoomPreset = "boss" | "extract" | "inventory" | "contested";
+export type DevRoomPreset = "boss" | "extract" | "inventory" | "contested" | "lategame";
 
 const ENABLE_TEST_HOOKS = process.env.ENABLE_TEST_HOOKS === "1";
 const BOSS_LOCK_CHASE_DISTANCE = 220;
@@ -25,7 +25,7 @@ export function resolveEnabledDevRoomPreset(value: unknown): DevRoomPreset | und
     return undefined;
   }
 
-  return value === "boss" || value === "extract" || value === "inventory" || value === "contested"
+  return value === "boss" || value === "extract" || value === "inventory" || value === "contested" || value === "lategame"
     ? value
     : undefined;
 }
@@ -48,6 +48,9 @@ export function applyDevRoomPreset(room: RuntimeRoom, preset: DevRoomPreset): vo
       break;
     case "contested":
       applyContestedPreset(room, player);
+      break;
+    case "lategame":
+      applyLateGamePreset(room, player);
       break;
   }
 }
@@ -129,6 +132,48 @@ function applyContestedPreset(room: RuntimeRoom, player: RuntimePlayer): void {
   placePlayer(player, chest.x, chest.y, normalizeDirection({ x: chest.x - player.state.x, y: chest.y - player.state.y }));
   stabilizePlayer(player);
   startChestOpening(room, player.id, chest.id);
+}
+
+function applyLateGamePreset(room: RuntimeRoom, player: RuntimePlayer): void {
+  const layout = room.matchLayout;
+  const extractZone = layout?.extractZones[0];
+  if (!extractZone || !player.state) {
+    return;
+  }
+
+  const now = Date.now();
+  applyExtractPreset(room, player);
+  room.startedAt = now - 500_000;
+
+  if (room.extract?.zones?.[0] && room.extract.zones[0].zoneId === extractZone.zoneId) {
+    const zone = room.extract.zones[0];
+    zone.isOpen = true;
+    zone.openedAt = now;
+    zone.channelDurationMs = Math.max(zone.channelDurationMs ?? 0, 12_000);
+    room.extract.activeZoneId = zone.zoneId;
+    room.extract.activeSquadId = player.squadId;
+    room.extract.carrier ??= {
+      holderPlayerId: null,
+      holderSquadId: null
+    };
+    room.extract.carrier.holderPlayerId = player.id;
+    room.extract.carrier.holderSquadId = player.squadId;
+    room.extract.activePressure = {
+      zoneId: zone.zoneId,
+      playerId: player.id,
+      squadId: player.squadId,
+      x: zone.x,
+      y: zone.y,
+      radius: 1500,
+      startedAt: now,
+      expiresAt: now + zone.channelDurationMs + 2_500
+    };
+  }
+
+  const threat = [...(room.monsters?.values() ?? [])].find((monster) => monster.isAlive && monster.type !== "boss");
+  if (threat) {
+    relocateMonsterNearPlayer(threat, player, 132);
+  }
 }
 
 function getPointAtDistanceFromAnchor(anchor: { x: number; y: number }, distance: number): { x: number; y: number } {
@@ -225,6 +270,45 @@ function relocateMonsterAway(monster: RuntimeMonster, anchor: { x: number; y: nu
   monster.spawnY = destination.y;
   monster.patrolX = destination.x;
   monster.patrolY = destination.y;
+}
+
+function relocateMonsterNearPlayer(monster: RuntimeMonster, player: RuntimePlayer, distance: number): void {
+  if (!player.state) {
+    return;
+  }
+
+  const direction = normalizeDirection({
+    x: monster.x - player.state.x,
+    y: monster.y - player.state.y
+  });
+  const fallbackDirection = direction.x === 0 && direction.y === 0 ? { x: 1, y: 0 } : direction;
+  const candidates = [
+    fallbackDirection,
+    { x: 1, y: 0 },
+    { x: -1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 0, y: -1 }
+  ].map((entry) => ({
+    x: clamp(Math.round(player.state!.x + entry.x * distance), 96, MATCH_MAP_WIDTH - 96),
+    y: clamp(Math.round(player.state!.y + entry.y * distance), 96, MATCH_MAP_HEIGHT - 96)
+  }));
+  const destination = candidates[0] ?? {
+    x: clamp(Math.round(player.state!.x + distance), 96, MATCH_MAP_WIDTH - 96),
+    y: clamp(Math.round(player.state!.y), 96, MATCH_MAP_HEIGHT - 96)
+  };
+
+  monster.x = destination.x;
+  monster.y = destination.y;
+  monster.spawnX = destination.x;
+  monster.spawnY = destination.y;
+  monster.patrolX = destination.x;
+  monster.patrolY = destination.y;
+  monster.targetPlayerId = player.id;
+  monster.behaviorPhase = "hunt";
+  monster.nextAttackAt = Date.now();
+  monster.idleUntil = undefined;
+  monster.returningUntil = undefined;
+  monster.lastAggroAt = Date.now();
 }
 
 function delayMonster(monster: RuntimeMonster, now: number): void {
