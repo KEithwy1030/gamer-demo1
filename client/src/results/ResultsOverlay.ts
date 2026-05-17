@@ -19,6 +19,7 @@ export interface SettlementCopy {
   subtitle: string;
   summaryReason: string;
   lobbySummary: string;
+  buildCommit: string;
 }
 
 export function createResultsOverlay(options: ResultsOverlayOptions = {}): ResultsOverlayApi {
@@ -32,6 +33,9 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
   const eyebrow = document.createElement("p");
   eyebrow.className = "results-eyebrow";
   eyebrow.textContent = "结算回收";
+
+  const buildTag = document.createElement("p");
+  buildTag.className = "results-build";
 
   const title = document.createElement("h2");
   title.className = "results-title";
@@ -104,7 +108,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
 
   actions.append(copyNoteButton, returnButton, dismissButton);
   itemsSection.append(itemsLabel, itemsList);
-  card.append(eyebrow, title, subtitle, stats, itemsSection, actions);
+  card.append(eyebrow, buildTag, title, subtitle, stats, itemsSection, actions);
   element.append(card);
   let latestSettlement: SettlementPayload | null = null;
 
@@ -143,6 +147,7 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
 
     const { settlement } = state;
     const copy = buildSettlementCopy(settlement);
+    buildTag.textContent = `Build: ${copy.buildCommit}`;
     title.textContent = copy.title;
     subtitle.textContent = copy.subtitle;
     replaceStats(stats, settlement);
@@ -161,7 +166,8 @@ export function buildSettlementCopy(settlement: SettlementPayload): SettlementCo
       ? `你已带着物资脱离封锁区。${summaryReason}`
       : `本局未能带出物资。${summaryReason}`,
     summaryReason,
-    lobbySummary
+    lobbySummary,
+    buildCommit: getBuildCommit()
   };
 }
 

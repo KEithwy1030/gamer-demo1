@@ -102,6 +102,16 @@
   background: var(--results-signal);
 }
 
+.results-build {
+  margin: 6px 0 0;
+  font-family: "JetBrains Mono", "Noto Sans SC", ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--results-bone-low);
+}
+
 .results-title {
   margin: 10px 0 10px;
   font-family: "Noto Serif SC", "Noto Sans SC", serif;
