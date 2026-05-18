@@ -177,6 +177,7 @@ export function applyEnvironmentalDamage(
     amount: mitigatedAmount,
     damageType: "environment",
     damageSourceId: sourceId,
+    critMultiplier: 1,
     interruptsExtract: false,
     targetHp: player.state.hp,
     targetAlive: player.state.isAlive
@@ -217,6 +218,7 @@ function applyBleedTicks(player: RuntimePlayer, now: number): void {
         amount: modifier.bleedDamagePerTick,
         damageType: "bleed",
         damageSourceId: modifier.sourceId,
+        critMultiplier: 1,
         interruptsExtract: false,
         targetHp: state.hp,
         targetAlive: state.isAlive

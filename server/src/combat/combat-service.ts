@@ -53,6 +53,7 @@ const SKILL_DAMAGE = {
   bladeSweep: 22,
   spearHeavyThrust: 24
 } as const;
+const SPEAR_HEAVY_THRUST_CRIT_MULTIPLIER = 1.5;
 
 export function resolvePlayerAttack(
   room: RuntimeRoom,
@@ -178,10 +179,11 @@ export function resolvePlayerSkillCast(
           room,
           caster,
           target,
-          Math.max(1, Math.round(scaleOutgoingDamage(caster, SKILL_DAMAGE.spearHeavyThrust + attackPowerBonus, now) * 1.5)),
+          Math.max(1, Math.round(scaleOutgoingDamage(caster, SKILL_DAMAGE.spearHeavyThrust + attackPowerBonus, now) * SPEAR_HEAVY_THRUST_CRIT_MULTIPLIER)),
           now,
           undefined,
-          true
+          true,
+          SPEAR_HEAVY_THRUST_CRIT_MULTIPLIER
         )
         : emptyResolution();
     }
@@ -255,9 +257,10 @@ function applyDamage(
   amount: number,
   timestamp: number,
   onHitEffect?: PlayerHitEffect,
-  isCritical = false
+  isCritical = false,
+  critMultiplier = 1
 ): CombatResolution {
-  return applyDamageToTargets(room, attacker, [target], amount, timestamp, onHitEffect, isCritical);
+  return applyDamageToTargets(room, attacker, [target], amount, timestamp, onHitEffect, isCritical, critMultiplier);
 }
 
 function applyDamageToTargets(
@@ -267,7 +270,8 @@ function applyDamageToTargets(
   amount: number,
   timestamp: number,
   onHitEffect?: PlayerHitEffect,
-  isCritical = false
+  isCritical = false,
+  critMultiplier = 1
 ): CombatResolution {
   if (!attacker.state) {
     throw new Error("Attacker must have active state.");
@@ -294,6 +298,7 @@ function applyDamageToTargets(
         amount: 0,
         damageSourceId: attacker.id,
         isCritical,
+        critMultiplier,
         statusApplied: undefined,
         targetHp: target.state.hp,
         targetAlive: true
@@ -313,6 +318,7 @@ function applyDamageToTargets(
       amount: mitigatedAmount,
       damageSourceId: attacker.id,
       isCritical,
+      critMultiplier,
       statusApplied,
       targetHp: target.state.hp,
       targetAlive

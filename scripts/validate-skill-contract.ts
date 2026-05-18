@@ -86,6 +86,11 @@ function validateServerWeaponSkillBranches(): void {
     const { room, caster, target } = createSkillRoom(weaponType);
     const result = resolvePlayerSkillCast(room, caster.id, { skillId });
     assert.ok(result.combatEvents.some((event) => event.targetId === target.id && event.amount > 0), `${skillId} should resolve server-side damage`);
+    if (skillId === "spear_heavyThrust") {
+      const critEvent = result.combatEvents.find((event) => event.targetId === target.id);
+      assert.equal(critEvent?.isCritical, true, "spear heavy thrust should stay flagged as a critical hit");
+      assert.equal(critEvent?.critMultiplier, 1.5, "spear heavy thrust should expose its critical multiplier for VFX scaling");
+    }
   }
 
   const bladeGuard = createSkillRoom("blade");

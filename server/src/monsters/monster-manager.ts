@@ -86,6 +86,7 @@ const SKILL_DAMAGE = {
   bladeSweep: 22,
   spearHeavyThrust: 24
 } as const;
+const SPEAR_HEAVY_THRUST_CRIT_MULTIPLIER = 1.5;
 const BOSS_ENRAGE_THRESHOLD = 0.35;
 const BOSS_ENRAGE_MOVE_SPEED_BONUS = 56;
 const BOSS_ENRAGE_DAMAGE_BONUS = 8;
@@ -359,6 +360,7 @@ export function handlePlayerAttack(
     attackerId: player.id,
     targetId: targetMonster.id,
     amount: attackPower,
+    critMultiplier: 1,
     statusApplied: getEquippedWeaponAffixTotal(player, "bleed") > 0 ? ["bleed"] : undefined,
     targetHp: targetMonster.hp,
     targetAlive: !monsterDied
@@ -433,9 +435,10 @@ export function handlePlayerSkill(
         room,
         player,
         target ? [target] : [],
-        Math.max(1, Math.round(scaleOutgoingDamage(player, SKILL_DAMAGE.spearHeavyThrust + player.state.attackPower, now) * 1.5)),
+        Math.max(1, Math.round(scaleOutgoingDamage(player, SKILL_DAMAGE.spearHeavyThrust + player.state.attackPower, now) * SPEAR_HEAVY_THRUST_CRIT_MULTIPLIER)),
         now,
-        true
+        true,
+        SPEAR_HEAVY_THRUST_CRIT_MULTIPLIER
       );
     }
     default:
@@ -834,7 +837,8 @@ function applySkillDamageToMonsters(
   targets: RuntimeMonster[],
   damage: number,
   now: number,
-  isCritical = false
+  isCritical = false,
+  critMultiplier = 1
 ): PlayerSkillOutcome {
   const combatEvents: CombatEventPayload[] = [];
   const spawnedDrops: DropState[] = [];
@@ -866,6 +870,7 @@ function applySkillDamageToMonsters(
       targetId: monster.id,
       amount: damage,
       isCritical,
+      critMultiplier,
       targetHp: monster.hp,
       targetAlive: !monsterDied
     });
@@ -1493,6 +1498,7 @@ function applyMonsterDamage(
       attackerId: monster.id,
       targetId: target.id,
       amount: 0,
+      critMultiplier: 1,
       targetHp: target.state!.hp,
       targetAlive: true
     };
@@ -1513,6 +1519,7 @@ function applyMonsterDamage(
     attackerId: monster.id,
     targetId: target.id,
     amount: mitigatedDamage,
+    critMultiplier: 1,
     statusApplied,
     targetHp: target.state!.hp,
     targetAlive: target.state!.isAlive
