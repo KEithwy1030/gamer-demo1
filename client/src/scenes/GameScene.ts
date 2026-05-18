@@ -166,11 +166,11 @@ export class GameScene extends Phaser.Scene {
     this.load.image("icon_weapon_sword", "assets/generated/image2_processed/items/icon_weapon_sword.png");
     this.load.image("icon_weapon_blade", "assets/generated/image2_processed/items/icon_weapon_blade.png");
     this.load.image("icon_weapon_spear", "assets/generated/image2_processed/items/icon_weapon_spear.png");
-    this.load.image("hud_panel_status", "assets/generated/hud_single/medieval-hud-status-cpa-image2-20260501.png");
-    this.load.image("hud_panel_objective", "assets/generated/hud_single/medieval-hud-objective-cpa-image2-20260501.png");
-    this.load.image("hud_panel_timer", "assets/generated/hud_single/medieval-hud-timer-cpa-image2-20260501.png");
-    this.load.image("hud_panel_command", "assets/generated/hud_single/medieval-hud-command-cpa-image2-20260501.png");
-    this.load.image("hud_panel_skills", "assets/generated/hud_single/medieval-hud-skills-cpa-image2-20260501.png");
+    this.load.image("hud_status", "assets/generated/hud/medieval-hud-status-cpa-image2-20260501.png");
+    this.load.image("hud_objective", "assets/generated/hud/medieval-hud-objective-cpa-image2-20260501.png");
+    this.load.image("hud_timer", "assets/generated/hud/medieval-hud-timer-cpa-image2-20260501.png");
+    this.load.image("hud_command", "assets/generated/hud/medieval-hud-command-cpa-image2-20260501.png");
+    this.load.image("hud_skills", "assets/generated/hud/medieval-hud-skills-cpa-image2-20260501.png");
   }
 
   init(data: GameSceneInitData): void {

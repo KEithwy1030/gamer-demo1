@@ -14,11 +14,11 @@ import {
 } from "./skillHelpers";
 
 const HUD_ASSETS = {
-  status: "hud_panel_status",
-  objective: "hud_panel_objective",
-  timer: "hud_panel_timer",
-  command: "hud_panel_command",
-  skills: "hud_panel_skills"
+  status: "hud_status",
+  objective: "hud_objective",
+  timer: "hud_timer",
+  command: "hud_command",
+  skills: "hud_skills"
 } as const;
 
 const SKILL_SLOT_CENTER_Y_RATIO = 0.5;
@@ -241,9 +241,9 @@ export class GameHudOverlay {
     this.skillCooldownTexts = this.layout.skillSlots.map((slot) => this.scene.add.text(slot.x, slot.y - 1, "", {
       fontFamily: GAMEPLAY_THEME.fonts.mono,
       fontSize: this.isTouchDevice ? "17px" : "19px",
-      color: "#f7ead0",
-      stroke: "#130e0a",
-      strokeThickness: 4,
+      color: "#ffffff", // [待人工调优] Step 2.5: white text
+      stroke: "#000000", // [待人工调优] Step 2.5: black outline
+      strokeThickness: 2, // [待人工调优] Step 2.5: 2 px outline
       align: "center"
     }).setOrigin(0.5).setVisible(false));
 
@@ -694,39 +694,50 @@ export class GameHudOverlay {
 }
 
 function buildHudLayout(width: number, height: number, isTouchDevice: boolean): HudLayout {
-  const margin = isTouchDevice ? 12 : 22;
-  const topGap = isTouchDevice ? 8 : 14;
-  const statusW = isTouchDevice ? Math.min(width - margin * 2, Math.max(286, Math.min(308, width * 0.35))) : Math.min(468, Math.max(412, width * 0.25));
-  const statusH = Math.round(statusW / 4.16);
-  const timerW = isTouchDevice ? Math.min(width - margin * 2, Math.max(220, Math.min(236, width * 0.28))) : 332;
-  const timerH = Math.round(timerW / 2.82);
-  const topRowObjectiveW = width - statusW - timerW - margin * 4;
-  const canUseTopRowObjective = isTouchDevice && topRowObjectiveW >= 260;
-  const objectiveW = canUseTopRowObjective
-    ? topRowObjectiveW
-    : isTouchDevice
-      ? Math.min(width - margin * 2, 388)
-      : Math.min(408, Math.max(332, width - statusW - timerW - margin * 4));
-  const objectiveH = Math.round(objectiveW / (isTouchDevice ? 3.15 : 2.72));
-  const skillsW = isTouchDevice ? Math.min(width - margin * 2, 420) : 492;
-  const skillsH = Math.round(skillsW / 5.46);
-  const commandW = isTouchDevice ? Math.min(width - margin * 2, 500) : Math.min(560, width - 220);
-  const commandH = Math.round(commandW / 7.2);
+  const margin = 12; // [待人工调优] 12 px margin from viewport edges minimum
+  const gap = 6; // [待人工调优] 6 px gap between adjacent panels
+  
+  // Status panel: max 320 px wide on desktop, scale down for narrow screens
+  const statusW = Math.min(320, width * (isTouchDevice ? 0.3 : 0.35)); // [待人工调优] Reduced % on mobile
+  const statusH = Math.round(statusW / 4.16); // [待人工调优] Ratio from existing code
+  
+  // Timer panel: max 280 px wide
+  const timerW = Math.min(280, width * (isTouchDevice ? 0.25 : 0.3)); // [待人工调优] Reduced % on mobile
+  const timerH = Math.round(timerW / 2.82); // [待人工调优] Ratio from existing code
+  
+  // Objective panel: max 260 px wide
+  const objectiveW = Math.min(260, width - statusW - timerW - margin * 4); // [待人工调优]
+  const objectiveH = Math.round(objectiveW / (isTouchDevice ? 3.15 : 2.72)); // [待人工调优] Ratio from existing code
+  
+  // Skills panel (bottom): centered, max 480 px wide
+  const skillsW = Math.min(480, width - margin * 2); // [待人工调优]
+  const skillsH = Math.round(skillsW / 5.46); // [待人工调优] Ratio from existing code
+  
+  // Command panel
+  const commandW = isTouchDevice ? Math.min(500, width - margin * 2) : 360; // [待人工调优] Narrower on desktop to avoid overlap
+  const commandH = Math.round(commandW / 7.2); // [待人工调优] Ratio from existing code
 
   const status = new Phaser.Geom.Rectangle(margin, margin, statusW, statusH);
   const timer = new Phaser.Geom.Rectangle(width - timerW - margin, margin, timerW, timerH);
-  const objectiveX = canUseTopRowObjective ? status.right + margin : Math.round(width / 2 - objectiveW / 2);
-  const objectiveY = canUseTopRowObjective ? margin : width < 1180 ? Math.max(status.bottom, timer.bottom) + topGap : margin;
+  
+  // Center objective between status and timer if space allows, otherwise below
+  let objectiveX = Math.round(width / 2 - objectiveW / 2);
+  let objectiveY = margin;
+  if (width < statusW + timerW + objectiveW + margin * 4) {
+    objectiveY = Math.max(status.bottom, timer.bottom) + gap;
+  }
   const objective = new Phaser.Geom.Rectangle(objectiveX, objectiveY, objectiveW, objectiveH);
-  const skills = new Phaser.Geom.Rectangle(margin, height - skillsH - margin, skillsW, skillsH);
-  const commandAnchorY = isTouchDevice ? height - margin - 92 : height - margin - 48;
+  
+  const skills = new Phaser.Geom.Rectangle(Math.round(width / 2 - skillsW / 2), height - skillsH - margin, skillsW, skillsH);
+  
+  const commandAnchorY = isTouchDevice ? height - margin - 92 : height - margin - 48; // [待人工调优]
   const commandX = isTouchDevice
     ? Math.round(width / 2 - commandW / 2)
-    : Math.min(width - margin - commandW, Math.round(skills.right + margin));
+    : width - margin - commandW; // [待人工调优] Pin to right on desktop to avoid centered skills
   const command = new Phaser.Geom.Rectangle(commandX, Math.round(commandAnchorY - commandH), commandW, commandH);
 
-  const slotW = Math.round(skills.width * 0.112);
-  const slotH = Math.round(skills.height * 0.56);
+  const slotW = Math.round(skills.width * 0.112); // [待人工调优]
+  const slotH = Math.round(skills.height * 0.56); // [待人工调优]
 
   return {
     status,

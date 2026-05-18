@@ -42,8 +42,8 @@ assert.match(
 );
 assert.match(
   hudSource,
-  /const skills = new Phaser\.Geom\.Rectangle\(margin, height - skillsH - margin, skillsW, skillsH\);/,
-  "HUD skill panel should pin to a stable bottom row"
+  /const skills = new Phaser\.Geom\.Rectangle\(Math\.round\(width \/ 2 - skillsW \/ 2\), height - skillsH - margin, skillsW, skillsH\);/,
+  "HUD skill panel should be centered on the bottom row"
 );
 assert.match(
   hudSource,
@@ -341,37 +341,34 @@ function validateHudLayout(): void {
 }
 
 function buildHudLayoutForValidation(width: number, height: number, isTouchDevice: boolean) {
-  const margin = isTouchDevice ? 12 : 22;
-  const topGap = isTouchDevice ? 8 : 14;
-  const statusW = isTouchDevice ? Math.min(width - margin * 2, Math.max(286, Math.min(308, width * 0.35))) : Math.min(468, Math.max(412, width * 0.25));
+  const margin = 12;
+  const gap = 6;
+  const statusW = Math.min(320, width * (isTouchDevice ? 0.3 : 0.35));
   const statusH = Math.round(statusW / 4.16);
-  const timerW = isTouchDevice ? Math.min(width - margin * 2, Math.max(220, Math.min(236, width * 0.28))) : 332;
+  const timerW = Math.min(280, width * (isTouchDevice ? 0.25 : 0.3));
   const timerH = Math.round(timerW / 2.82);
-  const topRowObjectiveW = width - statusW - timerW - margin * 4;
-  const canUseTopRowObjective = isTouchDevice && topRowObjectiveW >= 260;
-  const objectiveW = canUseTopRowObjective
-    ? topRowObjectiveW
-    : isTouchDevice
-      ? Math.min(width - margin * 2, 388)
-      : Math.min(408, Math.max(332, width - statusW - timerW - margin * 4));
+  const objectiveW = Math.min(260, width - statusW - timerW - margin * 4);
   const objectiveH = Math.round(objectiveW / (isTouchDevice ? 3.15 : 2.72));
-  const skillsW = isTouchDevice ? Math.min(width - margin * 2, 420) : 492;
+  const skillsW = Math.min(480, width - margin * 2);
   const skillsH = Math.round(skillsW / 5.46);
-  const commandW = isTouchDevice ? Math.min(width - margin * 2, 500) : Math.min(560, width - 220);
+  const commandW = isTouchDevice ? Math.min(500, width - margin * 2) : 360;
   const commandH = Math.round(commandW / 7.2);
 
   const status = rect(margin, margin, statusW, statusH);
   const timer = rect(width - timerW - margin, margin, timerW, timerH);
-  const objectiveX = canUseTopRowObjective ? status.x + status.width + margin : Math.round(width / 2 - objectiveW / 2);
-  const objectiveY = canUseTopRowObjective ? margin : width < 1180 ? Math.max(status.y + status.height, timer.y + timer.height) + topGap : margin;
+  let objectiveX = Math.round(width / 2 - objectiveW / 2);
+  let objectiveY = margin;
+  if (width < statusW + timerW + objectiveW + margin * 4) {
+    objectiveY = Math.max(status.y + status.height, timer.y + timer.height) + gap;
+  }
   const objective = rect(objectiveX, objectiveY, objectiveW, objectiveH);
-  const skills = rect(margin, height - skillsH - margin, skillsW, skillsH);
+  const skills = rect(Math.round(width / 2 - skillsW / 2), height - skillsH - margin, skillsW, skillsH);
   const commandAnchorY = isTouchDevice ? height - margin - 92 : height - margin - 48;
   const commandX = isTouchDevice
     ? Math.round(width / 2 - commandW / 2)
-    : Math.min(width - margin - commandW, Math.round(skills.x + skills.width + margin));
+    : width - margin - commandW;
   const command = rect(commandX, Math.round(commandAnchorY - commandH), commandW, commandH);
-  const slotW = Math.round(skills.width * 0.096);
+  const slotW = Math.round(skills.width * 0.112);
   const slotH = Math.round(skills.height * 0.56);
   const slotCenterY = skills.y + skills.height * SKILL_SLOT_CENTER_Y_RATIO;
 
