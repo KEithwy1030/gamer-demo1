@@ -103,6 +103,27 @@ git fetch && git status && git log --oneline -10
 - **项目专属端口**：默认前端端口为 `5288`，默认后端端口为 `5289`。未来如需端口漂移，必须优先使用 `52XX` 段；不要占用 Vite 通用前端端口 `5173`，也不要使用通用后端端口 `3000`，避免和其它本地项目冲突。
 - **运行验证**：优先使用 `npm run playtest:manual` 或 `npm run dev`，浏览器 `http://localhost:5288/` 体验主线流程；服务端健康检查为 `http://localhost:5289/health`。
 
+## Runtime Debug Log
+
+The client has a runtime debug log at `client/src/dev/runtimeLog.ts`. When enabled,
+it captures gameplay events (audio triggers, combat events, chest interactions,
+UI clicks, network state) into a circular buffer.
+
+**For users**:
+- Enable: append `?devLog=1` to the game URL, OR set `localStorage.setItem("gamer.devLog", "1")`
+- Export: bottom-right floating panel has Copy/Download buttons; F12 also triggers download
+- The downloaded `.json` file is the precise event timeline of your playtest session
+
+**For AI agents debugging issues**:
+- Before guessing root cause from prose descriptions, ASK FOR THE LOG FILE
+- The log gives objective signals: audio cues fired with timestamps, chest event ordering, click hit targets
+- Read entries near the reported issue's timestamp window
+- The log replaces "I think the issue is..." with "the log shows at T+12.3s, audio.play(attack) was triggered 4 times with overlapping_instances=3"
+- Categories: AUDIO / COMBAT / CHEST / UI / PLAYER / NET / EXTRACT / GENERAL
+
+**Add new `logEvent` calls** sparingly when adding new systems. Don't log every frame
+or every message - keep the buffer signal-to-noise high.
+
 ---
 
 改动本文件本身需要用户明确同意。
