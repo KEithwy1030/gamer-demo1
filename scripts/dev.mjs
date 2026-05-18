@@ -1,7 +1,39 @@
 import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:net";
 
 const isManualPlaytest = process.argv.includes("--manual-playtest");
 const manualPlaytestTimeoutMs = 20 * 60 * 1000;
+const requiredPorts = [
+  { port: 3000, label: "server" },
+  { port: 5173, label: "client" }
+];
+
+async function isPortAvailable(port) {
+  return await new Promise((resolve) => {
+    const server = createServer();
+    server.once("error", () => resolve(false));
+    server.once("listening", () => {
+      server.close(() => resolve(true));
+    });
+    server.listen(port, "0.0.0.0");
+  });
+}
+
+async function assertRequiredPortsAvailable() {
+  const unavailablePorts = [];
+  for (const requiredPort of requiredPorts) {
+    if (!(await isPortAvailable(requiredPort.port))) {
+      unavailablePorts.push(requiredPort);
+    }
+  }
+
+  if (unavailablePorts.length > 0) {
+    const ports = unavailablePorts.map((entry) => `${entry.label}:${entry.port}`).join(", ");
+    console.error(`[dev] Required port(s) already in use: ${ports}`);
+    console.error("[dev] Stop the existing dev/playtest process before starting a new session.");
+    process.exit(1);
+  }
+}
 
 function runNpmScript(scriptName) {
   if (process.platform === "win32") {
@@ -12,6 +44,8 @@ function runNpmScript(scriptName) {
   }
   return spawn("npm", ["run", scriptName], { stdio: ["ignore", "pipe", "pipe"] });
 }
+
+await assertRequiredPortsAvailable();
 
 const children = [
   runNpmScript("dev:server"),
