@@ -115,6 +115,9 @@ const ELITE_CHARGED_STRIKE_ARC_DEG = 90;
 const ELITE_CHARGED_STRIKE_TRIGGER_RANGE = 90;
 const ELITE_CHARGED_STRIKE_ABORT_RANGE = 130;
 const ELITE_CHARGED_STRIKE_COOLDOWN_MS = 8000;
+const NORMAL_BERSERK_HP_THRESHOLD = 0.3;
+const NORMAL_BERSERK_MOVE_SPEED_MULTIPLIER = 1.3;
+const NORMAL_BERSERK_ATTACK_COOLDOWN_MULTIPLIER = 0.83;
 const OPENING_PASSIVE_AGGRO_GRACE_MS = 25_000;
 
 export interface PlayerAttackOutcome {
@@ -179,6 +182,7 @@ export function listMonsterStates(room: RuntimeRoom): MonsterState[] {
     skillState: monster.skillState,
     skillEndsAt: monster.skillEndsAt,
     windingUpAttackUntil: monster.windingUpAttackUntil,
+    berserk: isNormalMonsterBerserk(monster),
     isEnraged: monster.isEnraged,
     lastAttackAt: monster.lastAttackAt,
     lastDamagedAt: monster.lastDamagedAt,
@@ -655,7 +659,7 @@ function moveMonsterTowards(monster: RuntimeMonster, target: CombatPlayerState, 
   }
 
   monster.facingDirection = normalizeDirection({ x: target.x - monster.x, y: target.y - monster.y });
-  const step = ((speedOverride ?? monster.moveSpeed) * MONSTER_TICK_MS) / 1000;
+  const step = ((speedOverride ?? getMonsterMoveSpeed(monster)) * MONSTER_TICK_MS) / 1000;
   monster.x = clamp(monster.x + ((target.x - monster.x) / distance) * step, 48, MATCH_MAP_WIDTH - 48);
   monster.y = clamp(monster.y + ((target.y - monster.y) / distance) * step, 48, MATCH_MAP_HEIGHT - 48);
 }
@@ -1226,8 +1230,35 @@ function getBossMoveSpeed(monster: RuntimeMonster): number {
   return monster.moveSpeed + (monster.isEnraged ? monster.enrageMoveSpeedBonus : 0);
 }
 
+function isNormalMonsterBerserk(monster: RuntimeMonster): boolean {
+  return monster.type === "normal"
+    && monster.isAlive
+    && monster.hp > 0
+    && monster.hp / monster.maxHp < NORMAL_BERSERK_HP_THRESHOLD;
+}
+
+function getMonsterMoveSpeed(monster: RuntimeMonster): number {
+  if (monster.type === "boss") {
+    return getBossMoveSpeed(monster);
+  }
+
+  if (isNormalMonsterBerserk(monster)) {
+    return monster.moveSpeed * NORMAL_BERSERK_MOVE_SPEED_MULTIPLIER;
+  }
+
+  return monster.moveSpeed;
+}
+
 function getBossCooldown(monster: RuntimeMonster, baseMs: number): number {
   return Math.round(baseMs * (monster.isEnraged ? monster.enrageCooldownMultiplier : 1));
+}
+
+function getNonBossAttackCooldown(monster: RuntimeMonster): number {
+  if (isNormalMonsterBerserk(monster)) {
+    return Math.round(monster.attackCooldownMs * NORMAL_BERSERK_ATTACK_COOLDOWN_MULTIPLIER);
+  }
+
+  return monster.attackCooldownMs;
 }
 
 function tickBossMonster(
@@ -1527,7 +1558,7 @@ function resolveNonBossAttackPhase(
 
   const target = monster.pendingAttackTargetId ? room.players.get(monster.pendingAttackTargetId) : undefined;
   monster.pendingAttackTargetId = undefined;
-  monster.nextAttackAt = now + monster.attackCooldownMs;
+  monster.nextAttackAt = now + getNonBossAttackCooldown(monster);
   monster.behaviorPhase = "recover";
   monster.phaseEndsAt = now + MONSTER_ATTACK_RECOVER_MS;
 

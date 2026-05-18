@@ -30,6 +30,7 @@ export interface MonsterState {
   skillState?: MonsterSkillState;
   skillEndsAt?: number;
   windingUpAttackUntil?: number;
+  berserk?: boolean;
   isEnraged?: boolean;
   lastAttackAt?: number;
   lastDamagedAt?: number;
