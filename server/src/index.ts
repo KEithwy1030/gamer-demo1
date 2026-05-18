@@ -276,6 +276,10 @@ function emitBotTickResult(roomCode: string, result: BotTickResult): void {
   for (const progress of result.extractProgressEvents) {
     io.to(roomCode).emit(SocketEvent.ExtractProgress, progress);
   }
+
+  for (const progress of result.chestProgressEvents) {
+    io.to(roomCode).emit(SocketEvent.ChestProgress, progress);
+  }
 }
 
 function emitExtractInterruptForCombatEvent(
@@ -510,13 +514,19 @@ function startPlayerSyncLoop(roomCode: string): void {
       for (const event of chestTick.openedEvents) {
         io.to(roomCode).emit(SocketEvent.ChestOpened, event);
       }
+      for (const playerId of chestTick.inventoryUpdatedPlayerIds) {
+        const chestPlayer = context.room.players.get(playerId);
+        if (chestPlayer?.socketId) {
+          io.to(chestPlayer.socketId).emit(SocketEvent.InventoryUpdate, inventoryService.buildInventoryUpdate(chestPlayer));
+        }
+      }
       for (const event of botResult.chestOpenedEvents) {
         io.to(roomCode).emit(SocketEvent.ChestOpened, event);
       }
       for (const event of botResult.lootPickedEvents) {
         io.to(roomCode).emit(SocketEvent.LootPicked, event);
       }
-      if (chestTick.openedEvents.length > 0 || botResult.chestOpenedEvents.length > 0 || botResult.lootPickedEvents.length > 0) {
+      if (chestTick.dropsChanged || chestTick.openedEvents.length > 0 || botResult.chestOpenedEvents.length > 0 || botResult.lootPickedEvents.length > 0) {
         io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
       }
       if (botResult.monsterStateChanged) {
@@ -1013,11 +1023,12 @@ function attachRoomHandlers(socket: GameSocket): void {
         throw new Error("Dead players cannot open chests.");
       }
 
-      startChestOpening(
+      const progress = startChestOpening(
         context.room,
         session.playerId,
         payload.chestId
       );
+      io.to(roomCode).emit(SocketEvent.ChestProgress, progress);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to open chest.");
     }

@@ -6,7 +6,7 @@ import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "../internal-constants.js";
 import { doesSegmentRequireSafeCrossing, getBestSafeCrossing, getNearestRichChestZone, getSquadScavengeChestZone, getSquadSpawnZone, isPointInsideRiverHazard } from "../match-layout.js";
 import { handlePlayerAttack as handleMonsterPlayerAttack, handlePlayerSkill as handleMonsterPlayerSkill } from "../monsters/monster-manager.js";
 import { resolvePlayerAttack, resolvePlayerSkillCast, type PlayerDeathPayload } from "../combat/combat-service.js";
-import type { ChestOpenedPayload, ExtractProgressPayload, LootPickedPayload, RuntimeContext, RuntimeMonster, RuntimePlayer } from "../types.js";
+import type { ChestOpenedPayload, ChestProgressPayload, ExtractProgressPayload, LootPickedPayload, RuntimeContext, RuntimeMonster, RuntimePlayer } from "../types.js";
 
 interface BotDifficultyProfile {
   aggroRange: number;
@@ -28,6 +28,7 @@ export interface BotTickResult {
   playerDeaths: PlayerDeathPayload[];
   extractProgressEvents: ExtractProgressPayload[];
   chestOpenedEvents: ChestOpenedPayload[];
+  chestProgressEvents: ChestProgressPayload[];
   lootPickedEvents: LootPickedPayload[];
   monsterStateChanged: boolean;
   playerStateChanged: boolean;
@@ -62,6 +63,7 @@ export function tickBots(context: RuntimeContext, now = Date.now()): BotTickResu
     playerDeaths: [],
     extractProgressEvents: [],
     chestOpenedEvents: [],
+    chestProgressEvents: [],
     lootPickedEvents: [],
     monsterStateChanged: false,
     playerStateChanged: false
@@ -276,7 +278,8 @@ function tryBotScavenge(
 
   if (chest) {
     try {
-      startChestOpening(context.room, bot.id, chest.id);
+      const progressEvent = startChestOpening(context.room, bot.id, chest.id);
+      result.chestProgressEvents.push(progressEvent);
       result.playerStateChanged = true;
       return true;
     } catch {
