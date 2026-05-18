@@ -31,6 +31,9 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
   const card = document.createElement("div");
   card.className = "results-card";
 
+  const content = document.createElement("div");
+  content.className = "results-content";
+
   const eyebrow = document.createElement("p");
   eyebrow.className = "results-eyebrow";
   eyebrow.textContent = "结算回收";
@@ -120,7 +123,8 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
   nextRun.append(nextRunLabel, nextRunText);
   actions.append(copyNoteButton, returnButton, dismissButton);
   itemsSection.append(itemsLabel, itemsList);
-  card.append(eyebrow, buildTag, title, subtitle, stats, itemsSection, nextRun, actions);
+  content.append(eyebrow, buildTag, title, subtitle, stats, itemsSection, nextRun);
+  card.append(content, actions);
   element.append(card);
   let latestSettlement: SettlementPayload | null = null;
 

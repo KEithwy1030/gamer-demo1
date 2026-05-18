@@ -37,7 +37,9 @@
 .results-card {
   position: relative;
   width: min(620px, 100%);
-  padding: 28px 30px 26px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--results-iron-600);
   background:
     linear-gradient(180deg, rgba(43, 37, 25, 0.42), rgba(22, 19, 15, 0.94)),
@@ -66,6 +68,7 @@
     linear-gradient(to top, var(--results-iron-500) 0 12px, transparent 12px) bottom right;
   background-repeat: no-repeat;
   background-size: 12px 1px, 1px 12px, 12px 1px, 1px 12px, 12px 1px, 1px 12px, 12px 1px, 1px 12px;
+  z-index: 2;
 }
 
 .results-card::after {
@@ -76,6 +79,28 @@
     linear-gradient(90deg, rgba(232, 223, 200, 0.06) 1px, transparent 1px);
   background-size: 22px 22px;
   mix-blend-mode: screen;
+  z-index: 2;
+}
+
+.results-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 30px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--results-iron-500) transparent;
+}
+
+.results-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.results-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.results-content::-webkit-scrollbar-thumb {
+  background: var(--results-iron-500);
+  border-radius: 3px;
 }
 
 .results-eyebrow,
@@ -103,9 +128,9 @@
 }
 
 .results-build {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   font-family: "JetBrains Mono", "Noto Sans SC", ui-monospace, monospace;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.4;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -113,20 +138,20 @@
 }
 
 .results-title {
-  margin: 10px 0 10px;
+  margin: 8px 0 6px;
   font-family: "Noto Serif SC", "Noto Sans SC", serif;
-  font-size: clamp(32px, 5vw, 54px);
-  line-height: 0.98;
+  font-size: clamp(28px, 4vw, 36px);
+  line-height: 1.1;
   letter-spacing: 0.08em;
   color: var(--results-bone);
   text-shadow: 0 2px 24px rgba(14, 11, 8, 0.72);
 }
 
 .results-subtitle {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   font-family: "Noto Sans SC", "Inter Tight", system-ui, sans-serif;
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.6;
   letter-spacing: 0.06em;
   color: var(--results-bone-dim);
 }
@@ -135,7 +160,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0;
-  margin: 0 0 20px;
+  margin: 0 0 16px;
   border-top: 1px solid var(--results-iron-600);
   border-bottom: 1px solid var(--results-iron-600);
 }
@@ -143,7 +168,7 @@
 .results-stats dt,
 .results-stats dd {
   margin: 0;
-  padding: 12px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--results-iron-600);
 }
 
@@ -164,15 +189,15 @@
 .results-stats dd {
   text-align: right;
   font-family: "Noto Serif SC", "Noto Sans SC", serif;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--results-bone);
 }
 
 .results-items {
-  margin-bottom: 20px;
-  padding: 14px 0 0;
+  margin-bottom: 16px;
+  padding: 12px 0 0;
   border-top: 1px solid var(--results-iron-600);
 }
 
@@ -185,17 +210,17 @@
 }
 
 .results-items-list {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .results-items-list li {
-  min-height: 64px;
-  padding: 10px 12px;
+  min-height: 54px;
+  padding: 8px 10px;
   border: 1px solid rgba(232, 96, 44, 0.24);
   background: rgba(232, 96, 44, 0.08);
   color: var(--results-signal);
@@ -213,7 +238,7 @@
 .results-item-card {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
 }
 
@@ -222,9 +247,9 @@
   height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: 4px;
   background: rgba(232, 223, 200, 0.08);
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .results-item-card__icon .inventory-item-icon__image {
@@ -235,7 +260,7 @@
 
 .results-item-card__icon .inventory-item-icon__glyph {
   color: var(--results-bone);
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .results-item-card__body {
@@ -246,20 +271,20 @@
 .results-item-card__name {
   color: var(--results-bone);
   font-family: "Noto Serif SC", "Noto Sans SC", serif;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.2;
 }
 
 .results-item-card__meta {
   color: var(--results-bone-low);
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.3;
 }
 
 .results-item-card__value {
   color: var(--results-caution);
   font-family: "JetBrains Mono", "Noto Sans SC", ui-monospace, monospace;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.08em;
 }
 
@@ -269,8 +294,8 @@
 }
 
 .results-next-run {
-  margin: 0 0 20px;
-  padding: 12px 14px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
   border: 1px solid rgba(212, 178, 76, 0.32);
   background: rgba(212, 178, 76, 0.08);
 }
@@ -289,10 +314,10 @@
 }
 
 .results-next-run__text {
-  margin-top: 6px;
+  margin-top: 4px;
   font-family: "Noto Sans SC", "Inter Tight", system-ui, sans-serif;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--results-bone);
 }
 
@@ -301,17 +326,21 @@
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-start;
+  padding: 16px 30px 18px;
+  background: var(--results-iron-900);
+  border-top: 1px solid var(--results-iron-600);
+  z-index: 5;
 }
 
 .results-dismiss {
   appearance: none;
   border: 1px solid transparent;
   border-radius: 0;
-  padding: 12px 18px;
+  padding: 10px 16px;
   background: var(--results-signal);
   color: var(--results-void);
   font-family: "Noto Serif SC", "Noto Sans SC", serif;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -355,8 +384,11 @@
   .results-card {
     width: min(100%, 560px);
     max-height: calc(100dvh - 24px);
-    padding: 20px 16px 16px;
     overflow-y: auto;
+  }
+
+  .results-content {
+    padding: 20px 16px 10px;
   }
 
   .results-stats {
@@ -372,7 +404,7 @@
 
   .results-stats dd {
     padding-top: 0;
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .results-items-list {
@@ -382,6 +414,7 @@
   .results-actions {
     width: 100%;
     flex-direction: column;
+    padding: 14px 16px 16px;
   }
 
   .results-dismiss {
