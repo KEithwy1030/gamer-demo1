@@ -242,7 +242,7 @@ function tryBotAction(
   }
 
   if (bot.botGoal === "loot") {
-    const didScavenge = tryBotScavenge(context, bot, result);
+    const didScavenge = tryBotScavenge(context, bot, result, now);
     if (didScavenge) {
       return true;
     }
@@ -264,7 +264,8 @@ function tryBotAction(
 function tryBotScavenge(
   context: RuntimeContext,
   bot: RuntimePlayer,
-  result: BotTickResult
+  result: BotTickResult,
+  now: number
 ): boolean {
   if (!bot.state) {
     return false;
@@ -278,7 +279,7 @@ function tryBotScavenge(
 
   if (chest) {
     try {
-      const progressEvent = startChestOpening(context.room, bot.id, chest.id);
+      const progressEvent = startChestOpening(context.room, bot.id, chest.id, now);
       result.chestProgressEvents.push(progressEvent);
       result.playerStateChanged = true;
       return true;

@@ -382,7 +382,7 @@ export function tickChestOpenings(
       chest.itemsDispensed += 1;
       opening.nextDispenseAt += chest.rummageIntervalMs;
       const aggroedMonsterIds = alertMonstersToChestNoise(room, player.id, chest);
-      recordContestedChestNoise(room, player.id, chest, aggroedMonsterIds);
+      recordContestedChestNoise(room, player.id, chest, aggroedMonsterIds, now);
       const completed = chest.itemsDispensed >= chest.totalItems || chest.loot.length === 0;
       if (completed) {
         finalizeEmptyChest(chest);
@@ -457,8 +457,13 @@ function alertMonstersToChestNoise(room: RuntimeRoom, playerId: string, chest: C
   return aggroedMonsterIds;
 }
 
-function recordContestedChestNoise(room: RuntimeRoom, playerId: string, chest: Chest, aggroedMonsterIds: string[]): void {
-  const now = Date.now();
+function recordContestedChestNoise(
+  room: RuntimeRoom,
+  playerId: string,
+  chest: Chest,
+  aggroedMonsterIds: string[],
+  now: number
+): void {
   room.contestedChestNoise = {
     chestId: chest.id,
     playerId,
