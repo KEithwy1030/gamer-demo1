@@ -4,18 +4,20 @@ import {
   INVENTORY_HEIGHT,
   INVENTORY_WIDTH,
   CombatEventPayload,
+  type ConsumableEffect,
   MatchStartedPayload,
   MonsterState,
   PlayerState,
   RoomRuntimeSnapshot,
   SettlementItemDetail,
   SettlementPayload,
+  type StatusEffectType,
   SkillId,
   Vector2,
   WorldDrop
 } from "@gamer/shared";
 import type { InventoryUpdateEvent, SettlementEnvelope } from "../network";
-import type { ConsumableEffect, StatusEffectType } from "@gamer/shared";
+import type { ChestState } from "../network/socketClient";
 import { GameSocketClient, type GameSocketClientOptions, type Unsubscribe } from "../network";
 import { MatchRuntimeStore, type MatchInventoryState } from "../game";
 import type { MatchInventoryItem } from "../game/matchRuntime";
@@ -76,6 +78,7 @@ export function createGameClientController(
 
   let game: Phaser.Game | null = null;
   let extractState = createInitialExtractState();
+  let pendingChestsInit: ChestState[] | null = null;
   let releaseViewportSync: (() => void) | null = null;
   let viewportSyncFrame = 0;
 
@@ -187,6 +190,10 @@ export function createGameClientController(
     network.onCombatResult((payload) => controller.setCombatResult(payload)),
     network.onMonsterKilled((payload) => {
       getScene()?.onMonsterKilled?.(payload);
+    }),
+    network.onChestsInit((chests) => {
+      pendingChestsInit = chests;
+      getScene()?.applyChests(chests);
     }),
     network.onMatchTimer((secondsRemaining) => controller.setTimer(secondsRemaining)),
     network.onExtractOpened((payload) => {
@@ -344,10 +351,18 @@ export function createGameClientController(
       onOpenChest: (chestId: string) => network.sendOpenChest(chestId),
       onAudioCue: (cue: any) => audio.play(cue),
       onToggleInventory: () => controller.toggleInventory(),
+      onSceneReady: () => {
+        if (pendingChestsInit) {
+          getScene()?.applyChests(pendingChestsInit);
+        }
+      },
       subscribeChestsInit: (cb: any) => network.onChestsInit(cb),
       subscribeChestOpened: (cb: any) => network.onChestOpened(cb)
     });
     syncGameViewport();
+    if (pendingChestsInit) {
+      getScene()?.applyChests(pendingChestsInit);
+    }
   }
 
   function destroy(): void {

@@ -64,6 +64,7 @@ export interface GameSceneInitData {
   subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
   subscribeChestProgress?: (callback: (payload: ChestProgressPayload) => void) => () => void;
+  onSceneReady?: () => void;
 }
 
 interface SpectateHudRefs {
@@ -127,6 +128,7 @@ export class GameScene extends Phaser.Scene {
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
   private subscribeChestProgress?: (callback: (payload: ChestProgressPayload) => void) => () => void;
+  private onSceneReady?: () => void;
   private localSkillCooldownEndsAt = 0;
   private localSkillWindupEndsAt = 0;
   private readonly localSkillCooldowns = [
@@ -186,6 +188,7 @@ export class GameScene extends Phaser.Scene {
     this.subscribeChestsInit = data.subscribeChestsInit;
     this.subscribeChestOpened = data.subscribeChestOpened;
     this.subscribeChestProgress = data.subscribeChestProgress;
+    this.onSceneReady = data.onSceneReady;
     this.onCombatResult = (payload) => this.handleCombatResult(payload);
     this.onPlayerAttack = (payload) => this.handleServerPlayerAttack(payload);
     this.onMonsterKilled = (payload) => this.handleMonsterKilled(payload);
@@ -339,6 +342,8 @@ export class GameScene extends Phaser.Scene {
       this.inputBridge?.syncMobileButtons(this.localSkillCooldowns);
       this.syncSpectateState();
     });
+
+    this.onSceneReady?.();
   }
 
   private handleAttack(): void {
@@ -478,6 +483,10 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.interactions?.handleInteract(this.onOpenChest, this.onPickup);
+  }
+
+  applyChests(chests: ChestState[]): void {
+    this.interactions?.applyChests(chests);
   }
 
   private handleToggleInventory(): void {

@@ -731,10 +731,8 @@ function attachRoomHandlers(socket: GameSocket): void {
         SocketEvent.MatchTimer,
         roomStore.getRemainingSeconds(context.room.code)
       );
-      io.to(context.room.code).emit(
-        SocketEvent.ChestsInit,
-        listChests(context.room)
-      );
+      const chests = listChests(context.room);
+      io.to(context.room.code).emit(SocketEvent.ChestsInit, chests);
       if (context.room.extract?.zones?.length) {
         io.to(context.room.code).emit(SocketEvent.ExtractOpened, buildExtractOpenedPayload(context.room));
       }

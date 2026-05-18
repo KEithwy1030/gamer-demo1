@@ -45,13 +45,18 @@ export class GameSceneInteractions {
   mount(
     subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void,
     subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void,
-    subscribeChestProgress?: (callback: (payload: ChestProgressPayload) => void) => () => void
+    subscribeChestProgress?: (callback: (payload: ChestProgressPayload) => void) => () => void,
+    initialChests: ChestState[] = []
   ): void {
     this.chestUnsubscribes = [];
     if (subscribeChestsInit) {
       this.chestUnsubscribes.push(subscribeChestsInit((chests) => {
-        chests.forEach((chest) => this.syncChest(chest));
+        this.applyChests(chests);
       }));
+    }
+
+    if (initialChests.length > 0) {
+      this.applyChests(initialChests);
     }
 
     if (subscribeChestOpened) {
@@ -95,6 +100,10 @@ export class GameSceneInteractions {
       stroke: "#000000",
       strokeThickness: 4
     }).setOrigin(0.5).setDepth(4000).setVisible(false);
+  }
+
+  applyChests(chests: ChestState[]): void {
+    chests.forEach((chest) => this.syncChest(chest));
   }
 
   updateChestPrompt(playerMarker?: PlayerMarker): void {

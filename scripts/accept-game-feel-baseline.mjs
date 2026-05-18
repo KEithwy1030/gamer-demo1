@@ -330,6 +330,11 @@ async function run() {
   ]).then(([entry]) => entry);
   await page.locator("canvas:not(.lobby-background)").first().waitFor({ state: "visible", timeout: 20_000 });
   await sleep(1_200);
+  const chestsInit = await waitForEventAfter(page, "chests:init", matchStarted.ts, 20_000);
+  if (!Array.isArray(chestsInit.payload) || chestsInit.payload.length !== 16) {
+    throw new Error(`Expected 16 chest init payloads, got ${Array.isArray(chestsInit.payload) ? chestsInit.payload.length : "non-array"}`);
+  }
+  note("captured chest init payload count", { count: chestsInit.payload.length });
 
   if (PRESET === "lategame") {
     await runLateGameExtractAcceptance(page, matchStarted);

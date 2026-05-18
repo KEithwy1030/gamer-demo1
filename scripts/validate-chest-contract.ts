@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { buildMatchLayout } from "../server/src/match-layout.js";
 import {
   CHEST_OPEN_DURATION_MS,
   interruptChestOpening,
@@ -12,6 +13,7 @@ import type { InventoryEntry, RuntimeMonster, RuntimePlayer, RuntimeRoom } from 
 
 const now = Date.now();
 
+assertMatchLayoutSpawnsSixteenChests();
 assertSpawnChestsFromLayout();
 assertRummageStartAndInventoryFeed();
 assertRummageInterruptOnMovementAndDamage();
@@ -19,6 +21,16 @@ assertNoisePulseAlertsNearbyMonstersOnAnyChest();
 assertFullBackpackSpillsOneDropPerTick();
 
 console.log("[chest-contract] PASS abandoned crate shape, 3-5 item rummage, 60px interrupt, per-tick inventory/drop feed, all-chest noise pulse, rich guarantee");
+
+function assertMatchLayoutSpawnsSixteenChests(): void {
+  const layout = buildMatchLayout({
+    roomCode: "CHEST",
+    startedAt: 1_714_950_000_000,
+    squadIds: ["player", "bot_alpha", "bot_beta"]
+  });
+
+  assert.equal(layout.chestZones.length, 16, "match layout should place exactly 16 chests");
+}
 
 function assertSpawnChestsFromLayout(): void {
   const room = createRoom();
