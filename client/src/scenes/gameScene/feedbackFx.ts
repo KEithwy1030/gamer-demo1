@@ -206,6 +206,73 @@ export class GameSceneFeedbackFx {
     }
   }
 
+  handleMonsterKilled(payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }): void {
+    const { x, y, tier } = payload;
+
+    if (tier === "normal") {
+      this.applyHitStop(150); // [待人工调优]
+      this.shakeCamera(0.008, 120); // [待人工调优]
+      const flash = this.scene.add.circle(x, y, 20, 0xffffff, 0.6).setDepth(y + 10);
+      this.scene.tweens.add({
+        targets: flash,
+        alpha: 0,
+        scale: 1.5,
+        duration: 120,
+        onComplete: () => flash.destroy()
+      });
+    } else if (tier === "elite") {
+      this.applyHitStop(400); // [待人工调优]
+      this.scene.cameras.main.flash(150, 255, 255, 255, true);
+      this.shakeCamera(0.025, 300); // [待人工调优]
+
+      // Golden expanding ring
+      const ring = this.scene.add.graphics().setPosition(x, y).setDepth(y + 10);
+      ring.lineStyle(4, 0xfbbf24, 0.9);
+      ring.strokeCircle(0, 0, 10);
+      this.scene.tweens.add({
+        targets: ring,
+        alpha: 0,
+        scale: 12, // 10 * 12 = 120px [待人工调优]
+        duration: 500,
+        ease: "Cubic.out",
+        onComplete: () => ring.destroy()
+      });
+
+      // Brief slowmotion
+      const originalTimeScale = this.scene.time.timeScale;
+      this.scene.time.timeScale = 0.4; // [待人工调优]
+      this.scene.time.delayedCall(400, () => {
+      this.scene.tweens.addCounter({
+        from: 0.4,
+        to: originalTimeScale,
+        duration: 200,
+        onUpdate: (tween) => {
+          this.scene.time.timeScale = tween.getValue() as number;
+        }
+      });
+      });    } else if (tier === "boss") {
+      this.applyHitStop(800); // [待人工调优]
+      const camera = this.scene.cameras.main;
+      const originalZoom = camera.zoom;
+      this.scene.tweens.add({
+        targets: camera,
+        zoom: originalZoom * 1.1, // [待人工调优]
+        duration: 200,
+        ease: "Quad.out",
+        onComplete: () => {
+          this.scene.time.delayedCall(400, () => {
+            this.scene.tweens.add({
+              targets: camera,
+              zoom: originalZoom,
+              duration: 200,
+              ease: "Quad.in"
+            });
+          });
+        }
+      });
+    }
+  }
+
   private showStatusAppliedTags(statusApplied: StatusEffectType[] | undefined, x: number, y: number, depth: number): void {
     if (!statusApplied?.length) return;
     const unique = [...new Set(statusApplied)].slice(0, 3);

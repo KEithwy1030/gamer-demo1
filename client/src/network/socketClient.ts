@@ -201,6 +201,10 @@ export class GameSocketClient {
     return this.on(SocketEvent.CombatResult, listener);
   }
 
+  onMonsterKilled(listener: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }) => void): Unsubscribe {
+    return this.on(SocketEvent.MonsterKilled, listener);
+  }
+
   onExtractOpened(listener: (payload: ExtractOpenedPayload | undefined) => void): Unsubscribe {
     return this.on(SocketEvent.ExtractOpened, listener);
   }

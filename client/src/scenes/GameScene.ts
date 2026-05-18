@@ -57,6 +57,7 @@ export interface GameSceneInitData {
   onStartExtract?: () => void;
   onCombatResult?: (payload: CombatEventPayload) => void;
   onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
+  onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }) => void;
   onOpenChest?: (chestId: string) => void;
   onToggleInventory?: () => void;
   subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
@@ -113,6 +114,7 @@ export class GameScene extends Phaser.Scene {
   private onStartExtract?: () => void;
   public onCombatResult?: (payload: CombatEventPayload) => void;
   public onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
+  public onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }) => void;
   private onOpenChest?: (chestId: string) => void;
   private onToggleInventory?: () => void;
   private lastLocalAttackAt = 0;
@@ -180,8 +182,13 @@ export class GameScene extends Phaser.Scene {
     // this.subscribeChestProgress = data.subscribeChestProgress;
     this.onCombatResult = (payload) => this.handleCombatResult(payload);
     this.onPlayerAttack = (payload) => this.handleServerPlayerAttack(payload);
+    this.onMonsterKilled = (payload) => this.handleMonsterKilled(payload);
 
     // The in-game HUD carries objectives now; keep the first combat view unobstructed.
+  }
+
+  private handleMonsterKilled(payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }): void {
+    this.feedbackFx?.handleMonsterKilled(payload);
   }
 
   private handleServerPlayerAttack(payload: { playerId: string; attackId: string; targetId?: string }): void {

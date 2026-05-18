@@ -185,6 +185,9 @@ export function createGameClientController(
     network.onInventoryUpdate((payload) => controller.setInventory(payload)),
     network.onPlayerAttack((payload) => controller.onPlayerAttack(payload)),
     network.onCombatResult((payload) => controller.setCombatResult(payload)),
+    network.onMonsterKilled((payload) => {
+      getScene()?.onMonsterKilled?.(payload);
+    }),
     network.onMatchTimer((secondsRemaining) => controller.setTimer(secondsRemaining)),
     network.onExtractOpened((payload) => {
       const openedState = normalizeExtractOpened(extractState, payload);
