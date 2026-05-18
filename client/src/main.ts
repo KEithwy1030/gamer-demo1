@@ -10,6 +10,8 @@ import { createInventoryPanel } from "./ui/InventoryPanel";
 import { attachViewportScaler } from "./ui/viewportScaler";
 import type { LocalProfile } from "./profile/localProfile";
 import { getServerProfile, loadServerProfile } from "./profile/profileClient";
+import { mountDevLogPanel } from "./dev/devLogPanel";
+import { isEnabled as isRuntimeLogEnabled } from "./dev/runtimeLog";
 import "./styles/mobile.css";
 
 declare global {
@@ -87,6 +89,7 @@ function installP0BTestHooks(gameController: GameClientController): () => void {
 }
 
 async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
+  let cleanupDevLogPanel = () => {};
   let sessionVersion = 0;
   let profile: LocalProfile = await loadServerProfile();
   let pendingLobbyInfoMessage: string | null = null;
@@ -119,6 +122,9 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
   window.visualViewport?.addEventListener("resize", handleVisualViewportChange);
   syncViewportState();
   clearP0BTestHooks();
+  if (isRuntimeLogEnabled()) {
+    cleanupDevLogPanel = mountDevLogPanel();
+  }
 
   await createSession();
 
@@ -299,4 +305,6 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
       // The settlement result remains visible; the lobby will retry loading the profile on the next session.
     }
   }
+
+  window.addEventListener("beforeunload", cleanupDevLogPanel, { once: true });
 }
