@@ -82,7 +82,7 @@ export class GameScene extends Phaser.Scene {
   private runtime!: MatchRuntimeStore;
   private unsubscribeRuntime: (() => void) | null = null;
   private readonly playerMarkers = new Map<string, PlayerMarker>();
-  private readonly monsterMarkers = new Map<string, MonsterMarker>();
+  public readonly monsterMarkers = new Map<string, MonsterMarker>();
   private readonly dropMarkers = new Map<string, DropMarker>();
   private worldBackdrop: WorldBackdropRefs = createWorldBackdropRefs();
   private extractPulseTween?: Phaser.Tweens.Tween;
@@ -119,7 +119,7 @@ export class GameScene extends Phaser.Scene {
   public onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
   public onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }) => void;
   private onOpenChest?: (chestId: string) => void;
-  private onAudioCue?: (cue: string) => void;
+  public onAudioCue?: (cue: string) => void;
   private onToggleInventory?: () => void;
   private monsterWindups = new Map<string, number>();
 
@@ -325,6 +325,8 @@ export class GameScene extends Phaser.Scene {
       this.syncPlayers(state);
       this.syncMonsters(state);
       this.syncDrops(state);
+      this.interactions?.syncLocalPlayerId(state.selfPlayerId);
+      this.interactions?.syncPlayerMarkers(this.playerMarkers);
       this.lockAssistFeedback?.sync({
         state,
         chaseAssist: this.chaseAssist,

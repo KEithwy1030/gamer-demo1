@@ -1,4 +1,4 @@
-import type Phaser from "phaser";
+import Phaser from "phaser";
 import type { ChestOpenedPayload, ChestProgressPayload, ChestState } from "../../network/socketClient";
 import type { ExtractUiState } from "../createGameClient";
 import type { PlayerMarker } from "../../game/entities/PlayerMarker";
@@ -26,6 +26,10 @@ export class GameSceneInteractions {
   private readonly chestProgressBars = new Map<string, Phaser.GameObjects.Graphics>();
   private readonly chestProgressLabels = new Map<string, Phaser.GameObjects.Text>();
   private readonly chestMetadata = new Map<string, { lane?: ChestState["lane"]; noiseRadius?: number; qualityTier?: ChestState["qualityTier"] }>();
+  private readonly chestLastDispensedCount = new Map<string, number>();
+  private readonly playerProgressRings = new Map<string, Phaser.GameObjects.Graphics>();
+  private localPlayerId: string | null = null;
+  private playerMarkers?: Map<string, PlayerMarker>;
   private chestUnsubscribes: Array<() => void> = [];
   private interactionPrompt?: Phaser.GameObjects.Text;
   private extractAutoStarted = false;
@@ -40,6 +44,14 @@ export class GameSceneInteractions {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
+  }
+
+  syncLocalPlayerId(id: string | null): void {
+    this.localPlayerId = id;
+  }
+
+  syncPlayerMarkers(markers: Map<string, PlayerMarker>): void {
+    this.playerMarkers = markers;
   }
 
   mount(
@@ -69,6 +81,8 @@ export class GameSceneInteractions {
         sprite.setTexture("chest_open");
         sprite.setAlpha(1);
         sprite.clearTint();
+        sprite.setAngle(0); // [待人工调优] B.2 Reset shake angle
+        this.scene.tweens.killTweensOf(sprite); // [待人工调优] B.2 Stop shake tween
 
         this.chestLabels.get(payload.chestId)?.destroy();
         this.chestLabels.delete(payload.chestId);
@@ -80,6 +94,7 @@ export class GameSceneInteractions {
         this.chestProgressBars.delete(payload.chestId);
         this.chestProgressLabels.get(payload.chestId)?.destroy();
         this.chestProgressLabels.delete(payload.chestId);
+        this.chestLastDispensedCount.delete(payload.chestId);
 
         if (payload.lane === "contested") {
           this.showContestedChestWarning(sprite.x, sprite.y, payload.aggroedMonsterIds?.length ?? 0);
@@ -90,6 +105,8 @@ export class GameSceneInteractions {
     if (subscribeChestProgress) {
       this.chestUnsubscribes.push(subscribeChestProgress((payload) => {
         this.syncChestProgress(payload);
+        // C.3 Audio tick placeholder
+        (this.scene as any).onAudioCue?.("rummage-tick");
       }));
     }
 
@@ -260,11 +277,32 @@ export class GameSceneInteractions {
       sprite.setTexture("chest_open");
       // [待人工调优] 1.5 Empty state: darker tint/alpha
       sprite.setAlpha(0.6);
+      sprite.setAngle(0); // [待人工调优] B.2 Reset shake
+      this.scene.tweens.killTweensOf(sprite); // [待人工调优] B.2 Stop shake
       this.chestGlows.get(chestId)?.destroy();
       this.chestGlows.delete(chestId);
       this.chestLabels.get(chestId)?.destroy();
       this.chestLabels.delete(chestId);
       return;
+    }
+
+    // [待人工调优] B.2 Chest Shaking Animation
+    if (chest.state === "rummaging") {
+      if (!this.scene.tweens.isTweening(sprite)) {
+        this.scene.tweens.add({
+          targets: sprite,
+          angle: { from: -3, to: 3 }, // [待人工调优] ±3°
+          y: { from: chest.y - 2, to: chest.y + 2 }, // [待人工调优] ±2px bob
+          duration: 100, // [待人工调优] 200ms round trip
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut"
+        });
+      }
+    } else {
+      sprite.setAngle(0);
+      sprite.setY(chest.y);
+      this.scene.tweens.killTweensOf(sprite);
     }
 
     // [待人工调优] 1.1 Outline glow: radius 64, orange #fbbf24, alpha 0.55
@@ -353,41 +391,181 @@ export class GameSceneInteractions {
       this.chestProgressBars.delete(chestId);
       this.chestProgressLabels.get(chestId)?.destroy();
       this.chestProgressLabels.delete(chestId);
+      this.playerProgressRings.get(payload.playerId)?.destroy();
+      this.playerProgressRings.delete(payload.playerId);
+      this.chestLastDispensedCount.delete(chestId);
       return;
     }
 
-    // [待人工调优] 1.3 Rummage progress bar: 80x6, black border, rust-orange #ea580c fill, 60px above
+    // [待人工调优] B.3 Bigger progress bar above chest: 120x10, #fbbf24 fill, #92400e border, 70px above
     let bar = this.chestProgressBars.get(chestId);
     if (!bar) {
       bar = this.scene.add.graphics().setDepth(sprite.y + 2);
       this.chestProgressBars.set(chestId, bar);
     }
     bar.clear();
-    const x = sprite.x - 40;
-    const y = sprite.y - 60;
-    bar.fillStyle(0x000000, 0.8);
-    bar.fillRect(x, y, 80, 6);
-    bar.lineStyle(1, 0x000000, 1);
-    bar.strokeRect(x, y, 80, 6);
+    const barW = 120; // [待人工调优]
+    const barH = 10; // [待人工调优]
+    const x = sprite.x - barW / 2;
+    const y = sprite.y - 70;
+    
+    // Pulse glow under bar
+    const pulse = (Math.sin(this.scene.time.now / 150) + 1) / 2;
+    bar.fillStyle(0x92400e, 0.3 * pulse);
+    bar.fillRoundedRect(x - 4, y - 4, barW + 8, barH + 8, 4);
+
+    bar.fillStyle(0x000000, 0.85);
+    bar.fillRect(x, y, barW, barH);
+    bar.lineStyle(2, 0x92400e, 1); // [待人工调优] #92400e border
+    bar.strokeRect(x, y, barW, barH);
     
     const totalItems = payload.totalItems ?? 0;
     const ratio = totalItems > 0 ? (payload.itemsDispensed ?? 0) / totalItems : 0;
-    bar.fillStyle(0xea580c, 1);
-    bar.fillRect(x, y, 80 * ratio, 6);
+    bar.fillStyle(0xfbbf24, 1); // [待人工调优] #fbbf24 fill
+    bar.fillRect(x + 1, y + 1, (barW - 2) * ratio, barH - 2);
 
-    // [待人工调优] 1.3 Text label "翻找中 X/Y"
+    // [待人工调优] B.3 Text label "翻找中 X/Y" 16px
     let label = this.chestProgressLabels.get(chestId);
     if (!label) {
-      label = this.scene.add.text(sprite.x, sprite.y - 74, "", {
+      label = this.scene.add.text(sprite.x, sprite.y - 88, "", {
         fontFamily: "monospace",
-        fontSize: "12px",
-        color: "#f1e3c4",
+        fontSize: "16px", // [待人工调优]
+        color: "#facc15",
         stroke: "#000000",
-        strokeThickness: 2
+        strokeThickness: 3
       }).setOrigin(0.5).setDepth(sprite.y + 2);
       this.chestProgressLabels.set(chestId, label);
     }
     label.setText(`\u7ffb\u627e\u4e2d ${payload.itemsDispensed}/${payload.totalItems}`);
+
+    // [待人工调优] B.1 Player-character action indicator (Ring)
+    if (payload.playerId) {
+      const marker = this.playerMarkers?.get(payload.playerId);
+      if (marker) {
+        let ring = this.playerProgressRings.get(payload.playerId);
+        if (!ring) {
+          ring = this.scene.add.graphics().setDepth(marker.root.depth + 1);
+          this.playerProgressRings.set(payload.playerId, ring);
+        }
+        ring.clear();
+        ring.setPosition(marker.root.x, marker.root.y);
+        
+        // Background ring
+        ring.lineStyle(4, 0x000000, 0.4);
+        ring.strokeCircle(0, 0, 40); // [待人工调优] radius 40
+        
+        // Filling ring
+        ring.lineStyle(4, 0xf59e0b, 0.9); // [待人工调优] warm orange #f59e0b
+        const startAngle = Phaser.Math.DegToRad(-90);
+        const endAngle = startAngle + Phaser.Math.DegToRad(360 * ratio);
+        ring.beginPath();
+        ring.arc(0, 0, 40, startAngle, endAngle, false);
+        ring.strokePath();
+      }
+    }
+
+    // [待人工调优] B.4 Drop spawn effect
+    const currentDispensed = payload.itemsDispensed ?? 0;
+    const prevCount = this.chestLastDispensedCount.get(chestId) ?? 0;
+    if (currentDispensed > prevCount) {
+      this.spawnDropSparks(sprite.x, sprite.y);
+      this.chestLastDispensedCount.set(chestId, currentDispensed);
+    }
+
+    // [待人工调优] C.1 Ground noise wave
+    this.spawnNoiseWave(sprite.x, sprite.y);
+
+    // [待人工调优] C.2 Attracted-monster indicator
+    this.updateMonsterAlerts(sprite.x, sprite.y);
+  }
+
+  private spawnDropSparks(x: number, y: number): void {
+    // [待人工调优] 6-8 sparks in gold tones
+    for (let i = 0; i < 8; i++) {
+      const spark = this.scene.add.circle(x, y, Phaser.Math.Between(2, 4), 0xfacc15, 0.8).setDepth(y + 10);
+      const angle = Phaser.Math.FloatBetween(-Math.PI * 0.8, -Math.PI * 0.2); // Upward arc
+      const speed = Phaser.Math.Between(100, 200);
+      
+      this.scene.tweens.add({
+        targets: spark,
+        x: x + Math.cos(angle) * speed * 0.5,
+        y: y + Math.sin(angle) * speed * 0.5,
+        alpha: 0,
+        scale: 0.2,
+        duration: 500, // [待人工调优]
+        ease: "Cubic.out",
+        onComplete: () => spark.destroy()
+      });
+    }
+  }
+
+  private spawnNoiseWave(x: number, y: number): void {
+    // [待人工调优] C.1 Ground noise wave: 30px to 250px, amber #d97706, fade 800ms
+    const wave = this.scene.add.graphics().setDepth(y - 2);
+    wave.lineStyle(2, 0xd97706, 0.7);
+    wave.strokeCircle(x, y, 30);
+    
+    this.scene.tweens.add({
+      targets: wave,
+      scaleX: 8.3, // 250 / 30 approx
+      scaleY: 8.3,
+      alpha: 0,
+      duration: 800, // [待人工调优]
+      ease: "Quad.out",
+      onComplete: () => wave.destroy()
+    });
+  }
+
+  private updateMonsterAlerts(x: number, y: number): void {
+    // [待人工调优] C.2 Monsters within 720px get "!"
+    const scene = this.scene as any;
+    if (!scene.monsterMarkers) return;
+
+    for (const [id, marker] of (scene.monsterMarkers as Map<string, any>).entries()) {
+      const dist = distanceBetween(x, y, marker.root.x, marker.root.y);
+      if (dist < 720) {
+        this.showMonsterAlert(marker);
+      }
+    }
+  }
+
+  private showMonsterAlert(marker: any): void {
+    if (marker.alertIcon) return;
+    
+    // [待人工调优] 14 px gold text "！" with black outline, 24 px above
+    const alert = marker.root.scene.add.text(0, -24, "\uff01", {
+      fontFamily: "monospace",
+      fontSize: "14px",
+      color: "#facc15",
+      stroke: "#000000",
+      strokeThickness: 3
+    }).setOrigin(0.5).setAlpha(0);
+    
+    marker.root.add(alert);
+    marker.alertIcon = alert;
+    
+    marker.root.scene.tweens.add({
+      targets: alert,
+      alpha: 1,
+      duration: 300,
+      ease: "Linear"
+    });
+    
+    // Auto remove after some time or when chest rummage stops? 
+    // For now, simple fade out after 1s
+    marker.root.scene.time.delayedCall(1000, () => {
+      if (alert.scene) {
+        marker.root.scene.tweens.add({
+          targets: alert,
+          alpha: 0,
+          duration: 600,
+          onComplete: () => {
+            alert.destroy();
+            marker.alertIcon = null;
+          }
+        });
+      }
+    });
   }
 
   private showContestedChestWarning(x: number, y: number, aggroedCount: number): void {
