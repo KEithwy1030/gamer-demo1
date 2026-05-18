@@ -170,7 +170,10 @@ export class GameSceneFeedbackFx {
     });
 
     if (payload.isCritical) {
-      const burst = this.scene.add.circle(target.root.x, target.root.y, 16, GAMEPLAY_THEME.colors.caution, 0.22).setDepth(2999);
+      const critMult = payload.critMultiplier ?? 1.5;
+      const intensityScale = 1 + Math.max(0, critMult - 1.5) * 0.66; // 1.5x=1.0, 2.0x=1.33 [待人工调优]
+
+      const burst = this.scene.add.circle(target.root.x, target.root.y, 16 * intensityScale, GAMEPLAY_THEME.colors.caution, 0.22).setDepth(2999);
       burst.setStrokeStyle(4, GAMEPLAY_THEME.colors.bone, 0.8);
       this.scene.tweens.add({
         targets: burst,
@@ -188,9 +191,12 @@ export class GameSceneFeedbackFx {
     this.showBodyImpact(target.root.x, target.root.y, target.root.depth, payload.damageType, payload.isCritical ?? false);
 
     if (payload.isCritical) {
+      const critMult = payload.critMultiplier ?? 1.5;
+      const intensityScale = 1 + Math.max(0, critMult - 1.5) * 0.66; // [待人工调优]
+
       this.scene.cameras.main.flash(100, 255, 255, 255, true); // Subtle white flash for crit
-      this.shakeCamera(0.015, 200);
-      this.applyHitStop(60);
+      this.shakeCamera(0.015 * intensityScale, 200);
+      this.applyHitStop(Math.round(60 * intensityScale));
     }
 
     if (!isBleedTick && payload.targetId === latestState?.selfPlayerId) {
