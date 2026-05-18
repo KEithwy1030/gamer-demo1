@@ -79,6 +79,12 @@ export interface ChestState {
   isOpen: boolean;
   lane?: "starter" | "contested";
   noiseRadius?: number;
+  qualityTier?: "normal" | "rich";
+  state?: "idle" | "rummaging" | "empty" | "interrupted";
+  rummagerId?: string;
+  itemsDispensed?: number;
+  totalItems?: number;
+  rummageIntervalMs?: number;
 }
 
 export interface ChestOpenedPayload {
@@ -95,7 +101,13 @@ export interface ChestProgressPayload {
   playerId: string;
   lane?: "starter" | "contested";
   noiseRadius?: number;
-  status: "started" | "progress" | "interrupted";
+  qualityTier?: "normal" | "rich";
+  state?: "idle" | "rummaging" | "empty" | "interrupted";
+  rummagerId?: string;
+  itemsDispensed?: number;
+  totalItems?: number;
+  rummageIntervalMs?: number;
+  status: "started" | "progress" | "dispensed" | "interrupted" | "completed";
   remainingMs: number;
   durationMs: number;
 }

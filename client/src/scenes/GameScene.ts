@@ -16,7 +16,7 @@ import {
   hasMonsterDirectionalCoverage
 } from "../game/entities/monsterVisuals";
 import { MatchRuntimeStore, type MatchViewState } from "../game";
-import type { ChestOpenedPayload, ChestState } from "../network/socketClient";
+import type { ChestOpenedPayload, ChestProgressPayload, ChestState } from "../network/socketClient";
 import type { ExtractUiState } from "./createGameClient";
 import {
   createWorldBackdropRefs,
@@ -63,6 +63,7 @@ export interface GameSceneInitData {
   onToggleInventory?: () => void;
   subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
+  subscribeChestProgress?: (callback: (payload: ChestProgressPayload) => void) => () => void;
 }
 
 interface SpectateHudRefs {
@@ -125,6 +126,7 @@ export class GameScene extends Phaser.Scene {
   private lastLocalAttackTargetId?: string;
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
+  private subscribeChestProgress?: (callback: (payload: ChestProgressPayload) => void) => () => void;
   private localSkillCooldownEndsAt = 0;
   private localSkillWindupEndsAt = 0;
   private readonly localSkillCooldowns = [
@@ -183,7 +185,7 @@ export class GameScene extends Phaser.Scene {
     this.onToggleInventory = data.onToggleInventory;
     this.subscribeChestsInit = data.subscribeChestsInit;
     this.subscribeChestOpened = data.subscribeChestOpened;
-    // this.subscribeChestProgress = data.subscribeChestProgress;
+    this.subscribeChestProgress = data.subscribeChestProgress;
     this.onCombatResult = (payload) => this.handleCombatResult(payload);
     this.onPlayerAttack = (payload) => this.handleServerPlayerAttack(payload);
     this.onMonsterKilled = (payload) => this.handleMonsterKilled(payload);
@@ -286,7 +288,7 @@ export class GameScene extends Phaser.Scene {
     this.monsterSkillFx = new MonsterSkillFxController(this);
     this.lockAssistFeedback = new LockAssistFeedbackController(this);
     this.interactions = new GameSceneInteractions(this);
-    this.interactions.mount(this.subscribeChestsInit, this.subscribeChestOpened);
+    this.interactions.mount(this.subscribeChestsInit, this.subscribeChestOpened, this.subscribeChestProgress);
     this.inputBridge = new GameSceneInputBridge(this, {
       touchLayout,
       onMoveInput: (direction) => {

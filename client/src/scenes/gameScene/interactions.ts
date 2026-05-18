@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import type { ChestOpenedPayload, ChestState } from "../../network/socketClient";
+import type { ChestOpenedPayload, ChestProgressPayload, ChestState } from "../../network/socketClient";
 import type { ExtractUiState } from "../createGameClient";
 import type { PlayerMarker } from "../../game/entities/PlayerMarker";
 
@@ -22,7 +22,10 @@ export class GameSceneInteractions {
   private readonly chestSprites = new Map<string, Phaser.GameObjects.Image>();
   private readonly chestLabels = new Map<string, Phaser.GameObjects.Text>();
   private readonly chestDangerRings = new Map<string, Phaser.GameObjects.Graphics>();
-  private readonly chestMetadata = new Map<string, { lane?: ChestState["lane"]; noiseRadius?: number }>();
+  private readonly chestGlows = new Map<string, Phaser.GameObjects.Graphics>();
+  private readonly chestProgressBars = new Map<string, Phaser.GameObjects.Graphics>();
+  private readonly chestProgressLabels = new Map<string, Phaser.GameObjects.Text>();
+  private readonly chestMetadata = new Map<string, { lane?: ChestState["lane"]; noiseRadius?: number; qualityTier?: ChestState["qualityTier"] }>();
   private chestUnsubscribes: Array<() => void> = [];
   private interactionPrompt?: Phaser.GameObjects.Text;
   private extractAutoStarted = false;
@@ -41,7 +44,8 @@ export class GameSceneInteractions {
 
   mount(
     subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void,
-    subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void
+    subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void,
+    subscribeChestProgress?: (callback: (payload: ChestProgressPayload) => void) => () => void
   ): void {
     this.chestUnsubscribes = [];
     if (subscribeChestsInit) {
@@ -58,14 +62,29 @@ export class GameSceneInteractions {
         }
 
         sprite.setTexture("chest_open");
+        sprite.setAlpha(1);
+        sprite.clearTint();
+
         this.chestLabels.get(payload.chestId)?.destroy();
         this.chestLabels.delete(payload.chestId);
         this.chestDangerRings.get(payload.chestId)?.destroy();
         this.chestDangerRings.delete(payload.chestId);
+        this.chestGlows.get(payload.chestId)?.destroy();
+        this.chestGlows.delete(payload.chestId);
+        this.chestProgressBars.get(payload.chestId)?.destroy();
+        this.chestProgressBars.delete(payload.chestId);
+        this.chestProgressLabels.get(payload.chestId)?.destroy();
+        this.chestProgressLabels.delete(payload.chestId);
 
         if (payload.lane === "contested") {
           this.showContestedChestWarning(sprite.x, sprite.y, payload.aggroedMonsterIds?.length ?? 0);
         }
+      }));
+    }
+
+    if (subscribeChestProgress) {
+      this.chestUnsubscribes.push(subscribeChestProgress((payload) => {
+        this.syncChestProgress(payload);
       }));
     }
 
@@ -83,7 +102,7 @@ export class GameSceneInteractions {
     let nearest: string | null = null;
     let minDistance = 80;
     for (const [id, sprite] of this.chestSprites.entries()) {
-      if (sprite.texture.key === "chest_closed") {
+      if (sprite.texture.key === "chest_closed" && sprite.alpha > 0.6) { // Only prompt for attractive chests
         const distance = distanceBetween(playerMarker.root.x, playerMarker.root.y, sprite.x, sprite.y);
         if (distance < minDistance) {
           minDistance = distance;
@@ -218,39 +237,148 @@ export class GameSceneInteractions {
       return;
     }
 
-    this.chestMetadata.set(chestId, { lane: chest.lane, noiseRadius: chest.noiseRadius });
-    if (this.chestSprites.has(chestId)) {
+    this.chestMetadata.set(chestId, { lane: chest.lane, noiseRadius: chest.noiseRadius, qualityTier: chest.qualityTier });
+    let sprite = this.chestSprites.get(chestId);
+    if (!sprite) {
+      sprite = this.scene.add.image(chest.x, chest.y, chest.isOpen ? "chest_open" : "chest_closed").setDepth(chest.y);
+      this.chestSprites.set(chestId, sprite);
+    }
+
+    // [待人工调优] 1.1 Bigger and more visible base chest: 110x110
+    sprite.setDisplaySize(110, 110);
+
+    if (chest.isOpen || chest.state === "empty") {
+      sprite.setTexture("chest_open");
+      // [待人工调优] 1.5 Empty state: darker tint/alpha
+      sprite.setAlpha(0.6);
+      this.chestGlows.get(chestId)?.destroy();
+      this.chestGlows.delete(chestId);
+      this.chestLabels.get(chestId)?.destroy();
+      this.chestLabels.delete(chestId);
       return;
     }
 
-    const sprite = this.scene.add.image(chest.x, chest.y, chest.isOpen ? "chest_open" : "chest_closed").setDepth(chest.y);
-    sprite.setDisplaySize(92, 92);
-    this.chestSprites.set(chestId, sprite);
+    // [待人工调优] 1.1 Outline glow: radius 64, orange #fbbf24, alpha 0.55
+    let glow = this.chestGlows.get(chestId);
+    if (!glow) {
+      glow = this.scene.add.graphics().setDepth(chest.y - 1);
+      this.chestGlows.set(chestId, glow);
+    }
+    glow.clear();
+    const isRich = chest.qualityTier === "rich";
+    const glowColor = isRich ? 0xfacc15 : 0xfbbf24; // [待人工调优] 1.2 Gold #facc15 vs Orange #fbbf24
+    const glowAlpha = isRich ? 0.75 : 0.55; // [待人工调优] 1.2 Alpha 0.75 vs 0.55
+    const glowStroke = isRich ? 4 : 3; // [待人工调优] 1.2 Stroke 4 vs 3
+    glow.lineStyle(glowStroke, glowColor, glowAlpha);
+    glow.strokeCircle(chest.x, chest.y, 64);
 
-    if (chest.isOpen) {
-      return;
+    if (isRich && !this.scene.tweens.isTweening(glow)) {
+      // [待人工调优] 1.2 Pulsing animation: 0.55-0.85 over 1.4s
+      this.scene.tweens.add({
+        targets: glow,
+        alpha: { from: 0.85, to: 0.55 },
+        duration: 700,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut"
+      });
     }
 
-    if (chest.lane === "contested") {
+    if (chest.state === "interrupted") {
+      // [待人工调优] 1.4 Interrupted state: dim filter
+      sprite.setTint(0x444444);
+      sprite.setAlpha(0.4);
+    } else {
+      sprite.clearTint();
+      sprite.setAlpha(1);
+    }
+
+    if (chest.lane === "contested" && !this.chestDangerRings.has(chestId)) {
       const ring = this.scene.add.graphics().setDepth(chest.y - 1);
       ring.lineStyle(2, 0xf97316, 0.72);
       ring.strokeCircle(chest.x, chest.y, 76);
       this.chestDangerRings.set(chestId, ring);
     }
 
-    const label = this.scene.add.text(
-      chest.x,
-      chest.y - 30,
-      chest.lane === "contested" ? "\u9ad8\u5371\u5b9d\u7bb1" : "\u5b9d\u7bb1",
-      {
+    let label = this.chestLabels.get(chestId);
+    if (!label) {
+      label = this.scene.add.text(chest.x, chest.y - 30, "", {
         fontFamily: "monospace",
         fontSize: "14px",
-        color: chest.lane === "contested" ? "#fed7aa" : "#ffffff",
+        color: "#ffffff",
         stroke: "#000000",
         strokeThickness: 3
-      }
-    ).setOrigin(0.5).setDepth(chest.y + 1);
-    this.chestLabels.set(chestId, label);
+      }).setOrigin(0.5).setDepth(chest.y + 1);
+      this.chestLabels.set(chestId, label);
+    }
+
+    if (chest.state === "interrupted") {
+      // [待人工调优] 1.4 Interrupted state: "已中断" red text
+      label.setText("\u5df2\u4e2d\u65ad").setColor("#ef4444").setPosition(chest.x, chest.y - 30);
+    } else {
+      label.setText(chest.lane === "contested" ? "\u9ad8\u5371\u5b9d\u7bb1" : "\u5b9d\u7bb1")
+           .setColor(chest.lane === "contested" ? "#fed7aa" : "#ffffff")
+           .setPosition(chest.x, chest.y - 30);
+    }
+
+    if (chest.state === "rummaging" || chest.rummagerId) {
+      this.syncChestProgress({
+        chestId,
+        playerId: chest.rummagerId ?? "",
+        itemsDispensed: chest.itemsDispensed ?? 0,
+        totalItems: chest.totalItems ?? 1,
+        status: "progress",
+        remainingMs: 0,
+        durationMs: 0
+      });
+    }
+  }
+
+  private syncChestProgress(payload: ChestProgressPayload): void {
+    const chestId = payload.chestId;
+    const sprite = this.chestSprites.get(chestId);
+    if (!sprite) return;
+
+    if (payload.status === "completed" || payload.state === "empty") {
+      this.chestProgressBars.get(chestId)?.destroy();
+      this.chestProgressBars.delete(chestId);
+      this.chestProgressLabels.get(chestId)?.destroy();
+      this.chestProgressLabels.delete(chestId);
+      return;
+    }
+
+    // [待人工调优] 1.3 Rummage progress bar: 80x6, black border, rust-orange #ea580c fill, 60px above
+    let bar = this.chestProgressBars.get(chestId);
+    if (!bar) {
+      bar = this.scene.add.graphics().setDepth(sprite.y + 2);
+      this.chestProgressBars.set(chestId, bar);
+    }
+    bar.clear();
+    const x = sprite.x - 40;
+    const y = sprite.y - 60;
+    bar.fillStyle(0x000000, 0.8);
+    bar.fillRect(x, y, 80, 6);
+    bar.lineStyle(1, 0x000000, 1);
+    bar.strokeRect(x, y, 80, 6);
+    
+    const totalItems = payload.totalItems ?? 0;
+    const ratio = totalItems > 0 ? (payload.itemsDispensed ?? 0) / totalItems : 0;
+    bar.fillStyle(0xea580c, 1);
+    bar.fillRect(x, y, 80 * ratio, 6);
+
+    // [待人工调优] 1.3 Text label "翻找中 X/Y"
+    let label = this.chestProgressLabels.get(chestId);
+    if (!label) {
+      label = this.scene.add.text(sprite.x, sprite.y - 74, "", {
+        fontFamily: "monospace",
+        fontSize: "12px",
+        color: "#f1e3c4",
+        stroke: "#000000",
+        strokeThickness: 2
+      }).setOrigin(0.5).setDepth(sprite.y + 2);
+      this.chestProgressLabels.set(chestId, label);
+    }
+    label.setText(`\u7ffb\u627e\u4e2d ${payload.itemsDispensed}/${payload.totalItems}`);
   }
 
   private showContestedChestWarning(x: number, y: number, aggroedCount: number): void {
@@ -327,9 +455,15 @@ export class GameSceneInteractions {
     this.chestLabels.forEach((label) => label.destroy());
     this.chestSprites.forEach((sprite) => sprite.destroy());
     this.chestDangerRings.forEach((ring) => ring.destroy());
+    this.chestGlows.forEach((glow) => glow.destroy());
+    this.chestProgressBars.forEach((bar) => bar.destroy());
+    this.chestProgressLabels.forEach((label) => label.destroy());
     this.chestLabels.clear();
     this.chestSprites.clear();
     this.chestDangerRings.clear();
+    this.chestGlows.clear();
+    this.chestProgressBars.clear();
+    this.chestProgressLabels.clear();
     this.chestMetadata.clear();
     this.extractAutoStarted = false;
     this.extractAutoRearmRequired = false;
