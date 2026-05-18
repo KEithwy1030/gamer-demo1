@@ -60,6 +60,8 @@ import {
   startChestOpening,
   tickChestOpenings
 } from "./chests/chest-manager.js";
+import { DevLogService } from "./dev/devLog.js";
+import { createDevLogRouter } from "./dev/devLogRoutes.js";
 import { applyDevRoomPreset, resolveEnabledDevRoomPreset } from "./dev-test-hooks.js";
 import type {
   ChestOpenedPayload,
@@ -86,6 +88,17 @@ app.use(
     credentials: true
   })
 );
+
+const devLogService = new DevLogService({
+  enabled: serverConfig.devLogEnabled,
+  retentionHours: serverConfig.devLogRetentionHours,
+  maxTotalMb: serverConfig.devLogMaxTotalMb
+});
+
+if (serverConfig.devLogEnabled) {
+  app.use("/__devlog", createDevLogRouter(devLogService));
+  devLogService.startRetentionSweepLoop();
+}
 
 app.get("/health", (_request, response) => {
   response.json({

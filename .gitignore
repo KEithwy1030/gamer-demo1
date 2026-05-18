@@ -14,6 +14,7 @@ artifacts/
 output/
 .codex-run/
 .codex-logs/
+.devlog/
 gamer-*.png
 artifacts/*.log
 artifacts/*.err.log
