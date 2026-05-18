@@ -81,6 +81,7 @@ export function createGameClientController(
   let pendingChestsInit: ChestState[] | null = null;
   let releaseViewportSync: (() => void) | null = null;
   let viewportSyncFrame = 0;
+  const chestOpeningCuePlayed = new Set<string>();
 
   const controller: GameClientController = {
     network,
@@ -94,6 +95,7 @@ export function createGameClientController(
         selfPlayerId: payload.selfPlayerId,
         snapshot: payload.room
       });
+      chestOpeningCuePlayed.clear();
       extractState = createInitialExtractState();
       options.onExtractStateChange?.(extractState);
       options.onInventoryChange?.(null);
@@ -258,9 +260,25 @@ export function createGameClientController(
       if (payload.playerId !== selfPlayerId) return;
       if (payload.status === "interrupted") {
         runtime.setChestProgress(null);
+        chestOpeningCuePlayed.delete(payload.chestId);
         audio.play("warning");
         return;
       }
+
+      const isChestRummageStart =
+        payload.status === "started" ||
+        ((payload.itemsDispensed ?? 0) === 0 && payload.status === "progress");
+      if (isChestRummageStart && !chestOpeningCuePlayed.has(payload.chestId)) {
+        console.log("[audio] chest cue at rummage start", {
+          chestId: payload.chestId,
+          status: payload.status,
+          itemsDispensed: payload.itemsDispensed ?? 0,
+          lane: payload.lane
+        });
+        audio.play("chest");
+        chestOpeningCuePlayed.add(payload.chestId);
+      }
+
       runtime.setChestProgress({
         progress: Phaser.Math.Clamp(1 - payload.remainingMs / Math.max(payload.durationMs, 1), 0, 1),
         remainingMs: payload.remainingMs,
@@ -295,7 +313,7 @@ export function createGameClientController(
     }),
     network.onChestOpened((payload) => {
       if (!payload || payload.playerId === controller.getSelfPlayerId()) {
-        audio.play("chest");
+        chestOpeningCuePlayed.delete(payload?.chestId ?? "");
         runtime.setChestProgress(null);
       }
     })
