@@ -342,6 +342,10 @@ function pointInsideRiverHazardShape(
     return false;
   }
 
+  if (isPointInsideAnySafeZone(layout, x, y)) {
+    return false;
+  }
+
   return true;
 }
 

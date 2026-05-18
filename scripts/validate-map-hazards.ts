@@ -36,6 +36,7 @@ for (const crossing of layout.safeCrossings) {
 
 for (const spawn of layout.squadSpawns) {
   assert.equal(isPointInsideRiverHazard(layout, spawn.anchorX, spawn.anchorY), false, `spawn ${spawn.squadId} should not be in river hazard`);
+  assertSpawnSafeRadiusNonDamaging(layout, spawn);
 }
 
 for (const zone of layout.extractZones) {
@@ -135,6 +136,22 @@ function assertExtractHasUsableNearbyCrossing(layout: MatchLayout, zone: MatchLa
       isPointInsideRiverHazard(layout, center.x, center.y),
       false,
       `crossing ${crossing.crossingId} near extract should remain non-damaging`
+    );
+  }
+}
+
+function assertSpawnSafeRadiusNonDamaging(layout: MatchLayout, spawn: MatchLayout["squadSpawns"][number]): void {
+  const sampleRadius = Math.max(0, spawn.safeRadius - 24);
+  for (let step = 0; step < 24; step += 1) {
+    const angle = (Math.PI * 2 * step) / 24;
+    const sample = {
+      x: spawn.anchorX + Math.cos(angle) * sampleRadius,
+      y: spawn.anchorY + Math.sin(angle) * sampleRadius
+    };
+    assert.equal(
+      isPointInsideRiverHazard(layout, sample.x, sample.y),
+      false,
+      `spawn ${spawn.squadId} safe-radius sample ${step} should stay out of river hazard damage`
     );
   }
 }

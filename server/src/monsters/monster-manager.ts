@@ -106,6 +106,7 @@ const ELITE_ATTACK_WINDUP_MS = 420;
 const MONSTER_ATTACK_RECOVER_MS = 220;
 const ELITE_HEAVY_STRIKE_SLOW_MULTIPLIER = 0.25;
 const ELITE_HEAVY_STRIKE_SLOW_DURATION_MS = 1400;
+const OPENING_PASSIVE_AGGRO_GRACE_MS = 25_000;
 
 export interface PlayerAttackOutcome {
   monsters: MonsterState[];
@@ -598,6 +599,15 @@ function resolveTargetPlayer(room: RuntimeRoom, monster: RuntimeMonster): Runtim
     if (distanceFromAnchor <= monster.leashRange) {
       return currentTarget;
     }
+  }
+
+  if (
+    room.startedAt
+    && Date.now() - room.startedAt < OPENING_PASSIVE_AGGRO_GRACE_MS
+    && !monster.lastDamagedAt
+    && isAnyAlivePlayerWithinSpawnSafeZone(room)
+  ) {
+    return undefined;
   }
 
   let closestPlayer: RuntimePlayer | undefined;
@@ -1108,6 +1118,30 @@ function normalizeDirection(direction: { x: number; y: number }): { x: number; y
 function getFacingOrFallback(direction: { x: number; y: number }): { x: number; y: number } {
   const normalized = normalizeDirection(direction);
   return normalized.x === 0 && normalized.y === 0 ? { x: 0, y: 1 } : normalized;
+}
+
+function isAnyAlivePlayerWithinSpawnSafeZone(room: RuntimeRoom): boolean {
+  const layout = room.matchLayout;
+  if (!layout) {
+    return false;
+  }
+
+  for (const player of room.players.values()) {
+    if (!player.state?.isAlive) {
+      continue;
+    }
+
+    const spawn = layout.squadSpawns.find((entry) => entry.squadId === player.squadId);
+    if (!spawn) {
+      continue;
+    }
+
+    if (distanceBetween(player.state.x, player.state.y, spawn.anchorX, spawn.anchorY) <= spawn.safeRadius) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function distancePointToSegment(
