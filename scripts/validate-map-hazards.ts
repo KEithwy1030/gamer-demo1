@@ -68,6 +68,12 @@ const spawned = spawnInitialMonsters(room);
 assert.ok(spawned.length > 0, "monster generation should still succeed with curved river layout");
 for (const monster of spawned) {
   assert.equal(isPointInsideRiverHazard(layout, monster.x, monster.y), false, `monster ${monster.id} should not spawn in river hazard`);
+  for (const spawn of layout.squadSpawns) {
+    assert.ok(
+      distance({ x: monster.x, y: monster.y }, { x: spawn.anchorX, y: spawn.anchorY }) >= spawn.safeRadius + 680,
+      `monster ${monster.id} should not spawn inside the opening safe-zone buffer for ${spawn.squadId}`
+    );
+  }
 }
 
 const westPoint = { x: 980, y: 2080 };

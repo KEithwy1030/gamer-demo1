@@ -60,14 +60,16 @@ const NORMAL_MONSTER_COUNT = 40;
 const ELITE_MONSTER_COUNT = 6;
 const BOSS_MONSTER_COUNT = 1;
 const CENTER_EXCLUSION_RADIUS = 300;
-const SAFE_ZONE_EXCLUSION_RADIUS = 520;
+const SAFE_ZONE_EXCLUSION_RADIUS = 680;
 const EXTRACT_ZONE_EXCLUSION_RADIUS = 260;
 const SPAWN_JITTER_PX = 200;
 const MONSTER_CORPSE_DURATION_MS = 10_000;
 const MONSTER_RESPAWN_DELAY_MS = 60_000;
 const BOSS_RESPAWN_DELAY_MS = 180_000;
 const MAP_MARGIN_PX = 96;
-const ELITE_RESOURCE_GUARD_OFFSET_PX = 150;
+const ELITE_RESOURCE_PRESSURE_RADIUS = 760;
+const ELITE_GUARD_SEARCH_RADIUS_STEP = 8;
+const ELITE_GUARD_SEARCH_ANGLE_STEP_DEG = 4;
 const NORMAL_MONSTER_PATROL_RADIUS = 160;
 const ELITE_MONSTER_PATROL_RADIUS = 90;
 const BOSS_MONSTER_PATROL_RADIUS = 84;
@@ -974,10 +976,10 @@ function resolveEliteGuardPoint(
   resourcePoint: { x: number; y: number },
   index: number
 ): { x: number; y: number } {
-  const radiusSteps = [0, 80, ELITE_RESOURCE_GUARD_OFFSET_PX, 210, 285, 360, 420];
-  for (const radius of radiusSteps) {
-    for (let attempt = 0; attempt < 18; attempt += 1) {
-      const angle = ((index * 137) + attempt * 20) * (Math.PI / 180);
+  const angleAttempts = Math.ceil(360 / ELITE_GUARD_SEARCH_ANGLE_STEP_DEG);
+  for (let radius = 0; radius <= ELITE_RESOURCE_PRESSURE_RADIUS; radius += ELITE_GUARD_SEARCH_RADIUS_STEP) {
+    for (let attempt = 0; attempt < angleAttempts; attempt += 1) {
+      const angle = ((index * 137) + attempt * ELITE_GUARD_SEARCH_ANGLE_STEP_DEG) * (Math.PI / 180);
       const point = {
         x: clamp(resourcePoint.x + Math.cos(angle) * radius, MAP_MARGIN_PX, MATCH_MAP_WIDTH - MAP_MARGIN_PX),
         y: clamp(resourcePoint.y + Math.sin(angle) * radius, MAP_MARGIN_PX, MATCH_MAP_HEIGHT - MAP_MARGIN_PX)
@@ -992,17 +994,7 @@ function resolveEliteGuardPoint(
 }
 
 function isValidEliteGuardPoint(room: RuntimeRoom, x: number, y: number): boolean {
-  const centerDistance = distanceBetween(x, y, MATCH_MAP_WIDTH / 2, MATCH_MAP_HEIGHT / 2);
-  if (centerDistance < CENTER_EXCLUSION_RADIUS) {
-    return false;
-  }
-
-  const layout = room.matchLayout;
-  if (!layout) {
-    return true;
-  }
-
-  return !isPointInsideRiverHazard(layout, x, y);
+  return isValidSpawnPoint(room, x, y);
 }
 
 function resolveBossArenaPoint(room: RuntimeRoom): { x: number; y: number } {
@@ -1045,10 +1037,7 @@ function randomValidPoint(room: RuntimeRoom): { x: number; y: number } {
     }
   }
 
-  return {
-    x: MATCH_MAP_WIDTH / 2 + CENTER_EXCLUSION_RADIUS + MAP_MARGIN_PX,
-    y: MATCH_MAP_HEIGHT / 2
-  };
+  return randomMidRingPoint(room);
 }
 
 function jitterPoint(x: number, y: number): { x: number; y: number } {
@@ -1096,7 +1085,10 @@ function randomMidRingPoint(room: RuntimeRoom): { x: number; y: number } {
       return point;
     }
   }
-  return randomValidPoint(room);
+  return {
+    x: MATCH_MAP_WIDTH / 2 + CENTER_EXCLUSION_RADIUS + MAP_MARGIN_PX,
+    y: MATCH_MAP_HEIGHT / 2
+  };
 }
 
 function distanceBetween(ax: number, ay: number, bx: number, by: number): number {
