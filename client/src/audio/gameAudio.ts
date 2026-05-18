@@ -59,6 +59,7 @@ export class GameAudioController {
   private muted = false;
   private readonly audioCache: Map<string, HTMLAudioElement> = new Map();
   private readonly hurtStartPoints = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45];
+  private attackStopTimer?: number;
 
   private readonly unlock = (): void => {
     void this.ensureContext();
@@ -96,6 +97,10 @@ export class GameAudioController {
       window.removeEventListener("pointerdown", this.unlock);
       window.removeEventListener("keydown", this.unlock);
       window.removeEventListener("touchstart", this.unlock);
+      if (this.attackStopTimer !== undefined) {
+        window.clearTimeout(this.attackStopTimer);
+        this.attackStopTimer = undefined;
+      }
     }
 
     void this.context?.close();
@@ -145,6 +150,28 @@ export class GameAudioController {
     const cached = this.audioCache.get(cue);
     if (cached) {
       try {
+        if (cue === "attack") {
+          // A sword swing should be a short, interruptible cue rather than a looping wave.
+          if (this.attackStopTimer !== undefined) {
+            window.clearTimeout(this.attackStopTimer);
+            this.attackStopTimer = undefined;
+          }
+          cached.pause();
+          cached.currentTime = 0;
+          cached.muted = this.muted;
+          await cached.play();
+          const stopTimer = window.setTimeout(() => {
+            if (this.attackStopTimer !== stopTimer) {
+              return;
+            }
+            cached.pause();
+            cached.currentTime = 0;
+            this.attackStopTimer = undefined;
+          }, 400);
+          this.attackStopTimer = stopTimer;
+          return;
+        }
+
         if (cue === "hurt") {
           // Special handling for the long grunt file
           const start = this.hurtStartPoints[Math.floor(Math.random() * this.hurtStartPoints.length)];
