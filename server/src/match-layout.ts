@@ -21,7 +21,7 @@ import {
 
 const MAP_CENTER_X = MATCH_MAP_WIDTH / 2;
 const MAP_CENTER_Y = MATCH_MAP_HEIGHT / 2;
-const OUTER_RING_RADIUS = 880;
+const OUTER_RING_RADIUS = 1120;
 const MID_CHEST_RADIUS = 720;
 const SAFE_RADIUS = 220;
 const STARTER_CHEST_OFFSET = 260;
@@ -33,9 +33,9 @@ const CROSSING_HAZARD_PADDING = 40;
 
 const TEMPLATE_IDS = ["A", "B", "C"] as const;
 const TEMPLATE_NODE_OFFSETS: Record<(typeof TEMPLATE_IDS)[number], number[]> = {
-  A: [0, 3, 6, 9],
-  B: [1, 4, 7, 10],
-  C: [2, 5, 8, 11]
+  A: [1, 7, 8, 10],
+  B: [2, 4, 8, 10],
+  C: [1, 4, 7, 10]
 };
 
 const SQUAD_DEPLOY_LABELS: Record<number, string[]> = {
@@ -147,18 +147,21 @@ export function buildMatchLayout(options: BuildMatchLayoutOptions): MatchLayout 
   }));
 
   const safeCrossings = SAFE_CROSSINGS.map((crossing) => ({ ...crossing }));
+  const routingLayout = {
+    safeZones,
+    riverHazards,
+    safeCrossings,
+    extractZones
+  } as MatchLayout;
 
   const chestZones: MatchLayoutChestZone[] = [
     ...squadSpawns.map((spawn, index) => {
-      const point = settleChestPoint(
-        {
-          x: Math.round(spawn.anchorX + spawn.facing.x * STARTER_CHEST_OFFSET),
-          y: Math.round(spawn.anchorY + spawn.facing.y * STARTER_CHEST_OFFSET)
-        },
-        riverHazards,
+      const point = settleStarterChestPoint({
+        spawn,
+        hazards: riverHazards,
         safeCrossings,
-        spawn.facing
-      );
+        layout: routingLayout
+      });
       return {
         chestId: `starter_${index + 1}`,
         x: point.x,
@@ -501,6 +504,54 @@ function settleChestPoint(
   }
 
   return candidate;
+}
+
+function settleStarterChestPoint(options: {
+  spawn: MatchLayoutSpawnZone;
+  hazards: MatchLayoutRiverHazard[];
+  safeCrossings: MatchLayoutSafeCrossing[];
+  layout: MatchLayout;
+}): { x: number; y: number } {
+  const origin = { x: Math.round(options.spawn.anchorX), y: Math.round(options.spawn.anchorY) };
+  const baseDirection = normalize(options.spawn.facing);
+  const radii = [STARTER_CHEST_OFFSET, STARTER_CHEST_OFFSET - 24, STARTER_CHEST_OFFSET + 36, STARTER_CHEST_OFFSET + 72];
+  const angleOffsets = [0, 20, -20, 40, -40, 60, -60, 80, -80, 100, -100, 120, -120, 140, -140, 160, -160, 180];
+
+  for (const radius of radii) {
+    for (const angleOffset of angleOffsets) {
+      const direction = rotateVector(baseDirection, angleOffset);
+      const candidate = settleChestPoint(
+        {
+          x: Math.round(origin.x + direction.x * radius),
+          y: Math.round(origin.y + direction.y * radius)
+        },
+        options.hazards,
+        options.safeCrossings,
+        direction
+      );
+      if (!doesSegmentRequireSafeCrossing(options.layout, origin, candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return settleChestPoint(
+    {
+      x: Math.round(origin.x + baseDirection.x * STARTER_CHEST_OFFSET),
+      y: Math.round(origin.y + baseDirection.y * STARTER_CHEST_OFFSET)
+    },
+    options.hazards,
+    options.safeCrossings,
+    baseDirection
+  );
+}
+
+function rotateVector(vector: Vector2, angleDeg: number): Vector2 {
+  const radians = angleDeg * Math.PI / 180;
+  return {
+    x: (vector.x * Math.cos(radians)) - (vector.y * Math.sin(radians)),
+    y: (vector.x * Math.sin(radians)) + (vector.y * Math.cos(radians))
+  };
 }
 
 export function getExtractClearRadius(zone: MatchLayoutExtractZone): number {

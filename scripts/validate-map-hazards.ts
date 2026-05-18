@@ -35,8 +35,16 @@ for (const crossing of layout.safeCrossings) {
 }
 
 for (const spawn of layout.squadSpawns) {
+  assert.equal(getRiverHazardAtPoint(layout, spawn.anchorX, spawn.anchorY), undefined, `spawn ${spawn.squadId} should not overlap raw river hazard bounds`);
   assert.equal(isPointInsideRiverHazard(layout, spawn.anchorX, spawn.anchorY), false, `spawn ${spawn.squadId} should not be in river hazard`);
   assertSpawnSafeRadiusNonDamaging(layout, spawn);
+  const starterChest = layout.chestZones.find((zone) => zone.lane === "starter" && zone.squadId === spawn.squadId);
+  assert.ok(starterChest, `spawn ${spawn.squadId} should have a starter chest`);
+  assert.equal(
+    doesSegmentRequireSafeCrossing(layout, { x: spawn.anchorX, y: spawn.anchorY }, { x: starterChest!.x, y: starterChest!.y }),
+    false,
+    `starter chest ${starterChest!.chestId} should be reachable without forcing a safe crossing for ${spawn.squadId}`
+  );
 }
 
 for (const zone of layout.extractZones) {

@@ -29,7 +29,7 @@ const STEP_TIMEOUTS = {
   2: 5_000,
   3: 5_000,
   4: 5_000,
-  5: 30_000,
+  5: 60_000,
   6: 8_000,
   7: 10_000,
   8: 15_000,
@@ -830,6 +830,11 @@ function normalizeDirection(from, to) {
   return { x: dx / length, y: dy / length };
 }
 
+function getNextSafeWaypoint(clientState, from, to) {
+  const waypoints = getBridgeAwareWaypoints(clientState, from, to);
+  return waypoints.find((waypoint) => distance(from, waypoint) > BRIDGE_APPROACH_RADIUS) ?? to;
+}
+
 function getAttackIntervalMs(player) {
   const attacksPerSecondByWeapon = {
     sword: 1.01,
@@ -898,12 +903,16 @@ async function movePlayerAlongSafeRoute(client, target, stopDistance, timeoutMs)
 }
 
 function pickNearestAliveMonster(client) {
+  return pickNearestAliveMonsterExcept(client, new Set());
+}
+
+function pickNearestAliveMonsterExcept(client, excludedIds) {
   const self = getSelfPlayer(client.state);
   if (!self) {
     return undefined;
   }
 
-  const aliveMonsters = client.state.monsters.filter((monster) => monster.isAlive);
+  const aliveMonsters = client.state.monsters.filter((monster) => monster.isAlive && !excludedIds.has(monster.id));
   aliveMonsters.sort((left, right) => {
     if (left.type !== right.type) {
       return left.type === "normal" ? -1 : 1;
@@ -925,13 +934,24 @@ async function killOneMonster(client, timeoutMs) {
     throw new Error("No alive monster available");
   }
 
-  const targetMonsterId = initialTarget.id;
+  let targetMonsterId = initialTarget.id;
+  let retargeted = false;
   const initialAliveIds = new Set(
     client.state.monsters.filter((monster) => monster.isAlive).map((monster) => monster.id)
   );
   let lastAttackAt = 0;
 
   while (Date.now() < deadline) {
+    if (!retargeted && Date.now() - (deadline - timeoutMs) >= timeoutMs * 0.5) {
+      const nextTarget = pickNearestAliveMonsterExcept(client, new Set([targetMonsterId]));
+      if (nextTarget && nextTarget.id !== targetMonsterId) {
+        targetMonsterId = nextTarget.id;
+        retargeted = true;
+        await delay(30);
+        continue;
+      }
+    }
+
     const anyKilledMonster = client.state.monsters.find(
       (monster) => initialAliveIds.has(monster.id) && !monster.isAlive
     );
@@ -955,8 +975,9 @@ async function killOneMonster(client, timeoutMs) {
     const attackRange = getAttackRangePx(self);
     const rangeToMonster = distance(self, targetMonster);
     if (rangeToMonster > attackRange + 16) {
+      const routeTarget = getNextSafeWaypoint(client.state, self, targetMonster);
       client.socket.emit("player:inputMove", {
-        direction: normalizeDirection(self, targetMonster)
+        direction: normalizeDirection(self, routeTarget)
       });
       await delay(25);
       continue;
@@ -991,8 +1012,18 @@ async function killOneMonster(client, timeoutMs) {
 }
 
 async function clearMonsterThreatNearPoint(client, targetMonsterId, center, radius, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  let lastAttackAt = 0;
+  const initialTargetMonster = client.state.monsters.find((monster) => monster.id === targetMonsterId);
+  if (!initialTargetMonster) {
+    throw new Error(`Target monster ${targetMonsterId} disappeared from state`);
+  }
+  const extraTimeoutMs = initialTargetMonster.type === "elite" ? 4_000 : initialTargetMonster.type === "boss" ? 8_000 : 0;
+  const totalBudgetMs = timeoutMs + extraTimeoutMs;
+  const deadline = Date.now() + totalBudgetMs;
+  const retreatAfterMs = Math.floor(totalBudgetMs * 0.6);
+  const startedAt = Date.now();
+  let lastAttackAt = Date.now();
+  let lastKnownDistance = distance(initialTargetMonster, center);
+  let lastKnownType = initialTargetMonster.type;
 
   while (Date.now() < deadline) {
     const targetMonster = client.state.monsters.find((monster) => monster.id === targetMonsterId);
@@ -1005,17 +1036,34 @@ async function clearMonsterThreatNearPoint(client, targetMonsterId, center, radi
     if (distance(targetMonster, center) > radius + 80) {
       return targetMonster;
     }
+    lastKnownDistance = distance(targetMonster, center);
+    lastKnownType = targetMonster.type;
 
     const self = getSelfPlayer(client.state);
     if (!self) {
       throw new Error(`${client.state.label} player state unavailable during attack`);
     }
 
+    if (Date.now() - startedAt >= retreatAfterMs) {
+      const awayDirection = normalizeDirection(center, self);
+      const retreatPoint = {
+        x: self.x + awayDirection.x * 260,
+        y: self.y + awayDirection.y * 260
+      };
+      const routeTarget = getNextSafeWaypoint(client.state, self, retreatPoint);
+      client.socket.emit('player:inputMove', {
+        direction: normalizeDirection(self, routeTarget)
+      });
+      await delay(70);
+      continue;
+    }
+
     const attackRange = getAttackRangePx(self);
     const rangeToMonster = distance(self, targetMonster);
     if (rangeToMonster > attackRange + 16) {
+      const routeTarget = getNextSafeWaypoint(client.state, self, targetMonster);
       client.socket.emit('player:inputMove', {
-        direction: normalizeDirection(self, targetMonster)
+        direction: normalizeDirection(self, routeTarget)
       });
       await delay(25);
       continue;
@@ -1041,7 +1089,7 @@ async function clearMonsterThreatNearPoint(client, targetMonsterId, center, radi
     await delay(40);
   }
 
-  throw new Error(`Timed out waiting for monster ${targetMonsterId} to die or leave threat radius`);
+  throw new Error(`Timed out waiting for ${lastKnownType} monster ${targetMonsterId} at distance ${Math.round(lastKnownDistance)} to die or leave threat radius`);
 }
 
 function getNearbyAliveMonsters(clientState, center, radius) {
