@@ -321,6 +321,19 @@ export class GameSceneFeedbackFx {
     this.shakeCamera(0.005, 100);
   }
 
+  playLocalAttackWindup(weaponType: WeaponType, x: number, y: number, direction: Vector2): void {
+    const charge = this.scene.add.graphics().setPosition(x, y).setDepth(y + 110);
+    const color = weaponType === "spear" ? 0xfbbf24 : weaponType === "blade" ? 0xf97316 : 0x38bdf8;
+    charge.lineStyle(2, color, 0.8).strokeCircle(0, 0, 24);
+    this.scene.tweens.add({
+      targets: charge,
+      alpha: 0,
+      scale: 1.2,
+      duration: 100, // [待人工调优]
+      onComplete: () => charge.destroy()
+    });
+  }
+
   playLocalSkill(skillId: SkillId, phase: "windup" | "cast", latestState: MatchViewState | null, lastFacingDirection: Vector2): void {
     const self = latestState?.players.find((player) => player.id === latestState?.selfPlayerId);
     if (!self) return;

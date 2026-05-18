@@ -437,6 +437,7 @@ export class GameScene extends Phaser.Scene {
     this.lastLocalAttackTargetId = attackPayload.targetId;
 
     this.playerMarkers.get(self.id)?.playAction("attack", direction);
+    this.feedbackFx?.playLocalAttackWindup(self.weaponType ?? "sword", self.x, self.y, direction);
     this.pendingBasicAttackFire?.remove(false);
     this.pendingBasicAttackFire = this.time.delayedCall(cadence.startupMs, () => {
       if (!this.isSelfControllable()) {
