@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 
 const HOST = "127.0.0.1";
-const SERVER_PORT = Number.parseInt(process.env.LATEGAME_SERVER_PORT ?? "3191", 10);
+const SERVER_PORT = Number.parseInt(process.env.LATEGAME_SERVER_PORT ?? "5299", 10);
 const RUN_ID = process.env.LATEGAME_RUN_ID ?? `lategame-smoke-${new Date().toISOString().replace(/[:.]/g, "-")}`;
 const ARTIFACT_DIR = resolve(".codex-artifacts", "lategame-smoke", RUN_ID);
 const SERVER_DIR = resolve("server");

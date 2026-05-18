@@ -17,8 +17,8 @@ assert.match(
 assert.match(devScript, /process\.argv\.includes\("--manual-playtest"\)/, "dev launcher should recognize manual playtest mode");
 assert.match(devScript, /requiredPorts/, "dev launcher should declare required server and client ports");
 assert.match(devScript, /isPortAvailable/, "dev launcher should preflight port availability before spawning children");
-assert.match(devScript, /port: 3000, label: "server"/, "dev launcher should preflight the server port");
-assert.match(devScript, /port: 5173, label: "client"/, "dev launcher should preflight the client port");
+assert.match(devScript, /serverPort.*"5289"/s, "dev launcher should default to the project server port");
+assert.match(devScript, /clientPort.*"5288"/s, "dev launcher should default to the project client port");
 assert.match(
   devScript,
   /Stop the existing dev\/playtest process before starting a new session/,
@@ -26,7 +26,7 @@ assert.match(
 );
 assert.match(devScript, /20 \* 60 \* 1000/, "manual playtest mode should auto-stop after 20 minutes");
 assert.match(devScript, /stopAll\(0\)/, "manual playtest auto-stop should clean child process trees");
-assert.match(devScript, /http:\/\/localhost:5173\//, "manual playtest mode should print the browser URL");
+assert.match(devScript, /http:\/\/localhost:\$\{clientPort\}\//, "manual playtest mode should print the browser URL from the project client port");
 assert.match(
   devScript,
   /docs\/agent\/MANUAL_PLAYTEST_PROTOCOL_2026-05-18\.md/,

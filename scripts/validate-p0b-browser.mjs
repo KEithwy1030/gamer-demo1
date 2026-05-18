@@ -4,8 +4,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { chromium } from "playwright";
 
 const HOST = "127.0.0.1";
-const SERVER_PORT = Number.parseInt(process.env.P0B_SERVER_PORT ?? process.env.DEV_ACCEPT_SERVER_PORT ?? "5515", 10);
-const CLIENT_PORT = Number.parseInt(process.env.P0B_CLIENT_PORT ?? process.env.DEV_ACCEPT_CLIENT_PORT ?? "6585", 10);
+const SERVER_PORT = Number.parseInt(process.env.P0B_SERVER_PORT ?? process.env.DEV_ACCEPT_SERVER_PORT ?? "5297", 10);
+const CLIENT_PORT = Number.parseInt(process.env.P0B_CLIENT_PORT ?? process.env.DEV_ACCEPT_CLIENT_PORT ?? "5298", 10);
 const VIEWPORT = { width: 1600, height: 900 };
 const RUN_ID = process.env.P0B_RUN_ID ?? `p0-b-browser-script-${new Date().toISOString().replace(/[:.]/g, "-")}`;
 const ARTIFACT_DIR = resolve(".codex-artifacts", RUN_ID);

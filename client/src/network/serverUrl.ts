@@ -1,4 +1,4 @@
-const DEFAULT_SERVER_PORT = "3000";
+const DEFAULT_SERVER_PORT = "5289";
 
 export function resolveServerUrl(): string {
   const explicit = import.meta.env.VITE_SERVER_URL?.trim();

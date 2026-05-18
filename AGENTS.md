@@ -99,7 +99,8 @@ git fetch && git status && git log --oneline -10
 - **数值规格**：见 `GDD.md`（数值参数、规则细节、技术规格）
 - **资产位置**：`client/public/assets/generated/`
 - **构建验证**：`npm run build`（shared / server / client 全部编译通过即视为构建绿）
-- **运行验证**：`npm run dev:server` + `npm run dev:client`，浏览器 `http://localhost:5173/` 体验主线流程
+- **项目专属端口**：默认前端端口为 `5288`，默认后端端口为 `5289`。未来如需端口漂移，必须优先使用 `52XX` 段；不要占用 Vite 通用前端端口 `5173`，也不要使用通用后端端口 `3000`，避免和其它本地项目冲突。
+- **运行验证**：优先使用 `npm run playtest:manual` 或 `npm run dev`，浏览器 `http://localhost:5288/` 体验主线流程；服务端健康检查为 `http://localhost:5289/health`。
 
 ---
 

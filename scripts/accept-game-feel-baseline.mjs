@@ -4,8 +4,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { chromium } from "playwright";
 
 const HOST = "127.0.0.1";
-const SERVER_PORT = Number.parseInt(process.env.GAME_FEEL_SERVER_PORT ?? "5715", 10);
-const CLIENT_PORT = Number.parseInt(process.env.GAME_FEEL_CLIENT_PORT ?? "6785", 10);
+const SERVER_PORT = Number.parseInt(process.env.GAME_FEEL_SERVER_PORT ?? "5295", 10);
+const CLIENT_PORT = Number.parseInt(process.env.GAME_FEEL_CLIENT_PORT ?? "5296", 10);
 const PRESET = process.env.GAME_FEEL_PRESET ?? "boss";
 const RUN_ID = process.env.GAME_FEEL_RUN_ID ?? `game-feel-baseline-${new Date().toISOString().replace(/[:.]/g, "-")}`;
 const ARTIFACT_DIR = resolve(".codex-artifacts", "game-feel-baseline", RUN_ID);

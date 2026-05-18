@@ -18,7 +18,7 @@ Run one focused browser playtest and record whether the current Demo 1 loop deli
 - Preflight: run `npm run validate:launch-readiness` after code changes and before counting a session as release-feel evidence.
 - Start server and client together: `npm run playtest:manual`.
 - Resource hygiene: keep the printed root PID visible, and stop the session with `Ctrl+C` so the server and client process trees are cleaned together. The manual playtest entrypoint also auto-stops after 20 minutes to avoid leaving dev processes behind.
-- URL: `http://localhost:5173/`.
+- URL: `http://localhost:5288/`.
 - Recommended run: one 9-12 minute human-controlled session using the normal room flow.
 - Optional stronger run: two browser clients in the same room, one active player and one observer or second player.
 

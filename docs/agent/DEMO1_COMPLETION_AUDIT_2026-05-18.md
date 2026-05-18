@@ -88,8 +88,8 @@ Latest automated evidence captured on 2026-05-18:
 - `validate:results-overlay`, `validate:results-replay-prompt`, and `validate:settlement-details` now guard the settlement next-run prompt, copied playtest note replay-intent field, and branch behavior for high-value extraction, late extraction, corpse-fog failure, death loss, and low-information failure.
 - `validate:drag-contracts` now runs inside `validate:gdd-demo1-contract`, covering inventory move/swap/reject, stash/loadout/equipment move-swap, and shared combat/stash drag semantics.
 - `validate:mobile-controls-contract` now guards mobile combat/action button coverage, cooldown display, and dead-state input disabling inside the GDD release gate.
-- The latest launch gate also verified the market audio teardown cleanup lineage, expanded monster tuning contract, and settlement replay prompt wiring; post-run checks found no lingering listeners on `3000`, `5173`, `4173`, `8791`, `9323`, `3191`, `3210`, or `3212`.
-- Playwright visual spot-check confirmed the lobby recent-run card renders a build tag on `http://127.0.0.1:5173/`.
+- The latest launch gate also verified the market audio teardown cleanup lineage, expanded monster tuning contract, and settlement replay prompt wiring; post-run checks found no lingering listeners on the then-used temporary ports.
+- Current project port policy reserves `http://127.0.0.1:5288/` for the frontend and `http://127.0.0.1:5289/` for the backend. Future port drift should stay in the `52XX` range and must not use `5173`.
 - The shared lobby/results backdrop asset at `client/public/assets/generated/lobby-black-market-backdrop.png` was replaced with a fuller battlefield/black-market scene; the spot-check screenshot is stored at `.codex-artifacts/lobby-buildtag-backdrop-check.png`.
 - `npm run accept:visual-readiness` passed again after the backdrop replacement.
 - Playwright DOM spot-check confirmed the pre-run lobby playtest button is enabled and shows `复制测评模板`.

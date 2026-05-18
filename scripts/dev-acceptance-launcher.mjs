@@ -2,8 +2,8 @@ import { createWriteStream, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 
-const SERVER_PORT = process.env.DEV_ACCEPT_SERVER_PORT ?? "3415";
-const CLIENT_PORT = process.env.DEV_ACCEPT_CLIENT_PORT ?? "5185";
+const SERVER_PORT = process.env.DEV_ACCEPT_SERVER_PORT ?? "5291";
+const CLIENT_PORT = process.env.DEV_ACCEPT_CLIENT_PORT ?? "5292";
 const SELF_TEST_MS = Number.parseInt(process.env.DEV_ACCEPT_SELF_TEST_MS ?? "0", 10);
 const REUSE_EXISTING = process.env.DEV_ACCEPT_REUSE === "1";
 const HOST = "127.0.0.1";

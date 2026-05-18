@@ -9,7 +9,7 @@ import { createCorsOriginResolver } from "./cors.js";
 
 dotenv.config();
 
-const DEFAULT_PORT = 3000;
+const DEFAULT_PORT = 5289;
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_SOCKET_PING_INTERVAL_MS = 25_000;
 const DEFAULT_SOCKET_PING_TIMEOUT_MS = 60_000;

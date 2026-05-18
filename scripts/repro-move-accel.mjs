@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const SERVER_URL = "http://localhost:3000";
+const SERVER_URL = "http://localhost:5289";
 
 async function runRepro() {
   console.log("Starting reproduction script...");

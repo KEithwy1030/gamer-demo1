@@ -36,7 +36,8 @@ Summary: passed 10 / 10 steps
 - Covers the server-authoritative loop from lobby create/join to match start.
 - Covers monster presence, one combat kill, world drop creation, pickup, extract opening, extract start, and extracted settlement.
 - Confirms the safe-zone and elite-pressure tuning did not break the core socket loop after `npm run validate:launch-readiness` passed.
-- Resource check after the run found no listening processes on `3100`, `3000`, `5173`, `3191`, `3210`, or `3212`.
+- Historical resource check after the run found no listening processes on the then-used temporary ports.
+- Current port policy reserves `5288` for the project frontend and `5289` for the project backend; future drift should stay in the `52XX` range and must not use `5173`.
 
 ## Remaining Manual Gap
 

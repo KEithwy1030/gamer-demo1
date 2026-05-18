@@ -3,9 +3,11 @@ import { createServer } from "node:net";
 
 const isManualPlaytest = process.argv.includes("--manual-playtest");
 const manualPlaytestTimeoutMs = 20 * 60 * 1000;
+const serverPort = Number.parseInt(process.env.GAMER_SERVER_PORT ?? "5289", 10);
+const clientPort = Number.parseInt(process.env.GAMER_CLIENT_PORT ?? "5288", 10);
 const requiredPorts = [
-  { port: 3000, label: "server" },
-  { port: 5173, label: "client" }
+  { port: serverPort, label: "server" },
+  { port: clientPort, label: "client" }
 ];
 
 async function isPortAvailable(port) {
@@ -35,21 +37,37 @@ async function assertRequiredPortsAvailable() {
   }
 }
 
-function runNpmScript(scriptName) {
+function runNpmScript(scriptName, extraArgs = [], extraEnv = {}) {
+  const command = ["npm", "run", scriptName, ...extraArgs].join(" ");
   if (process.platform === "win32") {
-    return spawn("cmd.exe", ["/d", "/s", "/c", `npm run ${scriptName}`], {
+    return spawn("cmd.exe", ["/d", "/s", "/c", command], {
       stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true
+      windowsHide: true,
+      env: {
+        ...process.env,
+        ...extraEnv
+      }
     });
   }
-  return spawn("npm", ["run", scriptName], { stdio: ["ignore", "pipe", "pipe"] });
+  return spawn("npm", ["run", scriptName, ...extraArgs], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      ...extraEnv
+    }
+  });
 }
 
 await assertRequiredPortsAvailable();
 
 const children = [
-  runNpmScript("dev:server"),
-  runNpmScript("dev:client")
+  runNpmScript("dev:server", [], {
+    PORT: String(serverPort),
+    CLIENT_ORIGIN: `http://localhost:${clientPort},http://127.0.0.1:${clientPort}`
+  }),
+  runNpmScript("dev:client", [], {
+    VITE_SERVER_URL: `http://127.0.0.1:${serverPort}`
+  })
 ];
 
 let shuttingDown = false;
@@ -90,7 +108,7 @@ function stopAll(exitCode = 0) {
 console.log(`[dev] root pid ${process.pid}; child pids ${children.map((child) => child.pid).join(", ")}`);
 console.log("[dev] Press Ctrl+C to stop server and client process trees.");
 if (isManualPlaytest) {
-  console.log("[manual-playtest] URL: http://localhost:5173/");
+  console.log(`[manual-playtest] URL: http://localhost:${clientPort}/`);
   console.log("[manual-playtest] Protocol: docs/agent/MANUAL_PLAYTEST_PROTOCOL_2026-05-18.md");
   console.log("[manual-playtest] Copy the lobby template before the run and the settlement record after the run.");
   console.log("[manual-playtest] Auto-stop is armed for 20 minutes to avoid leaving dev processes behind.");

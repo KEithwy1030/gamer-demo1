@@ -4,8 +4,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { chromium } from "playwright";
 
 const HOST = "127.0.0.1";
-const SERVER_PORT = Number.parseInt(process.env.RELEASE_FEEL_SERVER_PORT ?? "5915", 10);
-const CLIENT_PORT = Number.parseInt(process.env.RELEASE_FEEL_CLIENT_PORT ?? "6885", 10);
+const SERVER_PORT = Number.parseInt(process.env.RELEASE_FEEL_SERVER_PORT ?? "5293", 10);
+const CLIENT_PORT = Number.parseInt(process.env.RELEASE_FEEL_CLIENT_PORT ?? "5294", 10);
 const DURATION_MS = Number.parseInt(process.env.RELEASE_FEEL_DURATION_MS ?? "600000", 10);
 const RUN_ID = sanitizeRunId(
   process.env.RELEASE_FEEL_RUN_ID ?? `release-feel-${new Date().toISOString().replace(/[:.]/g, "-")}`

@@ -116,7 +116,7 @@ export interface SettlementEnvelope {
   settlement: SettlementPayload;
 }
 
-const DEFAULT_SERVER_PORT = "3000";
+const DEFAULT_SERVER_PORT = "5289";
 
 export class GameSocketClient {
   private readonly socket: Socket;

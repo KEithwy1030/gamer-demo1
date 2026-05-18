@@ -7,7 +7,8 @@ import { SocketEvent } from "../shared/src/protocol/events.js";
 import type { MatchStartedPayload } from "../shared/src/types/game.js";
 import type { RoomSummary } from "../shared/src/types/lobby.js";
 
-const serverUrl = process.env.MULTICLIENT_SERVER_URL ?? "http://127.0.0.1:3210";
+const MANAGED_SERVER_PORT = "5203";
+const serverUrl = process.env.MULTICLIENT_SERVER_URL ?? `http://127.0.0.1:${MANAGED_SERVER_PORT}`;
 const ownsServer = !process.env.MULTICLIENT_SERVER_URL;
 
 main().catch((error) => {
@@ -59,7 +60,7 @@ async function startManagedServer(): Promise<ChildProcessWithoutNullStreams> {
     cwd: "server",
     env: {
       ...process.env,
-      PORT: "3210"
+      PORT: MANAGED_SERVER_PORT
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true

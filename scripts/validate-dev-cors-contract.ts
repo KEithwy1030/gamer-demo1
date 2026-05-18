@@ -5,15 +5,15 @@ async function main(): Promise<void> {
   const openResolver = createCorsOriginResolver(true, true);
   assert.equal(openResolver, true, "open cors config should remain boolean true when test hooks allow loopback");
 
-  const resolver = createCorsOriginResolver(["http://localhost:5180", "http://127.0.0.1:5180"], true);
+  const resolver = createCorsOriginResolver(["http://localhost:5288", "http://127.0.0.1:5288"], true);
   assert.equal(typeof resolver, "function", "dev cors resolver should expose a callback for loopback handling");
 
-  const allowedOrigins = ["http://localhost:5180", "http://127.0.0.1:5180", "http://localhost:5173", "http://127.0.0.1:5173"];
+  const allowedOrigins = ["http://localhost:5288", "http://127.0.0.1:5288"];
   for (const origin of allowedOrigins) {
     assert.equal(await allowsOrigin(resolver, origin), true, `expected loopback origin to be allowed: ${origin}`);
   }
 
-  for (const origin of ["http://example.com:5180", "https://example.com", "file://local"]) {
+  for (const origin of ["http://example.com:5288", "https://example.com", "file://local"]) {
     assert.equal(await allowsOrigin(resolver, origin), false, `expected non-loopback origin to stay blocked: ${origin}`);
   }
 

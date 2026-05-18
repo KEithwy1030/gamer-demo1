@@ -7,12 +7,12 @@ const SHOT_DIR = process.env.MANUAL_LOOP_SHOT_DIR ?? "C:/Users/wuyon/codex-scree
 const VIEWPORT = { width: 1600, height: 900 };
 const MANAGED_SERVER_FOG_OVERRIDE_SEC = Number.parseInt(process.env.CORPSE_FOG_TIMELINE_OVERRIDE_SEC ?? "20", 10);
 const MANAGED_SERVER_EXTRACT_OPEN_SEC = Number.parseInt(process.env.EXTRACT_OPEN_SEC ?? "20", 10);
-const MANAGED_SERVER_PORT = Number.parseInt(process.env.MANUAL_LOOP_SERVER_PORT ?? "3100", 10);
-const MANAGED_CLIENT_PORT = Number.parseInt(process.env.MANUAL_LOOP_CLIENT_PORT ?? "5174", 10);
+const MANAGED_SERVER_PORT = Number.parseInt(process.env.MANUAL_LOOP_SERVER_PORT ?? "5286", 10);
+const MANAGED_CLIENT_PORT = Number.parseInt(process.env.MANUAL_LOOP_CLIENT_PORT ?? "5287", 10);
 const MATCH_DURATION_SEC = Number.parseInt(process.env.MATCH_DURATION_SEC ?? "900", 10);
 const MANAGE_DEV_SERVERS = process.env.MANUAL_LOOP_MANAGE_SERVERS !== "0";
 const APP_URL = process.env.MANUAL_LOOP_URL
-  ?? (MANAGE_DEV_SERVERS ? `http://127.0.0.1:${MANAGED_CLIENT_PORT}/` : "http://localhost:5173/");
+  ?? (MANAGE_DEV_SERVERS ? `http://127.0.0.1:${MANAGED_CLIENT_PORT}/` : "http://localhost:5288/");
 const SCENARIO = process.env.MANUAL_LOOP_SCENARIO ?? "all";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

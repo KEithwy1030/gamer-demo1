@@ -4,7 +4,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { io } from "socket.io-client";
 
-const SERVER_PORT = Number.parseInt(process.env.TEST_SERVER_PORT ?? "3100", 10);
+const SERVER_PORT = Number.parseInt(process.env.TEST_SERVER_PORT ?? "5290", 10);
 const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 const SERVER_DIR = fileURLToPath(new URL("../server/", import.meta.url));
 const SERVER_SRC_DIR = fileURLToPath(new URL("../server/src/", import.meta.url));

@@ -14,8 +14,10 @@ Product spec: [GDD.md](GDD.md)
 - `npm run dev --workspace server`
 - `npm run dev --workspace client`
 
-Default client: `http://localhost:5173/`
-Server health: `http://localhost:3000/health`
+Default client: `http://localhost:5288/`
+Server health: `http://localhost:5289/health`
+
+Project port policy: frontend dev ports must start from the `52XX` range. Do not use Vite's common `5173` port in this project because it conflicts with other local projects. The default dedicated ports are client `5288` and server `5289`.
 
 ## Validation
 
