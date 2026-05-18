@@ -35,17 +35,55 @@ const CUE_SHAPES: Record<GameAudioCue, CueShape> = {
   "rummage-tick": { frequency: 220, durationMs: 80, type: "sine", gain: 0.04, slideTo: 220 }
 };
 
+const CUE_FILES: Partial<Record<GameAudioCue, string>> = {
+  attack: "/assets/audio/attack_whoosh.wav",
+  hit: "/assets/audio/hit_flesh.wav",
+  thud: "/assets/audio/hit_armor.wav",
+  hurt: "/assets/audio/player_hurt_grunts.wav",
+  pickup: "/assets/audio/pickup_coin.wav",
+  chest: "/assets/audio/chest_open.wav"
+};
+
+const CUE_VOLUMES: Partial<Record<GameAudioCue, number>> = {
+  attack: 0.5,
+  hit: 0.7,
+  thud: 0.8,
+  hurt: 0.75,
+  pickup: 0.6,
+  chest: 0.45
+};
+
 export class GameAudioController {
   private context?: AudioContext;
   private unlocked = false;
   private muted = false;
+  private readonly audioCache: Map<string, HTMLAudioElement> = new Map();
+  private readonly hurtStartPoints = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45];
+
   private readonly unlock = (): void => {
     void this.ensureContext();
+    // Unlock HTMLAudio elements via a silent play/pause
+    for (const audio of this.audioCache.values()) {
+      audio.play().then(() => {
+        audio.pause();
+        audio.currentTime = 0;
+      }).catch(() => {
+        // Expected failure if browser blocks it, will retry on next interaction
+      });
+    }
   };
 
   constructor() {
     if (typeof window === "undefined") {
       return;
+    }
+
+    // Preload files
+    for (const [cue, path] of Object.entries(CUE_FILES)) {
+      const audio = new Audio(path);
+      audio.preload = "auto";
+      audio.volume = CUE_VOLUMES[cue as GameAudioCue] ?? 0.6;
+      this.audioCache.set(cue, audio);
     }
 
     window.addEventListener("pointerdown", this.unlock, { passive: true });
@@ -63,10 +101,14 @@ export class GameAudioController {
     void this.context?.close();
     this.context = undefined;
     this.unlocked = false;
+    this.audioCache.clear();
   }
 
   setMuted(muted: boolean): void {
     this.muted = muted;
+    for (const audio of this.audioCache.values()) {
+      audio.muted = muted;
+    }
   }
 
   play(cue: GameAudioCue): void {
@@ -100,6 +142,34 @@ export class GameAudioController {
   }
 
   private async playInternal(cue: GameAudioCue): Promise<void> {
+    const cached = this.audioCache.get(cue);
+    if (cached) {
+      try {
+        if (cue === "hurt") {
+          // Special handling for the long grunt file
+          const start = this.hurtStartPoints[Math.floor(Math.random() * this.hurtStartPoints.length)];
+          cached.currentTime = start;
+          await cached.play();
+          setTimeout(() => {
+            cached.pause();
+            cached.currentTime = 0;
+          }, 1100);
+          return;
+        }
+
+        // For other cues, use cloneNode to allow overlapping plays
+        const instance = cached.cloneNode(true) as HTMLAudioElement;
+        instance.volume = cached.volume;
+        instance.muted = this.muted;
+        await instance.play();
+        instance.onended = () => instance.remove();
+        return;
+      } catch (err) {
+        // Fallback to synth on playback error
+        console.warn(`[audio] Failed to play WAV for ${cue}, falling back to synth:`, err);
+      }
+    }
+
     const context = await this.ensureContext();
     if (!context || !this.unlocked) {
       return;
