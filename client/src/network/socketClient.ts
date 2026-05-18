@@ -17,6 +17,7 @@ import {
   SocketEvent,
   type WorldDrop
 } from "@gamer/shared";
+import { logEvent } from "../dev/runtimeLog";
 import { resolveServerUrl } from "./serverUrl";
 
 export interface GameSocketClientOptions {
@@ -110,6 +111,7 @@ export interface ChestProgressPayload {
   status: "started" | "progress" | "dispensed" | "interrupted" | "completed";
   remainingMs: number;
   durationMs: number;
+  reason?: "moved" | "damaged" | "died";
 }
 
 export interface InventoryUpdateEvent {
@@ -132,12 +134,30 @@ const DEFAULT_SERVER_PORT = "5289";
 
 export class GameSocketClient {
   private readonly socket: Socket;
+  private readonly handleConnect = (): void => {
+    logEvent("NET", "socket.connect", {
+      socketId: this.socket.id ?? ""
+    });
+  };
+  private readonly handleDisconnect = (reason: Socket.DisconnectReason): void => {
+    logEvent("NET", "socket.disconnect", {
+      reason
+    });
+  };
+  private readonly handleReconnect = (attempt: number): void => {
+    logEvent("NET", "socket.reconnect", {
+      attempt
+    });
+  };
 
   constructor(options: GameSocketClientOptions = {}) {
     this.socket = io(options.serverUrl ?? resolveServerUrl(), {
       autoConnect: options.autoConnect ?? false,
       transports: ["websocket", "polling"]
     });
+    this.socket.on("connect", this.handleConnect);
+    this.socket.on("disconnect", this.handleDisconnect);
+    this.socket.io.on("reconnect", this.handleReconnect);
   }
 
   connect(): void {
@@ -153,6 +173,9 @@ export class GameSocketClient {
   }
 
   destroy(): void {
+    this.socket.off("connect", this.handleConnect);
+    this.socket.off("disconnect", this.handleDisconnect);
+    this.socket.io.off("reconnect", this.handleReconnect);
     this.socket.removeAllListeners();
     this.socket.close();
   }
@@ -213,7 +236,7 @@ export class GameSocketClient {
     return this.on(SocketEvent.CombatResult, listener);
   }
 
-  onMonsterKilled(listener: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }) => void): Unsubscribe {
+  onMonsterKilled(listener: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss"; killerPlayerId: string }) => void): Unsubscribe {
     return this.on(SocketEvent.MonsterKilled, listener);
   }
 

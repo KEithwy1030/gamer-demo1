@@ -350,6 +350,12 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
         return;
       }
       button.style.transform = "translateY(1px) scale(0.98)";
+      if (buttonId === "extract") {
+        logEvent("UI", "button.click", {
+          id: "mobile.extract",
+          label
+        });
+      }
       onPress();
     };
 
@@ -495,3 +501,4 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     }
   };
 }
+import { logEvent } from "../dev/runtimeLog";

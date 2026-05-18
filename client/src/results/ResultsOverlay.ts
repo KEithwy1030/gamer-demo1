@@ -3,6 +3,7 @@ import "../styles/results.css";
 import type { ResultOverlayState } from "./types";
 import { getItemPresentation } from "../ui/itemPresentation";
 import { buildNextRunPrompt } from "./replayPrompt";
+import { logEvent } from "../dev/runtimeLog";
 
 export interface ResultsOverlayApi {
   readonly element: HTMLElement;
@@ -82,6 +83,11 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
       return;
     }
 
+    logEvent("UI", "settlement.return_lobby_clicked");
+    logEvent("UI", "button.click", {
+      id: "results.return_lobby",
+      label: "返回大厅"
+    });
     api.setReturning(true);
     try {
       api.hide();

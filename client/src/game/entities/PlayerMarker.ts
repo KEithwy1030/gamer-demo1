@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { WEAPON_DEFINITIONS, type PlayerState, type StatusEffectState, type WeaponType } from "@gamer/shared";
+import { logEvent } from "../../dev/runtimeLog";
 
 export type AnimationState = "IDLE" | "MOVE" | "ATTACK" | "HURT" | "DIE";
 type DirectionKey = "down" | "left" | "right" | "up";
@@ -113,6 +114,16 @@ export class PlayerMarker {
   }
 
   sync(player: PlayerState, isSelf: boolean): void {
+    if (player.hp !== this.lastHp) {
+      logEvent("PLAYER", "hp.changed", {
+        playerId: player.id,
+        isSelf,
+        from: this.lastHp,
+        to: player.hp,
+        max: player.maxHp
+      });
+    }
+
     if (player.hp < this.lastHp) {
       this.playHurt();
     }

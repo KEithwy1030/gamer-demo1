@@ -1,3 +1,5 @@
+import { logEvent } from "../dev/runtimeLog";
+
 export type GameAudioCue =
   | "attack"
   | "hit"
@@ -84,6 +86,13 @@ export class GameAudioController {
       const audio = new Audio(path);
       audio.preload = "auto";
       audio.volume = CUE_VOLUMES[cue as GameAudioCue] ?? 0.6;
+      audio.addEventListener("error", () => {
+        logEvent("AUDIO", "audio.load_failed", {
+          cue,
+          url: path,
+          error: formatAudioError(audio)
+        });
+      });
       this.audioCache.set(cue, audio);
     }
 
@@ -117,6 +126,12 @@ export class GameAudioController {
   }
 
   play(cue: GameAudioCue): void {
+    logEvent("AUDIO", "audio.play", {
+      cue,
+      muted: this.muted,
+      hasFile: CUE_FILES[cue] ? "yes" : "no"
+    });
+
     if (this.muted || typeof window === "undefined") {
       return;
     }
@@ -164,6 +179,10 @@ export class GameAudioController {
             if (this.attackStopTimer !== stopTimer) {
               return;
             }
+            logEvent("AUDIO", "audio.cap_reached", {
+              cue,
+              durationMs: 400
+            });
             cached.pause();
             cached.currentTime = 0;
             this.attackStopTimer = undefined;
@@ -192,6 +211,13 @@ export class GameAudioController {
         instance.onended = () => instance.remove();
         return;
       } catch (err) {
+        if (cached.error) {
+          logEvent("AUDIO", "audio.load_failed", {
+            cue,
+            url: CUE_FILES[cue] ?? "",
+            error: formatAudioError(cached, err)
+          });
+        }
         // Fallback to synth on playback error
         console.warn(`[audio] Failed to play WAV for ${cue}, falling back to synth:`, err);
       }
@@ -222,6 +248,30 @@ export class GameAudioController {
     gain.connect(context.destination);
     oscillator.start(start);
     oscillator.stop(end + 0.015);
+  }
+}
+
+function formatAudioError(audio: HTMLAudioElement, error?: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  const mediaError = audio.error;
+  if (!mediaError) {
+    return typeof error === "string" ? error : "unknown";
+  }
+
+  switch (mediaError.code) {
+    case MediaError.MEDIA_ERR_ABORTED:
+      return "aborted";
+    case MediaError.MEDIA_ERR_NETWORK:
+      return "network";
+    case MediaError.MEDIA_ERR_DECODE:
+      return "decode";
+    case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+      return "src_not_supported";
+    default:
+      return "unknown";
   }
 }
 

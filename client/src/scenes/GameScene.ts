@@ -57,7 +57,7 @@ export interface GameSceneInitData {
   onStartExtract?: () => void;
   onCombatResult?: (payload: CombatEventPayload) => void;
   onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
-  onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }) => void;
+  onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss"; killerPlayerId: string }) => void;
   onOpenChest?: (chestId: string) => void;
   onAudioCue?: (cue: string) => void;
   onToggleInventory?: () => void;
@@ -117,7 +117,7 @@ export class GameScene extends Phaser.Scene {
   private onStartExtract?: () => void;
   public onCombatResult?: (payload: CombatEventPayload) => void;
   public onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
-  public onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }) => void;
+  public onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss"; killerPlayerId: string }) => void;
   private onOpenChest?: (chestId: string) => void;
   public onAudioCue?: (cue: string) => void;
   private onToggleInventory?: () => void;
@@ -125,6 +125,7 @@ export class GameScene extends Phaser.Scene {
 
   private lastLocalAttackAt = 0;
   private lastLocalAttackTargetId?: string;
+  private lastSelfDamageAt = 0;
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
   private subscribeChestProgress?: (callback: (payload: ChestProgressPayload) => void) => () => void;
@@ -196,7 +197,7 @@ export class GameScene extends Phaser.Scene {
     // The in-game HUD carries objectives now; keep the first combat view unobstructed.
   }
 
-  private handleMonsterKilled(payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }): void {
+  private handleMonsterKilled(payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss"; killerPlayerId: string }): void {
     this.feedbackFx?.handleMonsterKilled(payload);
   }
 
@@ -213,6 +214,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleCombatResult(payload: CombatEventPayload): void {
+    if (payload.targetId === this.latestState?.selfPlayerId && payload.amount > 0) {
+      this.lastSelfDamageAt = Date.now();
+    }
     this.feedbackFx?.handleCombatResult(payload, this.latestState, this.playerMarkers, this.monsterMarkers);
     if (
       payload.attackerId === this.latestState?.selfPlayerId
@@ -220,6 +224,19 @@ export class GameScene extends Phaser.Scene {
     ) {
       this.lastLocalAttackTargetId = undefined;
     }
+  }
+
+  public resolveChestInterruptReason(): "moved" | "damaged" | "died" {
+    const selfPlayer = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
+    if (selfPlayer && !selfPlayer.isAlive) {
+      return "died";
+    }
+
+    if (Date.now() - this.lastSelfDamageAt <= 600) {
+      return "damaged";
+    }
+
+    return "moved";
   }
 
   private createUnitAnimations(): void {
@@ -831,6 +848,7 @@ export class GameScene extends Phaser.Scene {
     this.localBasicAttackEndsAt = 0;
     this.queuedAttack = undefined;
     this.chaseAssist = undefined;
+    this.lastSelfDamageAt = 0;
     this.spectateTargetId = null;
     this.corpseFogImage?.destroy();
     this.corpseFogImage = undefined;

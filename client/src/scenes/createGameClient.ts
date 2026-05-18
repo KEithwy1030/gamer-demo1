@@ -22,6 +22,7 @@ import { GameSocketClient, type GameSocketClientOptions, type Unsubscribe } from
 import { MatchRuntimeStore, type MatchInventoryState } from "../game";
 import type { MatchInventoryItem } from "../game/matchRuntime";
 import { GameAudioController } from "../audio/gameAudio";
+import { logEvent } from "../dev/runtimeLog";
 import { translateItemName } from "../ui/itemPresentation";
 import { GameScene } from "./GameScene";
 import { applySmoothTextureSampling, GAME_RENDER_CONFIG } from "./gameScene/renderTuning";
@@ -135,6 +136,12 @@ export function createGameClientController(
       options.onInventoryChange?.(normalized);
     },
     setCombatResult(payload) {
+      logEvent("COMBAT", "damage.received", {
+        attackerId: payload.attackerId,
+        targetId: payload.targetId,
+        amount: payload.amount,
+        critMultiplier: payload.critMultiplier ?? 1
+      });
       const selfPlayerId = controller.getSelfPlayerId();
       audio.play(payload.targetId === selfPlayerId ? "hurt" : "hit");
       getScene()?.onCombatResult?.(payload);
@@ -149,10 +156,17 @@ export function createGameClientController(
       runtime.setTimer(secondsRemaining);
     },
     setExtractState(payload) {
+      const previousPhase = extractState.phase;
       extractState = {
         ...extractState,
         ...payload
       };
+      if (previousPhase !== extractState.phase) {
+        logEvent("EXTRACT", "phase.changed", {
+          from: previousPhase,
+          to: extractState.phase
+        });
+      }
       options.onExtractStateChange?.(extractState);
       getScene()?.setExtractState(extractState);
     },
@@ -200,6 +214,11 @@ export function createGameClientController(
     network.onPlayerAttack((payload) => controller.onPlayerAttack(payload)),
     network.onCombatResult((payload) => controller.setCombatResult(payload)),
     network.onMonsterKilled((payload) => {
+      logEvent("COMBAT", "kill", {
+        killerId: payload.killerPlayerId,
+        victimId: payload.monsterId,
+        victimTier: payload.tier
+      });
       getScene()?.onMonsterKilled?.(payload);
     }),
     network.onChestsInit((chests) => {

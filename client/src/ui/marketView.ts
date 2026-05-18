@@ -1,5 +1,6 @@
 import type { MarketListing, MarketListingItem, MarketSettlementReceipt, MarketSettlementResult, SystemSellMarketResult } from "@gamer/shared";
 import { GameAudioController } from "../audio/gameAudio";
+import { logEvent } from "../dev/runtimeLog";
 import type { LocalProfile, LocalProfileItem } from "../profile/localProfile";
 import { resolveServerUrl } from "../network/serverUrl";
 import { getItemPresentation } from "./itemPresentation";
@@ -92,6 +93,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
   let requestVersion = 0;
 
   createButton.addEventListener("click", async () => {
+    logButtonClick("market.create_listing", "挂出");
     const profile = currentProfile;
     const selected = candidates.find((item) => item.instanceId === selectedItemId);
     const price = Number.parseInt(priceInput.value, 10);
@@ -117,6 +119,7 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
   });
 
   quickSellButton.addEventListener("click", async () => {
+    logButtonClick("market.quick_sell", "急售给系统");
     const profile = currentProfile;
     const selected = candidates.find((item) => item.instanceId === selectedItemId);
     if (!profile || !selected) {
@@ -306,6 +309,13 @@ export function createMarketView(callbacks: MarketViewCallbacks = {}): MarketVie
   function setStatus(text: string, isError = false): void {
     status.textContent = text;
     status.classList.toggle("error", isError);
+  }
+
+  function logButtonClick(id: string, label: string): void {
+    logEvent("UI", "button.click", {
+      id,
+      label
+    });
   }
 
   return {

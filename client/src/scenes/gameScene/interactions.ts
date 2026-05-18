@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { ChestOpenedPayload, ChestProgressPayload, ChestState } from "../../network/socketClient";
 import type { ExtractUiState } from "../createGameClient";
 import type { PlayerMarker } from "../../game/entities/PlayerMarker";
+import { logEvent } from "../../dev/runtimeLog";
 
 function shouldSuppressAutoStartExtractForP0B(): boolean {
   if (typeof window === "undefined") {
@@ -27,6 +28,7 @@ export class GameSceneInteractions {
   private readonly chestProgressLabels = new Map<string, Phaser.GameObjects.Text>();
   private readonly chestMetadata = new Map<string, { lane?: ChestState["lane"]; noiseRadius?: number; qualityTier?: ChestState["qualityTier"] }>();
   private readonly chestLastDispensedCount = new Map<string, number>();
+  private readonly activeRummageChests = new Set<string>();
   private readonly playerProgressRings = new Map<string, Phaser.GameObjects.Graphics>();
   private localPlayerId: string | null = null;
   private playerMarkers?: Map<string, PlayerMarker>;
@@ -63,6 +65,10 @@ export class GameSceneInteractions {
     this.chestUnsubscribes = [];
     if (subscribeChestsInit) {
       this.chestUnsubscribes.push(subscribeChestsInit((chests) => {
+        logEvent("CHEST", "chests.init", {
+          count: chests.length,
+          chestIds: chests.slice(0, 5).map((chest) => chest.chestId ?? chest.id ?? "")
+        });
         this.applyChests(chests);
       }));
     }
@@ -95,6 +101,7 @@ export class GameSceneInteractions {
         this.chestProgressLabels.get(payload.chestId)?.destroy();
         this.chestProgressLabels.delete(payload.chestId);
         this.chestLastDispensedCount.delete(payload.chestId);
+        this.activeRummageChests.delete(payload.chestId);
 
         if (payload.lane === "contested") {
           this.showContestedChestWarning(sprite.x, sprite.y, payload.aggroedMonsterIds?.length ?? 0);
@@ -161,6 +168,9 @@ export class GameSceneInteractions {
     if (this.interactionPrompt?.visible) {
       const chestId = this.interactionPrompt.getData("chestId");
       if (chestId) {
+        logEvent("CHEST", "chest.open_request", {
+          chestId
+        });
         onOpenChest?.(chestId);
         return;
       }
@@ -386,6 +396,17 @@ export class GameSceneInteractions {
     const sprite = this.chestSprites.get(chestId);
     if (!sprite) return;
 
+    if (payload.status === "interrupted") {
+      logEvent("CHEST", "chest.interrupted", {
+        chestId,
+        itemsDispensed: payload.itemsDispensed ?? 0,
+        totalItems: payload.totalItems ?? 0,
+        reason: payload.reason ?? resolveChestInterruptReason(this.scene)
+      });
+      this.activeRummageChests.delete(chestId);
+      this.chestLastDispensedCount.delete(chestId);
+    }
+
     if (payload.status === "completed" || payload.state === "empty") {
       this.chestProgressBars.get(chestId)?.destroy();
       this.chestProgressBars.delete(chestId);
@@ -394,7 +415,17 @@ export class GameSceneInteractions {
       this.playerProgressRings.get(payload.playerId)?.destroy();
       this.playerProgressRings.delete(payload.playerId);
       this.chestLastDispensedCount.delete(chestId);
+      this.activeRummageChests.delete(chestId);
       return;
+    }
+
+    const isRummageEvent = payload.status === "started" || payload.status === "progress" || payload.status === "dispensed";
+    if (isRummageEvent && !this.activeRummageChests.has(chestId)) {
+      logEvent("CHEST", "chest.rummage_started", {
+        chestId,
+        totalItems: payload.totalItems ?? 0
+      });
+      this.activeRummageChests.add(chestId);
     }
 
     // [待人工调优] B.3 Bigger progress bar above chest: 120x10, #fbbf24 fill, #92400e border, 70px above
@@ -468,7 +499,14 @@ export class GameSceneInteractions {
     const currentDispensed = payload.itemsDispensed ?? 0;
     const prevCount = this.chestLastDispensedCount.get(chestId) ?? 0;
     if (currentDispensed > prevCount) {
+      logEvent("CHEST", "chest.item_dispensed", {
+        chestId,
+        itemsDispensed: currentDispensed,
+        totalItems: payload.totalItems ?? 0
+      });
       this.spawnDropSparks(sprite.x, sprite.y);
+      this.chestLastDispensedCount.set(chestId, currentDispensed);
+    } else if (!this.chestLastDispensedCount.has(chestId)) {
       this.chestLastDispensedCount.set(chestId, currentDispensed);
     }
 
@@ -652,6 +690,7 @@ export class GameSceneInteractions {
     this.chestProgressBars.clear();
     this.chestProgressLabels.clear();
     this.chestMetadata.clear();
+    this.activeRummageChests.clear();
     this.extractAutoStarted = false;
     this.extractAutoRearmRequired = false;
     this.extractLastPhase = null;
@@ -661,4 +700,11 @@ export class GameSceneInteractions {
 
 function distanceBetween(x1: number, y1: number, x2: number, y2: number): number {
   return Math.hypot(x1 - x2, y1 - y2);
+}
+
+function resolveChestInterruptReason(scene: Phaser.Scene): "moved" | "damaged" | "died" {
+  const maybeScene = scene as Phaser.Scene & {
+    resolveChestInterruptReason?: () => "moved" | "damaged" | "died";
+  };
+  return maybeScene.resolveChestInterruptReason?.() ?? "moved";
 }
