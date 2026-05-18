@@ -1044,6 +1044,10 @@ export class GameScene extends Phaser.Scene {
     this.hudOverlay?.showPickupFeedback(itemName);
   }
 
+  public showLootToast(x: number, y: number, amount: number): void {
+    this.feedbackFx?.showLootToast(x, y, amount);
+  }
+
   private showTutorial(): void {
     const { width, height } = this.scale;
     const panel = this.add.container(width / 2, height / 2).setScrollFactor(0).setDepth(1000);

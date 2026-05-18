@@ -118,8 +118,17 @@ export function createGameClientController(
         const previousIds = new Set(previousInventory.items.map((item) => item.instanceId));
         const gainedItem = normalized.items.find((item) => !previousIds.has(item.instanceId));
         if (gainedItem) {
-          getScene()?.showPickupFeedback(gainedItem.name);
+          const scene = getScene();
+          scene?.showPickupFeedback(gainedItem.name);
           audio.play("pickup");
+
+          const value = (gainedItem.goldValue ?? 0) + (gainedItem.treasureValue ?? 0);
+          if (value > 0 && scene) {
+            const self = runtime.getState().players.find(p => p.id === runtime.getState().selfPlayerId);
+            if (self) {
+              scene.showLootToast(self.x, self.y, value);
+            }
+          }
         }
       }
       runtime.setInventory(normalized);

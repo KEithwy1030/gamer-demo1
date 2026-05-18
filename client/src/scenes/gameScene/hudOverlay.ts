@@ -22,8 +22,8 @@ const HUD_ASSETS = {
 } as const;
 
 const SKILL_SLOT_CENTER_Y_RATIO = 0.5;
-const SKILL_KEY_LABEL_Y_RATIO = -0.3;
-const SKILL_NAME_LABEL_Y_RATIO = 0.08;
+const SKILL_NAME_LABEL_Y_RATIO = -0.05;
+const SKILL_KEY_LABEL_Y_RATIO = 0.32;
 
 type HudLayout = {
   status: Phaser.Geom.Rectangle;
@@ -50,7 +50,9 @@ export class GameHudOverlay {
   private container?: Phaser.GameObjects.Container;
   private layout?: HudLayout;
   private hpFill?: Phaser.GameObjects.Graphics;
-  private hpLabel?: Phaser.GameObjects.Text;
+  private hpValueText?: Phaser.GameObjects.Text;
+  private hpSlashText?: Phaser.GameObjects.Text;
+  private hpMaxText?: Phaser.GameObjects.Text;
   private hpMetaText?: Phaser.GameObjects.Text;
   private weaponText?: Phaser.GameObjects.Text;
   private skillStateText?: Phaser.GameObjects.Text;
@@ -81,7 +83,8 @@ export class GameHudOverlay {
 
   private lastSelfHpRatio = -1;
   private lastHudHpColor = -1;
-  private lastHudHpLabel = "";
+  private lastHpValue = -1;
+  private lastHpMax = -1;
   private lastHudHpMetaLabel = "";
   private lastWeaponLabel = "";
   private lastSkillStateLabel = "";
@@ -120,130 +123,144 @@ export class GameHudOverlay {
     const status = this.layout.status;
     this.hpMetaText = this.scene.add.text(status.x + status.width * 0.29, status.y + status.height * 0.15, "生命线", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "11px" : "12px",
+      fontSize: this.isTouchDevice ? "10px" : "11px",
       color: "#6f5534",
       letterSpacing: 0
     });
-    this.hpLabel = this.scene.add.text(status.x + status.width * 0.29, status.y + status.height * 0.23, "-- / --", {
+    
+    // HP Display: Split into 3 parts for subtle slash and specific sizing
+    const hpY = status.y + status.height * 0.22;
+    const hpBaseSize = this.isTouchDevice ? 18 : 20;
+    this.hpValueText = this.scene.add.text(status.x + status.width * 0.29, hpY, "--", {
       fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: this.isTouchDevice ? "22px" : "26px",
+      fontSize: `${hpBaseSize}px`,
       color: "#2a1d13",
       stroke: "#efe3c5",
       strokeThickness: 2
     });
+    this.hpSlashText = this.scene.add.text(this.hpValueText.getBounds().right + 2, hpY + 2, "/", {
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: `${hpBaseSize - 4}px`,
+      color: "#8a7a6a", // Subtle gray slash
+      stroke: "#efe3c5",
+      strokeThickness: 1
+    });
+    this.hpMaxText = this.scene.add.text(this.hpSlashText.getBounds().right + 2, hpY + 2, "--", {
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: `${hpBaseSize - 2}px`,
+      color: "#4a3d33",
+      stroke: "#efe3c5",
+      strokeThickness: 1
+    });
+
     this.weaponText = this.scene.add.text(status.x + status.width * 0.29, status.y + status.height * 0.63, "武器 · --", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "12px" : "14px",
+      fontSize: this.isTouchDevice ? "11px" : "12px",
       color: "#4e2c18"
     });
     this.skillStateText = this.scene.add.text(status.x + status.width * 0.72, status.y + status.height * 0.63, "战技 · 待命", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "12px" : "14px",
+      fontSize: this.isTouchDevice ? "11px" : "12px",
       color: "#284854"
       }).setOrigin(0.5, 0);
     this.weaponText
-      .setPosition(status.x + status.width * 0.29, status.y + status.height * 0.61)
-      .setFontSize(this.isTouchDevice ? "11px" : "13px");
+      .setPosition(status.x + status.width * 0.29, status.y + status.height * 0.61);
     this.skillStateText
       .setPosition(status.x + status.width * 0.86, status.y + status.height * 0.61)
-      .setFontSize(this.isTouchDevice ? "11px" : "13px")
       .setOrigin(1, 0);
     this.hpFill = this.scene.add.graphics();
 
     const objective = this.layout.objective;
     this.objectiveText = this.scene.add.text(objective.centerX, objective.y + objective.height * 0.52, "搜刮战利品\n等待归营石阵点燃", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "14px" : "16px",
+      fontSize: this.isTouchDevice ? "12px" : "13px",
       color: "#2a1d13",
       align: "center",
-      lineSpacing: 3,
-      wordWrap: { width: Math.max(172, objective.width - 100), useAdvancedWrap: true }
+      lineSpacing: 2,
+      wordWrap: { width: Math.max(160, objective.width - 110), useAdvancedWrap: true }
     }).setOrigin(0.5);
 
     const timer = this.layout.timer;
     this.timerText = this.scene.add.text(timer.x + timer.width * 0.62, timer.y + timer.height * 0.27, "00:00", {
       fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: this.isTouchDevice ? "25px" : "30px",
+      fontSize: this.isTouchDevice ? "22px" : "26px",
       color: "#4d3517",
       stroke: "#f3e6c6",
       strokeThickness: 2
     }).setOrigin(0.5, 0);
     this.roomCodeText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.36, "战令 · ------", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "11px" : "12px",
+      fontSize: this.isTouchDevice ? "10px" : "11px",
       color: "#342416"
     });
     this.extractText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.56, "队撤 · 未点燃", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "11px" : "12px",
+      fontSize: this.isTouchDevice ? "10px" : "11px",
       color: "#284854"
     });
     this.killsText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.74, "清怪 · 0/0", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "11px" : "12px",
+      fontSize: this.isTouchDevice ? "10px" : "11px",
       color: "#5a2519"
     });
     this.inventoryText = this.scene.add.text(timer.x + timer.width * 0.63, timer.y + timer.height * 0.74, "载荷 · --/--", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "11px" : "12px",
+      fontSize: this.isTouchDevice ? "10px" : "11px",
       color: "#342416"
     });
 
     this.objectiveText
       .setPosition(objective.centerX, objective.y + objective.height * 0.48)
-      .setFontSize(this.isTouchDevice ? "13px" : "15px")
-      .setWordWrapWidth(Math.max(168, objective.width - 124));
-    const timerPrimaryRight = timer.right - timer.width * 0.1;
-    const timerInfoLeft = timer.x + timer.width * 0.13;
-    const timerBottomY = timer.y + timer.height * 0.72;
+      .setWordWrapWidth(Math.max(160, objective.width - 120));
+    const timerPrimaryRight = timer.right - timer.width * 0.12;
+    const timerInfoLeft = timer.x + timer.width * 0.15;
+    const timerBottomY = timer.y + timer.height * 0.74;
     this.timerText
-      .setPosition(timerPrimaryRight, timer.y + timer.height * 0.1)
-      .setFontSize(this.isTouchDevice ? "22px" : "26px")
+      .setPosition(timerPrimaryRight, timer.y + timer.height * 0.12)
       .setOrigin(1, 0);
     this.roomCodeText
-      .setPosition(timerInfoLeft, timer.y + timer.height * 0.26)
-      .setFontSize(this.isTouchDevice ? "10px" : "11px");
+      .setPosition(timerInfoLeft, timer.y + timer.height * 0.28);
     this.extractText
-      .setPosition(timerInfoLeft, timer.y + timer.height * 0.48)
-      .setFontSize(this.isTouchDevice ? "10px" : "11px");
+      .setPosition(timerInfoLeft, timer.y + timer.height * 0.48);
     this.killsText
-      .setPosition(timerInfoLeft, timerBottomY)
-      .setFontSize(this.isTouchDevice ? "10px" : "11px");
+      .setPosition(timerInfoLeft, timerBottomY);
     this.inventoryText
       .setPosition(timerPrimaryRight, timerBottomY)
-      .setFontSize(this.isTouchDevice ? "10px" : "11px")
       .setOrigin(1, 0);
 
     const command = this.layout.command;
     this.combatText = this.scene.add.text(command.centerX, command.centerY + 2, "", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "14px" : "16px",
+      fontSize: this.isTouchDevice ? "12px" : "13px",
       color: "#2a1d13",
       align: "center",
-      lineSpacing: 3,
-      wordWrap: { width: Math.max(228, command.width - 138), useAdvancedWrap: true }
+      lineSpacing: 2,
+      wordWrap: { width: Math.max(220, command.width - 140), useAdvancedWrap: true }
     }).setOrigin(0.5);
 
-    this.skillKeyTexts = this.layout.skillSlots.map((slot, index) => this.scene.add.text(slot.x, slot.y + slot.height * SKILL_KEY_LABEL_Y_RATIO, index === 3 ? "SHIFT" : ["Q", "R", "T"][index] ?? "--", {
-      fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: this.isTouchDevice ? "10px" : "11px",
-      color: "#6f5534",
-      align: "center"
-    }).setOrigin(0.5));
-    this.skillNameTexts = this.layout.skillSlots.map((slot, index) => this.scene.add.text(slot.x, slot.y + slot.height * SKILL_NAME_LABEL_Y_RATIO, index === 3 ? "翻滚" : "--", {
+    // Skill Bar: Name above (prominent), Key below (subtle)
+    this.skillNameTexts = this.layout.skillSlots.map((slot, index) => this.scene.add.text(slot.x, slot.y + slot.height * -0.05, index === 3 ? "闪避" : "--", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "11px" : "12px",
+      fontSize: this.isTouchDevice ? "12px" : "13px",
       color: "#251a12",
       align: "center",
-      wordWrap: { width: slot.width - 14, useAdvancedWrap: true },
+      wordWrap: { width: slot.width - 4, useAdvancedWrap: true },
       maxLines: 2
     }).setOrigin(0.5));
+    
+    this.skillKeyTexts = this.layout.skillSlots.map((slot, index) => this.scene.add.text(slot.x, slot.y + slot.height * 0.32, index === 3 ? "SHIFT" : ["Q", "R", "T"][index] ?? "--", {
+      fontFamily: GAMEPLAY_THEME.fonts.mono,
+      fontSize: this.isTouchDevice ? "9px" : "10px",
+      color: "#8a7a6a", // Subtle key label
+      align: "center"
+    }).setOrigin(0.5));
+
     this.skillCooldownTexts = this.layout.skillSlots.map((slot) => this.scene.add.text(slot.x, slot.y - 1, "", {
       fontFamily: GAMEPLAY_THEME.fonts.mono,
       fontSize: this.isTouchDevice ? "17px" : "19px",
-      color: "#ffffff", // [待人工调优] Step 2.5: white text
-      stroke: "#000000", // [待人工调优] Step 2.5: black outline
-      strokeThickness: 2, // [待人工调优] Step 2.5: 2 px outline
+      color: "#ffffff",
+      stroke: "#000000",
+      strokeThickness: 2,
       align: "center"
     }).setOrigin(0.5).setVisible(false));
 
@@ -288,7 +305,9 @@ export class GameHudOverlay {
       skillPanel,
       this.hpFill,
       this.hpMetaText,
-      this.hpLabel,
+      this.hpValueText,
+      this.hpSlashText,
+      this.hpMaxText,
       this.weaponText,
       this.skillStateText,
       this.objectiveText,
@@ -315,7 +334,7 @@ export class GameHudOverlay {
     const { state, extractState, skillCooldownEndsAt, skillWindupEndsAt, skillCooldowns } = context;
     const player = state.players.find((candidate) => candidate.id === state.selfPlayerId);
 
-    if (this.hpFill && this.hpLabel && player && this.layout) {
+    if (this.hpFill && this.hpValueText && this.hpSlashText && this.hpMaxText && player && this.layout) {
       const hpRatio = Phaser.Math.Clamp(player.maxHp > 0 ? player.hp / player.maxHp : 0, 0, 1);
       let color: number = 0x4f8a35;
       if (hpRatio < 0.3) color = 0xb8371f;
@@ -334,11 +353,18 @@ export class GameHudOverlay {
         this.lastHudHpColor = color;
       }
 
-      const hpLabel = `${Math.max(0, Math.ceil(player.hp))} / ${player.maxHp}`;
-      if (this.lastHudHpLabel !== hpLabel) {
-        this.hpLabel.setText(hpLabel);
-        this.lastHudHpLabel = hpLabel;
+      const hpValue = Math.max(0, Math.ceil(player.hp));
+      if (this.lastHpValue !== hpValue) {
+        this.hpValueText.setText(hpValue.toString());
+        this.hpSlashText.setX(this.hpValueText.getBounds().right + 2);
+        this.hpMaxText.setX(this.hpSlashText.getBounds().right + 2);
+        this.lastHpValue = hpValue;
       }
+      if (this.lastHpMax !== player.maxHp) {
+        this.hpMaxText.setText(player.maxHp.toString());
+        this.lastHpMax = player.maxHp;
+      }
+
       const hpMetaLabel = hpRatio < 0.3 ? "生命线 · 危险" : hpRatio < 0.6 ? "生命线 · 受压" : "生命线 · 稳定";
       if (this.hpMetaText && this.lastHudHpMetaLabel !== hpMetaLabel) {
         this.hpMetaText.setText(hpMetaLabel);
@@ -443,17 +469,22 @@ export class GameHudOverlay {
     this.pickupToastTween?.stop();
     this.pickupToast?.destroy();
 
-    const w = Math.min(520, width - 48);
-    const panel = this.scene.add.image(0, 0, HUD_ASSETS.command)
-      .setOrigin(0.5)
-      .setDisplaySize(w, 82)
-      .setAlpha(0.98);
+    const w = Math.min(320, width - 48); // More compact pickup toast
+    const h = 42;
+    const panel = this.scene.add.graphics();
+    panel.fillStyle(0x1a120d, 0.92);
+    panel.fillRoundedRect(-w / 2, -h / 2, w, h, 8);
+    panel.lineStyle(2, 0xfbbf24, 0.85); // Warm gold border
+    panel.strokeRoundedRect(-w / 2, -h / 2, w, h, 8);
+
     const text = this.scene.add.text(0, 0, `回收 ${itemName}`, {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: "18px",
-      color: "#2a1d13",
+      fontSize: "14px",
+      color: "#fbbf24", // Warm gold text
       align: "center",
-      wordWrap: { width: w - 110, useAdvancedWrap: true }
+      stroke: "#000000",
+      strokeThickness: 2,
+      wordWrap: { width: w - 40, useAdvancedWrap: true }
     }).setOrigin(0.5);
 
     this.pickupToast = this.scene.add.container(width / 2, height - 160, [panel, text])

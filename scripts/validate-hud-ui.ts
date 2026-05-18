@@ -11,8 +11,8 @@ const inventoryPanelSource = readText("client/src/ui/InventoryPanel.ts");
 const inventoryCss = readText("client/src/styles/inventory.css");
 
 const SKILL_SLOT_CENTER_Y_RATIO = 0.5;
-const SKILL_KEY_LABEL_Y_RATIO = -0.3;
-const SKILL_NAME_LABEL_Y_RATIO = 0.08;
+const SKILL_NAME_LABEL_Y_RATIO = -0.05;
+const SKILL_KEY_LABEL_Y_RATIO = 0.32;
 
 assert.doesNotMatch(
   gameClientSource,
@@ -62,12 +62,12 @@ assert.match(
 );
 assert.match(
   skillHelpersSource,
-  /case "sword_dashSlash":[\s\S]*return "\\u51b2";/,
+  /case "sword_dashSlash":[\s\S]*return "突斩";/,
   "dash slash should use a compact HUD label"
 );
 assert.match(
   skillHelpersSource,
-  /case "spear_draggingStrike":[\s\S]*return "\\u62d6";/,
+  /case "spear_draggingStrike":[\s\S]*return "拖打";/,
   "long spear skill names should be shortened for the fixed HUD slot"
 );
 assert.match(
@@ -87,7 +87,7 @@ assert.match(
 );
 assert.match(
   hudSource,
-  /const SKILL_NAME_LABEL_Y_RATIO = 0\.08;/,
+  /const SKILL_NAME_LABEL_Y_RATIO = -0\.05;/,
   "HUD skill names should avoid the bottom edge of the action frame"
 );
 assert.match(
@@ -107,7 +107,7 @@ assert.match(
 );
 assert.match(
   hudSource,
-  /lineSpacing: 3,/,
+  /lineSpacing: 2,/,
   "HUD objective and combat copy should use explicit compact line spacing"
 );
 assert.match(
@@ -300,7 +300,7 @@ assert.doesNotMatch(
 assert.doesNotMatch(
   inventoryCss,
   /\.inventory-slot \{[^}]*min-(?:width|height): 24px;/,
-  "inventory slots should not keep stale 24px hitbox rules after adopting the 34px drag geometry"
+  "inventory slots should not keep stale 24px hitbox rules after adopting the 34px_drag geometry"
 );
 
 console.log("validate-hud-ui: ok");
@@ -333,9 +333,10 @@ function validateHudLayout(): void {
       assert.ok(slot.height >= 34, `${scenario.label}: skill slot ${index} should keep height budget for name/cooldown separation`);
       const keyY = slot.y + slot.height / 2 + slot.height * SKILL_KEY_LABEL_Y_RATIO;
       const nameY = slot.y + slot.height / 2 + slot.height * SKILL_NAME_LABEL_Y_RATIO;
-      assert.ok(keyY >= slot.y + slot.height * 0.14, `${scenario.label}: skill slot ${index} key label should stay inside the slot top`);
-      assert.ok(nameY <= slot.y + slot.height * 0.62, `${scenario.label}: skill slot ${index} name label should stay above the frame lip`);
-      assert.ok(nameY - keyY >= slot.height * 0.32, `${scenario.label}: skill slot ${index} labels should keep readable vertical separation`);
+      // name on top, key below
+      assert.ok(nameY >= slot.y + slot.height * 0.14, `${scenario.label}: skill slot ${index} name label should stay inside the slot top`);
+      assert.ok(keyY <= slot.y + slot.height * 0.86, `${scenario.label}: skill slot ${index} key label should stay above the frame bottom`);
+      assert.ok(keyY - nameY >= slot.height * 0.3, `${scenario.label}: skill slot ${index} labels should keep readable vertical separation`);
     }
   }
 }

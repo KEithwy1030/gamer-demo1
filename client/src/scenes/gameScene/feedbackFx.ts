@@ -256,7 +256,8 @@ export class GameSceneFeedbackFx {
           this.scene.time.timeScale = tween.getValue() as number;
         }
       });
-      });    } else if (tier === "boss") {
+      });
+    } else if (tier === "boss") {
       this.applyHitStop(800); // [待人工调优]
       const camera = this.scene.cameras.main;
       const originalZoom = camera.zoom;
@@ -277,6 +278,26 @@ export class GameSceneFeedbackFx {
         }
       });
     }
+  }
+
+  showLootToast(x: number, y: number, amount: number): void {
+    const text = this.scene.add.text(x, y - 60, `+${amount}`, {
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: "14px",
+      color: "#fbbf24", // Warm gold
+      stroke: "#000000",
+      strokeThickness: 2,
+      fontStyle: "bold"
+    }).setOrigin(0.5).setDepth(3000);
+
+    this.scene.tweens.add({
+      targets: text,
+      y: y - 110,
+      alpha: 0,
+      duration: 2000,
+      ease: "Cubic.out",
+      onComplete: () => text.destroy()
+    });
   }
 
   private showStatusAppliedTags(statusApplied: StatusEffectType[] | undefined, x: number, y: number, depth: number): void {
