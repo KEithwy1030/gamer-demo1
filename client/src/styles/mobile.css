@@ -138,10 +138,18 @@
 .mobile-action-cluster {
   isolation: isolate;
 }
-
 .mobile-action-button {
   -webkit-tap-highlight-color: transparent;
   position: absolute !important;
+  backdrop-filter: blur(4px); /* [待人工调优] Step 3.3 */
+  border: 1px solid rgba(194, 65, 12, 0.8) !important; /* [待人工调优] Step 3.3 Gold border #c2410c */
+  color: var(--mobile-action-color, #fff) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+}
+
+.mobile-action-button:active {
+  background: rgba(220, 38, 38, 0.6) !important; /* [待人工调优] Step 3.3 Pressed state */
+  transform: scale(0.95) !important;
 }
 
 .mobile-action-button::before {
@@ -167,84 +175,84 @@
 }
 
 .mobile-action-button--attack {
-  right: 4px;
-  bottom: 6px;
+  right: 18px; /* [待人工调优] Landscape base */
+  bottom: 22px; /* [待人工调优] Landscape base */
 }
 
 .mobile-action-button--skill0 {
-  right: 78px;
-  bottom: 18px;
+  right: 104px; /* [待人工调优] Landscape base */
+  bottom: 24px; /* [待人工调优] Landscape base */
 }
 
 .mobile-action-button--skill1 {
-  right: 58px;
-  bottom: 88px;
+  right: 18px; /* [待人工调优] Landscape base */
+  bottom: 106px; /* [待人工调优] Landscape base */
 }
 
 .mobile-action-button--skill2 {
-  right: 126px;
-  bottom: 58px;
+  right: 94px; /* [待人工调优] Landscape base */
+  bottom: 90px; /* [待人工调优] Landscape base */
 }
 
 .mobile-action-button--dodge {
-  right: 6px;
-  bottom: 94px;
+  right: 18px; /* [待人工调优] Landscape base */
+  bottom: 184px; /* [待人工调优] Landscape base */
 }
 
 .mobile-action-button--pickup {
-  right: 152px;
-  bottom: 10px;
+  right: 172px; /* [待人工调优] Landscape base */
+  bottom: 106px; /* [待人工调优] Landscape base */
 }
 
 .mobile-action-button--extract {
-  right: 164px;
-  bottom: 64px;
+  right: 18px; /* [待人工调优] Landscape base */
+  bottom: 254px; /* [待人工调优] Landscape base */
 }
 
 .mobile-action-button--inventory {
-  right: 118px;
-  bottom: 116px;
+  right: 94px; /* [待人工调优] Landscape base */
+  bottom: 184px; /* [待人工调优] Landscape base */
 }
 
 @media screen and (max-width: 768px) and (orientation: portrait) {
   .mobile-action-button--attack {
-    right: 2px;
-    bottom: 4px;
+    right: 14px; /* [待人工调优] Step 3.1 */
+    bottom: 18px; /* [待人工调优] Step 3.1 */
   }
 
   .mobile-action-button--skill0 {
-    right: 70px;
-    bottom: 14px;
+    right: 96px; /* [待人工调优] Step 3.1 */
+    bottom: 20px; /* [待人工调优] Step 3.1 */
   }
 
   .mobile-action-button--skill1 {
-    right: 52px;
-    bottom: 80px;
+    right: 14px; /* [待人工调优] Step 3.1 */
+    bottom: 100px; /* [待人工调优] Step 3.1 */
   }
 
   .mobile-action-button--skill2 {
-    right: 116px;
-    bottom: 52px;
+    right: 86px; /* [待人工调优] Step 3.1 */
+    bottom: 84px; /* [待人工调优] Step 3.1 */
   }
 
   .mobile-action-button--dodge {
-    right: 4px;
-    bottom: 86px;
+    right: 14px; /* [待人工调优] Step 3.1 */
+    bottom: 174px; /* [待人工调优] Step 3.1 */
   }
 
   .mobile-action-button--pickup {
-    right: 138px;
-    bottom: 8px;
+    right: 162px; /* [待人工调优] Step 3.1 */
+    bottom: 100px; /* [待人工调优] Step 3.1 */
   }
 
   .mobile-action-button--extract {
-    right: 150px;
-    bottom: 58px;
+    right: 14px; /* [待人工调优] Step 3.1 */
+    bottom: 240px; /* [待人工调优] Step 3.1 */
   }
 
   .mobile-action-button--inventory {
-    right: 108px;
-    bottom: 106px;
+    right: 86px; /* [待人工调优] Step 3.1 */
+    bottom: 174px; /* [待人工调优] Step 3.1 */
   }
 }
 

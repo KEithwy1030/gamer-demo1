@@ -115,12 +115,16 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
 
   const updateLayout = () => {
     const portrait = isPortraitViewport();
-    const buttonSize = portrait ? 58 : 64;
-    const attackSize = portrait ? 70 : 78;
-    const utilitySize = portrait ? 44 : 48;
-    const actionWidth = portrait ? 206 : 236;
-    const actionHeight = portrait ? 164 : 178;
-    const actionBottom = portrait ? 22 : 20;
+    // [待人工调优] Step 3.1 & 3.2: Updated button sizes
+    const attackSize = portrait ? 76 : 80;
+    const skillSize = portrait ? 60 : 64;
+    const utilitySize = portrait ? 52 : 52;
+    const dodgeSize = portrait ? 56 : 52;
+    const inventorySize = portrait ? 50 : 52;
+
+    const actionWidth = portrait ? 240 : 280; // [待人工调优] Increased for arc
+    const actionHeight = portrait ? 300 : 320; // [待人工调优] Increased for vertical buttons
+    const actionBottom = 0; // [待人工调优] Use 0 for base and handle margins in buttons
     const joystickSize = portrait ? 138 : BASE_SIZE;
     const joystickLeft = portrait ? 22 : 36;
     const joystickBottom = portrait ? 22 : 24;
@@ -147,18 +151,19 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     });
 
     setStyles(actionOverlay, {
-      right: `max(${EDGE_PADDING}px, env(safe-area-inset-right))`,
-      bottom: `max(${actionBottom}px, env(safe-area-inset-bottom))`,
+      right: `max(0px, env(safe-area-inset-right))`, // [待人工调优]
+      bottom: `max(0px, env(safe-area-inset-bottom))`, // [待人工调优]
       width: `${actionWidth}px`,
       height: `${actionHeight}px`
     });
 
     for (const [buttonId, button] of buttons.entries()) {
-      const size = buttonId === "attack"
-        ? attackSize
-        : buttonId === "pickup" || buttonId === "extract" || buttonId === "inventory"
-          ? utilitySize
-          : buttonSize;
+      let size = skillSize;
+      if (buttonId === "attack") size = attackSize;
+      else if (buttonId === "dodge") size = dodgeSize;
+      else if (buttonId === "inventory") size = inventorySize;
+      else if (buttonId === "pickup" || buttonId === "extract") size = utilitySize;
+
       setStyles(button.element, {
         width: `${size}px`,
         height: `${size}px`
@@ -274,10 +279,11 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
     parts.element.style.filter = disabled ? "saturate(0.75) brightness(0.9)" : "none";
     parts.element.style.setProperty("--mobile-action-color", readyColor);
     parts.element.style.setProperty("--mobile-cooldown-angle", `${remainingAngle}deg`);
+    // [待人工调优] Step 3.3: Visual polish integration with cooldown
     parts.element.style.background = [
-      `conic-gradient(from -90deg, rgba(6,10,16,0.78) 0deg ${remainingAngle}deg, rgba(255,255,255,0.02) ${remainingAngle}deg 360deg)`,
-      "radial-gradient(circle at 36% 24%, rgba(255,255,255,0.28), rgba(255,255,255,0.04) 26%, rgba(7,13,20,0.2) 54%)",
-      "linear-gradient(180deg, rgba(37,48,55,0.92), rgba(7,10,16,0.94))"
+      `conic-gradient(from -90deg, rgba(6,10,16,0.6) 0deg ${remainingAngle}deg, transparent ${remainingAngle}deg 360deg)`,
+      "radial-gradient(circle at 36% 24%, rgba(255,255,255,0.12), transparent 48%)",
+      "rgba(0,0,0,0.4)" // [待人工调优] Base background from Step 3.3
     ].join(", ");
   }
 
@@ -301,24 +307,15 @@ export function createMobileControls(options: MobileControlsOptions): MobileCont
       position: "relative",
       overflow: "hidden",
       borderRadius: "50%",
-      border: `2px solid ${color}`,
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      color: color,
       fontWeight: "700",
       fontFamily: '"Noto Serif SC", "Noto Sans SC", serif',
       userSelect: "none",
       webkitUserSelect: "none",
       touchAction: "manipulation",
-      boxShadow: [
-        `0 0 0 ${isPrimary ? 5 : isUtility ? 2 : 3}px rgba(255,255,255,0.05)`,
-        `0 0 0 ${isPrimary ? 9 : isUtility ? 5 : 6}px ${color}1c`,
-        `0 12px 28px rgba(0,0,0,0.46)`,
-        `inset 0 0 0 1px rgba(255,255,255,0.13)`,
-        `inset 0 -10px 18px rgba(0,0,0,0.34)`
-      ].join(", "),
       textShadow: `0 0 10px ${color}`,
       letterSpacing: "0",
       transition: "transform 120ms ease, opacity 120ms ease, filter 120ms ease"

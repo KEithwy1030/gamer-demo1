@@ -1,27 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { MOBILE_ACTION_BUTTONS } from "../client/src/input/mobileControls";
+const mobileControls = readFileSync("client/src/input/mobileControls.ts", "utf8");
 
-const requiredButtons = [
-  "attack",
-  "skill0",
-  "skill1",
-  "skill2",
-  "dodge",
-  "pickup",
-  "extract",
-  "inventory"
-] as const;
-
-assert.deepEqual(
-  MOBILE_ACTION_BUTTONS,
-  requiredButtons,
+assert.match(
+  mobileControls,
+  /export const MOBILE_ACTION_BUTTONS = \[\s*"attack",\s*"skill0",\s*"skill1",\s*"skill2",\s*"dodge",\s*"pickup",\s*"extract",\s*"inventory"\s*\] as const;/,
   "mobile action layer must expose attack, three skills, dodge, pickup, extract, and inventory"
 );
 
 const inputBridge = readFileSync("client/src/scenes/gameScene/inputBridge.ts", "utf8");
 const gameScene = readFileSync("client/src/scenes/GameScene.ts", "utf8");
-const mobileControls = readFileSync("client/src/input/mobileControls.ts", "utf8");
 const mobileCss = readFileSync("client/src/styles/mobile.css", "utf8");
 
 assert.match(inputBridge, /onSkill:\s*this\.options\.onSkill/, "mobile skill buttons should forward slot indices");
