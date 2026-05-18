@@ -62,12 +62,12 @@ assert.match(
 );
 assert.match(
   skillHelpersSource,
-  /case "sword_dashSlash":[\s\S]*return "\\u7a81\\u8fdb";/,
-  "dash slash should use a compact two-character HUD label"
+  /case "sword_dashSlash":[\s\S]*return "\\u51b2";/,
+  "dash slash should use a compact HUD label"
 );
 assert.match(
   skillHelpersSource,
-  /case "spear_draggingStrike":[\s\S]*return "\\u62d6\\u67aa";/,
+  /case "spear_draggingStrike":[\s\S]*return "\\u62d6";/,
   "long spear skill names should be shortened for the fixed HUD slot"
 );
 assert.match(

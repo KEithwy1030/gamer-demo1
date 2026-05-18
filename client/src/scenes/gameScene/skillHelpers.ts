@@ -55,25 +55,25 @@ export function getPrimarySkillLabel(skillId: SkillId): string {
 export function getHudSkillSlotLabel(skillId: SkillId): string {
   switch (skillId) {
     case "sword_dashSlash":
-      return "\u7a81\u8fdb";
+      return "\u51b2";
     case "sword_bladeFlurry":
-      return "\u8fde\u65a9";
+      return "\u8fde";
     case "sword_shadowStep":
-      return "\u95ea\u8eab";
+      return "\u95ea";
     case "blade_sweep":
-      return "\u6a2a\u626b";
+      return "\u626b";
     case "blade_guard":
-      return "\u683c\u6321";
+      return "\u683c";
     case "blade_overpower":
-      return "\u5f3a\u653b";
+      return "\u52b2";
     case "spear_heavyThrust":
-      return "\u91cd\u523a";
+      return "\u523a";
     case "spear_warCry":
-      return "\u6218\u543c";
+      return "\u543c";
     case "spear_draggingStrike":
-      return "\u62d6\u67aa";
+      return "\u62d6";
     case "common_dodge":
-      return "\u7ffb\u6eda";
+      return "\u6eda";
   }
 }
 
