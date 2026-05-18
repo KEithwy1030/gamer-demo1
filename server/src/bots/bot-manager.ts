@@ -3,7 +3,7 @@ import { startChestOpening } from "../chests/chest-manager.js";
 import { startPlayerExtract } from "../extract/index.js";
 import { InventoryService } from "../inventory/service.js";
 import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "../internal-constants.js";
-import { doesSegmentRequireSafeCrossing, getBestSafeCrossing, getNearestContestedChestZone, getSquadSpawnZone, getStarterChestZone, isPointInsideRiverHazard } from "../match-layout.js";
+import { doesSegmentRequireSafeCrossing, getBestSafeCrossing, getNearestRichChestZone, getSquadScavengeChestZone, getSquadSpawnZone, isPointInsideRiverHazard } from "../match-layout.js";
 import { handlePlayerAttack as handleMonsterPlayerAttack, handlePlayerSkill as handleMonsterPlayerSkill } from "../monsters/monster-manager.js";
 import { resolvePlayerAttack, resolvePlayerSkillCast, type PlayerDeathPayload } from "../combat/combat-service.js";
 import type { ChestOpenedPayload, ExtractProgressPayload, LootPickedPayload, RuntimeContext, RuntimeMonster, RuntimePlayer } from "../types.js";
@@ -411,8 +411,8 @@ function resolveOpeningPatrolPoint(context: RuntimeContext, bot: RuntimePlayer, 
   }
 
   const ownSquadZone = getSquadSpawnZone(layout, bot.squadId);
-  const starter = getStarterChestZone(layout, bot.squadId);
-  const contested = getNearestContestedChestZone(layout, bot.botHomeAnchor);
+  const starter = getSquadScavengeChestZone(layout, bot.squadId);
+  const contested = getNearestRichChestZone(layout, bot.botHomeAnchor);
 
   if (bot.squadId === "player") {
     const human = [...context.room.players.values()]

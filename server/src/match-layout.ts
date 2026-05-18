@@ -22,9 +22,15 @@ import {
 const MAP_CENTER_X = MATCH_MAP_WIDTH / 2;
 const MAP_CENTER_Y = MATCH_MAP_HEIGHT / 2;
 const OUTER_RING_RADIUS = 1120;
-const MID_CHEST_RADIUS = 720;
 const SAFE_RADIUS = 220;
-const STARTER_CHEST_OFFSET = 260;
+const PERIPHERAL_CHEST_TOTAL = 12;
+const RICH_CHEST_TOTAL = 4;
+const CHEST_MIN_DISTANCE = 320;
+const CHEST_SPAWN_CLEARANCE = 240;
+const CHEST_EXTRACT_CLEARANCE = 200;
+const PERIPHERAL_CHEST_BASE_RADIUS = 420;
+const PERIPHERAL_CHEST_RADIUS_STEP = 92;
+const RICH_CHEST_RING_RADIUS = 620;
 const RIVER_DAMAGE_PER_TICK = 3;
 const RIVER_TICK_INTERVAL_MS = 500;
 const HAZARD_POINT_PADDING = 110;
@@ -147,42 +153,25 @@ export function buildMatchLayout(options: BuildMatchLayoutOptions): MatchLayout 
   }));
 
   const safeCrossings = SAFE_CROSSINGS.map((crossing) => ({ ...crossing }));
+  const obstacleZones = buildObstacleZones(extractZones, riverHazards, safeCrossings);
   const routingLayout = {
+    templateId,
+    squadSpawns,
+    chestZones: [],
     safeZones,
     riverHazards,
     safeCrossings,
-    extractZones
+    extractZones,
+    obstacleZones,
+    landmarks: []
   } as MatchLayout;
 
-  const chestZones: MatchLayoutChestZone[] = [
-    ...squadSpawns.map((spawn, index) => {
-      const point = settleStarterChestPoint({
-        spawn,
-        hazards: riverHazards,
-        safeCrossings,
-        layout: routingLayout
-      });
-      return {
-        chestId: `starter_${index + 1}`,
-        x: point.x,
-        y: point.y,
-        lane: "starter" as const,
-        squadId: spawn.squadId
-      };
-    }),
-    ...Array.from({ length: 6 }, (_, index) => {
-      const angle = -90 + index * 60;
-      const point = settleChestPoint(pointOnRing(MID_CHEST_RADIUS, angle), riverHazards, safeCrossings);
-      return {
-        chestId: `contested_${index + 1}`,
-        x: point.x,
-        y: point.y,
-        lane: "contested" as const
-      };
-    })
-  ];
-
-  const obstacleZones = buildObstacleZones(extractZones, riverHazards, safeCrossings);
+  const chestZones = buildChestZones({
+    squadSpawns,
+    layout: routingLayout,
+    hazards: riverHazards,
+    safeCrossings
+  });
   const landmarks = buildLandmarks(squadSpawns, extractZones, chestZones, safeCrossings);
 
   return {
@@ -206,13 +195,17 @@ export function getSquadSpawnZone(layout: MatchLayout, squadId: SquadId): MatchL
   return zone;
 }
 
-export function getStarterChestZone(layout: MatchLayout, squadId: SquadId): MatchLayoutChestZone | undefined {
-  return layout.chestZones.find((entry) => entry.lane === "starter" && entry.squadId === squadId);
+export function getSquadScavengeChestZone(layout: MatchLayout, squadId: SquadId): MatchLayoutChestZone | undefined {
+  const spawn = getSquadSpawnZone(layout, squadId);
+  const anchor = { x: spawn.anchorX, y: spawn.anchorY };
+  return layout.chestZones
+    .filter((entry) => entry.squadId === squadId && entry.qualityTier !== "rich")
+    .sort((a, b) => distance(anchor, a) - distance(anchor, b))[0];
 }
 
-export function getNearestContestedChestZone(layout: MatchLayout, point: Vector2): MatchLayoutChestZone | undefined {
+export function getNearestRichChestZone(layout: MatchLayout, point: Vector2): MatchLayoutChestZone | undefined {
   return layout.chestZones
-    .filter((entry) => entry.lane === "contested")
+    .filter((entry) => entry.qualityTier === "rich")
     .sort((a, b) => distance(point, a) - distance(point, b))[0];
 }
 
@@ -300,11 +293,11 @@ function buildLandmarks(
       label: spawn.deploymentLabel,
       kind: "spawn"
     })),
-    ...chestZones.filter((zone) => zone.lane === "contested").map((zone): MatchLayoutLandmark => ({
+    ...chestZones.filter((zone) => zone.qualityTier === "rich").map((zone): MatchLayoutLandmark => ({
       landmarkId: `resource_${zone.chestId}`,
       x: zone.x,
       y: zone.y,
-      label: "Contested Cache",
+      label: "Rich Crate",
       kind: "resource"
     })),
     ...safeCrossings.map((crossing): MatchLayoutLandmark => ({
@@ -518,7 +511,7 @@ function settleStarterChestPoint(options: {
 }): { x: number; y: number } {
   const origin = { x: Math.round(options.spawn.anchorX), y: Math.round(options.spawn.anchorY) };
   const baseDirection = normalize(options.spawn.facing);
-  const radii = [STARTER_CHEST_OFFSET, STARTER_CHEST_OFFSET - 24, STARTER_CHEST_OFFSET + 36, STARTER_CHEST_OFFSET + 72];
+  const radii = [PERIPHERAL_CHEST_BASE_RADIUS, PERIPHERAL_CHEST_BASE_RADIUS - 24, PERIPHERAL_CHEST_BASE_RADIUS + 36, PERIPHERAL_CHEST_BASE_RADIUS + 72];
   const angleOffsets = [0, 20, -20, 40, -40, 60, -60, 80, -80, 100, -100, 120, -120, 140, -140, 160, -160, 180];
 
   for (const radius of radii) {
@@ -541,13 +534,179 @@ function settleStarterChestPoint(options: {
 
   return settleChestPoint(
     {
-      x: Math.round(origin.x + baseDirection.x * STARTER_CHEST_OFFSET),
-      y: Math.round(origin.y + baseDirection.y * STARTER_CHEST_OFFSET)
+      x: Math.round(origin.x + baseDirection.x * PERIPHERAL_CHEST_BASE_RADIUS),
+      y: Math.round(origin.y + baseDirection.y * PERIPHERAL_CHEST_BASE_RADIUS)
     },
     options.hazards,
     options.safeCrossings,
     baseDirection
   );
+}
+
+function buildChestZones(options: {
+  squadSpawns: MatchLayoutSpawnZone[];
+  layout: MatchLayout;
+  hazards: MatchLayoutRiverHazard[];
+  safeCrossings: MatchLayoutSafeCrossing[];
+}): MatchLayoutChestZone[] {
+  const chestZones: MatchLayoutChestZone[] = [];
+  const outerCounts = distributeChestCounts(options.squadSpawns.length, PERIPHERAL_CHEST_TOTAL);
+
+  options.squadSpawns.forEach((spawn, squadIndex) => {
+    const count = outerCounts[squadIndex] ?? 0;
+    for (let slotIndex = 0; slotIndex < count; slotIndex += 1) {
+      const point = settlePeripheralChestPoint({
+        spawn,
+        slotIndex,
+        slotCount: count,
+        existing: chestZones,
+        layout: options.layout,
+        hazards: options.hazards,
+        safeCrossings: options.safeCrossings
+      });
+      chestZones.push({
+        chestId: `crate_${spawn.squadId}_${slotIndex + 1}`,
+        x: point.x,
+        y: point.y,
+        kind: "abandoned_crate",
+        lane: "abandoned",
+        qualityTier: "normal",
+        squadId: spawn.squadId
+      });
+    }
+  });
+
+  const richAngles = [-45, 45, 135, 225];
+  for (let index = 0; index < RICH_CHEST_TOTAL; index += 1) {
+    const point = settleRichChestPoint({
+      baseAngle: richAngles[index % richAngles.length] ?? (index * 90),
+      existing: chestZones,
+      layout: options.layout,
+      hazards: options.hazards,
+      safeCrossings: options.safeCrossings
+    });
+    chestZones.push({
+      chestId: `crate_rich_${index + 1}`,
+      x: point.x,
+      y: point.y,
+      kind: "abandoned_crate",
+      lane: "abandoned",
+      qualityTier: "rich"
+    });
+  }
+
+  return chestZones;
+}
+
+function settlePeripheralChestPoint(options: {
+  spawn: MatchLayoutSpawnZone;
+  slotIndex: number;
+  slotCount: number;
+  existing: MatchLayoutChestZone[];
+  layout: MatchLayout;
+  hazards: MatchLayoutRiverHazard[];
+  safeCrossings: MatchLayoutSafeCrossing[];
+}): { x: number; y: number } {
+  const origin = { x: Math.round(options.spawn.anchorX), y: Math.round(options.spawn.anchorY) };
+  const baseDirection = normalize(options.spawn.facing);
+  const spread = options.slotCount <= 1 ? 0 : 120;
+  const step = options.slotCount <= 1 ? 0 : spread / Math.max(options.slotCount - 1, 1);
+  const centeredOffset = options.slotCount <= 1
+    ? 0
+    : -spread / 2 + (step * options.slotIndex);
+  const angleOffsets = [centeredOffset, centeredOffset + 18, centeredOffset - 18, centeredOffset + 36, centeredOffset - 36, centeredOffset + 54, centeredOffset - 54];
+  const radiusBase = PERIPHERAL_CHEST_BASE_RADIUS + (Math.floor(options.slotIndex / 3) * PERIPHERAL_CHEST_RADIUS_STEP);
+  const radii = [radiusBase, radiusBase + 56, radiusBase + 112, radiusBase - 36, radiusBase + 168];
+
+  for (const radius of radii) {
+    for (const angleOffset of angleOffsets) {
+      const direction = rotateVector(baseDirection, angleOffset);
+      const candidate = settleChestPoint(
+        {
+          x: Math.round(origin.x + direction.x * radius),
+          y: Math.round(origin.y + direction.y * radius)
+        },
+        options.hazards,
+        options.safeCrossings,
+        direction
+      );
+      if (isChestCandidateValid(options.layout, candidate, options.existing)) {
+        return candidate;
+      }
+    }
+  }
+
+  return settleStarterChestPoint({
+    spawn: options.spawn,
+    hazards: options.hazards,
+    safeCrossings: options.safeCrossings,
+    layout: options.layout
+  });
+}
+
+function settleRichChestPoint(options: {
+  baseAngle: number;
+  existing: MatchLayoutChestZone[];
+  layout: MatchLayout;
+  hazards: MatchLayoutRiverHazard[];
+  safeCrossings: MatchLayoutSafeCrossing[];
+}): { x: number; y: number } {
+  const angleOffsets = [0, 12, -12, 24, -24, 36, -36];
+  const radii = [RICH_CHEST_RING_RADIUS, RICH_CHEST_RING_RADIUS - 80, RICH_CHEST_RING_RADIUS + 80, RICH_CHEST_RING_RADIUS - 140];
+
+  for (const radius of radii) {
+    for (const angleOffset of angleOffsets) {
+      const candidate = settleChestPoint(pointOnRing(radius, options.baseAngle + angleOffset), options.hazards, options.safeCrossings);
+      if (isChestCandidateValid(options.layout, candidate, options.existing)) {
+        return candidate;
+      }
+    }
+  }
+
+  return settleChestPoint(pointOnRing(RICH_CHEST_RING_RADIUS, options.baseAngle), options.hazards, options.safeCrossings);
+}
+
+function isChestCandidateValid(
+  layout: MatchLayout,
+  candidate: Vector2,
+  existing: MatchLayoutChestZone[]
+): boolean {
+  if (isPointNearAnyExtractZone(layout, candidate.x, candidate.y, CHEST_EXTRACT_CLEARANCE)) {
+    return false;
+  }
+
+  if (layout.squadSpawns.some((spawn) => distance({ x: spawn.anchorX, y: spawn.anchorY }, candidate) < CHEST_SPAWN_CLEARANCE)) {
+    return false;
+  }
+
+  if (layout.safeCrossings.some((crossing) => pointInRect(candidate.x, candidate.y, crossing))) {
+    return false;
+  }
+
+  if (layout.riverHazards.some((hazard) => pointInsideRiverHazardShape(layout, hazard, candidate.x, candidate.y))) {
+    return false;
+  }
+
+  if ((layout.obstacleZones ?? []).some((obstacle) => pointInRect(candidate.x, candidate.y, {
+    x: obstacle.x - 28,
+    y: obstacle.y - 28,
+    width: obstacle.width + 56,
+    height: obstacle.height + 56
+  }))) {
+    return false;
+  }
+
+  return existing.every((zone) => distance(zone, candidate) >= CHEST_MIN_DISTANCE);
+}
+
+function distributeChestCounts(squadCount: number, total: number): number[] {
+  if (squadCount <= 0) {
+    return [];
+  }
+
+  const base = Math.floor(total / squadCount);
+  const remainder = total % squadCount;
+  return Array.from({ length: squadCount }, (_, index) => base + (index < remainder ? 1 : 0));
 }
 
 function rotateVector(vector: Vector2, angleDeg: number): Vector2 {
