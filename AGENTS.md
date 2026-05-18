@@ -105,24 +105,27 @@ git fetch && git status && git log --oneline -10
 
 ## Runtime Debug Log
 
-The client has a runtime debug log at `client/src/dev/runtimeLog.ts`. When enabled,
-it captures gameplay events (audio triggers, combat events, chest interactions,
-UI clicks, network state) into a circular buffer.
+The client auto-streams gameplay events to disk via the dev server. Agents
+read these files directly when diagnosing issues — no user action required.
 
-**For users**:
-- Enable: append `?devLog=1` to the game URL, OR set `localStorage.setItem("gamer.devLog", "1")`
-- Export: bottom-right floating panel has Copy/Download buttons; F12 also triggers download
-- The downloaded `.json` file is the precise event timeline of your playtest session
+**File location**: `.devlog/latest.jsonl` is always the current session. Historical
+sessions are at `.devlog/session-<timestamp>.jsonl`. Retention: 24 hours by default,
+total 50 MB cap (configurable via `GAMER_DEVLOG_RETENTION_HOURS` and
+`GAMER_DEVLOG_MAX_TOTAL_MB` env vars).
+
+**For users**: do nothing. Just play. When you report an issue, the agent
+will read `.devlog/latest.jsonl` to find the precise event timeline.
+Optional fallback: bottom-right floating panel still has Copy/Download buttons
+and F12 still triggers a download — use these only if the server-side log is
+unavailable for some reason.
 
 **For AI agents debugging issues**:
-- Before guessing root cause from prose descriptions, ASK FOR THE LOG FILE
-- The log gives objective signals: audio cues fired with timestamps, chest event ordering, click hit targets
-- Read entries near the reported issue's timestamp window
-- The log replaces "I think the issue is..." with "the log shows at T+12.3s, audio.play(attack) was triggered 4 times with overlapping_instances=3"
+- BEFORE guessing root cause from user prose: READ `E:/CursorData/gamer/.devlog/latest.jsonl`
+- Use `tail` or limit reads to the last N events near the user's reported moment
+- The log replaces "I think the issue is..." with concrete event evidence
 - Categories: AUDIO / COMBAT / CHEST / UI / PLAYER / NET / EXTRACT / GENERAL
 
-**Add new `logEvent` calls** sparingly when adding new systems. Don't log every frame
-or every message - keep the buffer signal-to-noise high.
+**Add new `logEvent` calls** sparingly when adding new systems. Keep signal-to-noise high.
 
 ---
 
