@@ -3,11 +3,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   ELITE_MONSTER_AGGRO_RANGE,
+  ELITE_MONSTER_MAX_HP,
   ELITE_MONSTER_ATTACK_DAMAGE,
   ELITE_MONSTER_ATTACK_RANGE,
   ELITE_MONSTER_LEASH_RANGE,
   ELITE_MONSTER_MOVE_SPEED,
   NORMAL_MONSTER_AGGRO_RANGE,
+  NORMAL_MONSTER_MAX_HP,
   NORMAL_MONSTER_ATTACK_DAMAGE,
   NORMAL_MONSTER_ATTACK_RANGE,
   NORMAL_MONSTER_LEASH_RANGE,
@@ -21,8 +23,10 @@ assert.equal(NORMAL_MONSTER_MOVE_SPEED, 240, "normal monster move speed should m
 assert.equal(ELITE_MONSTER_MOVE_SPEED, 252, "elite monster move speed should match GDD section 18.3");
 assert.equal(NORMAL_MONSTER_ATTACK_RANGE, 40, "normal monster attack range should match GDD section 18.3");
 assert.equal(ELITE_MONSTER_ATTACK_RANGE, 48, "elite monster attack range should match GDD section 18.3");
+assert.equal(NORMAL_MONSTER_MAX_HP, 45, "normal monster hp should match the server combat baseline");
+assert.equal(ELITE_MONSTER_MAX_HP, 135, "elite monster hp should stay at triple normal hp for encounter separation");
 assert.equal(NORMAL_MONSTER_ATTACK_DAMAGE, 8, "normal monster attack damage should match GDD section 18.3");
-assert.equal(ELITE_MONSTER_ATTACK_DAMAGE, 15, "elite monster attack damage should match GDD section 18.3");
+assert.equal(ELITE_MONSTER_ATTACK_DAMAGE, 22, "elite monster attack damage should match the elite pressure contract");
 assert.equal(ELITE_MONSTER_AGGRO_RANGE, 280, "elite monster aggro range should match GDD section 18.3");
 assert.equal(NORMAL_MONSTER_LEASH_RANGE, 400, "normal monster leash range should match GDD section 18.3");
 assert.equal(ELITE_MONSTER_LEASH_RANGE, 560, "elite monster leash range should match GDD section 18.3");
