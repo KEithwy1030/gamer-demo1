@@ -17,7 +17,7 @@
 }
 
 .results-overlay {
-  position: absolute;
+  position: fixed; /* fixed not absolute — keep modal glued to viewport regardless of game-canvas scroll */
   inset: 0;
   display: grid;
   place-items: center;
@@ -27,7 +27,7 @@
     radial-gradient(circle at top, rgba(232, 96, 44, 0.16), transparent 42%),
     url("/assets/generated/lobby-black-market-backdrop.png") center center / cover no-repeat;
   backdrop-filter: blur(10px);
-  z-index: 30;
+  z-index: 1000;
 }
 
 .results-overlay[hidden] {

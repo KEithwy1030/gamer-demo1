@@ -21,8 +21,27 @@ const enabled = detectEnabled();
 const logBuffer: LogEntry[] = [];
 const transportState = getTransportState();
 
+// Expose debug surface — agents can drive __DEVLOG__ via Chrome DevTools MCP to verify chain
+if (typeof window !== "undefined") {
+  (window as unknown as { __DEVLOG__?: unknown }).__DEVLOG__ = {
+    isEnabled,
+    getLog,
+    logEvent,
+    getDevLogEndpoint,
+    enabledFlag: enabled,
+    importMetaEnv: (import.meta as unknown as { env?: unknown }).env
+  };
+}
+
 if (enabled) {
   installTransport();
+  // One-time boot event so agents can confirm log chain is alive without needing player input
+  logEvent("GENERAL", "client.boot", {
+    enabled,
+    endpoint: getDevLogEndpoint(),
+    hasFetch: typeof fetch === "function",
+    hasBeacon: typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function"
+  });
 }
 
 export function logEvent(category: LogCategory, event: string, data?: Record<string, unknown>): void {
