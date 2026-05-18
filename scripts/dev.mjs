@@ -53,6 +53,7 @@ const children = [
 ];
 
 let shuttingDown = false;
+let stopPromise = null;
 
 function stopChildTree(child) {
   if (child.killed || child.exitCode !== null) return;
@@ -69,12 +70,21 @@ function stopChildTree(child) {
 }
 
 function stopAll(exitCode = 0) {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  for (const child of children) {
-    stopChildTree(child);
+  if (stopPromise) {
+    return stopPromise;
   }
-  process.exit(exitCode);
+
+  stopPromise = (async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    for (const child of children) {
+      stopChildTree(child);
+    }
+  })().finally(() => {
+    process.exit(exitCode);
+  });
+
+  return stopPromise;
 }
 
 console.log(`[dev] root pid ${process.pid}; child pids ${children.map((child) => child.pid).join(", ")}`);
@@ -95,10 +105,22 @@ for (const child of children) {
   child.stderr?.pipe(process.stderr);
   child.on("exit", (code, signal) => {
     if (!shuttingDown && (code !== null || signal)) {
-      stopAll(code ?? 1);
+      void stopAll(code ?? 1);
     }
   });
 }
 
-process.on("SIGINT", () => stopAll(0));
-process.on("SIGTERM", () => stopAll(0));
+process.on("SIGINT", () => {
+  void stopAll(0);
+});
+process.on("SIGTERM", () => {
+  void stopAll(0);
+});
+process.on("uncaughtException", (error) => {
+  console.error(`[dev] uncaught exception: ${error instanceof Error ? error.message : String(error)}`);
+  void stopAll(1);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error(`[dev] unhandled rejection: ${reason instanceof Error ? reason.message : String(reason)}`);
+  void stopAll(1);
+});

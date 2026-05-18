@@ -128,52 +128,68 @@ writeFileSync(launcherLogPath, `${printableLines.join("\n")}\n`, "utf8");
 console.log(printableLines.join("\n"));
 
 let shuttingDown = false;
+let shutdownPromise = null;
 function shutdown() {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  killProcessTree(server.pid);
-  killProcessTree(client.pid);
+  if (shutdownPromise) {
+    return shutdownPromise;
+  }
+
+  shutdownPromise = (async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    killProcessTree(server.pid);
+    killProcessTree(client.pid);
+  })();
+
+  return shutdownPromise;
 }
 
-process.on("SIGINT", () => {
-  shutdown();
-  process.exit(0);
-});
-process.on("SIGTERM", () => {
-  shutdown();
-  process.exit(0);
-});
+function exitAfterShutdown(code) {
+  void shutdown().finally(() => {
+    process.exit(code);
+  });
+}
+
+process.on("SIGINT", () => exitAfterShutdown(0));
+process.on("SIGTERM", () => exitAfterShutdown(0));
 process.on("exit", () => {
-  shutdown();
+  void shutdown();
+});
+process.on("uncaughtException", (error) => {
+  console.error(`[dev-acceptance] uncaught exception: ${error instanceof Error ? error.message : String(error)}`);
+  exitAfterShutdown(1);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error(`[dev-acceptance] unhandled rejection: ${reason instanceof Error ? reason.message : String(reason)}`);
+  exitAfterShutdown(1);
 });
 if (SELF_TEST_MS > 0) {
   setTimeout(() => {
-    shutdown();
-    process.exit(0);
+    exitAfterShutdown(0);
   }, SELF_TEST_MS);
 }
 server.on("exit", (code) => {
   if (!shuttingDown && code !== 0) {
     console.error(`[dev-acceptance] server exited with code ${code}`);
-    shutdown();
+    void shutdown();
     process.exitCode = code ?? 1;
   }
 });
 client.on("exit", (code) => {
   if (!shuttingDown && code !== 0) {
     console.error(`[dev-acceptance] client exited with code ${code}`);
-    shutdown();
+    void shutdown();
     process.exitCode = code ?? 1;
   }
 });
 server.on("error", (error) => {
   console.error(`[dev-acceptance] server failed to start: ${error.message}`);
-  shutdown();
+  void shutdown();
   process.exitCode = 1;
 });
 client.on("error", (error) => {
   console.error(`[dev-acceptance] client failed to start: ${error.message}`);
-  shutdown();
+  void shutdown();
   process.exitCode = 1;
 });
 
