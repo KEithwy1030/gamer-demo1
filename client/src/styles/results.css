@@ -37,7 +37,8 @@
 .results-card {
   position: relative;
   width: min(620px, 100%);
-  max-height: 90vh;
+  /* dual cap: viewport-relative 80vh and absolute 720px so toolbars / dev banners can't push the action footer off-screen */
+  max-height: min(80vh, 720px);
   display: flex;
   flex-direction: column;
   border: 1px solid var(--results-iron-600);

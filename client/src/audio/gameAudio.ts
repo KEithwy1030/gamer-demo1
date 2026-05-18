@@ -62,6 +62,8 @@ export class GameAudioController {
   private readonly audioCache: Map<string, HTMLAudioElement> = new Map();
   private readonly hurtStartPoints = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45];
   private attackStopTimer?: number;
+  private hurtLastStartMs = 0;
+  private static readonly HURT_MIN_INTERVAL_MS = 350;
 
   private readonly unlock = (): void => {
     void this.ensureContext();
@@ -192,7 +194,13 @@ export class GameAudioController {
         }
 
         if (cue === "hurt") {
-          // Special handling for the long grunt file
+          // Suppress rapid-fire hurt overlaps — prior session log showed 6 plays in 4s
+          // creating noise. 350ms min interval matches typical combat hit cadence.
+          const now = Date.now();
+          if (now - this.hurtLastStartMs < GameAudioController.HURT_MIN_INTERVAL_MS) {
+            return;
+          }
+          this.hurtLastStartMs = now;
           const start = this.hurtStartPoints[Math.floor(Math.random() * this.hurtStartPoints.length)];
           cached.currentTime = start;
           await cached.play();
