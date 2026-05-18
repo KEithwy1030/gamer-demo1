@@ -7,7 +7,9 @@ export type GameAudioCue =
   | "extract"
   | "market"
   | "death"
-  | "warning";
+  | "warning"
+  | "charge-up"
+  | "thud";
 
 interface CueShape {
   frequency: number;
@@ -26,7 +28,9 @@ const CUE_SHAPES: Record<GameAudioCue, CueShape> = {
   extract: { frequency: 220, durationMs: 240, type: "sine", gain: 0.06, slideTo: 440 },
   market: { frequency: 620, durationMs: 130, type: "triangle", gain: 0.044, slideTo: 930 },
   death: { frequency: 88, durationMs: 240, type: "sawtooth", gain: 0.07, slideTo: 38 },
-  warning: { frequency: 190, durationMs: 150, type: "square", gain: 0.042, slideTo: 190 }
+  warning: { frequency: 190, durationMs: 150, type: "square", gain: 0.042, slideTo: 190 },
+  "charge-up": { frequency: 120, durationMs: 400, type: "sine", gain: 0.035, slideTo: 240 },
+  thud: { frequency: 60, durationMs: 120, type: "triangle", gain: 0.08, slideTo: 30 }
 };
 
 export class GameAudioController {

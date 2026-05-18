@@ -59,6 +59,7 @@ export interface GameSceneInitData {
   onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
   onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }) => void;
   onOpenChest?: (chestId: string) => void;
+  onAudioCue?: (cue: string) => void;
   onToggleInventory?: () => void;
   subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
@@ -116,7 +117,10 @@ export class GameScene extends Phaser.Scene {
   public onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
   public onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }) => void;
   private onOpenChest?: (chestId: string) => void;
+  private onAudioCue?: (cue: string) => void;
   private onToggleInventory?: () => void;
+  private monsterWindups = new Map<string, number>();
+
   private lastLocalAttackAt = 0;
   private lastLocalAttackTargetId?: string;
   private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
@@ -849,9 +853,23 @@ export class GameScene extends Phaser.Scene {
 
   private syncMonsters(state: MatchViewState): void {
     const currentIds = new Set<string>();
+    const now = Date.now();
+
     for (const monster of state.monsters) {
       currentIds.add(monster.id);
       const existing = this.monsterMarkers.get(monster.id);
+      
+      // Track windups for audio cues
+      const prevWindupUntil = this.monsterWindups.get(monster.id) ?? 0;
+      const currentWindupUntil = monster.windingUpAttackUntil ?? 0;
+
+      if (currentWindupUntil > now && prevWindupUntil <= now) {
+        this.onAudioCue?.("charge-up");
+      } else if (currentWindupUntil <= now && prevWindupUntil > now) {
+        this.onAudioCue?.("thud");
+      }
+      this.monsterWindups.set(monster.id, currentWindupUntil);
+
       if (existing) {
         existing.sync(monster);
         this.monsterSkillFx?.sync(monster, existing);
@@ -868,6 +886,7 @@ export class GameScene extends Phaser.Scene {
         this.monsterSkillFx?.destroy(id);
         marker.destroy();
         this.monsterMarkers.delete(id);
+        this.monsterWindups.delete(id);
       }
     }
   }

@@ -342,6 +342,7 @@ export function createGameClientController(
       },
       onStartExtract: () => network.sendStartExtract(),
       onOpenChest: (chestId: string) => network.sendOpenChest(chestId),
+      onAudioCue: (cue: any) => audio.play(cue),
       onToggleInventory: () => controller.toggleInventory(),
       subscribeChestsInit: (cb: any) => network.onChestsInit(cb),
       subscribeChestOpened: (cb: any) => network.onChestOpened(cb)

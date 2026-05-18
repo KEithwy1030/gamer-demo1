@@ -28,6 +28,7 @@ export class MonsterMarker {
   private readonly phaseBarTrack: Phaser.GameObjects.Rectangle;
   private readonly phaseBarFill: Phaser.GameObjects.Rectangle;
   private readonly impactFlash: Phaser.GameObjects.Ellipse;
+  private readonly windupRing: Phaser.GameObjects.Graphics;
   private targetX: number;
   private targetY: number;
   public isAlive = true;
@@ -101,6 +102,9 @@ export class MonsterMarker {
       0
     );
 
+    this.windupRing = scene.add.graphics();
+    this.windupRing.setVisible(false);
+
     this.phaseBarTrack = scene.add.rectangle(0, phaseY, hpWidth, 5, 0x140f0c, 0.92);
     this.phaseBarFill = scene.add.rectangle(-(hpWidth / 2), phaseY, hpWidth, 5, 0xf59e0b, 1);
     this.phaseBarFill.setOrigin(0, 0.5);
@@ -134,6 +138,7 @@ export class MonsterMarker {
       this.shadow,
       this.threatAura,
       this.telegraphRing,
+      this.windupRing,
       this.impactFlash,
       this.phaseBarTrack,
       this.phaseBarFill,
@@ -236,6 +241,7 @@ export class MonsterMarker {
 
     if (this.lastAliveState === monster.isAlive) {
       this.applyVisualPose(monster, snapshot);
+      this.updateWindupRing(monster);
       return;
     }
 
@@ -244,6 +250,7 @@ export class MonsterMarker {
       this.root.setAlpha(1);
       this.sprite.setVisible(true);
       this.applyVisualPose(monster, snapshot);
+      this.updateWindupRing(monster);
       this.label.setVisible(true);
       this.hpTrack.setVisible(true);
       this.hpFill.setVisible(true);
@@ -270,17 +277,52 @@ export class MonsterMarker {
     }
   }
 
+  private updateWindupRing(monster: MonsterState): void {
+    const now = Date.now();
+    const windupUntil = monster.windingUpAttackUntil ?? 0;
+    
+    if (windupUntil <= now) {
+      this.windupRing.setVisible(false);
+      return;
+    }
+
+    this.windupRing.setVisible(true);
+    this.windupRing.clear();
+
+    const totalDuration = 1000; // [待人工调优]
+    const remaining = windupUntil - now;
+    const progress = Phaser.Math.Clamp(1 - (remaining / totalDuration), 0, 1);
+    
+    const radius = 30 + (80 - 30) * progress; // [待人工调优]
+    const alpha = 0.75;
+    const color = remaining < 300 ? 0xdc2626 : 0xf97316; // [待人工调优]
+
+    this.windupRing.lineStyle(3, color, alpha);
+    this.windupRing.strokeCircle(0, 0, radius);
+    this.windupRing.setDepth(this.profile.telegraphRing.y - 1);
+  }
+
   private applyVisualPose(monster: MonsterState, snapshot: ReturnType<typeof getMonsterReadabilitySnapshot>): void {
     this.facing = resolveMonsterFacing(monster, { x: this.targetX - this.root.x, y: this.targetY - this.root.y }, this.facing);
     this.playAction(getMonsterAction(monster, { isRecentlyHit: snapshot.isRecentlyHit }));
+    
+    if (monster.berserk) {
+      this.sprite.setTint(0xff8888); // [待人工调优]
+      this.sprite.anims.timeScale = 1.25; // [待人工调优]
+    } else {
+      this.sprite.setTint(snapshot.isBoss ? (monster.isEnraged ? 0xfb7185 : 0xc2410c) : snapshot.isElite ? 0xf59e0b : 0xffffff);
+      this.sprite.anims.timeScale = 1;
+    }
+
     this.sprite.setAlpha(1);
     this.shadow.setAlpha(this.profile.shadow.alpha);
     this.setSpriteDisplayScale(snapshot.isWarning ? 1.04 : snapshot.isAttacking ? 1.02 : 1);
     this.sprite.setAngle(snapshot.isWarning ? -3 : snapshot.isAttacking ? 3 : 0);
-    this.sprite.setTint(snapshot.isBoss ? (monster.isEnraged ? 0xfb7185 : 0xc2410c) : snapshot.isElite ? 0xf59e0b : 0xffffff);
 
     if (snapshot.isRecovering && !snapshot.isWarning) {
-      this.sprite.setTint(snapshot.isBoss ? 0xfca5a5 : snapshot.isElite ? 0xfdba74 : 0xe7d7bf);
+      if (!monster.berserk) {
+        this.sprite.setTint(snapshot.isBoss ? 0xfca5a5 : snapshot.isElite ? 0xfdba74 : 0xe7d7bf);
+      }
       this.sprite.setAlpha(0.88);
     }
 
