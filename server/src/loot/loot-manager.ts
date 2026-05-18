@@ -173,7 +173,10 @@ function pickDropDefinitions(monsterType: MonsterType): string[] {
 
 export function buildInventoryItem(
   definitionId: string,
-  sourceMonsterType: MonsterType = "normal"
+  sourceMonsterType: MonsterType = "normal",
+  options?: {
+    forceRarity?: ItemRarity;
+  }
 ): InventoryItem | undefined {
   const definition = ITEM_DEFINITIONS[definitionId];
   if (!definition) {
@@ -181,9 +184,10 @@ export function buildInventoryItem(
   }
 
   const equipmentSlot = toEquipmentSlot(definitionId, definition.slot, definition.armorType);
-  const rarity = shouldRollQuality(definition.category, equipmentSlot)
-    ? rollItemRarity(sourceMonsterType)
-    : definition.rarity;
+  const rarity = options?.forceRarity
+    ?? (shouldRollQuality(definition.category, equipmentSlot)
+      ? rollItemRarity(sourceMonsterType)
+      : definition.rarity);
 
   return {
     instanceId: crypto.randomUUID(),

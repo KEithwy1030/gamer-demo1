@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { findFirstFitRect } from "@gamer/shared";
-import type { ChestQualityTier } from "@gamer/shared";
+import type { ChestQualityTier, ItemRarity } from "@gamer/shared";
 import { buildInventoryItem, ensureDropState } from "../loot/loot-manager.js";
 import type {
   Chest,
@@ -12,17 +12,70 @@ import type {
   RuntimeRoom
 } from "../types.js";
 
-const STARTER_LOOT_TEMPLATES = [
-  "hunter_cowl",
-  "runner_boots",
-  "armor_hands_common",
-  "armor_feet_common",
+interface ChestLootEntry {
+  rarity?: ItemRarity;
+  templates: readonly string[];
+  weight: number;
+}
+
+const COMMON_EQUIPMENT_TEMPLATES = [
   "weapon_sword_basic",
   "weapon_blade_basic",
+  "weapon_spear_basic",
+  "armor_head_common",
+  "armor_chest_common",
+  "armor_hands_common",
+  "armor_feet_common",
+  "trail_greaves"
+] as const;
+
+const UNCOMMON_EQUIPMENT_TEMPLATES = [
+  "hunter_cowl",
+  "runner_boots",
+  "scavenger_coat"
+] as const;
+
+const RARE_EQUIPMENT_TEMPLATES = [
+  "duelist_blade"
+] as const;
+
+const EPIC_EQUIPMENT_TEMPLATES = [
+  "warlord_cuirass"
+] as const;
+
+const CONSUMABLE_TEMPLATES = [
   "health_potion",
   "coagulant_bandage",
   "rust_stimulant",
-  "treasure_small_idol"
+  "miasma_tonic"
+] as const;
+
+const COIN_TEMPLATES = [
+  "gold_pouch"
+] as const;
+
+const NORMAL_CHEST_LOOT_TABLE: ChestLootEntry[] = [
+  { rarity: "common", templates: COMMON_EQUIPMENT_TEMPLATES, weight: 40 },
+  { rarity: "uncommon", templates: UNCOMMON_EQUIPMENT_TEMPLATES, weight: 25 },
+  { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 12 },
+  { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 3 },
+  { templates: CONSUMABLE_TEMPLATES, weight: 16 },
+  { templates: COIN_TEMPLATES, weight: 4 }
+] as const;
+
+const RICH_CHEST_LOOT_TABLE: ChestLootEntry[] = [
+  { rarity: "common", templates: COMMON_EQUIPMENT_TEMPLATES, weight: 24 },
+  { rarity: "uncommon", templates: UNCOMMON_EQUIPMENT_TEMPLATES, weight: 24 },
+  { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 20 },
+  { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 12 },
+  { templates: CONSUMABLE_TEMPLATES, weight: 16 },
+  { templates: COIN_TEMPLATES, weight: 4 }
+] as const;
+
+const RICH_NON_WHITE_GUARANTEE_TABLE: ChestLootEntry[] = [
+  { rarity: "uncommon", templates: UNCOMMON_EQUIPMENT_TEMPLATES, weight: 24 },
+  { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 20 },
+  { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 12 }
 ] as const;
 
 const NORMAL_MIN_LOOT = 3;
@@ -34,28 +87,16 @@ const CHEST_INTERACT_RANGE = 60;
 const CHEST_NOISE_RADIUS = 720;
 const CONTESTED_CHEST_NOISE_TTL_MS = 18_000;
 
-function pickStarterLootItem(): InventoryItem | undefined {
-  const templateId = STARTER_LOOT_TEMPLATES[Math.floor(Math.random() * STARTER_LOOT_TEMPLATES.length)];
-  return buildInventoryItem(templateId, "normal");
-}
+function pickChestLootItem(table: readonly ChestLootEntry[]): InventoryItem | undefined {
+  const entry = pickWeighted([...table]);
+  const templateId = entry.templates[Math.floor(Math.random() * entry.templates.length)];
+  if (!templateId) {
+    return undefined;
+  }
 
-function pickContestedLootItem(): InventoryItem | undefined {
-  const templateId = pickWeighted([
-    { templateId: "treasure_cursed_reliquary", weight: 10 },
-    { templateId: "duelist_blade", weight: 15 },
-    { templateId: "warlord_cuirass", weight: 12 },
-    { templateId: "runner_boots", weight: 13 },
-    { templateId: "hunter_cowl", weight: 13 },
-    { templateId: "treasure_large_statue", weight: 10 },
-    { templateId: "treasure_medium_tablet", weight: 10 },
-    { templateId: "weapon_spear_basic", weight: 8 },
-    { templateId: "miasma_tonic", weight: 7 },
-    { templateId: "rust_stimulant", weight: 6 },
-    { templateId: "coagulant_bandage", weight: 6 },
-    { templateId: "weapon_blade_basic", weight: 5 },
-    { templateId: "weapon_sword_basic", weight: 4 }
-  ]).templateId;
-  return buildInventoryItem(templateId, "elite");
+  return buildInventoryItem(templateId, "normal", {
+    forceRarity: entry.rarity
+  });
 }
 
 function generateStarterChestLoot(): InventoryItem[] {
@@ -63,7 +104,7 @@ function generateStarterChestLoot(): InventoryItem[] {
   const loot: InventoryItem[] = [];
 
   for (let i = 0; i < count; i += 1) {
-    const item = pickStarterLootItem();
+    const item = pickChestLootItem(NORMAL_CHEST_LOOT_TABLE);
     if (item) {
       loot.push(item);
     }
@@ -74,11 +115,11 @@ function generateStarterChestLoot(): InventoryItem[] {
 
 function generateContestedChestLoot(): InventoryItem[] {
   const count = RICH_MIN_LOOT + Math.floor(Math.random() * (RICH_MAX_LOOT - RICH_MIN_LOOT + 1));
-  const guaranteedTreasure = buildInventoryItem("treasure_cursed_reliquary", "elite");
-  const loot: InventoryItem[] = guaranteedTreasure ? [guaranteedTreasure] : [];
+  const guaranteedNonWhite = pickChestLootItem(RICH_NON_WHITE_GUARANTEE_TABLE);
+  const loot: InventoryItem[] = guaranteedNonWhite ? [guaranteedNonWhite] : [];
 
   while (loot.length < count) {
-    const item = pickContestedLootItem();
+    const item = pickChestLootItem(RICH_CHEST_LOOT_TABLE);
     if (item) {
       loot.push(item);
     }
