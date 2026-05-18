@@ -6,6 +6,7 @@ const repoRoot = fileURLToPath(new URL("../", import.meta.url));
 
 const hudSource = readText("client/src/scenes/gameScene/hudOverlay.ts");
 const gameClientSource = readText("client/src/scenes/createGameClient.ts");
+const skillHelpersSource = readText("client/src/scenes/gameScene/skillHelpers.ts");
 const inventoryPanelSource = readText("client/src/ui/InventoryPanel.ts");
 const inventoryCss = readText("client/src/styles/inventory.css");
 
@@ -55,6 +56,31 @@ assert.match(
   "HUD skill panel should dedicate a stable text layer for skill names"
 );
 assert.match(
+  skillHelpersSource,
+  /export function getHudSkillSlotLabel\(skillId: SkillId\): string \{/,
+  "HUD skill slots should use a dedicated compact label contract"
+);
+assert.match(
+  skillHelpersSource,
+  /case "sword_dashSlash":[\s\S]*return "\\u7a81\\u8fdb";/,
+  "dash slash should use a compact two-character HUD label"
+);
+assert.match(
+  skillHelpersSource,
+  /case "spear_draggingStrike":[\s\S]*return "\\u62d6\\u67aa";/,
+  "long spear skill names should be shortened for the fixed HUD slot"
+);
+assert.match(
+  hudSource,
+  /buildSkillSlotLabel\(resolveSkillBySlot\(state, 2\)\),[\s\S]*getHudSkillSlotLabel\("common_dodge"\)/,
+  "HUD skill slots should render compact labels for all three weapon skills and dodge"
+);
+assert.match(
+  hudSource,
+  /return skillId \? getHudSkillSlotLabel\(skillId\) : "--";/,
+  "HUD weapon skill slots should not reuse long status labels"
+);
+assert.match(
   hudSource,
   /const SKILL_SLOT_CENTER_Y_RATIO = 0\.5;/,
   "HUD skill slots should sit high enough inside the bottom action frame"
@@ -63,6 +89,11 @@ assert.match(
   hudSource,
   /const SKILL_NAME_LABEL_Y_RATIO = 0\.08;/,
   "HUD skill names should avoid the bottom edge of the action frame"
+);
+assert.match(
+  hudSource,
+  /const slotW = Math\.round\(skills\.width \* 0\.112\);/,
+  "HUD skill slots should be wide enough for compact two-character labels"
 );
 assert.match(
   hudSource,

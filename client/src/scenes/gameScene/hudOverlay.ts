@@ -6,6 +6,7 @@ import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
 import {
   formatSeconds,
   formatTenths,
+  getHudSkillSlotLabel,
   getPrimarySkillLabel,
   getWeaponLabel,
   resolvePrimarySkill,
@@ -547,7 +548,7 @@ export class GameHudOverlay {
       buildSkillSlotLabel(resolveSkillBySlot(state, 0)),
       buildSkillSlotLabel(resolveSkillBySlot(state, 1)),
       buildSkillSlotLabel(resolveSkillBySlot(state, 2)),
-      "翻滚"
+      getHudSkillSlotLabel("common_dodge")
     ];
 
     labels.forEach((label, index) => {
@@ -724,7 +725,7 @@ function buildHudLayout(width: number, height: number, isTouchDevice: boolean): 
     : Math.min(width - margin - commandW, Math.round(skills.right + margin));
   const command = new Phaser.Geom.Rectangle(commandX, Math.round(commandAnchorY - commandH), commandW, commandH);
 
-  const slotW = Math.round(skills.width * 0.096);
+  const slotW = Math.round(skills.width * 0.112);
   const slotH = Math.round(skills.height * 0.56);
 
   return {
@@ -752,7 +753,7 @@ function addHudImage(scene: Phaser.Scene, key: string, rect: Phaser.Geom.Rectang
 }
 
 function buildSkillSlotLabel(skillId: ReturnType<typeof resolveSkillBySlot>): string {
-  return skillId ? getPrimarySkillLabel(skillId) : "--";
+  return skillId ? getHudSkillSlotLabel(skillId) : "--";
 }
 
 function resolveObjectiveLabel(extractState: ExtractUiState, state: MatchViewState): string {
