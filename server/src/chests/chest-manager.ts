@@ -111,7 +111,7 @@ export function spawnChests(room: RuntimeRoom): void {
       qualityTier,
       state: "idle",
       isOpen: false,
-      noiseRadius: qualityTier === "rich" ? CHEST_NOISE_RADIUS : 0,
+      noiseRadius: CHEST_NOISE_RADIUS,
       totalItems: loot.length,
       itemsDispensed: 0,
       rummageIntervalMs: CHEST_OPEN_DURATION_MS,
@@ -232,6 +232,7 @@ export function interruptChestOpening(
   player.openingChest = undefined;
   if (chest && chest.state === "rummaging") {
     finalizeInterruptedChest(chest);
+    clearRecordedChestNoise(room, chest.id);
   }
   return buildChestProgressPayload({
     chest,
@@ -271,6 +272,7 @@ export function tickChestOpenings(
       player.openingChest = undefined;
       if (chest && chest.state === "rummaging") {
         finalizeInterruptedChest(chest);
+        clearRecordedChestNoise(room, chest.id);
       }
       interruptedPlayerIds.push(player.id);
       progressEvents.push(buildChestProgressPayload({
@@ -288,6 +290,7 @@ export function tickChestOpenings(
     if (chestDistance > CHEST_INTERACT_RANGE) {
       player.openingChest = undefined;
       finalizeInterruptedChest(chest);
+      clearRecordedChestNoise(room, chest.id);
       interruptedPlayerIds.push(player.id);
       progressEvents.push(buildChestProgressPayload({
         chest,
@@ -314,6 +317,7 @@ export function tickChestOpenings(
       const nextItem = chest.loot.shift();
       if (!nextItem) {
         finalizeEmptyChest(chest);
+        clearRecordedChestNoise(room, chest.id);
         player.openingChest = undefined;
         progressEvents.push(buildChestProgressPayload({
           chest,
@@ -336,20 +340,24 @@ export function tickChestOpenings(
 
       chest.itemsDispensed += 1;
       opening.nextDispenseAt += chest.rummageIntervalMs;
+      const aggroedMonsterIds = alertMonstersToChestNoise(room, player.id, chest);
+      recordContestedChestNoise(room, player.id, chest, aggroedMonsterIds);
       const completed = chest.itemsDispensed >= chest.totalItems || chest.loot.length === 0;
       if (completed) {
         finalizeEmptyChest(chest);
+        clearRecordedChestNoise(room, chest.id);
         player.openingChest = undefined;
       }
 
-      openedEvents.push(buildChestOpenedPayload(chest, player.id, dispensedItem));
+      openedEvents.push(buildChestOpenedPayload(chest, player.id, dispensedItem, aggroedMonsterIds));
       progressEvents.push(buildChestProgressPayload({
         chest,
         playerId: player.id,
         status: completed ? "completed" : "dispensed",
         remainingMs: completed ? 0 : Math.max(0, opening.nextDispenseAt - now),
         durationMs: chest.rummageIntervalMs,
-        dispensedItem
+        dispensedItem,
+        aggroedMonsterIds
       }));
     }
   }
@@ -387,10 +395,6 @@ function spawnChestDrops(room: RuntimeRoom, chest: Chest, loot: InventoryItem[])
 }
 
 function alertMonstersToChestNoise(room: RuntimeRoom, playerId: string, chest: Chest): string[] {
-  if (chest.qualityTier !== "rich") {
-    return [];
-  }
-
   const aggroedMonsterIds: string[] = [];
   for (const monster of room.monsters?.values() ?? []) {
     if (!monster.isAlive) {
@@ -413,10 +417,6 @@ function alertMonstersToChestNoise(room: RuntimeRoom, playerId: string, chest: C
 }
 
 function recordContestedChestNoise(room: RuntimeRoom, playerId: string, chest: Chest, aggroedMonsterIds: string[]): void {
-  if (chest.qualityTier !== "rich") {
-    return;
-  }
-
   const now = Date.now();
   room.contestedChestNoise = {
     chestId: chest.id,
@@ -424,9 +424,15 @@ function recordContestedChestNoise(room: RuntimeRoom, playerId: string, chest: C
     x: chest.x,
     y: chest.y,
     createdAt: now,
-    expiresAt: now + CONTESTED_CHEST_NOISE_TTL_MS,
+    expiresAt: now + Math.min(CONTESTED_CHEST_NOISE_TTL_MS, chest.rummageIntervalMs),
     aggroedMonsterIds
   };
+}
+
+function clearRecordedChestNoise(room: RuntimeRoom, chestId: string): void {
+  if (room.contestedChestNoise?.chestId === chestId) {
+    room.contestedChestNoise = undefined;
+  }
 }
 
 function finalizeEmptyChest(chest: Chest): void {
