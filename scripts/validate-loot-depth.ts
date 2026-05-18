@@ -8,8 +8,8 @@ const originalRandom = Math.random;
 try {
   assertItemDepth();
   assertDropTables();
-  assertContestedChestDepth();
-  console.log("[loot-depth] PASS expanded item tiers, deterministic normal/elite/boss drops, contested chest depth");
+  assertAbandonedCrateLootDepth();
+  console.log("[loot-depth] PASS expanded item tiers, deterministic normal/elite/boss drops, abandoned crate depth");
 } finally {
   Math.random = originalRandom;
 }
@@ -19,7 +19,7 @@ function assertItemDepth(): void {
   assert.ok(ITEM_DEFINITIONS.runner_boots, "runner_boots should exist in the shared item catalog");
   assert.ok(ITEM_DEFINITIONS.duelist_blade, "duelist_blade should exist in the shared item catalog");
   assert.ok(ITEM_DEFINITIONS.warlord_cuirass, "warlord_cuirass should exist in the shared item catalog");
-  assert.ok(ITEM_DEFINITIONS.treasure_cursed_reliquary, "treasure_cursed_reliquary should exist in the shared item catalog");
+  assert.ok(ITEM_DEFINITIONS.gold_pouch, "gold_pouch should exist in the shared item catalog");
 
   assert.ok(
     (ITEM_DEFINITIONS.duelist_blade.stats?.attackPower ?? 0) > (ITEM_DEFINITIONS.weapon_blade_basic.stats?.attackPower ?? 0),
@@ -32,10 +32,6 @@ function assertItemDepth(): void {
   assert.ok(
     (ITEM_DEFINITIONS.warlord_cuirass.stats?.damageReduction ?? 0) > (ITEM_DEFINITIONS.armor_chest_common.stats?.damageReduction ?? 0),
     "warlord_cuirass should provide more mitigation than the common chest armor"
-  );
-  assert.ok(
-    (ITEM_DEFINITIONS.treasure_cursed_reliquary.treasureValue ?? 0) > (ITEM_DEFINITIONS.treasure_large_statue.treasureValue ?? 0),
-    "treasure_cursed_reliquary should be the highest-value relic in the catalog"
   );
 }
 
@@ -51,28 +47,45 @@ function assertDropTables(): void {
   assert.ok(bossDrops.some((drop) => drop.item.templateId === "warlord_cuirass"), "boss drops should be able to roll warlord_cuirass");
 }
 
-function assertContestedChestDepth(): void {
+function assertAbandonedCrateLootDepth(): void {
   const room = makeRoom();
   room.matchLayout = {
     templateId: "A",
     squadSpawns: [],
     extractZones: [],
-    chestZones: [{ chestId: "contested", x: 220, y: 220, lane: "contested" }],
+    chestZones: [
+      { chestId: "normal", x: 220, y: 220, kind: "abandoned_crate", lane: "abandoned", qualityTier: "normal" },
+      { chestId: "rich", x: 260, y: 260, kind: "abandoned_crate", lane: "abandoned", qualityTier: "rich" }
+    ],
     safeZones: [],
     riverHazards: [],
-    safeCrossings: []
+    safeCrossings: [],
+    obstacleZones: [],
+    landmarks: []
   };
 
-  withRandomSequence([0, 0, 0.11, 0, 0], () => {
+  withRandomSequence([
+    0, 0.99, 0, 0.95, 0, 0.1, 0,
+    0, 0.9, 0, 0.0, 0, 0.0, 0
+  ], () => {
     spawnChests(room);
   });
 
-  const contestedChest = room.chests!.get("contested");
-  assert.ok(contestedChest, "contested chest should spawn");
-  assert.equal(contestedChest!.loot[0]?.templateId, "treasure_cursed_reliquary", "contested chest should guarantee the cursed reliquary");
+  const normalChest = room.chests!.get("normal");
+  const richChest = room.chests!.get("rich");
+  assert.ok(normalChest, "normal crate should spawn");
+  assert.ok(richChest, "rich crate should spawn");
   assert.ok(
-    contestedChest!.loot.some((item) => item.templateId === "duelist_blade"),
-    "contested chest should be able to include duelist_blade from the weighted pool"
+    normalChest!.loot.some((item) => item.kind === "currency" || item.kind === "consumable"),
+    "normal crate should be able to roll consumable or coin utility items"
+  );
+  assert.ok(
+    richChest!.loot.some((item) => item.rarity && item.rarity !== "common"),
+    "rich crate should guarantee at least one non-white item"
+  );
+  assert.ok(
+    !richChest!.loot.every((item) => item.templateId === "treasure_cursed_reliquary"),
+    "rich crate should no longer behave like the old guaranteed reliquary chest"
   );
 }
 

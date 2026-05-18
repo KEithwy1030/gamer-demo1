@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { buildMatchLayout } from "../server/src/match-layout.js";
-import { openChest, spawnChests, tickChestOpenings, CHEST_OPEN_DURATION_MS } from "../server/src/chests/chest-manager.js";
+import { spawnChests, startChestOpening, tickChestOpenings, CHEST_OPEN_DURATION_MS } from "../server/src/chests/chest-manager.js";
 import { spawnInitialMonsters } from "../server/src/monsters/monster-manager.js";
 import { initializeExtractState } from "../server/src/extract/index.js";
 import { InventoryService } from "../server/src/inventory/service.js";
@@ -10,89 +10,100 @@ import type { InventoryState, RuntimePlayer, RuntimeRoom } from "../server/src/t
 
 const now = Date.now();
 
-assertElitePressureNearContestedResources();
-assertBotScavengesChestThroughChannel();
-assertBotInvestigatesContestedChestNoise();
+assertElitePressureNearRichResources();
+assertBotScavengesChestThroughRummage();
+assertBotInvestigatesAnyChestNoisePulse();
 assertBotWithCargoPrioritizesExtract();
 assertBotWithHighValueCargoPrioritizesExtract();
 assertBotExtractsWhenCorpseFogIntensifies();
 assertBotStagesOnActiveExtractPressure();
 
-console.log("[pressure-ai-contract] PASS elite resource pressure, bot chest channel, contested chest noise response, bot cargo extract intent, high-value cargo extract intent, intensified fog extract intent, active extract pressure staging");
+console.log("[pressure-ai-contract] PASS rich resource pressure, bot rummage loop, all-crate noise response, bot cargo extract intent, high-value cargo extract intent, intensified fog extract intent, active extract pressure staging");
 
-function assertElitePressureNearContestedResources(): void {
+function assertElitePressureNearRichResources(): void {
   const room = createRoom();
   spawnChests(room);
   spawnInitialMonsters(room);
 
-  const contestedChests = room.matchLayout!.chestZones.filter((zone) => zone.lane === "contested");
+  const richChests = room.matchLayout!.chestZones.filter((zone) => zone.qualityTier === "rich");
   const elites = [...room.monsters!.values()].filter((monster) => monster.type === "elite");
-  assert.ok(contestedChests.length >= 3, "map should include contested resource chests");
+  assert.equal(richChests.length, 4, "map should include four rich central crates");
   assert.ok(elites.length >= 3, "resource pressure requires elite monsters");
   assert.ok(
     new Set(elites.map((elite) => `${elite.moveSpeed}:${elite.attackDamage}:${elite.patrolRadius}:${elite.guardRadius}`)).size >= 3,
     "elite resource pressure should split into multiple guard profiles instead of one flat elite template"
   );
 
-  for (const chest of contestedChests) {
-    const nearestEliteDistance = Math.min(...elites.map((elite) => Math.hypot(elite.x - chest.x, elite.y - chest.y)));
-    assert.ok(nearestEliteDistance <= 760, `contested chest ${chest.chestId} should have nearby elite pressure, got ${nearestEliteDistance}`);
-  }
+  const richPressureDistances = richChests.map((chest) => (
+    Math.min(...elites.map((elite) => Math.hypot(elite.x - chest.x, elite.y - chest.y)))
+  ));
+  const averagePressureDistance = richPressureDistances.reduce((sum, value) => sum + value, 0) / richPressureDistances.length;
+  assert.ok(
+    Math.min(...richPressureDistances) <= 900,
+    `central rich zone should have at least one close elite anchor, got ${Math.min(...richPressureDistances)}`
+  );
+  assert.ok(
+    averagePressureDistance <= 1500,
+    `central rich zone should sit inside an elite pressure field on average, got ${averagePressureDistance}`
+  );
 }
 
-function assertBotScavengesChestThroughChannel(): void {
+function assertBotScavengesChestThroughRummage(): void {
   const room = createRoom();
   spawnChests(room);
   const bot = room.players.get("bot_alpha_1")!;
-  const starterChestZone = room.matchLayout!.chestZones.find((zone) => zone.lane === "starter" && zone.squadId === "bot_alpha")!;
-  const starterChest = room.chests!.get(starterChestZone.chestId)!;
-  bot.state!.x = starterChest.x;
-  bot.state!.y = starterChest.y;
+  const chestZone = room.matchLayout!.chestZones.find((zone) => zone.squadId === "bot_alpha" && zone.qualityTier !== "rich")!;
+  const chest = room.chests!.get(chestZone.chestId)!;
+  bot.state!.x = chest.x;
+  bot.state!.y = chest.y;
   bot.botGoal = "loot";
-  bot.botPatrolPoint = { x: starterChest.x, y: starterChest.y };
+  bot.botPatrolPoint = { x: chest.x, y: chest.y };
   bot.botNextDecisionAt = now + 5_000;
 
   const result = tickBots({ room, roomState: room as any }, now);
-  assert.equal(result.playerStateChanged, true, "bot should act when staged on a loot chest");
-  assert.equal(starterChest.isOpen, false, "bot chest interaction should start a channel, not open instantly");
-  assert.equal(bot.openingChest?.chestId, starterChest.id, "bot should enter chest opening state");
+  assert.equal(result.playerStateChanged, true, "bot should act when staged on a loot crate");
+  assert.equal(result.chestProgressEvents[0]?.status, "started", "bot loot action should start a rummage");
+  assert.equal(chest.state, "rummaging", "bot chest interaction should start rummaging instead of opening instantly");
+  assert.equal(bot.openingChest?.chestId, chest.id, "bot should enter chest rummage state");
 
-  const tick = tickChestOpenings(room, bot.openingChest!.completesAt);
-  assert.equal(tick.openedEvents.length, 1, "bot opening channel should complete into a chest opened event");
-  assert.equal(starterChest.isOpen, true, "bot channel completion should open chest");
-  assert.ok((room.drops?.size ?? 0) > 0, "bot chest completion should spawn world drops");
+  const tick = tickChestOpenings(room, now + CHEST_OPEN_DURATION_MS);
+  assert.equal(tick.openedEvents.length, 1, "bot rummage should dispense exactly one item on the first tick");
+  assert.equal(chest.itemsDispensed, 1, "bot rummage should advance item count one by one");
+  assert.equal((room.drops?.size ?? 0), 0, "bot rummage should auto-loot into inventory when the backpack has space");
 }
 
-function assertBotInvestigatesContestedChestNoise(): void {
+function assertBotInvestigatesAnyChestNoisePulse(): void {
   const room = createRoom();
   spawnChests(room);
   const human = room.players.get("player-1")!;
   const bot = room.players.get("bot_alpha_1")!;
-  const contestedZone = room.matchLayout!.chestZones.find((zone) => zone.lane === "contested")!;
-  const contestedChest = room.chests!.get(contestedZone.chestId)!;
-  human.state!.x = contestedChest.x;
-  human.state!.y = contestedChest.y;
-  bot.state!.x = contestedChest.x + 1100;
-  bot.state!.y = contestedChest.y;
+  const chestZone = room.matchLayout!.chestZones.find((zone) => zone.squadId === "player" && zone.qualityTier !== "rich")!;
+  const chest = room.chests!.get(chestZone.chestId)!;
+  human.state!.x = chest.x;
+  human.state!.y = chest.y;
+  bot.state!.x = chest.x + 1100;
+  bot.state!.y = chest.y;
   bot.botNextDecisionAt = 0;
 
-  openChest(room, human.id, contestedChest.id, contestedChest.x, contestedChest.y);
-  assert.equal(room.contestedChestNoise?.chestId, contestedChest.id, "contested chest open should leave a temporary noise marker");
+  startChestOpening(room, human.id, chest.id, now);
+  assert.equal(room.contestedChestNoise, undefined, "starting rummage should not pulse noise immediately");
+  tickChestOpenings(room, now + CHEST_OPEN_DURATION_MS);
+  assert.equal(room.contestedChestNoise?.chestId, chest.id, "first rummage tick should create a chest noise marker");
 
-  tickBots({ room, roomState: room as any }, now + 100);
-  assert.equal(bot.botGoal, "patrol", "enemy bot should investigate contested chest noise before it sees the opener");
+  tickBots({ room, roomState: room as any }, now + CHEST_OPEN_DURATION_MS + 100);
+  assert.equal(bot.botGoal, "patrol", "enemy bot should investigate chest noise before direct contact");
   assert.ok(bot.botPatrolPoint, "noise-investigating bot should set a staging point");
   assert.ok(
-    Math.hypot(bot.botPatrolPoint!.x - contestedChest.x, bot.botPatrolPoint!.y - contestedChest.y) <= 180,
-    "noise-investigating bot should stage near the opened contested chest"
+    Math.hypot(bot.botPatrolPoint!.x - chest.x, bot.botPatrolPoint!.y - chest.y) <= 180,
+    "noise-investigating bot should stage near the pulsing crate"
   );
 
-  bot.state!.x = contestedChest.x + 220;
-  bot.state!.y = contestedChest.y;
+  bot.state!.x = chest.x + 220;
+  bot.state!.y = chest.y;
   bot.botNextDecisionAt = 0;
-  tickBots({ room, roomState: room as any }, now + 200);
-  assert.equal(bot.botGoal, "hunt", "enemy bot should hunt the opener once close enough to the noise source");
-  assert.equal(bot.botTargetPlayerId, human.id, "enemy bot should target the player who opened the noisy contested chest");
+  tickBots({ room, roomState: room as any }, now + CHEST_OPEN_DURATION_MS + 200);
+  assert.equal(bot.botGoal, "hunt", "enemy bot should hunt the rummager once close enough to the pulse source");
+  assert.equal(bot.botTargetPlayerId, human.id, "enemy bot should target the player making the crate noise");
 }
 
 function assertBotWithCargoPrioritizesExtract(): void {

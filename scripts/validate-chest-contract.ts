@@ -3,7 +3,6 @@ import {
   CHEST_OPEN_DURATION_MS,
   interruptChestOpening,
   listChests,
-  openChest,
   spawnChests,
   startChestOpening,
   tickChestOpenings
@@ -14,187 +13,161 @@ import type { InventoryEntry, RuntimeMonster, RuntimePlayer, RuntimeRoom } from 
 const now = Date.now();
 
 assertSpawnChestsFromLayout();
-assertOpenChestGuardsAndWorldDrops();
-assertOpeningChannelCompletesAndInterrupts();
-assertContestedOpeningChannelAlertsGuardsImmediately();
-assertContestedChestTelegraphsRiskAndNoiseAggrosNearbyMonsters();
-assertFullBackpackKeepsLootAsWorldDrops();
+assertRummageStartAndInventoryFeed();
+assertRummageInterruptOnMovementAndDamage();
+assertNoisePulseAlertsNearbyMonstersOnAnyChest();
+assertFullBackpackSpillsOneDropPerTick();
 
-console.log("[chest-contract] PASS layout spawn, guard rails, channel opening, interrupts, contested risk telegraph, contested opening pressure, contested noise, world-drop loot, duplicate-open, full-backpack retention");
+console.log("[chest-contract] PASS abandoned crate shape, 3-5 item rummage, 60px interrupt, per-tick inventory/drop feed, all-chest noise pulse, rich guarantee");
 
 function assertSpawnChestsFromLayout(): void {
   const room = createRoom();
-
   spawnChests(room);
 
   assert.equal(room.chests?.size, room.matchLayout?.chestZones.length, "spawnChests should create one chest per layout chest zone");
 
-  const starter = room.chests?.get("starter_player");
-  const contested = room.chests?.get("contested_center");
-  assert.ok(starter, "starter chest should be keyed from layout chestId");
-  assert.ok(contested, "contested chest should be keyed from layout chestId");
-  assert.equal(starter.x, 900, "starter chest x should come from layout");
-  assert.equal(starter.y, 1000, "starter chest y should come from layout");
-  assert.equal(starter.lane, "starter", "starter chest should preserve lane metadata");
-  assert.equal(contested.lane, "contested", "contested chest should preserve lane metadata");
-  assert.ok(contested.noiseRadius && contested.noiseRadius > 0, "contested chest should expose its noise radius");
-  assert.ok(starter.loot.length >= 2 && starter.loot.length <= 3, "starter chest should roll starter loot count");
-  assert.ok(contested.loot.length >= 3 && contested.loot.length <= 5, "contested chest should roll contested loot count");
+  const normal = room.chests?.get("crate_player");
+  const rich = room.chests?.get("crate_center");
+  assert.ok(normal, "normal crate should be keyed from layout chestId");
+  assert.ok(rich, "rich crate should be keyed from layout chestId");
+  assert.equal(normal.kind, "abandoned_crate", "normal crate should use the abandoned crate kind");
+  assert.equal(normal.lane, "abandoned", "normal crate should expose the unified lane marker");
+  assert.equal(normal.qualityTier, "normal", "normal crate should preserve normal quality tier");
+  assert.equal(rich.qualityTier, "rich", "center crate should preserve rich quality tier");
+  assert.equal(normal.state, "idle", "crate should start idle");
+  assert.equal(rich.state, "idle", "rich crate should start idle");
+  assert.equal(normal.itemsDispensed, 0, "crate should start with zero dispensed items");
+  assert.ok(normal.totalItems >= 3 && normal.totalItems <= 5, "normal crate should roll 3-5 total items");
+  assert.ok(rich.totalItems >= 3 && rich.totalItems <= 5, "rich crate should roll 3-5 total items");
+  assert.equal(normal.noiseRadius, 720, "all crates should expose the shared noise radius");
+  assert.equal(rich.noiseRadius, 720, "rich crates should expose the shared noise radius");
   assert.ok(
-    contested.loot.some((item) => item.kind === "treasure" && item.treasureValue >= 100),
-    "contested chest should guarantee at least one high-value treasure"
+    rich.loot.some((item) => item.rarity && item.rarity !== "common"),
+    "rich crate should guarantee at least one non-white item"
   );
+
+  const listedRich = listChests(room).find((entry) => entry.chestId === rich.id);
+  assert.equal(listedRich?.qualityTier, "rich", "client chest init should expose rich quality tier");
+  assert.equal(listedRich?.state, "idle", "client chest init should expose idle chest state");
+  assert.equal(listedRich?.totalItems, rich.totalItems, "client chest init should expose total item count");
 }
 
-function assertOpenChestGuardsAndWorldDrops(): void {
+function assertRummageStartAndInventoryFeed(): void {
   const room = createRoom();
   spawnChests(room);
   const player = room.players.get("player-1")!;
-  const chest = room.chests!.get("starter_player")!;
+  const chest = room.chests!.get("crate_player")!;
 
-  assert.throws(
-    () => openChest(room, player.id, chest.id, chest.x + 160, chest.y),
-    /Too far from the chest/,
-    "players outside chest range should not open it"
-  );
-  assert.equal(chest.isOpen, false, "failed distance check should not open chest");
-  assert.equal(room.drops?.size ?? 0, 0, "failed distance check should not spawn drops");
-
-  player.state!.isAlive = false;
-  assert.throws(
-    () => openChest(room, player.id, chest.id, chest.x, chest.y),
-    /Dead players cannot open chests/,
-    "dead players should not open chests"
-  );
-  assert.equal(chest.isOpen, false, "dead-player check should not open chest");
-  assert.equal(room.drops?.size ?? 0, 0, "dead-player check should not spawn drops");
-
-  player.state!.isAlive = true;
-  const inventoryCountBefore = player.inventory!.items.length;
-  const result = openChest(room, player.id, chest.id, chest.x, chest.y);
-  assert.equal(chest.isOpen, true, "successful open should mark chest open");
-  assert.equal(result.spawnedDrops.length, result.loot.length, "successful open should spawn one world drop per loot item");
-  assert.equal(room.drops?.size, result.loot.length, "chest loot should enter shared world-drop state");
-  assert.equal(player.inventory!.items.length, inventoryCountBefore, "opening a chest should not directly mutate inventory");
-
-  const spawnedInstanceIds = new Set([...room.drops!.values()].map((drop) => drop.item.instanceId));
-  for (const item of result.loot) {
-    assert.ok(spawnedInstanceIds.has(item.instanceId), `world drops should preserve chest loot item ${item.instanceId}`);
-  }
-
-  assert.throws(
-    () => openChest(room, player.id, chest.id, chest.x, chest.y),
-    /Chest is already open/,
-    "already-open chests should reject duplicate opens"
-  );
-  assert.equal(room.drops?.size, result.loot.length, "duplicate open should not spawn additional drops");
-}
-
-function assertOpeningChannelCompletesAndInterrupts(): void {
-  const room = createRoom();
-  spawnChests(room);
-  const player = room.players.get("player-1")!;
-  const chest = room.chests!.get("starter_player")!;
-
-  startChestOpening(room, player.id, chest.id, now);
-  assert.equal(chest.isOpen, false, "startChestOpening should not open immediately");
-  assert.equal(room.drops?.size ?? 0, 0, "opening channel should not spawn drops before completion");
-  assert.ok(player.openingChest, "player should record active chest opening");
+  const started = startChestOpening(room, player.id, chest.id, now);
+  assert.equal(started.status, "started", "starting a rummage should emit a started event");
+  assert.equal(chest.state, "rummaging", "starting a rummage should move the crate into rummaging state");
+  assert.equal(chest.rummagerId, player.id, "starting a rummage should record the active rummager");
 
   let tick = tickChestOpenings(room, now + CHEST_OPEN_DURATION_MS - 1);
-  assert.equal(tick.openedEvents.length, 0, "opening should not complete before duration");
-  assert.equal(chest.isOpen, false, "pre-duration tick should keep chest closed");
+  assert.equal(tick.openedEvents.length, 0, "rummage should not dispense before the tick interval");
+  assert.equal(chest.itemsDispensed, 0, "pre-interval tick should not dispense any items");
 
-  tick = tickChestOpenings(room, now + CHEST_OPEN_DURATION_MS);
-  assert.equal(tick.openedEvents.length, 1, "opening should complete after channel duration");
-  assert.equal(tick.openedEvents[0]!.chestId, chest.id, "completion event should identify chest");
-  assert.equal(tick.openedEvents[0]!.lane, "starter", "completion event should include chest lane");
-  assert.equal(chest.isOpen, true, "completion tick should open chest");
-  assert.ok((room.drops?.size ?? 0) > 0, "completion tick should spawn world drops");
-  assert.equal(player.openingChest, undefined, "completion tick should clear opening state");
+  let currentTime = now + CHEST_OPEN_DURATION_MS;
+  tick = tickChestOpenings(room, currentTime);
+  assert.equal(tick.openedEvents.length, 1, "first rummage tick should dispense exactly one item");
+  assert.deepEqual(tick.inventoryUpdatedPlayerIds, [player.id], "first rummage tick should update the rummager inventory when space exists");
+  assert.equal(player.inventory!.items.length, 1, "first rummage tick should auto-place the item in inventory");
+  assert.equal(room.drops?.size ?? 0, 0, "no world drops should spawn while the backpack has space");
+  assert.equal(chest.itemsDispensed, 1, "first rummage tick should increment dispensed count");
 
-  const interruptRoom = createRoom();
-  spawnChests(interruptRoom);
-  const interruptPlayer = interruptRoom.players.get("player-1")!;
-  const interruptChest = interruptRoom.chests!.get("starter_player")!;
-  startChestOpening(interruptRoom, interruptPlayer.id, interruptChest.id, now);
-  interruptPlayer.state!.x += 40;
-  tick = tickChestOpenings(interruptRoom, now + CHEST_OPEN_DURATION_MS);
-  assert.equal(tick.openedEvents.length, 0, "moving during opening should not complete chest");
-  assert.equal(tick.interruptedPlayerIds.includes(interruptPlayer.id), true, "moving should report interrupted opener");
-  assert.equal(interruptChest.isOpen, false, "interrupted chest should remain closed");
-  assert.equal(interruptRoom.drops?.size ?? 0, 0, "interrupted chest should not spawn drops");
+  while (chest.state !== "empty") {
+    currentTime += CHEST_OPEN_DURATION_MS;
+    tick = tickChestOpenings(room, currentTime);
+  }
 
-  startChestOpening(interruptRoom, interruptPlayer.id, interruptChest.id, now);
-  assert.equal(interruptPlayer.openingChest?.chestId, interruptChest.id, "restarting after movement interrupt should be allowed");
-  const manualInterruption = interruptChestOpening(interruptRoom, interruptPlayer.id);
-  assert.equal(manualInterruption?.status, "interrupted", "manual damage interrupt should return a chest progress interruption");
-  assert.equal(manualInterruption?.chestId, interruptChest.id, "manual damage interrupt should identify the interrupted chest");
-  assert.equal(manualInterruption?.lane, "starter", "manual damage interrupt should preserve chest lane metadata");
-  assert.equal(interruptPlayer.openingChest, undefined, "damage/manual interrupt should clear opening state");
+  assert.equal(chest.isOpen, true, "completed rummage should mark the crate unavailable");
+  assert.equal(chest.rummagerId, undefined, "completed rummage should clear the rummager");
+  assert.equal(chest.itemsDispensed, chest.totalItems, "completed rummage should dispense the full rolled count");
+  assert.equal(player.inventory!.items.length, chest.totalItems, "all items should auto-feed into inventory when there is space");
+  assert.equal(room.drops?.size ?? 0, 0, "successful rummage should not create ground drops when there is space");
 }
 
-function assertContestedOpeningChannelAlertsGuardsImmediately(): void {
+function assertRummageInterruptOnMovementAndDamage(): void {
+  const moveRoom = createRoom();
+  spawnChests(moveRoom);
+  const movePlayer = moveRoom.players.get("player-1")!;
+  const moveChest = moveRoom.chests!.get("crate_player")!;
+
+  startChestOpening(moveRoom, movePlayer.id, moveChest.id, now);
+  movePlayer.state!.x += 61;
+  const moved = tickChestOpenings(moveRoom, now + CHEST_OPEN_DURATION_MS);
+  assert.equal(moved.openedEvents.length, 0, "leaving the 60px window should not dispense items");
+  assert.equal(moved.progressEvents.at(-1)?.status, "interrupted", "leaving the 60px window should interrupt rummage");
+  assert.equal(moveChest.state, "interrupted", "movement interrupt should hard-empty the crate");
+  assert.equal(moveChest.isOpen, true, "movement interrupt should mark the crate unavailable");
+  assert.equal(moveChest.itemsDispensed, 0, "movement interrupt should lose undispatched items instead of dropping them");
+  assert.equal(moveRoom.drops?.size ?? 0, 0, "movement interrupt should not spill the remaining loot");
+  assert.throws(
+    () => startChestOpening(moveRoom, movePlayer.id, moveChest.id, now + CHEST_OPEN_DURATION_MS * 2),
+    /unavailable/,
+    "interrupted crate should not be re-rummageable"
+  );
+
+  const damageRoom = createRoom();
+  spawnChests(damageRoom);
+  const damagePlayer = damageRoom.players.get("player-1")!;
+  const damageChest = damageRoom.chests!.get("crate_player")!;
+  startChestOpening(damageRoom, damagePlayer.id, damageChest.id, now);
+  const manualInterruption = interruptChestOpening(damageRoom, damagePlayer.id);
+  assert.equal(manualInterruption?.status, "interrupted", "manual damage interrupt should return interrupted chest progress");
+  assert.equal(damageChest.state, "interrupted", "manual damage interrupt should hard-empty the crate");
+  assert.equal(damagePlayer.openingChest, undefined, "manual damage interrupt should clear the active rummage state");
+}
+
+function assertNoisePulseAlertsNearbyMonstersOnAnyChest(): void {
   const room = createRoom();
   spawnChests(room);
   const player = room.players.get("player-1")!;
-  const chest = room.chests!.get("contested_center")!;
-  player.state!.x = chest.x;
-  player.state!.y = chest.y;
-  const monster = createMonster("elite-channel-guard", chest.x + 140, chest.y);
-  room.monsters = new Map([[monster.id, monster]]);
-
-  startChestOpening(room, player.id, chest.id, now);
-
-  assert.equal(chest.isOpen, false, "starting contested chest channel should not open the chest immediately");
-  assert.equal(room.drops?.size ?? 0, 0, "starting contested chest channel should not spawn loot immediately");
-  assert.equal(room.contestedChestNoise?.chestId, chest.id, "starting contested chest channel should create the contested noise marker");
-  assert.deepEqual(room.contestedChestNoise?.aggroedMonsterIds, [monster.id], "starting contested chest channel should record alerted guard ids");
-  assert.equal(room.monsters.get(monster.id)?.targetPlayerId, player.id, "starting contested chest channel should immediately aggro nearby guards");
-}
-
-function assertContestedChestTelegraphsRiskAndNoiseAggrosNearbyMonsters(): void {
-  const room = createRoom();
-  spawnChests(room);
-  const player = room.players.get("player-1")!;
-  const chest = room.chests!.get("contested_center")!;
-  player.state!.x = chest.x;
-  player.state!.y = chest.y;
+  const chest = room.chests!.get("crate_player")!;
   const monster = createMonster("elite-near", chest.x + 120, chest.y);
   room.monsters = new Map([[monster.id, monster]]);
 
-  const listedContested = listChests(room).find((entry) => entry.chestId === chest.id);
-  assert.equal(listedContested?.lane, "contested", "client chest init should expose contested lane");
-  assert.equal(listedContested?.id, chest.id, "client chest init should keep server id for backward compatibility");
-  assert.ok(listedContested?.noiseRadius && listedContested.noiseRadius >= 700, "client chest init should expose contested pressure radius");
+  startChestOpening(room, player.id, chest.id, now);
+  assert.equal(room.contestedChestNoise, undefined, "starting rummage should not emit the pulse before the first tick");
 
-  const result = openChest(room, player.id, chest.id, chest.x, chest.y);
-  assert.equal(room.monsters.get(monster.id)?.targetPlayerId, player.id, "contested chest noise should aggro nearby elite");
-  assert.deepEqual(result.aggroedMonsterIds, [monster.id], "contested chest open should report aggroed monsters");
+  const tick = tickChestOpenings(room, now + CHEST_OPEN_DURATION_MS);
+  assert.equal(room.monsters.get(monster.id)?.targetPlayerId, player.id, "the first rummage pulse should aggro nearby monsters for any crate tier");
+  assert.deepEqual(tick.openedEvents[0]?.aggroedMonsterIds, [monster.id], "the dispense event should report the aggroed monsters");
+  assert.equal(room.contestedChestNoise?.chestId, chest.id, "the noise marker should track the pulsing crate");
+  assert.ok(
+    (room.contestedChestNoise?.expiresAt ?? 0) - (room.contestedChestNoise?.createdAt ?? 0) <= CHEST_OPEN_DURATION_MS,
+    "the noise marker should last only for the active rummage pulse window"
+  );
 }
 
-function assertFullBackpackKeepsLootAsWorldDrops(): void {
+function assertFullBackpackSpillsOneDropPerTick(): void {
   const room = createRoom();
   spawnChests(room);
   const player = room.players.get("player-1")!;
-  const chest = room.chests!.get("contested_center")!;
+  const chest = room.chests!.get("crate_center")!;
+  player.state!.x = chest.x;
+  player.state!.y = chest.y;
   player.inventory!.items = fillBackpack();
 
   const inventoryIdsBefore = player.inventory!.items.map((entry) => entry.item.instanceId).sort();
-  const result = openChest(room, player.id, chest.id, chest.x, chest.y);
+  startChestOpening(room, player.id, chest.id, now);
 
-  assert.equal(player.inventory!.items.length, inventoryIdsBefore.length, "full backpack should remain unchanged when chest opens");
+  let currentTime = now;
+  while (chest.state !== "empty") {
+    currentTime += CHEST_OPEN_DURATION_MS;
+    const tick = tickChestOpenings(room, currentTime);
+    assert.equal(tick.openedEvents.length, 1, "each rummage interval should dispense at most one item");
+    assert.equal(tick.inventoryUpdatedPlayerIds.length, 0, "full backpack should not accept crate items directly");
+  }
+
+  assert.equal(player.inventory!.items.length, inventoryIdsBefore.length, "full backpack should remain unchanged while rummaging");
   assert.deepEqual(
     player.inventory!.items.map((entry) => entry.item.instanceId).sort(),
     inventoryIdsBefore,
-    "full backpack should not swallow or partially place chest loot"
+    "full backpack should not swallow or reshuffle crate items"
   );
-  assert.equal(result.spawnedDrops.length, result.loot.length, "full-backpack chest loot should still become world drops");
-  assert.equal(room.drops?.size, result.loot.length, "full-backpack loot should be retained in world-drop state");
-  assert.ok(
-    [...room.drops!.values()].some((drop) => drop.item.treasureValue >= 100),
-    "full-backpack contested chest should keep high-value treasure on the ground"
-  );
+  assert.equal(room.drops?.size, chest.totalItems, "overflowing a backpack should spawn one ground drop per dispensed item");
+  assert.equal(chest.itemsDispensed, chest.totalItems, "overflow path should still fully empty the crate");
 }
 
 function createRoom(): RuntimeRoom {
@@ -213,8 +186,8 @@ function createRoom(): RuntimeRoom {
       squadSpawns: [],
       extractZones: [],
       chestZones: [
-        { chestId: "starter_player", x: 900, y: 1000, lane: "starter", squadId: "player" },
-        { chestId: "contested_center", x: 1900, y: 1900, lane: "contested" }
+        { chestId: "crate_player", x: 900, y: 1000, kind: "abandoned_crate", lane: "abandoned", qualityTier: "normal", squadId: "player" },
+        { chestId: "crate_center", x: 1900, y: 1900, kind: "abandoned_crate", lane: "abandoned", qualityTier: "rich" }
       ],
       safeZones: [],
       riverHazards: [],
