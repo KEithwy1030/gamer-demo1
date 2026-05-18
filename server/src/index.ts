@@ -886,6 +886,9 @@ function attachRoomHandlers(socket: GameSocket): void {
       }
 
       if (monsterOutcome) {
+        for (const kill of monsterOutcome.monsterKills) {
+          io.to(roomCode).emit(SocketEvent.MonsterKilled, kill);
+        }
         io.to(roomCode).emit(SocketEvent.StateMonsters, monsterOutcome.monsters);
         if (monsterOutcome.spawnedDrops.length > 0) {
           io.to(roomCode).emit(SocketEvent.LootSpawned, monsterOutcome.spawnedDrops);
@@ -941,6 +944,9 @@ function attachRoomHandlers(socket: GameSocket): void {
       if (monsterOutcome) {
         for (const event of monsterOutcome.combatEvents) {
           io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
+        }
+        for (const kill of monsterOutcome.monsterKills) {
+          io.to(roomCode).emit(SocketEvent.MonsterKilled, kill);
         }
         io.to(roomCode).emit(SocketEvent.StateMonsters, monsterOutcome.monsters);
         if (monsterOutcome.spawnedDrops.length > 0) {

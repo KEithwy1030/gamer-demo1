@@ -26,6 +26,7 @@ export const SocketEvent = {
   CombatResult: "combat:result",
   InventoryUpdate: "inventory:update",
   LootSpawned: "loot:spawned",
+  MonsterKilled: "monster:killed",
   LootPicked: "loot:picked",
   PlayerDied: "player:died",
   ExtractOpened: "extract:opened",

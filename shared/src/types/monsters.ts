@@ -37,6 +37,13 @@ export interface MonsterState {
   telegraph?: MonsterTelegraphState;
 }
 
+export interface MonsterKilledPayload {
+  monsterId: string;
+  tier: MonsterType;
+  killerPlayerId: string;
+  killedAt: number;
+}
+
 export interface MonsterSpawnDefinition {
   id: string;
   type: MonsterType;

@@ -138,6 +138,7 @@ function assertBossDrops(): void {
 
   assert.ok(killOutcome?.combat, "killing boss should return combat outcome");
   assert.equal(killOutcome?.combat?.targetAlive, false, "boss kill should be authoritative");
+  assert.equal(killOutcome?.monsterKills[0]?.tier, "boss", "monster death payload should preserve boss tier");
   assert.ok((killOutcome?.spawnedDrops.length ?? 0) >= 3, "boss should drop multiple rewards");
   assert.ok(killOutcome?.spawnedDrops.some((drop) => drop.item.treasureValue >= 100 || drop.item.rarity === "epic"), "boss loot should include a high-value reward");
   assert.equal(room.drops?.size, killOutcome?.spawnedDrops.length, "boss drops should enter shared world-drop state");

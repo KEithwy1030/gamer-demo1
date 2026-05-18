@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type {
   AttackRequestPayload,
   CombatEventPayload,
+  MonsterKilledPayload,
   MonsterSpawnDefinition,
   MonsterState,
   MonsterType,
@@ -125,6 +126,7 @@ export interface PlayerAttackOutcome {
   drops: DropState[];
   combat?: CombatEventPayload;
   spawnedDrops: DropState[];
+  monsterKills: MonsterKilledPayload[];
 }
 
 export interface MonsterTickResult {
@@ -139,6 +141,7 @@ export interface PlayerSkillOutcome {
   drops: DropState[];
   combatEvents: CombatEventPayload[];
   spawnedDrops: DropState[];
+  monsterKills: MonsterKilledPayload[];
 }
 
 export function ensureMonsterState(room: RuntimeRoom): Map<string, RuntimeMonster> {
@@ -326,7 +329,8 @@ export function handlePlayerAttack(
     return {
       monsters: listMonsterStates(room),
       drops: listWorldDrops(room),
-      spawnedDrops: []
+      spawnedDrops: [],
+      monsterKills: []
     };
   }
 
@@ -361,19 +365,22 @@ export function handlePlayerAttack(
   };
 
   let spawnedDrops: DropState[] = [];
+  const monsterKills: MonsterKilledPayload[] = [];
   if (monsterDied) {
     const nextKills = typeof player.state.killsMonsters === "number"
       ? player.state.killsMonsters + 1
       : 1;
     (player.state as unknown as Record<string, unknown>).killsMonsters = nextKills;
     spawnedDrops = createDropsForMonster(room, targetMonster);
+    monsterKills.push(createMonsterKilledPayload(targetMonster, player.id, now));
   }
 
   return {
     monsters: listMonsterStates(room),
     drops: listWorldDrops(room),
     combat,
-    spawnedDrops
+    spawnedDrops,
+    monsterKills
   };
 }
 
@@ -831,6 +838,7 @@ function applySkillDamageToMonsters(
 ): PlayerSkillOutcome {
   const combatEvents: CombatEventPayload[] = [];
   const spawnedDrops: DropState[] = [];
+  const monsterKills: MonsterKilledPayload[] = [];
 
   for (const monster of targets) {
     monster.targetPlayerId = player.id;
@@ -849,6 +857,7 @@ function applySkillDamageToMonsters(
         : 1;
       (player.state! as unknown as Record<string, unknown>).killsMonsters = nextKills;
       spawnedDrops.push(...createDropsForMonster(room, monster));
+      monsterKills.push(createMonsterKilledPayload(monster, player.id, now));
     }
 
     updateBossEnrage(monster);
@@ -866,7 +875,17 @@ function applySkillDamageToMonsters(
     monsters: listMonsterStates(room),
     drops: listWorldDrops(room),
     combatEvents,
-    spawnedDrops
+    spawnedDrops,
+    monsterKills
+  };
+}
+
+function createMonsterKilledPayload(monster: RuntimeMonster, killerPlayerId: string, killedAt: number): MonsterKilledPayload {
+  return {
+    monsterId: monster.id,
+    tier: monster.type,
+    killerPlayerId,
+    killedAt
   };
 }
 
