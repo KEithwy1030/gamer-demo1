@@ -1,5 +1,7 @@
 import type {
   BotDifficulty,
+  ChestKind as SharedChestKind,
+  ChestQualityTier,
   CombatEventPayload,
   ExtractCarrierState,
   ExtractSquadStatus,
@@ -90,18 +92,24 @@ export interface Chest {
   id: string;
   x: number;
   y: number;
+  kind: SharedChestKind;
+  lane: "abandoned";
+  qualityTier: ChestQualityTier;
+  state: "idle" | "rummaging" | "empty" | "interrupted";
   isOpen: boolean;
-  lane: "starter" | "contested";
-  noiseRadius?: number;
+  noiseRadius: number;
+  rummagerId?: string;
+  totalItems: number;
+  itemsDispensed: number;
+  rummageIntervalMs: number;
   loot: InventoryItem[];
 }
 
 export interface RuntimeChestOpeningState {
   chestId: string;
   startedAt: number;
-  completesAt: number;
-  startX: number;
-  startY: number;
+  nextDispenseAt: number;
+  lastPulseAt?: number;
 }
 
 export interface PlayerOpenChestPayload {
@@ -112,8 +120,16 @@ export interface ChestOpenedPayload {
   chestId: string;
   playerId: string;
   lane: Chest["lane"];
-  noiseRadius?: number;
+  kind: Chest["kind"];
+  qualityTier: Chest["qualityTier"];
+  state: Chest["state"];
+  noiseRadius: number;
+  rummagerId?: string;
+  totalItems: number;
+  itemsDispensed: number;
+  rummageIntervalMs: number;
   aggroedMonsterIds?: string[];
+  dispensedItem?: InventoryItem;
   loot: InventoryItem[];
 }
 
@@ -121,10 +137,19 @@ export interface ChestProgressPayload {
   chestId: string;
   playerId: string;
   lane?: Chest["lane"];
+  kind?: Chest["kind"];
+  qualityTier?: Chest["qualityTier"];
   noiseRadius?: number;
-  status: "started" | "progress" | "interrupted";
+  rummagerId?: string;
+  totalItems: number;
+  itemsDispensed: number;
+  rummageIntervalMs: number;
+  state: Chest["state"];
+  status: "started" | "progress" | "dispensed" | "interrupted" | "completed";
   remainingMs: number;
   durationMs: number;
+  aggroedMonsterIds?: string[];
+  dispensedItem?: InventoryItem;
 }
 
 export interface PlayerPickupPayload {

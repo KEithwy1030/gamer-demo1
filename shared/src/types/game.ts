@@ -29,11 +29,17 @@ export interface MatchLayoutExtractZone {
   channelDurationMs: number;
 }
 
+export type ChestKind = "abandoned_crate";
+export type ChestQualityTier = "normal" | "rich";
+export type ChestLane = "abandoned" | "starter" | "contested";
+
 export interface MatchLayoutChestZone {
   chestId: string;
   x: number;
   y: number;
-  lane: "starter" | "contested";
+  kind?: ChestKind;
+  lane: ChestLane;
+  qualityTier?: ChestQualityTier;
   squadId?: SquadId;
 }
 

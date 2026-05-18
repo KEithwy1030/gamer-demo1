@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { buildInventoryItem, ensureDropState } from "../loot/loot-manager.js";
 import type { Chest, ChestOpenedPayload, ChestProgressPayload, DropState, InventoryItem, RuntimeRoom } from "../types.js";
+import type { ChestQualityTier } from "@gamer/shared";
 
 const STARTER_LOOT_TEMPLATES = [
   "hunter_cowl",
@@ -78,19 +79,35 @@ function generateContestedChestLoot(): InventoryItem[] {
   return loot;
 }
 
+function resolveChestQualityTier(chest: { qualityTier?: ChestQualityTier; lane?: string }): ChestQualityTier {
+  if (chest.qualityTier === "rich") {
+    return "rich";
+  }
+
+  return chest.lane === "contested" ? "rich" : "normal";
+}
+
 export function spawnChests(room: RuntimeRoom): void {
   room.chests = new Map<string, Chest>();
 
   const zones = room.matchLayout?.chestZones ?? [];
   for (const zone of zones) {
+    const qualityTier = resolveChestQualityTier(zone);
+    const loot = qualityTier === "rich" ? generateContestedChestLoot() : generateStarterChestLoot();
     const chest: Chest = {
       id: zone.chestId || `chest_${crypto.randomUUID()}`,
       x: zone.x,
       y: zone.y,
+      kind: "abandoned_crate",
+      lane: "abandoned",
+      qualityTier,
+      state: "idle",
       isOpen: false,
-      lane: zone.lane,
-      noiseRadius: zone.lane === "contested" ? CHEST_NOISE_RADIUS : undefined,
-      loot: zone.lane === "contested" ? generateContestedChestLoot() : generateStarterChestLoot()
+      noiseRadius: qualityTier === "rich" ? CHEST_NOISE_RADIUS : 0,
+      totalItems: loot.length,
+      itemsDispensed: 0,
+      rummageIntervalMs: CHEST_OPEN_DURATION_MS,
+      loot
     };
     room.chests.set(chest.id, chest);
   }
@@ -139,6 +156,9 @@ export function openChest(
   }
 
   chest.isOpen = true;
+  chest.state = "empty";
+  chest.rummagerId = undefined;
+  chest.itemsDispensed = chest.totalItems;
   const loot = chest.loot.map((item) => ({
     ...item,
     modifiers: item.modifiers ? { ...item.modifiers } : undefined,
@@ -187,10 +207,10 @@ export function startChestOpening(
   player.openingChest = {
     chestId,
     startedAt: now,
-    completesAt: now + CHEST_OPEN_DURATION_MS,
-    startX: player.state.x,
-    startY: player.state.y
+    nextDispenseAt: now + CHEST_OPEN_DURATION_MS
   };
+  chest.state = "rummaging";
+  chest.rummagerId = playerId;
 
   const aggroedMonsterIds = alertMonstersToChestNoise(room, playerId, chest);
   recordContestedChestNoise(room, playerId, chest, aggroedMonsterIds);
@@ -208,11 +228,22 @@ export function interruptChestOpening(
   const opening = player.openingChest;
   const chest = room.chests?.get(opening.chestId);
   player.openingChest = undefined;
+  if (chest && !chest.isOpen) {
+    chest.state = "idle";
+    chest.rummagerId = undefined;
+  }
   return {
     chestId: opening.chestId,
     playerId,
     lane: chest?.lane,
     noiseRadius: chest?.noiseRadius,
+    kind: chest?.kind,
+    qualityTier: chest?.qualityTier,
+    rummagerId: chest?.rummagerId,
+    totalItems: chest?.totalItems ?? 0,
+    itemsDispensed: chest?.itemsDispensed ?? 0,
+    rummageIntervalMs: chest?.rummageIntervalMs ?? CHEST_OPEN_DURATION_MS,
+    state: chest?.state ?? "idle",
     status: "interrupted",
     remainingMs: 0,
     durationMs: CHEST_OPEN_DURATION_MS
@@ -237,12 +268,23 @@ export function tickChestOpenings(
     const state = player.state;
     if (!chest || chest.isOpen || !state?.isAlive) {
       player.openingChest = undefined;
+      if (chest && !chest.isOpen) {
+        chest.state = "idle";
+        chest.rummagerId = undefined;
+      }
       interruptedPlayerIds.push(player.id);
       progressEvents.push({
         chestId: opening.chestId,
         playerId: player.id,
         lane: chest?.lane,
         noiseRadius: chest?.noiseRadius,
+        kind: chest?.kind,
+        qualityTier: chest?.qualityTier,
+        rummagerId: chest?.rummagerId,
+        totalItems: chest?.totalItems ?? 0,
+        itemsDispensed: chest?.itemsDispensed ?? 0,
+        rummageIntervalMs: chest?.rummageIntervalMs ?? CHEST_OPEN_DURATION_MS,
+        state: chest?.state ?? "idle",
         status: "interrupted",
         remainingMs: 0,
         durationMs: CHEST_OPEN_DURATION_MS
@@ -250,16 +292,24 @@ export function tickChestOpenings(
       continue;
     }
 
-    const moved = Math.hypot(state.x - opening.startX, state.y - opening.startY);
     const chestDistance = Math.hypot(state.x - chest.x, state.y - chest.y);
-    if (moved > CHEST_OPEN_MOVE_TOLERANCE || chestDistance > CHEST_INTERACT_RANGE) {
+    if (chestDistance > CHEST_INTERACT_RANGE + CHEST_OPEN_MOVE_TOLERANCE) {
       player.openingChest = undefined;
+      chest.state = "idle";
+      chest.rummagerId = undefined;
       interruptedPlayerIds.push(player.id);
       progressEvents.push({
         chestId: opening.chestId,
         playerId: player.id,
         lane: chest.lane,
         noiseRadius: chest.noiseRadius,
+        kind: chest.kind,
+        qualityTier: chest.qualityTier,
+        rummagerId: chest.rummagerId,
+        totalItems: chest.totalItems,
+        itemsDispensed: chest.itemsDispensed,
+        rummageIntervalMs: chest.rummageIntervalMs,
+        state: chest.state,
         status: "interrupted",
         remainingMs: 0,
         durationMs: CHEST_OPEN_DURATION_MS
@@ -267,14 +317,21 @@ export function tickChestOpenings(
       continue;
     }
 
-    if (now < opening.completesAt) {
+    if (now < opening.nextDispenseAt) {
       progressEvents.push({
         chestId: opening.chestId,
         playerId: player.id,
         lane: chest.lane,
         noiseRadius: chest.noiseRadius,
+        kind: chest.kind,
+        qualityTier: chest.qualityTier,
+        rummagerId: chest.rummagerId,
+        totalItems: chest.totalItems,
+        itemsDispensed: chest.itemsDispensed,
+        rummageIntervalMs: chest.rummageIntervalMs,
+        state: chest.state,
         status: now - opening.startedAt < 100 ? "started" : "progress",
-        remainingMs: opening.completesAt - now,
+        remainingMs: opening.nextDispenseAt - now,
         durationMs: CHEST_OPEN_DURATION_MS
       });
       continue;
@@ -287,6 +344,13 @@ export function tickChestOpenings(
       playerId: player.id,
       lane: openedChest.lane,
       noiseRadius: openedChest.noiseRadius,
+      kind: openedChest.kind,
+      qualityTier: openedChest.qualityTier,
+      state: openedChest.state,
+      rummagerId: openedChest.rummagerId,
+      totalItems: openedChest.totalItems,
+      itemsDispensed: openedChest.itemsDispensed,
+      rummageIntervalMs: openedChest.rummageIntervalMs,
       aggroedMonsterIds,
       loot
     });
@@ -323,7 +387,7 @@ function spawnChestDrops(room: RuntimeRoom, chest: Chest, loot: InventoryItem[])
 }
 
 function alertMonstersToChestNoise(room: RuntimeRoom, playerId: string, chest: Chest): string[] {
-  if (chest.lane !== "contested") {
+  if (chest.qualityTier !== "rich") {
     return [];
   }
 
@@ -349,7 +413,7 @@ function alertMonstersToChestNoise(room: RuntimeRoom, playerId: string, chest: C
 }
 
 function recordContestedChestNoise(room: RuntimeRoom, playerId: string, chest: Chest, aggroedMonsterIds: string[]): void {
-  if (chest.lane !== "contested") {
+  if (chest.qualityTier !== "rich") {
     return;
   }
 

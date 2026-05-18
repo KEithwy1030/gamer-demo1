@@ -124,7 +124,8 @@ function applyInventoryPreset(room: RuntimeRoom, player: RuntimePlayer): void {
 }
 
 function applyContestedPreset(room: RuntimeRoom, player: RuntimePlayer): void {
-  const chest = [...(room.chests?.values() ?? [])].find((entry) => entry.lane === "contested");
+  const chest = [...(room.chests?.values() ?? [])].find((entry) => entry.qualityTier === "rich")
+    ?? [...(room.chests?.values() ?? [])][0];
   if (!chest || !player.state) {
     return;
   }
