@@ -390,9 +390,11 @@ export interface RuntimeMonster extends MonsterState {
   chargeCooldownMs?: number;
   nextSmashAt?: number;
   nextChargeAt?: number;
+  nextChargedStrikeAt?: number;
   windupTargetId?: string;
   chargeTargetX?: number;
   chargeTargetY?: number;
+  facingDirection?: Vector2;
   recoverHpPerSecond?: number;
   lastAggroAt?: number;
   returningUntil?: number;

@@ -4,7 +4,7 @@ export type MonsterType = "normal" | "elite" | "boss";
 export type EliteMonsterRole = "sentinel" | "hunter" | "bruiser";
 
 export type MonsterBehaviorPhase = "idle" | "hunt" | "windup" | "charge" | "recover";
-export type MonsterSkillState = "smash" | "charge";
+export type MonsterSkillState = "smash" | "charge" | "chargedStrike";
 
 export interface MonsterTelegraphState {
   aimDirection?: Vector2;
@@ -29,6 +29,7 @@ export interface MonsterState {
   phaseEndsAt?: number;
   skillState?: MonsterSkillState;
   skillEndsAt?: number;
+  windingUpAttackUntil?: number;
   isEnraged?: boolean;
   lastAttackAt?: number;
   lastDamagedAt?: number;

@@ -47,7 +47,7 @@ import {
   scaleOutgoingDamage,
   syncPlayerCombatState
 } from "../combat/player-effects.js";
-import { isPointInsideRiverHazard } from "../match-layout.js";
+import { doesSegmentIntersectObstacle, isPointInsideRiverHazard } from "../match-layout.js";
 import type { DropState, RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../types.js";
 
 interface CombatPlayerState {
@@ -108,6 +108,13 @@ const ELITE_ATTACK_WINDUP_MS = 420;
 const MONSTER_ATTACK_RECOVER_MS = 220;
 const ELITE_HEAVY_STRIKE_SLOW_MULTIPLIER = 0.25;
 const ELITE_HEAVY_STRIKE_SLOW_DURATION_MS = 1400;
+const ELITE_CHARGED_STRIKE_WINDUP_MS = 1200;
+const ELITE_CHARGED_STRIKE_DAMAGE = 35;
+const ELITE_CHARGED_STRIKE_RADIUS = 90;
+const ELITE_CHARGED_STRIKE_ARC_DEG = 90;
+const ELITE_CHARGED_STRIKE_TRIGGER_RANGE = 90;
+const ELITE_CHARGED_STRIKE_ABORT_RANGE = 130;
+const ELITE_CHARGED_STRIKE_COOLDOWN_MS = 8000;
 const OPENING_PASSIVE_AGGRO_GRACE_MS = 25_000;
 
 export interface PlayerAttackOutcome {
@@ -171,6 +178,7 @@ export function listMonsterStates(room: RuntimeRoom): MonsterState[] {
     phaseEndsAt: monster.phaseEndsAt,
     skillState: monster.skillState,
     skillEndsAt: monster.skillEndsAt,
+    windingUpAttackUntil: monster.windingUpAttackUntil,
     isEnraged: monster.isEnraged,
     lastAttackAt: monster.lastAttackAt,
     lastDamagedAt: monster.lastDamagedAt,
@@ -247,13 +255,13 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
       continue;
     }
 
-    if (!target?.state || !target.state.isAlive) {
-      tickMonsterReturn(monster, now);
+    if (resolveNonBossAttackPhase(monster, room, now, combatEvents)) {
+      playerStateChanged = true;
       continue;
     }
 
-    if (resolveNonBossAttackPhase(monster, room, now, combatEvents)) {
-      playerStateChanged = true;
+    if (!target?.state || !target.state.isAlive) {
+      tickMonsterReturn(monster, now);
       continue;
     }
 
@@ -264,6 +272,11 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
 
     syncPlayerCombatState(target, now);
     const distance = distanceBetween(monster.x, monster.y, target.state.x, target.state.y);
+    if (shouldStartEliteChargedStrike(room, monster, target, distance, now)) {
+      startEliteChargedStrike(monster, target, now);
+      continue;
+    }
+
     if (distance > monster.attackRange + MONSTER_CONTACT_RADIUS + PLAYER_HIT_RADIUS) {
       moveMonsterTowards(monster, target.state);
       continue;
@@ -459,6 +472,7 @@ function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
     phaseEndsAt: undefined,
     skillState: undefined,
     skillEndsAt: undefined,
+    windingUpAttackUntil: undefined,
     recoverUntil: undefined,
     isEnraged: false,
     enrageThreshold: stats.enrageThreshold,
@@ -469,9 +483,11 @@ function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
     chargeCooldownMs: stats.chargeCooldownMs,
     nextSmashAt: 0,
     nextChargeAt: 0,
+    nextChargedStrikeAt: 0,
     windupTargetId: undefined,
     chargeTargetX: undefined,
     chargeTargetY: undefined,
+    facingDirection: { x: 0, y: 1 },
     recoverHpPerSecond: stats.recoverHpPerSecond,
     lastAggroAt: undefined,
     returningUntil: undefined,
@@ -638,6 +654,7 @@ function moveMonsterTowards(monster: RuntimeMonster, target: CombatPlayerState, 
     return;
   }
 
+  monster.facingDirection = normalizeDirection({ x: target.x - monster.x, y: target.y - monster.y });
   const step = ((speedOverride ?? monster.moveSpeed) * MONSTER_TICK_MS) / 1000;
   monster.x = clamp(monster.x + ((target.x - monster.x) / distance) * step, 48, MATCH_MAP_WIDTH - 48);
   monster.y = clamp(monster.y + ((target.y - monster.y) / distance) * step, 48, MATCH_MAP_HEIGHT - 48);
@@ -862,8 +879,10 @@ function markMonsterDead(room: RuntimeRoom, monster: RuntimeMonster, deadAt: num
   monster.phaseEndsAt = undefined;
   monster.skillState = undefined;
   monster.skillEndsAt = undefined;
+  monster.windingUpAttackUntil = undefined;
   monster.recoverUntil = undefined;
   monster.pendingAttackTargetId = undefined;
+  monster.facingDirection = monster.facingDirection ?? { x: 0, y: 1 };
 
   room.pendingMonsterRespawns ??= [];
   if (!room.pendingMonsterRespawns.some((entry) => entry.spawnId === monster.spawnId)) {
@@ -1410,7 +1429,13 @@ function finishBossSkill(monster: RuntimeMonster, skill: RuntimeMonster["skillSt
   }
 }
 
-function applyMonsterDamage(monster: RuntimeMonster, target: RuntimePlayer, baseDamage: number, now: number): CombatEventPayload {
+function applyMonsterDamage(
+  monster: RuntimeMonster,
+  target: RuntimePlayer,
+  baseDamage: number,
+  now: number,
+  options?: { applyEliteSlow?: boolean }
+): CombatEventPayload {
   monster.lastAttackAt = now;
   syncPlayerCombatState(target, now);
   if (target.state!.dodgeRate > 0 && Math.random() < target.state!.dodgeRate) {
@@ -1430,7 +1455,9 @@ function applyMonsterDamage(monster: RuntimeMonster, target: RuntimePlayer, base
     target.state!.direction = { x: 0, y: 1 };
   }
 
-  const statusApplied = applyEliteHeavyStrike(monster, target, now);
+  const statusApplied = options?.applyEliteSlow === false
+    ? undefined
+    : applyEliteHeavyStrike(monster, target, now);
 
   return {
     attackerId: monster.id,
@@ -1486,6 +1513,10 @@ function resolveNonBossAttackPhase(
     monster.phaseEndsAt = undefined;
   }
 
+  if (monster.skillState === "chargedStrike") {
+    return resolveEliteChargedStrikePhase(monster, room, now, combatEvents);
+  }
+
   if (monster.behaviorPhase !== "windup") {
     return false;
   }
@@ -1511,6 +1542,113 @@ function resolveNonBossAttackPhase(
 
   combatEvents.push(applyMonsterDamage(monster, target, monster.attackDamage, now));
   return true;
+}
+
+function shouldStartEliteChargedStrike(
+  room: RuntimeRoom,
+  monster: RuntimeMonster,
+  target: RuntimePlayer,
+  distance: number,
+  now: number
+): boolean {
+  return monster.type === "elite"
+    && monster.skillState !== "chargedStrike"
+    && monster.behaviorPhase !== "windup"
+    && distance <= ELITE_CHARGED_STRIKE_TRIGGER_RANGE
+    && (monster.nextChargedStrikeAt ?? 0) <= now
+    && hasLineOfSight(room.matchLayout, monster, target, 8);
+}
+
+function startEliteChargedStrike(monster: RuntimeMonster, target: RuntimePlayer, now: number): void {
+  monster.skillState = "chargedStrike";
+  monster.behaviorPhase = "windup";
+  monster.phaseEndsAt = now + ELITE_CHARGED_STRIKE_WINDUP_MS;
+  monster.skillEndsAt = monster.phaseEndsAt;
+  monster.windingUpAttackUntil = monster.phaseEndsAt;
+  monster.windupTargetId = target.id;
+  monster.facingDirection = normalizeDirection({ x: target.state!.x - monster.x, y: target.state!.y - monster.y });
+}
+
+function resolveEliteChargedStrikePhase(
+  monster: RuntimeMonster,
+  room: RuntimeRoom,
+  now: number,
+  combatEvents: CombatEventPayload[]
+): boolean {
+  const target = monster.windupTargetId ? room.players.get(monster.windupTargetId) : undefined;
+  if (!target?.state?.isAlive) {
+    abortEliteChargedStrike(monster, now);
+    return true;
+  }
+
+  const targetDistance = distanceBetween(monster.x, monster.y, target.state.x, target.state.y);
+  if (targetDistance > ELITE_CHARGED_STRIKE_ABORT_RANGE || !hasLineOfSight(room.matchLayout, monster, target, 8)) {
+    abortEliteChargedStrike(monster, now);
+    return true;
+  }
+
+  if ((monster.windingUpAttackUntil ?? 0) > now) {
+    monster.behaviorPhase = "windup";
+    monster.phaseEndsAt = monster.windingUpAttackUntil;
+    return true;
+  }
+
+  const facing = getFacingOrFallback(monster.facingDirection ?? { x: target.state.x - monster.x, y: target.state.y - monster.y });
+  for (const player of room.players.values()) {
+    if (!player.state?.isAlive) {
+      continue;
+    }
+
+    const dx = player.state.x - monster.x;
+    const dy = player.state.y - monster.y;
+    const playerDistance = Math.hypot(dx, dy);
+    if (playerDistance > ELITE_CHARGED_STRIKE_RADIUS + PLAYER_HIT_RADIUS) {
+      continue;
+    }
+
+    const angleDeg = getAngleBetween(facing, normalizeDirection({ x: dx, y: dy }));
+    if (angleDeg > ELITE_CHARGED_STRIKE_ARC_DEG / 2) {
+      continue;
+    }
+
+    combatEvents.push(applyMonsterDamage(monster, player, ELITE_CHARGED_STRIKE_DAMAGE, now, { applyEliteSlow: false }));
+  }
+
+  finishEliteChargedStrike(monster, now);
+  return true;
+}
+
+function abortEliteChargedStrike(monster: RuntimeMonster, now: number): void {
+  finishEliteChargedStrike(monster, now);
+}
+
+function finishEliteChargedStrike(monster: RuntimeMonster, now: number): void {
+  monster.skillState = undefined;
+  monster.skillEndsAt = undefined;
+  monster.windingUpAttackUntil = undefined;
+  monster.windupTargetId = undefined;
+  monster.pendingAttackTargetId = undefined;
+  monster.nextChargedStrikeAt = now + ELITE_CHARGED_STRIKE_COOLDOWN_MS;
+  monster.behaviorPhase = "recover";
+  monster.phaseEndsAt = now + MONSTER_ATTACK_RECOVER_MS;
+}
+
+function hasLineOfSight(
+  layout: RuntimeRoom["matchLayout"] | undefined,
+  monster: RuntimeMonster,
+  target: RuntimePlayer,
+  padding = 0
+): boolean {
+  if (!target.state || !layout) {
+    return true;
+  }
+
+  return !doesSegmentIntersectObstacle(
+    layout,
+    { x: monster.x, y: monster.y },
+    { x: target.state.x, y: target.state.y },
+    padding
+  );
 }
 
 function getMonsterDisplayName(monster: RuntimeMonster): string | undefined {

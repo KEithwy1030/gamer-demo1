@@ -262,6 +262,10 @@ export function doesSegmentRequireSafeCrossing(layout: MatchLayout, from: Vector
   return layout.riverHazards.some((hazard) => segmentIntersectsExpandedRect(from, to, hazard, HAZARD_POINT_PADDING));
 }
 
+export function doesSegmentIntersectObstacle(layout: MatchLayout, from: Vector2, to: Vector2, padding = 0): boolean {
+  return (layout.obstacleZones ?? []).some((obstacle) => segmentIntersectsExpandedRect(from, to, obstacle, padding));
+}
+
 function buildObstacleZones(
   extractZones: MatchLayoutExtractZone[],
   riverHazards: MatchLayoutRiverHazard[],

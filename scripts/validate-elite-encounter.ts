@@ -9,6 +9,8 @@ const now = Date.now();
 validateEliteHeavyStrikeAppliesSlow();
 validateNormalAttackDoesNotApplySlow();
 validateBossAttackDoesNotApplySlow();
+validateEliteChargedStrikeWindupAndArc();
+validateEliteChargedStrikeAbort();
 
 console.log("validate-elite-encounter: ok");
 
@@ -33,6 +35,94 @@ function validateBossAttackDoesNotApplySlow(): void {
   assert.equal(player.state?.statusEffects.some((effect) => effect.type === "slow"), false, "boss attack should remain unchanged and not add slow");
 }
 
+function validateEliteChargedStrikeWindupAndArc(): void {
+  const room = createRoom();
+  ensureDropState(room);
+  spawnInitialMonsters(room);
+  const elite = [...(room.monsters?.values() ?? [])].find((entry) => entry.type === "elite");
+  assert.ok(elite, "elite monster should spawn");
+
+  const primary = createPlayer("elite-primary", {
+    x: elite.x + 60,
+    y: elite.y,
+    direction: { x: -1, y: 0 },
+    squadId: "player"
+  });
+  const frontAlly = createPlayer("elite-front-ally", {
+    x: elite.x + 72,
+    y: elite.y + 10,
+    direction: { x: -1, y: 0 },
+    squadId: "bot_alpha"
+  });
+  const flank = createPlayer("elite-flank", {
+    x: elite.x - 70,
+    y: elite.y,
+    direction: { x: 1, y: 0 },
+    squadId: "bot_beta"
+  });
+  room.players.set(primary.id, primary);
+  room.players.set(frontAlly.id, frontAlly);
+  room.players.set(flank.id, flank);
+
+  const context = createContext(room, primary.id);
+  const windup = tickMonsters(context);
+  const windupSnapshot = windup.monsters.find((monster) => monster.id === elite.id);
+  assert.equal(windup.combatEvents.length, 0, "elite charged strike should not hit during windup");
+  assert.equal(windupSnapshot?.skillState, "chargedStrike", "elite should enter charged strike windup in close range");
+  assert.ok((windupSnapshot?.windingUpAttackUntil ?? 0) > Date.now(), "elite charged strike should broadcast windup end time");
+
+  elite.windingUpAttackUntil = Date.now() - 1;
+  elite.phaseEndsAt = elite.windingUpAttackUntil;
+  elite.skillEndsAt = elite.windingUpAttackUntil;
+  const strike = tickMonsters(context);
+  const hitTargets = strike.combatEvents.map((event) => event.targetId).sort();
+  assert.deepEqual(hitTargets, [frontAlly.id, primary.id].sort(), "elite charged strike should damage every player in the forward arc only");
+  for (const event of strike.combatEvents) {
+    assert.equal(event.amount, 35, "elite charged strike should deal fixed heavy damage");
+    assert.equal(event.statusApplied, undefined, "elite charged strike should not piggyback the basic slow effect");
+  }
+  assert.equal(flank.state?.hp, 100, "players outside the forward arc should not be hit by charged strike");
+}
+
+function validateEliteChargedStrikeAbort(): void {
+  const room = createRoom();
+  room.matchLayout.obstacleZones = [
+    { obstacleId: "los_wall", x: 2220, y: 2040, width: 60, height: 180, kind: "wall" }
+  ];
+  ensureDropState(room);
+  spawnInitialMonsters(room);
+  const elite = [...(room.monsters?.values() ?? [])].find((entry) => entry.type === "elite");
+  assert.ok(elite, "elite monster should spawn");
+
+  elite.x = 2100;
+  elite.y = 2100;
+  elite.patrolX = 2100;
+  elite.patrolY = 2100;
+
+  const player = createPlayer("elite-abort-target", {
+    x: 2180,
+    y: 2100,
+    direction: { x: -1, y: 0 },
+    squadId: "player"
+  });
+  room.players.set(player.id, player);
+
+  const context = createContext(room, player.id);
+  const windup = tickMonsters(context);
+  const windupSnapshot = windup.monsters.find((monster) => monster.id === elite.id);
+  assert.equal(windupSnapshot?.skillState, "chargedStrike", "elite should start charged strike before LOS breaks");
+
+  room.matchLayout.obstacleZones = [
+    { obstacleId: "los_wall", x: 2130, y: 2040, width: 40, height: 180, kind: "wall" }
+  ];
+  const aborted = tickMonsters(context);
+  const abortedSnapshot = aborted.monsters.find((monster) => monster.id === elite.id);
+  assert.equal(aborted.combatEvents.length, 0, "elite charged strike should abort cleanly when LOS breaks");
+  assert.equal(abortedSnapshot?.windingUpAttackUntil, undefined, "aborted charged strike should clear the broadcast windup timestamp");
+  assert.equal(abortedSnapshot?.skillState, undefined, "aborted charged strike should leave windup state");
+  assert.ok((elite.nextChargedStrikeAt ?? 0) > Date.now(), "aborted charged strike should still trigger its cooldown");
+}
+
 function runAttackScenario(type: "normal" | "elite"): { monster: RuntimeMonster; player: RuntimePlayer; event: CombatEventPayload } {
   const room = createRoom();
   ensureDropState(room);
@@ -50,6 +140,9 @@ function runAttackScenario(type: "normal" | "elite"): { monster: RuntimeMonster;
 
   const context = createContext(room, player.id);
   monster.nextAttackAt = 0;
+  if (type === "elite") {
+    monster.nextChargedStrikeAt = Date.now() + 60_000;
+  }
   return {
     monster,
     player,
@@ -140,7 +233,9 @@ function createRoom(): RuntimeRoom {
       ],
       safeZones: [],
       riverHazards: [],
-      safeCrossings: []
+      safeCrossings: [],
+      obstacleZones: [],
+      landmarks: []
     }
   };
 }
