@@ -7,64 +7,89 @@ import type { StatusEffectType } from "@gamer/shared";
 import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
 import { getPrimarySkillWindupMs } from "./skillHelpers";
 
-type MarkerMap = Map<string, PlayerMarker> | Map<string, MonsterMarker>;
+interface DamageStyle {
+  readonly fontSize: number;
+  readonly strokeThickness: number;
+  readonly rise: number;
+  readonly duration: number;
+  readonly color: string;
+  readonly glowColor: number;
+  readonly startScale: number;
+  readonly peakScale: number;
+  readonly xJitter: number;
+  readonly yOffset: number;
+}
 
-export const DAMAGE_NUMBER_STYLE = {
-  normal: {
-    fontSize: 48, // Slightly smaller base to allow for more aggressive scaling
-    strokeThickness: 10,
-    rise: 140,
-    duration: 1200,
-    color: "#ff9a6a",
-    glowColor: 0xffc38e,
-    startScale: 0.2, // Start from very small for "pop" effect
-    peakScale: 1.2,
-    xJitter: 32,
-    yOffset: -100
-  },
-  critical: {
-    fontSize: 64,
-    strokeThickness: 14,
-    rise: 180,
-    duration: 1600,
-    color: "#ffe89a",
-    glowColor: 0xffd66a,
-    startScale: 0.1,
-    peakScale: 1.8, // Massive pop for crits
-    xJitter: 48,
-    yOffset: -120
-  },
-  bleed: {
-    fontSize: 32,
-    strokeThickness: 6,
-    rise: 60,
-    duration: 800,
-    color: "#d64a4a",
-    glowColor: 0x861d1d,
+export const DAMAGE_NUMBER_STYLE: Record<string, DamageStyle> = {
+  playerHit: {
+    fontSize: 22,
+    strokeThickness: 4,
+    rise: 40,
+    duration: 700,
+    color: "#fbbf24", // Yellow
+    glowColor: 0x78350f,
     startScale: 0.5,
-    peakScale: 1.1,
+    peakScale: 1.2,
     xJitter: 12,
+    yOffset: -60
+  },
+  playerCrit: {
+    fontSize: 28,
+    strokeThickness: 5,
+    rise: 50,
+    duration: 900,
+    color: "#fb923c", // Orange
+    glowColor: 0x7c2d12,
+    startScale: 0.4,
+    peakScale: 1.6,
+    xJitter: 16,
     yOffset: -70
   },
-  environment: {
-    fontSize: 42,
-    strokeThickness: 8,
-    rise: 90,
-    duration: 1100,
-    color: "#d6ef97",
-    glowColor: 0x708640,
-    startScale: 0.4,
-    peakScale: 1.2,
-    xJitter: 20,
-    yOffset: -90
+  playerHurt: {
+    fontSize: 24,
+    strokeThickness: 5,
+    rise: 40,
+    duration: 800,
+    color: "#ef4444", // Red
+    glowColor: 0x450a0a,
+    startScale: 0.6,
+    peakScale: 1.3,
+    xJitter: 14,
+    yOffset: -60
+  },
+  other: {
+    fontSize: 20,
+    strokeThickness: 3,
+    rise: 35,
+    duration: 700,
+    color: "#e2e8f0", // Silver
+    glowColor: 0x1e293b,
+    startScale: 0.5,
+    peakScale: 1.1,
+    xJitter: 10,
+    yOffset: -55
   }
 } as const;
 
 export class GameSceneFeedbackFx {
   private readonly scene: Phaser.Scene;
+  private sparkEmitter?: Phaser.GameObjects.Particles.ParticleEmitter;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
+    this.setupEmitters();
+  }
+
+  private setupEmitters(): void {
+    // Shared spark emitter
+    this.sparkEmitter = this.scene.add.particles(0, 0, "drop", {
+      lifespan: 180,
+      speed: { min: 80, max: 220 },
+      scale: { start: 0.4, end: 0 },
+      blendMode: "ADD",
+      emitting: false
+    });
+    this.sparkEmitter.setDepth(4000);
   }
 
   handleServerPlayerAttack(
@@ -101,26 +126,18 @@ export class GameSceneFeedbackFx {
     const target = playerMarkers.get(payload.targetId) || monsterMarkers.get(payload.targetId);
     if (!target) return;
 
-    const isBleedTick = payload.damageType === "bleed";
-    const isEnvironmental = payload.damageType === "environment";
-    const style = payload.isCritical
-      ? DAMAGE_NUMBER_STYLE.critical
-      : (isBleedTick
-        ? DAMAGE_NUMBER_STYLE.bleed
-        : (isEnvironmental ? DAMAGE_NUMBER_STYLE.environment : DAMAGE_NUMBER_STYLE.normal));
+    const isSelfHurt = payload.targetId === latestState?.selfPlayerId;
+    const isSelfAttacker = payload.attackerId === latestState?.selfPlayerId;
+    
+    let style = DAMAGE_NUMBER_STYLE.other;
+    if (isSelfHurt) {
+      style = DAMAGE_NUMBER_STYLE.playerHurt;
+    } else if (isSelfAttacker) {
+      style = payload.isCritical ? DAMAGE_NUMBER_STYLE.playerCrit : DAMAGE_NUMBER_STYLE.playerHit;
+    }
+
     const damageX = target.root.x + Phaser.Math.Between(-style.xJitter, style.xJitter);
     const damageY = target.root.y + style.yOffset;
-    const badge = this.scene.add.graphics().setPosition(damageX, damageY + 2).setDepth(2998);
-    const badgeWidth = Math.max(82, `${payload.amount}`.length * 34 + (payload.isCritical ? 62 : 52));
-    const badgeHeight = payload.isCritical ? 58 : 50;
-    const badgeOutline = isEnvironmental ? 0xe7ffb7 : (isBleedTick ? 0xff9c9c : 0xf8d7a3);
-    const badgeFill = isEnvironmental ? 0x203010 : (isBleedTick ? 0x351010 : 0x1a120d);
-    badge.fillStyle(badgeFill, isBleedTick ? 0.82 : 0.78);
-    badge.fillEllipse(0, 0, badgeWidth, badgeHeight);
-    badge.lineStyle(payload.isCritical ? 5 : 4, badgeOutline, payload.isCritical ? 0.95 : 0.88);
-    badge.strokeEllipse(0, 0, badgeWidth, badgeHeight);
-    badge.fillStyle(0xffffff, payload.isCritical ? 0.18 : 0.12);
-    badge.fillEllipse(0, -6, badgeWidth * 0.62, badgeHeight * 0.34);
 
     const text = this.scene.add.text(
       damageX,
@@ -131,153 +148,129 @@ export class GameSceneFeedbackFx {
         fontSize: `${style.fontSize}px`,
         fontStyle: "bold",
         color: style.color,
-        stroke: payload.isCritical ? "#0d0906" : "#120d09",
+        stroke: "#000000",
         strokeThickness: style.strokeThickness
       }).setOrigin(0.5).setDepth(3000).setScale(style.startScale);
-    text.setShadow(0, 0, Phaser.Display.Color.IntegerToColor(style.glowColor).rgba, 18, false, true);
-    const accent = this.scene.add.graphics().setPosition(damageX, damageY + 2).setDepth(2999);
-    this.drawDamageAccent(accent, badgeWidth, badgeHeight, style.glowColor, payload.isCritical ?? false);
-    this.showStatusAppliedTags(payload.statusApplied, target.root.x, target.root.y, target.root.depth);
-    const damageLift = style.rise;
-    const fadeDelay = Math.round(style.duration * 0.18);
+
+    const fadeDelay = Math.round(style.duration * 0.4);
     this.scene.tweens.add({
-      targets: [badge, accent, text],
-      y: `-=${damageLift}`,
-      x: `+=${Phaser.Math.Between(-style.xJitter * 0.5, style.xJitter * 0.5)}`, // Subtle drift
+      targets: text,
+      y: `-=${style.rise}`,
       duration: style.duration,
       ease: "Cubic.out"
     });
     this.scene.tweens.add({
-      targets: [badge, accent, text],
+      targets: text,
       alpha: 0,
       delay: fadeDelay,
       duration: style.duration - fadeDelay,
       ease: "Quad.in",
-      onComplete: () => {
-        badge.destroy();
-        accent.destroy();
-        text.destroy();
-      }
+      onComplete: () => text.destroy()
     });
-    // The "Pop" animation
     this.scene.tweens.add({
-      targets: [badge, accent, text],
+      targets: text,
       scaleX: style.peakScale,
       scaleY: style.peakScale,
-      duration: 120, // Faster pop
+      duration: 100,
       yoyo: true,
       ease: "Back.easeOut"
     });
 
-    if (payload.isCritical) {
-      const critMult = payload.critMultiplier ?? 1.5;
-      const intensityScale = 1 + Math.max(0, critMult - 1.5) * 0.66; // 1.5x=1.0, 2.0x=1.33 [待人工调优]
-
-      const burst = this.scene.add.circle(target.root.x, target.root.y, 16 * intensityScale, GAMEPLAY_THEME.colors.caution, 0.22).setDepth(2999);
-      burst.setStrokeStyle(4, GAMEPLAY_THEME.colors.bone, 0.8);
-      this.scene.tweens.add({
-        targets: burst,
-        alpha: 0,
-        scale: 3.2,
-        duration: 320,
-        ease: "Cubic.out",
-        onComplete: () => burst.destroy()
-      });
+    // Check for "hit" damage type or undefined (which usually means a hit)
+    if (payload.amount > 0 && (!payload.damageType || payload.damageType === "hit")) {
+      this.spawnSparkParticles(target.root.x, target.root.y, payload.attackerId, playerMarkers, monsterMarkers);
     }
 
-    if (!isBleedTick) {
-      this.flashEffect(target.root);
-    }
-    this.showBodyImpact(target.root.x, target.root.y, target.root.depth, payload.damageType, payload.isCritical ?? false);
-
-    if (payload.isCritical) {
-      const critMult = payload.critMultiplier ?? 1.5;
-      const intensityScale = 1 + Math.max(0, critMult - 1.5) * 0.66; // [待人工调优]
-
-      this.scene.cameras.main.flash(100, 255, 255, 255, true); // Subtle white flash for crit
-      this.shakeCamera(0.015 * intensityScale, 200);
-      this.applyHitStop(Math.round(60 * intensityScale));
-    }
-
-    if (!isBleedTick && payload.targetId === latestState?.selfPlayerId) {
-      this.scene.cameras.main.flash(120, 184, 55, 31, true); // Red flash for self damage
-      this.scene.cameras.main.shake(200, 8 / this.scene.scale.width);
-      this.applyHitStop(100);
+    if (isSelfHurt) {
+      const shakeIntensity = payload.amount >= 20 ? 0.015 : 0.008;
+      this.shakeCamera(shakeIntensity, 150);
+      this.applyHitStop(payload.amount >= 20 ? 120 : 60);
       this.showDamageWash();
-    }
-
-    const attackerMonster = monsterMarkers.get(payload.attackerId);
-    if (attackerMonster && payload.targetId === latestState?.selfPlayerId) {
-      this.showMonsterAttackVfx(attackerMonster.root.x, attackerMonster.root.y, attackerMonster.root.depth);
+    } else if (isSelfAttacker) {
+      if (payload.isCritical) {
+        this.shakeCamera(0.012, 180);
+        this.applyHitStop(100);
+      }
     }
   }
 
-  handleMonsterKilled(payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss" }): void {
+  private spawnSparkParticles(
+    x: number,
+    y: number,
+    attackerId: string,
+    playerMarkers: Map<string, PlayerMarker>,
+    monsterMarkers: Map<string, MonsterMarker>
+  ): void {
+    if (!this.sparkEmitter) return;
+    
+    const attacker = playerMarkers.get(attackerId) || monsterMarkers.get(attackerId);
+    let angle = 0;
+    if (attacker) {
+      angle = Phaser.Math.Angle.Between(attacker.root.x, attacker.root.y, x, y);
+    } else {
+      angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+    }
+
+    const deg = Phaser.Math.RadToDeg(angle);
+    // In newer Phaser versions, setAngle takes a number or a range.
+    // If it fails with an object, we use the internal particle emitter API or a simpler call.
+    (this.sparkEmitter as any).setAngle({ min: deg - 40, max: deg + 40 });
+    this.sparkEmitter.emitParticleAt(x, y - 20, Phaser.Math.Between(3, 5));
+  }
+
+  handleMonsterKilled(payload: { monsterId: string; x: number; y: number; tier: string }): void {
     const { x, y, tier } = payload;
 
-    if (tier === "normal") {
-      this.applyHitStop(150); // [待人工调优]
-      this.shakeCamera(0.008, 120); // [待人工调优]
-      const flash = this.scene.add.circle(x, y, 20, 0xffffff, 0.6).setDepth(y + 10);
-      this.scene.tweens.add({
-        targets: flash,
-        alpha: 0,
-        scale: 1.5,
-        duration: 120,
-        onComplete: () => flash.destroy()
-      });
-    } else if (tier === "elite") {
-      this.applyHitStop(400); // [待人工调优]
-      this.scene.cameras.main.flash(150, 255, 255, 255, true);
-      this.shakeCamera(0.025, 300); // [待人工调优]
+    // Blood Mist / Death Burst
+    const burst = this.scene.add.circle(x, y, 10, 0x7f1d1d, 0.6).setDepth(y - 1);
+    this.scene.tweens.add({
+      targets: burst,
+      scale: 4,
+      alpha: 0,
+      duration: 600,
+      ease: "Cubic.out",
+      onComplete: () => burst.destroy()
+    });
 
-      // Golden expanding ring
-      const ring = this.scene.add.graphics().setPosition(x, y).setDepth(y + 10);
-      ring.lineStyle(4, 0xfbbf24, 0.9);
-      ring.strokeCircle(0, 0, 10);
-      this.scene.tweens.add({
-        targets: ring,
-        alpha: 0,
-        scale: 12, // 10 * 12 = 120px [待人工调优]
-        duration: 500,
-        ease: "Cubic.out",
-        onComplete: () => ring.destroy()
-      });
+    const emitter = this.scene.add.particles(x, y - 20, "drop", {
+      lifespan: 500,
+      speed: { min: 100, max: 200 },
+      scale: { start: 0.6, end: 0 },
+      tint: 0x991b1b,
+      quantity: 12,
+      emitting: false
+    });
+    emitter.setDepth(y + 10);
+    emitter.explode();
+    this.scene.time.delayedCall(1000, () => emitter.destroy());
 
-      // Brief slowmotion
-      const originalTimeScale = this.scene.time.timeScale;
-      this.scene.time.timeScale = 0.4; // [待人工调优]
-      this.scene.time.delayedCall(400, () => {
-      this.scene.tweens.addCounter({
-        from: 0.4,
-        to: originalTimeScale,
-        duration: 200,
-        onUpdate: (tween) => {
-          this.scene.time.timeScale = tween.getValue() as number;
-        }
-      });
-      });
-    } else if (tier === "boss") {
-      this.applyHitStop(800); // [待人工调优]
-      const camera = this.scene.cameras.main;
-      const originalZoom = camera.zoom;
-      this.scene.tweens.add({
-        targets: camera,
-        zoom: originalZoom * 1.1, // [待人工调优]
-        duration: 200,
-        ease: "Quad.out",
-        onComplete: () => {
-          this.scene.time.delayedCall(400, () => {
-            this.scene.tweens.add({
-              targets: camera,
-              zoom: originalZoom,
-              duration: 200,
-              ease: "Quad.in"
-            });
-          });
-        }
-      });
+    if (tier === "elite" || tier === "boss") {
+      this.shakeCamera(tier === "boss" ? 0.03 : 0.02, 300);
+      this.applyHitStop(tier === "boss" ? 500 : 300);
+    } else {
+      this.shakeCamera(0.008, 120);
+      this.applyHitStop(100);
     }
+  }
+
+  handlePlayerDied(): void {
+    // Red vignette pulse
+    const vignette = this.scene.add.rectangle(0, 0, this.scene.scale.width, this.scene.scale.height, 0xef4444, 0)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(10000);
+    
+    this.scene.tweens.add({
+      targets: vignette,
+      alpha: 0.3,
+      duration: 300,
+      yoyo: true,
+      repeat: 1,
+      ease: "Cubic.inOut",
+      onComplete: () => vignette.destroy()
+    });
+
+    this.shakeCamera(0.02, 500);
   }
 
   showLootToast(x: number, y: number, amount: number): void {
@@ -300,41 +293,6 @@ export class GameSceneFeedbackFx {
     });
   }
 
-  private showStatusAppliedTags(statusApplied: StatusEffectType[] | undefined, x: number, y: number, depth: number): void {
-    if (!statusApplied?.length) return;
-    const unique = [...new Set(statusApplied)].slice(0, 3);
-    const rowWidth = Math.max(0, (unique.length - 1) * 54);
-    unique.forEach((status, index) => {
-      const presentation = getStatusPresentation(status);
-      const tag = this.scene.add.text(
-        x + index * 54 - rowWidth / 2,
-        y - 132 - index * 6,
-        presentation.label,
-        {
-          fontFamily: GAMEPLAY_THEME.fonts.display,
-          fontSize: "22px",
-          fontStyle: "bold",
-          color: presentation.color,
-          backgroundColor: presentation.backgroundColor,
-          stroke: "#120d09",
-          strokeThickness: 5,
-          padding: { x: 8, y: 4 }
-        }
-      ).setOrigin(0.5).setDepth(depth + 130).setAlpha(0.98);
-      tag.setShadow(0, 0, presentation.shadow, 12, false, true);
-      this.scene.tweens.add({
-        targets: tag,
-        y: "-=46",
-        alpha: 0,
-        scaleX: 1.12,
-        scaleY: 1.12,
-        duration: 900,
-        ease: "Cubic.out",
-        onComplete: () => tag.destroy()
-      });
-    });
-  }
-
   playLocalAttack(latestState: MatchViewState | null, lastFacingDirection: Vector2): void {
     const self = latestState?.players.find((player) => player.id === latestState?.selfPlayerId);
     if (!self) return;
@@ -350,7 +308,7 @@ export class GameSceneFeedbackFx {
       targets: charge,
       alpha: 0,
       scale: 1.2,
-      duration: 100, // [待人工调优]
+      duration: 100,
       onComplete: () => charge.destroy()
     });
   }
@@ -496,66 +454,26 @@ export class GameSceneFeedbackFx {
     this.scene.tweens.add({ targets: danger, alpha: 0, scale: 1.5, duration: 280, onComplete: () => danger.destroy() });
   }
 
-  private showBodyImpact(x: number, y: number, depth: number, damageType: CombatEventPayload["damageType"], critical: boolean): void {
-    const impact = this.scene.add.graphics().setPosition(x, y - 16).setDepth(depth + 8);
-    const isEnvironment = damageType === "environment";
-    const isBleed = damageType === "bleed";
-    if (isEnvironment) {
-      impact.fillStyle(0x647d2c, 0.46);
-      impact.fillEllipse(0, 0, 54, 28);
-      impact.fillStyle(0xd6ef97, 0.34);
-      impact.fillCircle(-14, -6, 9);
-      impact.fillCircle(16, 4, 7);
-      impact.lineStyle(4, 0xe7ffb7, 0.84).strokeCircle(0, 0, 36);
-      impact.lineStyle(2, 0xf5ffd7, 0.62).strokeCircle(0, 0, 23);
-      this.spawnFragments(x, y, { x: 0.2, y: -1 }, 0x708640, 6, 8, 20);
-    } else if (isBleed) {
-      impact.fillStyle(0x7f1d1d, 0.58);
-      impact.fillEllipse(0, 0, 44, 24);
-      impact.fillStyle(0xef4444, 0.48);
-      impact.fillCircle(-15, -4, 8);
-      impact.fillCircle(13, 5, 7);
-      impact.lineStyle(4, 0xff8f8f, 0.78).strokeCircle(0, 0, 30);
-    } else {
-      impact.fillStyle(0x7f1d1d, critical ? 0.62 : 0.6);
-      impact.fillEllipse(0, 0, critical ? 54 : 46, critical ? 28 : 24);
-      impact.fillStyle(0xef4444, critical ? 0.52 : 0.46);
-      impact.fillCircle(-16, -4, critical ? 10 : 8);
-      impact.fillCircle(14, 4, critical ? 8 : 6);
-      impact.fillStyle(0xf8d7a3, critical ? 0.42 : 0.38);
-      impact.fillEllipse(5, -8, critical ? 30 : 26, critical ? 11 : 9);
-      impact.lineStyle(critical ? 4 : 3, 0xffd7b8, critical ? 0.86 : 0.72).strokeCircle(0, 0, critical ? 34 : 28);
-      this.spawnFragments(x, y, { x: 0.3, y: -1 }, 0xb91c1c, critical ? 8 : 6, 10, critical ? 28 : 24);
-    }
-    this.scene.tweens.add({
-      targets: impact,
-      alpha: 0,
-      y: y - (isEnvironment ? 32 : 28),
-      scale: isEnvironment ? 1.48 : 1.38,
-      duration: isEnvironment ? 300 : 260,
-      ease: "Cubic.out",
-      onComplete: () => impact.destroy()
-    });
-  }
-
-  private drawDamageAccent(
+  private drawImpactBurst(
     graphics: Phaser.GameObjects.Graphics,
-    width: number,
-    height: number,
-    color: number,
-    critical: boolean
+    angle: number,
+    outerColor: number,
+    innerColor: number,
+    radius: number,
+    rays: number
   ): void {
-    graphics.lineStyle(critical ? 4 : 3, color, critical ? 0.88 : 0.78);
-    graphics.strokeEllipse(0, 0, width + (critical ? 28 : 20), height + (critical ? 18 : 14));
-    graphics.lineStyle(2, 0xffffff, critical ? 0.68 : 0.54);
-    graphics.beginPath();
-    graphics.moveTo(-width * 0.38, -height * 0.48);
-    graphics.lineTo(-width * 0.18, -height * 0.9);
-    graphics.moveTo(width * 0.2, -height * 0.9);
-    graphics.lineTo(width * 0.42, -height * 0.5);
-    graphics.strokePath();
-    graphics.fillStyle(color, critical ? 0.22 : 0.16);
-    graphics.fillEllipse(0, 0, width * 0.9, height * 0.58);
+    graphics.lineStyle(4, outerColor, 0.85);
+    graphics.strokeCircle(0, 0, radius);
+    graphics.fillStyle(outerColor, 0.22);
+    graphics.fillCircle(0, 0, radius);
+    graphics.lineStyle(2, innerColor, 0.9);
+    for (let index = 0; index < rays; index += 1) {
+      const rayAngle = angle + (index - (rays - 1) / 2) * 0.24;
+      graphics.beginPath();
+      graphics.moveTo(Math.cos(rayAngle) * (radius * 0.2), Math.sin(rayAngle) * (radius * 0.2));
+      graphics.lineTo(Math.cos(rayAngle) * (radius * 0.92), Math.sin(rayAngle) * (radius * 0.92));
+      graphics.strokePath();
+    }
   }
 
   private drawImpactArc(
@@ -624,28 +542,6 @@ export class GameSceneFeedbackFx {
     graphics.strokePath();
   }
 
-  private drawImpactBurst(
-    graphics: Phaser.GameObjects.Graphics,
-    angle: number,
-    outerColor: number,
-    innerColor: number,
-    radius: number,
-    rays: number
-  ): void {
-    graphics.lineStyle(4, outerColor, 0.85);
-    graphics.strokeCircle(0, 0, radius);
-    graphics.fillStyle(outerColor, 0.22);
-    graphics.fillCircle(0, 0, radius);
-    graphics.lineStyle(2, innerColor, 0.9);
-    for (let index = 0; index < rays; index += 1) {
-      const rayAngle = angle + (index - (rays - 1) / 2) * 0.24;
-      graphics.beginPath();
-      graphics.moveTo(Math.cos(rayAngle) * (radius * 0.2), Math.sin(rayAngle) * (radius * 0.2));
-      graphics.lineTo(Math.cos(rayAngle) * (radius * 0.92), Math.sin(rayAngle) * (radius * 0.92));
-      graphics.strokePath();
-    }
-  }
-
   private spawnFragments(
     x: number,
     y: number,
@@ -689,26 +585,6 @@ export class GameSceneFeedbackFx {
     this.scene.tweens.add({ targets: wash, alpha: 0, duration: 240, ease: "Cubic.out", onComplete: () => wash.destroy() });
   }
 
-  private flashEffect(target: any): void {
-    if (!target) return;
-
-    if (typeof target.setTintFill === "function" && typeof target.clearTint === "function") {
-      target.setTintFill(0xffffff);
-      this.scene.time.delayedCall(70, () => {
-        if (target.scene) target.clearTint();
-      });
-      return;
-    }
-
-    const originalAlpha = typeof target.alpha === "number" ? target.alpha : 1;
-    if (typeof target.setAlpha === "function") {
-      target.setAlpha(1);
-      this.scene.time.delayedCall(70, () => {
-        if (target.scene && typeof target.setAlpha === "function") target.setAlpha(originalAlpha);
-      });
-    }
-  }
-
   private applyHitStop(ms: number): void {
     const physicsWorld = (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics | undefined)?.world;
     this.scene.anims.pauseAll();
@@ -724,6 +600,10 @@ export class GameSceneFeedbackFx {
 
   private shakeCamera(intensity: number, duration: number): void {
     this.scene.cameras.main.shake(duration, intensity);
+  }
+
+  destroy(): void {
+    this.sparkEmitter?.destroy();
   }
 }
 

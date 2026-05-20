@@ -124,6 +124,7 @@ export class GameScene extends Phaser.Scene {
   public applyHitFlash?: (target: Phaser.GameObjects.Container | Phaser.GameObjects.Sprite | Phaser.GameObjects.Image, isPlayerHurt: boolean) => void;
   private onToggleInventory?: () => void;
   private monsterWindups = new Map<string, number>();
+  private lastSelfAlive = true;
 
   private lastLocalAttackAt = 0;
   private lastLocalAttackTargetId?: string;
@@ -900,6 +901,12 @@ export class GameScene extends Phaser.Scene {
       if (m) m.sync(p, p.id === state.selfPlayerId);
       else this.playerMarkers.set(p.id, new PlayerMarker(this, p, p.id === state.selfPlayerId));
     });
+
+    const self = state.players.find(p => p.id === state.selfPlayerId);
+    if (self && !self.isAlive && this.lastSelfAlive) {
+      this.feedbackFx?.handlePlayerDied();
+    }
+    this.lastSelfAlive = self?.isAlive ?? true;
   }
 
   private syncMonsters(state: MatchViewState): void {
