@@ -3,6 +3,7 @@ import type { ChestOpenedPayload, ChestProgressPayload, ChestState } from "../..
 import type { ExtractUiState } from "../createGameClient";
 import type { PlayerMarker } from "../../game/entities/PlayerMarker";
 import { logEvent } from "../../dev/runtimeLog";
+import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
 
 function shouldSuppressAutoStartExtractForP0B(): boolean {
   if (typeof window === "undefined") {
@@ -87,8 +88,21 @@ export class GameSceneInteractions {
         sprite.setTexture("chest_open");
         sprite.setAlpha(1);
         sprite.clearTint();
-        sprite.setAngle(0); // [待人工调优] B.2 Reset shake angle
-        this.scene.tweens.killTweensOf(sprite); // [待人工调优] B.2 Stop shake tween
+        sprite.setAngle(0);
+        this.scene.tweens.killTweensOf(sprite);
+
+        // Scale Bounce
+        sprite.setScale(0.5);
+        this.scene.tweens.add({
+          targets: sprite,
+          scale: 1,
+          duration: 400,
+          ease: "Back.easeOut"
+        });
+
+        // Open Burst: Rays and Sparks
+        this.spawnOpenBurst(sprite.x, sprite.y);
+        this.spawnLootPopups(sprite.x, sprite.y, payload.loot);
 
         this.chestLabels.get(payload.chestId)?.destroy();
         this.chestLabels.delete(payload.chestId);
@@ -112,13 +126,12 @@ export class GameSceneInteractions {
     if (subscribeChestProgress) {
       this.chestUnsubscribes.push(subscribeChestProgress((payload) => {
         this.syncChestProgress(payload);
-        // C.3 Audio tick placeholder
         (this.scene as any).onAudioCue?.("rummage-tick");
       }));
     }
 
     this.interactionPrompt = this.scene.add.text(0, 0, "\u6309 E \u5f00\u7bb1", {
-      fontFamily: "monospace",
+      fontFamily: GAMEPLAY_THEME.fonts.display,
       fontSize: "16px",
       color: "#facc15",
       stroke: "#000000",
@@ -135,7 +148,7 @@ export class GameSceneInteractions {
     let nearest: string | null = null;
     let minDistance = 80;
     for (const [id, sprite] of this.chestSprites.entries()) {
-      if (sprite.texture.key === "chest_closed" && sprite.alpha > 0.6) { // Only prompt for attractive chests
+      if (sprite.texture.key === "chest_closed" && sprite.alpha > 0.6) {
         const distance = distanceBetween(playerMarker.root.x, playerMarker.root.y, sprite.x, sprite.y);
         if (distance < minDistance) {
           minDistance = distance;
@@ -232,10 +245,6 @@ export class GameSceneInteractions {
       this.extractAutoRearmRequired = insideStartRadius && !serverReportsOutsideStart;
     }
 
-    // The server can follow an interrupted progress event with an opened heartbeat,
-    // which normalizes the UI phase back to idle before the next scene tick. Rearm
-    // the auto-start latch from the authoritative zone membership as soon as we know
-    // the previous auto-started channel has stopped and the player is outside.
     if (extractionStoppedAfterAutoStart && serverReportsOutsideStart) {
       this.extractAutoStarted = false;
       this.extractAutoRearmRequired = false;
@@ -280,15 +289,13 @@ export class GameSceneInteractions {
       this.chestSprites.set(chestId, sprite);
     }
 
-    // [待人工调优] 1.1 Bigger and more visible base chest: 110x110
     sprite.setDisplaySize(110, 110);
 
     if (chest.isOpen || chest.state === "empty") {
       sprite.setTexture("chest_open");
-      // [待人工调优] 1.5 Empty state: darker tint/alpha
       sprite.setAlpha(0.6);
-      sprite.setAngle(0); // [待人工调优] B.2 Reset shake
-      this.scene.tweens.killTweensOf(sprite); // [待人工调优] B.2 Stop shake
+      sprite.setAngle(0);
+      this.scene.tweens.killTweensOf(sprite);
       this.chestGlows.get(chestId)?.destroy();
       this.chestGlows.delete(chestId);
       this.chestLabels.get(chestId)?.destroy();
@@ -296,14 +303,13 @@ export class GameSceneInteractions {
       return;
     }
 
-    // [待人工调优] B.2 Chest Shaking Animation
     if (chest.state === "rummaging") {
       if (!this.scene.tweens.isTweening(sprite)) {
         this.scene.tweens.add({
           targets: sprite,
-          angle: { from: -3, to: 3 }, // [待人工调优] ±3°
-          y: { from: chest.y - 2, to: chest.y + 2 }, // [待人工调优] ±2px bob
-          duration: 100, // [待人工调优] 200ms round trip
+          angle: { from: -3, to: 3 },
+          y: { from: chest.y - 2, to: chest.y + 2 },
+          duration: 100,
           yoyo: true,
           repeat: -1,
           ease: "Sine.easeInOut"
@@ -315,7 +321,6 @@ export class GameSceneInteractions {
       this.scene.tweens.killTweensOf(sprite);
     }
 
-    // [待人工调优] 1.1 Outline glow: radius 64, orange #fbbf24, alpha 0.55
     let glow = this.chestGlows.get(chestId);
     if (!glow) {
       glow = this.scene.add.graphics().setDepth(chest.y - 1);
@@ -323,14 +328,13 @@ export class GameSceneInteractions {
     }
     glow.clear();
     const isRich = chest.qualityTier === "rich";
-    const glowColor = isRich ? 0xfacc15 : 0xfbbf24; // [待人工调优] 1.2 Gold #facc15 vs Orange #fbbf24
-    const glowAlpha = isRich ? 0.75 : 0.55; // [待人工调优] 1.2 Alpha 0.75 vs 0.55
-    const glowStroke = isRich ? 4 : 3; // [待人工调优] 1.2 Stroke 4 vs 3
+    const glowColor = isRich ? 0xfacc15 : 0xfbbf24;
+    const glowAlpha = isRich ? 0.75 : 0.55;
+    const glowStroke = isRich ? 4 : 3;
     glow.lineStyle(glowStroke, glowColor, glowAlpha);
     glow.strokeCircle(chest.x, chest.y, 64);
 
     if (isRich && !this.scene.tweens.isTweening(glow)) {
-      // [待人工调优] 1.2 Pulsing animation: 0.55-0.85 over 1.4s
       this.scene.tweens.add({
         targets: glow,
         alpha: { from: 0.85, to: 0.55 },
@@ -342,7 +346,6 @@ export class GameSceneInteractions {
     }
 
     if (chest.state === "interrupted") {
-      // [待人工调优] 1.4 Interrupted state: dim filter
       sprite.setTint(0x444444);
       sprite.setAlpha(0.4);
     } else {
@@ -360,7 +363,7 @@ export class GameSceneInteractions {
     let label = this.chestLabels.get(chestId);
     if (!label) {
       label = this.scene.add.text(chest.x, chest.y - 30, "", {
-        fontFamily: "monospace",
+        fontFamily: GAMEPLAY_THEME.fonts.display,
         fontSize: "14px",
         color: "#ffffff",
         stroke: "#000000",
@@ -370,7 +373,6 @@ export class GameSceneInteractions {
     }
 
     if (chest.state === "interrupted") {
-      // [待人工调优] 1.4 Interrupted state: "已中断" red text
       label.setText("\u5df2\u4e2d\u65ad").setColor("#ef4444").setPosition(chest.x, chest.y - 30);
     } else {
       label.setText(chest.lane === "contested" ? "\u9ad8\u5371\u5b9d\u7bb1" : "\u5b9d\u7bb1")
@@ -405,6 +407,8 @@ export class GameSceneInteractions {
       });
       this.activeRummageChests.delete(chestId);
       this.chestLastDispensedCount.delete(chestId);
+      this.playerProgressRings.get(payload.playerId)?.destroy();
+      this.playerProgressRings.delete(payload.playerId);
     }
 
     if (payload.status === "completed" || payload.state === "empty") {
@@ -428,39 +432,36 @@ export class GameSceneInteractions {
       this.activeRummageChests.add(chestId);
     }
 
-    // [待人工调优] B.3 Bigger progress bar above chest: 120x10, #fbbf24 fill, #92400e border, 70px above
     let bar = this.chestProgressBars.get(chestId);
     if (!bar) {
       bar = this.scene.add.graphics().setDepth(sprite.y + 2);
       this.chestProgressBars.set(chestId, bar);
     }
     bar.clear();
-    const barW = 120; // [待人工调优]
-    const barH = 10; // [待人工调优]
+    const barW = 120;
+    const barH = 10;
     const x = sprite.x - barW / 2;
     const y = sprite.y - 70;
     
-    // Pulse glow under bar
     const pulse = (Math.sin(this.scene.time.now / 150) + 1) / 2;
     bar.fillStyle(0x92400e, 0.3 * pulse);
     bar.fillRoundedRect(x - 4, y - 4, barW + 8, barH + 8, 4);
 
     bar.fillStyle(0x000000, 0.85);
     bar.fillRect(x, y, barW, barH);
-    bar.lineStyle(2, 0x92400e, 1); // [待人工调优] #92400e border
+    bar.lineStyle(2, 0x92400e, 1);
     bar.strokeRect(x, y, barW, barH);
     
     const totalItems = payload.totalItems ?? 0;
     const ratio = totalItems > 0 ? (payload.itemsDispensed ?? 0) / totalItems : 0;
-    bar.fillStyle(0xfbbf24, 1); // [待人工调优] #fbbf24 fill
+    bar.fillStyle(0xfbbf24, 1);
     bar.fillRect(x + 1, y + 1, (barW - 2) * ratio, barH - 2);
 
-    // [待人工调优] B.3 Text label "翻找中 X/Y" 16px
     let label = this.chestProgressLabels.get(chestId);
     if (!label) {
       label = this.scene.add.text(sprite.x, sprite.y - 88, "", {
-        fontFamily: "monospace",
-        fontSize: "16px", // [待人工调优]
+        fontFamily: GAMEPLAY_THEME.fonts.display,
+        fontSize: "16px",
         color: "#facc15",
         stroke: "#000000",
         strokeThickness: 3
@@ -469,7 +470,6 @@ export class GameSceneInteractions {
     }
     label.setText(`\u7ffb\u627e\u4e2d ${payload.itemsDispensed}/${payload.totalItems}`);
 
-    // [待人工调优] B.1 Player-character action indicator (Ring)
     if (payload.playerId) {
       const marker = this.playerMarkers?.get(payload.playerId);
       if (marker) {
@@ -481,12 +481,10 @@ export class GameSceneInteractions {
         ring.clear();
         ring.setPosition(marker.root.x, marker.root.y);
         
-        // Background ring
         ring.lineStyle(4, 0x000000, 0.4);
-        ring.strokeCircle(0, 0, 40); // [待人工调优] radius 40
+        ring.strokeCircle(0, 0, 40);
         
-        // Filling ring
-        ring.lineStyle(4, 0xf59e0b, 0.9); // [待人工调优] warm orange #f59e0b
+        ring.lineStyle(4, 0xf59e0b, 0.9);
         const startAngle = Phaser.Math.DegToRad(-90);
         const endAngle = startAngle + Phaser.Math.DegToRad(360 * ratio);
         ring.beginPath();
@@ -495,7 +493,6 @@ export class GameSceneInteractions {
       }
     }
 
-    // [待人工调优] B.4 Drop spawn effect
     const currentDispensed = payload.itemsDispensed ?? 0;
     const prevCount = this.chestLastDispensedCount.get(chestId) ?? 0;
     if (currentDispensed > prevCount) {
@@ -510,18 +507,14 @@ export class GameSceneInteractions {
       this.chestLastDispensedCount.set(chestId, currentDispensed);
     }
 
-    // [待人工调优] C.1 Ground noise wave
     this.spawnNoiseWave(sprite.x, sprite.y);
-
-    // [待人工调优] C.2 Attracted-monster indicator
     this.updateMonsterAlerts(sprite.x, sprite.y);
   }
 
   private spawnDropSparks(x: number, y: number): void {
-    // [待人工调优] 6-8 sparks in gold tones
     for (let i = 0; i < 8; i++) {
       const spark = this.scene.add.circle(x, y, Phaser.Math.Between(2, 4), 0xfacc15, 0.8).setDepth(y + 10);
-      const angle = Phaser.Math.FloatBetween(-Math.PI * 0.8, -Math.PI * 0.2); // Upward arc
+      const angle = Phaser.Math.FloatBetween(-Math.PI * 0.8, -Math.PI * 0.2);
       const speed = Phaser.Math.Between(100, 200);
       
       this.scene.tweens.add({
@@ -530,7 +523,7 @@ export class GameSceneInteractions {
         y: y + Math.sin(angle) * speed * 0.5,
         alpha: 0,
         scale: 0.2,
-        duration: 500, // [待人工调优]
+        duration: 500,
         ease: "Cubic.out",
         onComplete: () => spark.destroy()
       });
@@ -538,24 +531,72 @@ export class GameSceneInteractions {
   }
 
   private spawnNoiseWave(x: number, y: number): void {
-    // [待人工调优] C.1 Ground noise wave: 30px to 250px, amber #d97706, fade 800ms
     const wave = this.scene.add.graphics().setDepth(y - 2);
     wave.lineStyle(2, 0xd97706, 0.7);
     wave.strokeCircle(x, y, 30);
     
     this.scene.tweens.add({
       targets: wave,
-      scaleX: 8.3, // 250 / 30 approx
+      scaleX: 8.3,
       scaleY: 8.3,
       alpha: 0,
-      duration: 800, // [待人工调优]
+      duration: 800,
       ease: "Quad.out",
       onComplete: () => wave.destroy()
     });
   }
 
+  private spawnOpenBurst(x: number, y: number): void {
+    const graphics = this.scene.add.graphics().setPosition(x, y).setDepth(y + 10);
+    
+    // Rays
+    graphics.lineStyle(2, 0xfacc15, 0.8);
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      graphics.beginPath();
+      graphics.moveTo(0, 0);
+      graphics.lineTo(Math.cos(angle) * 100, Math.sin(angle) * 100);
+      graphics.strokePath();
+    }
+
+    this.scene.tweens.add({
+      targets: graphics,
+      alpha: 0,
+      scale: 1.5,
+      duration: 500,
+      ease: "Cubic.out",
+      onComplete: () => graphics.destroy()
+    });
+
+    // Extra Sparks
+    this.spawnDropSparks(x, y);
+  }
+
+  private spawnLootPopups(x: number, y: number, loot: any[]): void {
+    if (!loot) return;
+    loot.forEach((item, index) => {
+      const text = this.scene.add.text(x, y - 40, item.name || "Loot", {
+        fontFamily: GAMEPLAY_THEME.fonts.display,
+        fontSize: "14px",
+        color: "#fbbf24",
+        stroke: "#000000",
+        strokeThickness: 3
+      }).setOrigin(0.5).setDepth(y + 20 + index);
+
+      this.scene.tweens.add({
+        targets: text,
+        y: y - 120 - index * 20,
+        x: x + (index % 2 === 0 ? 30 : -30),
+        alpha: 0,
+        duration: 1500,
+        delay: index * 100,
+        ease: "Cubic.out",
+        onComplete: () => text.destroy()
+      });
+    });
+  }
+
   private updateMonsterAlerts(x: number, y: number): void {
-    // [待人工调优] C.2 Monsters within 720px get "!"
     const scene = this.scene as any;
     if (!scene.monsterMarkers) return;
 
@@ -570,7 +611,6 @@ export class GameSceneInteractions {
   private showMonsterAlert(marker: any): void {
     if (marker.alertIcon) return;
     
-    // [待人工调优] 14 px gold text "！" with black outline, 24 px above
     const alert = marker.root.scene.add.text(0, -24, "\uff01", {
       fontFamily: "monospace",
       fontSize: "14px",
@@ -589,8 +629,6 @@ export class GameSceneInteractions {
       ease: "Linear"
     });
     
-    // Auto remove after some time or when chest rummage stops? 
-    // For now, simple fade out after 1s
     marker.root.scene.time.delayedCall(1000, () => {
       if (alert.scene) {
         marker.root.scene.tweens.add({
@@ -625,7 +663,7 @@ export class GameSceneInteractions {
       y - 78,
       aggroedCount > 0 ? `\u566a\u97f3\u60ca\u52a8\u602a\u7269 x${aggroedCount}` : "\u566a\u97f3\u5411\u56db\u5468\u6269\u6563",
       {
-        fontFamily: "monospace",
+        fontFamily: GAMEPLAY_THEME.fonts.display,
         fontSize: "15px",
         color: "#fed7aa",
         stroke: "#2a1208",
