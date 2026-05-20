@@ -218,7 +218,7 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
     }
 
     return {
-      opened: opened ?? buildOpenedPayload(room),
+      opened,
       progressEvents,
       successEvents,
       settlementEvents,
@@ -292,7 +292,7 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
   }
 
   return {
-    opened: opened ?? buildOpenedPayload(room),
+    opened,
     progressEvents,
     successEvents,
     settlementEvents,

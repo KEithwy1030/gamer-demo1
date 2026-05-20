@@ -171,9 +171,19 @@ function applyLateGamePreset(room: RuntimeRoom, player: RuntimePlayer): void {
       startedAt: now,
       expiresAt: now + zone.channelDurationMs + 2_500
     };
+    player.extract = {
+      ...player.extract,
+      zoneId: zone.zoneId,
+      startedAt: now,
+      completesAt: now + zone.channelDurationMs,
+      lastProgressBroadcastAt: now - 500
+    };
   }
 
   if (room.spawnDirector) {
+    room.spawnDirector.phase = "extract";
+    room.spawnDirector.lastPhaseBroadcast = "extract";
+    room.spawnDirector.phaseStartedAt = now;
     room.spawnDirector.nextSpawnAt = now + DEV_LATEGAME_SPAWN_GRACE_MS;
   }
 
