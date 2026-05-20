@@ -16,6 +16,7 @@ export interface WorldBackdropRefs {
   atmosphereLayer?: Phaser.GameObjects.Graphics;
   extractOuterRing?: Phaser.GameObjects.Arc;
   extractInnerRing?: Phaser.GameObjects.Arc;
+  extractProgressRing?: Phaser.GameObjects.Graphics;
   extractBeacon?: Phaser.GameObjects.Container;
   extractLabel?: Phaser.GameObjects.Text;
   crossingSprites: Phaser.GameObjects.GameObject[];
@@ -40,6 +41,7 @@ export function rebuildWorldBackdrop(
   refs.atmosphereLayer?.destroy();
   refs.extractOuterRing?.destroy();
   refs.extractInnerRing?.destroy();
+  refs.extractProgressRing?.destroy();
   refs.extractBeacon?.destroy(true);
   refs.extractLabel?.destroy();
   refs.crossingSprites.forEach((sprite) => sprite.destroy());
@@ -79,6 +81,7 @@ export function rebuildWorldBackdrop(
     atmosphereLayer,
     extractOuterRing: undefined,
     extractInnerRing: undefined,
+    extractProgressRing: undefined,
     extractBeacon: undefined,
     extractLabel: undefined,
     crossingSprites,
@@ -126,6 +129,33 @@ export function syncExtractBackdrop(
   extractInnerRing.setFillStyle(GAMEPLAY_THEME.colors.signal, hintAlpha * 0.7);
   extractInnerRing.setStrokeStyle(3, GAMEPLAY_THEME.colors.bone, ringAlpha * 0.82);
 
+  // 3a) Breathing pulse for rings
+  if (!scene.tweens.isTweening(extractOuterRing)) {
+    scene.tweens.add({
+      targets: [extractOuterRing, extractInnerRing],
+      alpha: { from: hintAlpha * 1.5, to: hintAlpha * 0.5 },
+      duration: 2000,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut"
+    });
+  }
+
+  // 3b) Countdown ring (Circular fill)
+  let extractProgressRing = refs.extractProgressRing;
+  if (!extractProgressRing) {
+    extractProgressRing = scene.add.graphics().setDepth(-4.5);
+  }
+  extractProgressRing.clear();
+  if (extractState.isExtracting && extractState.progress !== null) {
+    extractProgressRing.lineStyle(6, 0xfbbf24, 0.8);
+    const startAngle = Phaser.Math.DegToRad(-90);
+    const endAngle = startAngle + Phaser.Math.DegToRad(360 * extractState.progress);
+    extractProgressRing.beginPath();
+    extractProgressRing.arc(centerX, centerY, zoneRadius + 4, startAngle, endAngle, false);
+    extractProgressRing.strokePath();
+  }
+
   const extractBeacon = refs.extractBeacon ?? createExtractBeacon(scene, centerX, centerY);
   extractBeacon.setPosition(centerX, centerY - 14);
   extractBeacon.setAlpha(extractState.isOpen ? 0.84 : 0.72);
@@ -150,13 +180,49 @@ export function syncExtractBackdrop(
   extractLabel.setAlpha(extractState.isOpen ? 0.88 : 0.72);
   extractLabel.setWordWrapWidth(240, true);
 
+  // 3c) Extract Burst on Success
+  if (extractState.phase === "succeeded" && extractState.didSucceed) {
+    spawnExtractSuccessBurst(scene, centerX, centerY, zoneRadius);
+  }
+
+  // 3d) Warning Pulse on Interrupt
+  if (extractState.phase === "interrupted") {
+    spawnExtractInterruptWarning(scene, centerX, centerY, zoneRadius);
+  }
+
   return {
     ...refs,
     extractOuterRing,
     extractInnerRing,
+    extractProgressRing,
     extractBeacon,
     extractLabel
   };
+}
+
+function spawnExtractSuccessBurst(scene: Phaser.Scene, x: number, y: number, radius: number): void {
+  const burst = scene.add.circle(x, y, radius, 0xffffff, 0.8).setDepth(1000);
+  scene.tweens.add({
+    targets: burst,
+    scale: 2,
+    alpha: 0,
+    duration: 800,
+    ease: "Cubic.out",
+    onComplete: () => burst.destroy()
+  });
+}
+
+function spawnExtractInterruptWarning(scene: Phaser.Scene, x: number, y: number, radius: number): void {
+  const warning = scene.add.circle(x, y, radius, 0xef4444, 0.4).setDepth(-3);
+  scene.tweens.add({
+    targets: warning,
+    scale: 1.2,
+    alpha: 0,
+    duration: 500,
+    yoyo: true,
+    repeat: 1,
+    onComplete: () => warning.destroy()
+  });
 }
 
 function drawCorpseRiver(
