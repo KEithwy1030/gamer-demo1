@@ -54,6 +54,10 @@ export class LobbyBackground {
 
     if (this.backdropReady && this.backdrop.naturalWidth > 0) {
       this.drawBackdrop(width, height);
+      // CG-animation overlays: glows pinned to image features
+      this.drawImageBonfireGlows(width, height);
+      this.drawImageTowerLight(width, height);
+      this.drawImageSunShimmer(width, height);
     } else {
       // 1. Clear with warm camp dusk gradient
       const grad = ctx.createLinearGradient(0, 0, 0, height);
@@ -79,6 +83,7 @@ export class LobbyBackground {
     // 4. Draw drifting ash and ember particles
     this.drawParticles();
     this.drawForegroundFog(width, height);
+    this.drawVignette(width, height);
   }
 
   private drawBackdrop(width: number, height: number) {
@@ -101,9 +106,18 @@ export class LobbyBackground {
       offsetY = (height - drawHeight) * 0.5;
     }
 
+    // Ken Burns: slow breath-zoom + sub-pixel drift so the still feels alive
+    const zoom = 1.045 + Math.sin(this.time * 0.07) * 0.025;
+    const driftX = Math.sin(this.time * 0.05) * width * 0.012;
+    const driftY = Math.cos(this.time * 0.04) * height * 0.008;
+    const finalWidth = drawWidth * zoom;
+    const finalHeight = drawHeight * zoom;
+    const finalX = offsetX - (finalWidth - drawWidth) * 0.5 + driftX;
+    const finalY = offsetY - (finalHeight - drawHeight) * 0.5 + driftY;
+
     ctx.save();
     ctx.globalAlpha = 0.97;
-    ctx.drawImage(source, offsetX, offsetY, drawWidth, drawHeight);
+    ctx.drawImage(source, finalX, finalY, finalWidth, finalHeight);
     ctx.restore();
 
     const wash = ctx.createLinearGradient(0, 0, 0, height);
@@ -114,6 +128,93 @@ export class LobbyBackground {
     ctx.fillRect(0, 0, width, height);
 
     this.drawSkyGlow(width, height);
+  }
+
+  // Pin warm flicker glows on top of the bonfires baked into the image
+  private drawImageBonfireGlows(width: number, height: number) {
+    const ctx = this.ctx;
+    const fires = [
+      { nx: 0.08, ny: 0.72, s: 1.0, phase: 0 },
+      { nx: 0.20, ny: 0.78, s: 0.7, phase: 1.3 },
+      { nx: 0.86, ny: 0.66, s: 0.85, phase: 2.1 },
+      { nx: 0.93, ny: 0.78, s: 0.6, phase: 3.4 },
+      { nx: 0.52, ny: 0.84, s: 0.55, phase: 4.2 }
+    ];
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    for (const f of fires) {
+      const flicker = 1 + Math.sin(this.time * 6 + f.phase) * 0.18 + Math.sin(this.time * 13 + f.phase * 2) * 0.06;
+      const x = width * f.nx;
+      const y = height * f.ny;
+      const radius = 140 * f.s * flicker;
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      glow.addColorStop(0, `rgba(255, 168, 88, ${0.32 * flicker})`);
+      glow.addColorStop(0.3, "rgba(232, 96, 44, 0.16)");
+      glow.addColorStop(1, "rgba(232, 96, 44, 0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+
+      // Tiny hot core
+      const core = ctx.createRadialGradient(x, y, 0, x, y, 14 * f.s);
+      core.addColorStop(0, `rgba(255, 230, 180, ${0.7 * flicker})`);
+      core.addColorStop(1, "rgba(255, 200, 120, 0)");
+      ctx.fillStyle = core;
+      ctx.fillRect(x - 20, y - 20, 40, 40);
+    }
+    ctx.restore();
+  }
+
+  // Distant castle keep with a single lit window — slow pulse like a beacon
+  private drawImageTowerLight(width: number, height: number) {
+    const ctx = this.ctx;
+    const x = width * 0.625;
+    const y = height * 0.36;
+    const pulse = 0.6 + Math.sin(this.time * 1.4) * 0.4;
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    const halo = ctx.createRadialGradient(x, y, 0, x, y, 90);
+    halo.addColorStop(0, `rgba(232, 178, 96, ${0.22 + pulse * 0.12})`);
+    halo.addColorStop(0.4, "rgba(232, 128, 60, 0.08)");
+    halo.addColorStop(1, "rgba(232, 128, 60, 0)");
+    ctx.fillStyle = halo;
+    ctx.fillRect(x - 90, y - 90, 180, 180);
+    ctx.restore();
+  }
+
+  // Sun-on-horizon shimmer + soft sky bloom that breathes with the scene
+  private drawImageSunShimmer(width: number, height: number) {
+    const ctx = this.ctx;
+    const breath = 1 + Math.sin(this.time * 0.35) * 0.08;
+    const x = width * 0.215;
+    const y = height * 0.38;
+    const radius = 220 * breath;
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    glow.addColorStop(0, "rgba(255, 168, 96, 0.22)");
+    glow.addColorStop(0.35, "rgba(212, 120, 60, 0.08)");
+    glow.addColorStop(1, "rgba(212, 120, 60, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    ctx.restore();
+  }
+
+  private drawVignette(width: number, height: number) {
+    const ctx = this.ctx;
+    const breath = 0.55 + Math.sin(this.time * 0.25) * 0.05;
+    const grad = ctx.createRadialGradient(
+      width * 0.5,
+      height * 0.55,
+      Math.min(width, height) * 0.35,
+      width * 0.5,
+      height * 0.55,
+      Math.max(width, height) * 0.78
+    );
+    grad.addColorStop(0, "rgba(0, 0, 0, 0)");
+    grad.addColorStop(1, `rgba(0, 0, 0, ${breath})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
   }
 
   private drawSkyGlow(width: number, height: number) {
@@ -174,8 +275,9 @@ export class LobbyBackground {
   private drawParticles() {
     const ctx = this.ctx;
     const { width, height } = this.canvas;
-    
-    for (let i = 0; i < 34; i++) {
+
+    // Ambient ash drifting across the whole frame
+    for (let i = 0; i < 54; i++) {
       const t = this.time + i * 10;
       const x = ((i * 137) % width + Math.sin(t * 0.5) * 50 + width) % width;
       const y = ((i * 243) % height - t * 26 + height) % height;
@@ -184,6 +286,32 @@ export class LobbyBackground {
       ctx.globalAlpha = (i % 5 === 0 ? 0.28 : 0.16) + Math.sin(t + i) * 0.07;
       ctx.fillRect(x, y, size * 2, size * 2);
     }
+
+    // Hot embers rising from baked-in bonfires for that CG cinder shot
+    const fireOrigins = [
+      { nx: 0.08, ny: 0.72 },
+      { nx: 0.20, ny: 0.78 },
+      { nx: 0.86, ny: 0.66 },
+      { nx: 0.93, ny: 0.78 },
+      { nx: 0.52, ny: 0.84 }
+    ];
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    for (let i = 0; i < 48; i++) {
+      const origin = fireOrigins[i % fireOrigins.length];
+      const seed = i * 0.97;
+      const life = 4;
+      const phase = ((this.time * 0.35) + seed) % life;
+      const lifeT = phase / life;
+      const ox = width * origin.nx + Math.sin(this.time * 0.8 + seed * 3.1) * 28 * (0.4 + lifeT);
+      const oy = height * origin.ny - lifeT * 220 * (0.6 + (i % 3) * 0.18);
+      const alpha = (1 - lifeT) * 0.7;
+      const size = 1 + Math.sin(seed * 6.3) * 0.4 + (i % 3 === 0 ? 1 : 0);
+      ctx.fillStyle = i % 4 === 0 ? "#ffd28a" : "#ff8a3c";
+      ctx.globalAlpha = alpha;
+      ctx.fillRect(ox, oy, size * 1.6, size * 1.6);
+    }
+    ctx.restore();
     ctx.globalAlpha = 1.0;
   }
 
