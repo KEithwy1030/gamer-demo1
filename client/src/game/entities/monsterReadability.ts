@@ -56,6 +56,19 @@ export function getMonsterLabel(monster: MonsterState): string {
     return monster.behaviorPhase === "windup" ? `${role} STRIKE` : role;
   }
 
+  if (monster.type === "skirmisher") {
+    if (monster.archetypeState === "retreating") return "SKIRMISHER RETREAT";
+    return monster.behaviorPhase === "windup" ? "SKIRMISHER LUNGE" : "SKIRMISHER";
+  }
+
+  if (monster.type === "brute") {
+    return monster.windingUpSlamUntil ? "BRUTE SLAM" : "BRUTE";
+  }
+
+  if (monster.type === "archer") {
+    return monster.behaviorPhase === "recover" ? "ARCHER EVADE" : "ARCHER";
+  }
+
   return monster.behaviorPhase === "windup" ? "ATTACK" : "MONSTER";
 }
 

@@ -7,13 +7,19 @@ import {
   type ExtractSquadStatus,
   type InventorySnapshotPayload,
   type MatchStartedPayload,
+  type MonsterKilledPayload,
+  type MonsterProjectileDespawn,
+  type MonsterProjectileHit,
+  type MonsterProjectileSpawn,
   type MonsterState,
+  type MusicModePayload,
   type PlayerInputMovePayload,
   type PlayerState,
   type RoomErrorPayload,
   type RoomStartPayload,
   type RoomSummary,
   type SettlementPayload,
+  type SpawnPhaseChangedPayload,
   SocketEvent,
   type WorldDrop
 } from "@gamer/shared";
@@ -238,6 +244,26 @@ export class GameSocketClient {
 
   onMonsterKilled(listener: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss"; killerPlayerId: string }) => void): Unsubscribe {
     return this.on(SocketEvent.MonsterKilled, listener);
+  }
+
+  onSpawnPhaseChanged(listener: (payload: SpawnPhaseChangedPayload) => void): Unsubscribe {
+    return this.on(SocketEvent.SpawnPhaseChanged, listener);
+  }
+
+  onMusicMode(listener: (payload: MusicModePayload) => void): Unsubscribe {
+    return this.on(SocketEvent.MusicMode, listener);
+  }
+
+  onMonsterProjectileSpawn(listener: (payload: MonsterProjectileSpawn) => void): Unsubscribe {
+    return this.on(SocketEvent.MonsterProjectileSpawn, listener);
+  }
+
+  onMonsterProjectileHit(listener: (payload: MonsterProjectileHit) => void): Unsubscribe {
+    return this.on(SocketEvent.MonsterProjectileHit, listener);
+  }
+
+  onMonsterProjectileDespawn(listener: (payload: MonsterProjectileDespawn) => void): Unsubscribe {
+    return this.on(SocketEvent.MonsterProjectileDespawn, listener);
   }
 
   onExtractOpened(listener: (payload: ExtractOpenedPayload | undefined) => void): Unsubscribe {

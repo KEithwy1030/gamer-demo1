@@ -241,6 +241,13 @@ function emitDrops(roomCode: string): void {
   io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
 }
 
+function emitMusicMode(roomCode: string, mode: "lobby" | "calm" | "skirmish" | "danger" | "extract_pressure" | "death" | "victory"): void {
+  io.to(roomCode).emit(SocketEvent.MusicMode, {
+    mode,
+    ts: Date.now()
+  });
+}
+
 function emitSettlement(roomCode: string, payload: MatchSettlementEnvelope): void {
   const context = roomStore.getRoomByCodeSnapshot(roomCode);
   const player = context.room.players.get(payload.playerId);
@@ -432,6 +439,7 @@ function applyExtractUpdate(roomCode: string): boolean {
 
   for (const success of result.successEvents) {
     io.to(roomCode).emit(SocketEvent.ExtractSuccess, success);
+    emitMusicMode(roomCode, "victory");
   }
 
   for (const settlement of result.settlementEvents) {
@@ -595,6 +603,21 @@ function startMonsterSyncLoop(roomCode: string): void {
 
       const result = tickMonsters(context);
       io.to(roomCode).emit(SocketEvent.StateMonsters, result.monsters);
+      if (result.spawnPhaseChanged) {
+        io.to(roomCode).emit(SocketEvent.SpawnPhaseChanged, result.spawnPhaseChanged);
+      }
+      for (const event of result.musicModeEvents) {
+        io.to(roomCode).emit(SocketEvent.MusicMode, event);
+      }
+      for (const event of result.monsterProjectileSpawns) {
+        io.to(roomCode).emit(SocketEvent.MonsterProjectileSpawn, event);
+      }
+      for (const event of result.monsterProjectileHits) {
+        io.to(roomCode).emit(SocketEvent.MonsterProjectileHit, event);
+      }
+      for (const event of result.monsterProjectileDespawns) {
+        io.to(roomCode).emit(SocketEvent.MonsterProjectileDespawn, event);
+      }
 
       for (const event of result.combatEvents) {
         emitExtractInterruptForCombatEvent(roomCode, context.room, event);
@@ -604,6 +627,14 @@ function startMonsterSyncLoop(roomCode: string): void {
             playerId: event.targetId,
             killerId: event.attackerId
           });
+          emitMusicMode(roomCode, "death");
+          setTimeout(() => {
+            try {
+              emitMusicMode(roomCode, "calm");
+            } catch {
+              // Room may already be disposed.
+            }
+          }, 2000);
         }
       }
 
@@ -640,6 +671,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       const context = roomStore.createRoom(payload, session);
       ensureSocketInRoom(socket, context.room.code);
       emitRoomState(context.room.code, context);
+      io.to(socket.id).emit(SocketEvent.MusicMode, { mode: "lobby", ts: Date.now() });
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to create room.");
     }
@@ -653,6 +685,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       const context = roomStore.joinRoom(payload, session);
       ensureSocketInRoom(socket, context.room.code);
       emitRoomState(context.room.code, context);
+      io.to(socket.id).emit(SocketEvent.MusicMode, { mode: "lobby", ts: Date.now() });
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to join room.");
     }

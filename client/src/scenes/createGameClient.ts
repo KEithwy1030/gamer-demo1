@@ -6,13 +6,18 @@ import {
   CombatEventPayload,
   type ConsumableEffect,
   MatchStartedPayload,
+  type MonsterProjectileDespawn,
+  type MonsterProjectileHit,
+  type MonsterProjectileSpawn,
   MonsterState,
+  type MusicModePayload,
   PlayerState,
   RoomRuntimeSnapshot,
   SettlementItemDetail,
   SettlementPayload,
   type StatusEffectType,
   SkillId,
+  type SpawnPhaseChangedPayload,
   Vector2,
   WorldDrop
 } from "@gamer/shared";
@@ -25,6 +30,7 @@ import { GameAudioController } from "../audio/gameAudio";
 import { logEvent } from "../dev/runtimeLog";
 import { translateItemName } from "../ui/itemPresentation";
 import { GameScene } from "./GameScene";
+import { applyHitFlash } from "../effects/hitFlash";
 import { applySmoothTextureSampling, GAME_RENDER_CONFIG } from "./gameScene/renderTuning";
 import {
   createInitialExtractState,
@@ -107,6 +113,57 @@ export function createGameClientController(
       runtime.updatePlayers(players);
     },
     applyMonsters(monsters) {
+      const previousMonsters = new Map(runtime.getState().monsters.map((monster) => [monster.id, monster]));
+      for (const monster of monsters) {
+        if (!previousMonsters.has(monster.id)) {
+          logEvent("COMBAT", "monster.spawn", {
+            monsterId: monster.id,
+            monsterType: monster.type
+          });
+          if (monster.archetypeState) {
+            logEvent("COMBAT", "monster.archetype_state", {
+              monsterId: monster.id,
+              monsterType: monster.type,
+              state: monster.archetypeState
+            });
+          }
+          if (monster.windingUpAttackUntil || monster.windingUpSlamUntil) {
+            logEvent("COMBAT", "monster.windup_started", {
+              monsterId: monster.id,
+              monsterType: monster.type,
+              kind: monster.windingUpSlamUntil ? "slam" : "attack"
+            });
+          }
+          continue;
+        }
+        const previous = previousMonsters.get(monster.id)!;
+        if (monster.archetypeState && monster.archetypeState !== previous.archetypeState) {
+          logEvent("COMBAT", "monster.archetype_state", {
+            monsterId: monster.id,
+            monsterType: monster.type,
+            state: monster.archetypeState
+          });
+        }
+        if (
+          (monster.windingUpAttackUntil && !previous.windingUpAttackUntil)
+          || (monster.windingUpSlamUntil && !previous.windingUpSlamUntil)
+        ) {
+          logEvent("COMBAT", "monster.windup_started", {
+            monsterId: monster.id,
+            monsterType: monster.type,
+            kind: monster.windingUpSlamUntil ? "slam" : "attack"
+          });
+        }
+      }
+      for (const previous of previousMonsters.values()) {
+        const next = monsters.find((monster) => monster.id === previous.id);
+        if (previous.isAlive && next && !next.isAlive) {
+          logEvent("COMBAT", "monster.death", {
+            monsterId: next.id,
+            monsterType: next.type
+          });
+        }
+      }
       runtime.updateMonsters(monsters);
     },
     applyDrops(drops) {
@@ -136,12 +193,21 @@ export function createGameClientController(
       options.onInventoryChange?.(normalized);
     },
     setCombatResult(payload) {
+      const attackerMonster = runtime.getState().monsters.find((monster) => monster.id === payload.attackerId);
       logEvent("COMBAT", "damage.received", {
         attackerId: payload.attackerId,
         targetId: payload.targetId,
         amount: payload.amount,
         critMultiplier: payload.critMultiplier ?? 1
       });
+      if (attackerMonster && payload.amount > 0) {
+        logEvent("COMBAT", "monster.attack_hit", {
+          monsterId: attackerMonster.id,
+          monsterType: attackerMonster.type,
+          targetId: payload.targetId,
+          amount: payload.amount
+        });
+      }
       const selfPlayerId = controller.getSelfPlayerId();
       audio.play(payload.targetId === selfPlayerId ? "hurt" : "hit");
       getScene()?.onCombatResult?.(payload);
@@ -207,6 +273,11 @@ export function createGameClientController(
   };
 
   subscriptions.push(
+    network.onRoomError((payload) => {
+      logEvent("NET", "room.error", {
+        message: payload.message
+      });
+    }),
     network.onPlayersState((players) => controller.applyPlayers(players)),
     network.onMonstersState((monsters) => controller.applyMonsters(monsters)),
     network.onDropsState((drops) => controller.applyDrops(drops)),
@@ -221,12 +292,37 @@ export function createGameClientController(
       });
       getScene()?.onMonsterKilled?.(payload);
     }),
+    network.onSpawnPhaseChanged((payload: SpawnPhaseChangedPayload) => {
+      logEvent("COMBAT", "spawn.phase_changed", {
+        phase: payload.phase,
+        t: payload.atRunSeconds
+      });
+    }),
+    network.onMusicMode((payload: MusicModePayload) => {
+      logEvent("AUDIO", "music.mode_changed", {
+        mode: payload.mode,
+        ts: payload.ts
+      });
+    }),
+    network.onMonsterProjectileSpawn((payload: MonsterProjectileSpawn) => {
+      logEvent("COMBAT", "monster.projectile_spawn", payload as unknown as Record<string, unknown>);
+    }),
+    network.onMonsterProjectileHit((payload: MonsterProjectileHit) => {
+      logEvent("COMBAT", "monster.projectile_hit", payload as unknown as Record<string, unknown>);
+    }),
+    network.onMonsterProjectileDespawn((payload: MonsterProjectileDespawn) => {
+      logEvent("COMBAT", "monster.projectile_despawn", payload as unknown as Record<string, unknown>);
+    }),
     network.onChestsInit((chests) => {
       pendingChestsInit = chests;
       getScene()?.applyChests(chests);
     }),
     network.onMatchTimer((secondsRemaining) => controller.setTimer(secondsRemaining)),
     network.onExtractOpened((payload) => {
+      logEvent("EXTRACT", "extract.opened", {
+        openZones: payload?.zones?.filter((zone) => zone.isOpen).map((zone) => zone.zoneId) ?? [],
+        activeSquadId: payload?.squadStatus?.activeSquadId ?? null
+      });
       const openedState = normalizeExtractOpened(extractState, payload);
       controller.setExtractState({
         ...openedState,
@@ -236,6 +332,15 @@ export function createGameClientController(
       });
     }),
     network.onExtractProgress((payload) => {
+      if (payload && typeof payload === "object") {
+        logEvent("EXTRACT", "extract.progress", {
+          playerId: payload.playerId,
+          zoneId: payload.zoneId,
+          status: payload.status,
+          remainingMs: payload.remainingMs ?? null,
+          pressure: payload.pressure ? true : false
+        });
+      }
       const selfPlayerId = controller.getSelfPlayerId();
       if (payload && typeof payload === "object" && "playerId" in payload) {
         const playerId = typeof payload.playerId === "string" ? payload.playerId : undefined;
@@ -268,6 +373,12 @@ export function createGameClientController(
       controller.setExtractState(normalizedExtract);
     }),
     network.onExtractSuccess((payload) => {
+      if (payload) {
+        logEvent("EXTRACT", "extract.success", {
+          playerId: payload.playerId,
+          zoneId: payload.zoneId
+        });
+      }
       const selfPlayerId = controller.getSelfPlayerId();
       if (payload?.playerId && payload.playerId !== selfPlayerId) return;
       audio.play("extract");
@@ -396,6 +507,7 @@ export function createGameClientController(
       onStartExtract: () => network.sendStartExtract(),
       onOpenChest: (chestId: string) => network.sendOpenChest(chestId),
       onAudioCue: (cue: any) => audio.play(cue),
+      applyHitFlash: applyHitFlash,
       onToggleInventory: () => controller.toggleInventory(),
       onSceneReady: () => {
         if (pendingChestsInit) {

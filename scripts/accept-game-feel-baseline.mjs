@@ -239,14 +239,6 @@ async function finishWithEventDump(page) {
 }
 
 async function runLateGameExtractAcceptance(page, matchStarted) {
-  await screenshot(page, "01-lategame-extract-ready.png");
-
-  const opened = await waitForEventAfter(page, "extract:opened", matchStarted.ts, 12_000);
-  note("captured late-game extract opened event", {
-    isOpen: opened.payload?.zones?.some((zone) => zone.isOpen) ?? null,
-    members: opened.payload?.squadStatus?.members?.length ?? null
-  });
-
   const canvas = page.locator("canvas:not(.lobby-background)").first();
   const canvasBox = await canvas.boundingBox();
   if (!canvasBox) throw new Error("game canvas bounding box unavailable before late-game extract");
@@ -257,8 +249,21 @@ async function runLateGameExtractAcceptance(page, matchStarted) {
     },
     force: true
   });
-  await page.keyboard.press("F");
-  note("requested late-game extract via keyboard");
+  await screenshot(page, "01-lategame-extract-ready.png");
+  await page.evaluate(() => {
+    const hooks = window.__P0B_TEST_HOOKS__;
+    if (!hooks || typeof hooks.startExtract !== "function") {
+      throw new Error("window.__P0B_TEST_HOOKS__.startExtract is unavailable");
+    }
+    hooks.startExtract();
+  });
+  note("requested late-game extract via test hook");
+
+  const opened = await waitForEventAfter(page, "extract:opened", matchStarted.ts, 12_000);
+  note("captured late-game extract opened event", {
+    isOpen: opened.payload?.zones?.some((zone) => zone.isOpen) ?? null,
+    members: opened.payload?.squadStatus?.members?.length ?? null
+  });
 
   const progress = await waitForExtractProgress(page, matchStarted.ts, 15_000);
   if (!progress.payload?.pressure) {
@@ -272,12 +277,17 @@ async function runLateGameExtractAcceptance(page, matchStarted) {
   await sleep(350);
   await screenshot(page, "02-lategame-extract-pressure.png");
 
-  await sleep(1_500);
+  const success = await waitForEventAfter(page, "extract:success", progress.ts, 15_000);
+  note("captured late-game extract success event", {
+    playerId: success.payload?.playerId ?? null,
+    zoneId: success.payload?.zoneId ?? null
+  });
+  await sleep(1_000);
   await screenshot(page, "03-lategame-extract-sustained-pressure.png");
 
   await finishWithEventDump(page);
   summary.result = "pass";
-  note("captured late-game extract ready and exposed pressure progress screenshots");
+  note("captured late-game extract ready, pressure progress, and success screenshots");
 }
 
 async function runBossCombatAcceptance(page, matchStarted) {

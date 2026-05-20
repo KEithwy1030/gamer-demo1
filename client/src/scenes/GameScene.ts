@@ -60,6 +60,7 @@ export interface GameSceneInitData {
   onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss"; killerPlayerId: string }) => void;
   onOpenChest?: (chestId: string) => void;
   onAudioCue?: (cue: string) => void;
+  applyHitFlash?: (target: Phaser.GameObjects.Container | Phaser.GameObjects.Sprite | Phaser.GameObjects.Image, isPlayerHurt: boolean) => void;
   onToggleInventory?: () => void;
   subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
   subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
@@ -120,6 +121,7 @@ export class GameScene extends Phaser.Scene {
   public onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss"; killerPlayerId: string }) => void;
   private onOpenChest?: (chestId: string) => void;
   public onAudioCue?: (cue: string) => void;
+  public applyHitFlash?: (target: Phaser.GameObjects.Container | Phaser.GameObjects.Sprite | Phaser.GameObjects.Image, isPlayerHurt: boolean) => void;
   private onToggleInventory?: () => void;
   private monsterWindups = new Map<string, number>();
 
@@ -190,6 +192,7 @@ export class GameScene extends Phaser.Scene {
     this.subscribeChestOpened = data.subscribeChestOpened;
     this.subscribeChestProgress = data.subscribeChestProgress;
     this.onSceneReady = data.onSceneReady;
+    this.applyHitFlash = data.applyHitFlash;
     this.onCombatResult = (payload) => this.handleCombatResult(payload);
     this.onPlayerAttack = (payload) => this.handleServerPlayerAttack(payload);
     this.onMonsterKilled = (payload) => this.handleMonsterKilled(payload);
@@ -218,6 +221,22 @@ export class GameScene extends Phaser.Scene {
       this.lastSelfDamageAt = Date.now();
     }
     this.feedbackFx?.handleCombatResult(payload, this.latestState, this.playerMarkers, this.monsterMarkers);
+
+    if (!this.latestState) return;
+
+    const isPlayerHurt = payload.targetId === this.latestState.selfPlayerId;
+    let targetSprite: Phaser.GameObjects.Container | Phaser.GameObjects.Sprite | Phaser.GameObjects.Image | undefined;
+
+    if (isPlayerHurt) {
+      targetSprite = this.playerMarkers.get(payload.targetId)?.root;
+    } else {
+      targetSprite = this.monsterMarkers.get(payload.targetId)?.root;
+    }
+
+    if (targetSprite && this.applyHitFlash) {
+      this.applyHitFlash(targetSprite, isPlayerHurt);
+    }
+
     if (
       payload.attackerId === this.latestState?.selfPlayerId
       && (!this.lastLocalAttackTargetId || payload.targetId === this.lastLocalAttackTargetId)

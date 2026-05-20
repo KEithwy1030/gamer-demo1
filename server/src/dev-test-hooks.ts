@@ -19,6 +19,8 @@ const DEV_PRESET_SAFETY_MS = 18_000;
 const DEV_PRESET_THREAT_CLEAR_RADIUS = 720;
 const DEV_PRESET_THREAT_RELOCATE_DISTANCE = 960;
 const DEV_EXTRACT_CHANNEL_DURATION_MS = 9_000;
+const DEV_LATEGAME_SPAWN_GRACE_MS = 12_000;
+const DEV_LATEGAME_RUN_OFFSET_MS = 361_000;
 
 export function resolveEnabledDevRoomPreset(value: unknown): DevRoomPreset | undefined {
   if (!ENABLE_TEST_HOOKS) {
@@ -144,13 +146,13 @@ function applyLateGamePreset(room: RuntimeRoom, player: RuntimePlayer): void {
 
   const now = Date.now();
   applyExtractPreset(room, player);
-  room.startedAt = now - 500_000;
+  room.startedAt = now - DEV_LATEGAME_RUN_OFFSET_MS;
 
   if (room.extract?.zones?.[0] && room.extract.zones[0].zoneId === extractZone.zoneId) {
     const zone = room.extract.zones[0];
     zone.isOpen = true;
     zone.openedAt = now;
-    zone.channelDurationMs = Math.max(zone.channelDurationMs ?? 0, 12_000);
+    zone.channelDurationMs = DEV_EXTRACT_CHANNEL_DURATION_MS;
     room.extract.activeZoneId = zone.zoneId;
     room.extract.activeSquadId = player.squadId;
     room.extract.carrier ??= {
@@ -169,6 +171,10 @@ function applyLateGamePreset(room: RuntimeRoom, player: RuntimePlayer): void {
       startedAt: now,
       expiresAt: now + zone.channelDurationMs + 2_500
     };
+  }
+
+  if (room.spawnDirector) {
+    room.spawnDirector.nextSpawnAt = now + DEV_LATEGAME_SPAWN_GRACE_MS;
   }
 
   const threat = [...(room.monsters?.values() ?? [])].find((monster) => monster.isAlive && monster.type !== "boss");

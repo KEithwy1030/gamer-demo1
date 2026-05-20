@@ -41,6 +41,17 @@ export interface MonsterVisualProfile {
 }
 
 const MONSTER_VISUAL_PROFILES: Record<MonsterState["type"], MonsterVisualProfile> = {
+  basic: {
+    displaySize: 114,
+    shadow: { width: 88, height: 26, y: 47, alpha: 0.72 },
+    threatAura: { width: 114, height: 68, y: 21 },
+    telegraphRing: { width: 125, height: 125, y: 21 },
+    impactFlash: { width: 94, height: 114, y: 10 },
+    labelOffsetY: 78,
+    hpY: -75,
+    crownY: -130,
+    hpWidth: 101
+  },
   normal: {
     displaySize: 114,
     shadow: { width: 88, height: 26, y: 47, alpha: 0.72 },
@@ -52,6 +63,17 @@ const MONSTER_VISUAL_PROFILES: Record<MonsterState["type"], MonsterVisualProfile
     crownY: -130,
     hpWidth: 101
   },
+  skirmisher: {
+    displaySize: 108,
+    shadow: { width: 82, height: 24, y: 44, alpha: 0.68 },
+    threatAura: { width: 108, height: 62, y: 18 },
+    telegraphRing: { width: 120, height: 120, y: 18 },
+    impactFlash: { width: 90, height: 108, y: 8 },
+    labelOffsetY: 74,
+    hpY: -72,
+    crownY: -126,
+    hpWidth: 92
+  },
   elite: {
     displaySize: 130,
     shadow: { width: 100, height: 29, y: 49, alpha: 0.78 },
@@ -62,6 +84,28 @@ const MONSTER_VISUAL_PROFILES: Record<MonsterState["type"], MonsterVisualProfile
     hpY: -88,
     crownY: -145,
     hpWidth: 85
+  },
+  brute: {
+    displaySize: 142,
+    shadow: { width: 110, height: 32, y: 54, alpha: 0.8 },
+    threatAura: { width: 142, height: 92, y: 26 },
+    telegraphRing: { width: 154, height: 154, y: 26 },
+    impactFlash: { width: 108, height: 134, y: 11 },
+    labelOffsetY: 96,
+    hpY: -90,
+    crownY: -142,
+    hpWidth: 104
+  },
+  archer: {
+    displaySize: 112,
+    shadow: { width: 84, height: 25, y: 45, alpha: 0.7 },
+    threatAura: { width: 112, height: 66, y: 20 },
+    telegraphRing: { width: 124, height: 124, y: 20 },
+    impactFlash: { width: 92, height: 110, y: 9 },
+    labelOffsetY: 76,
+    hpY: -74,
+    crownY: -128,
+    hpWidth: 96
   },
   boss: {
     displaySize: 260,
@@ -97,6 +141,33 @@ function buildFourDirectionActions(): Record<MonsterFacing, MonsterActionFrames>
 }
 
 export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetContract> = {
+  basic: {
+    textureKey: "monster_normal_sheet",
+    assetPath: "assets/generated/image2_processed/monsters/monster_normal_sheet_4x4.png",
+    frameWidth: 314,
+    frameHeight: 314,
+    columns: 4,
+    rows: 4,
+    displaySize: MONSTER_VISUAL_PROFILES.basic.displaySize,
+    directionalCoverage: "full",
+    actions: {
+      idle: [0, 0, 1, 2, 1],
+      move: [4, 5, 6, 7, 6, 5],
+      attack: [8, 9, 10, 9],
+      charge: [8, 9, 10, 9],
+      hurt: [10, 9],
+      death: [11]
+    },
+    directionalActions: buildFourDirectionActions(),
+    frameRates: {
+      idle: 4,
+      move: 7,
+      attack: 9,
+      charge: 10,
+      hurt: 11,
+      death: 1
+    }
+  },
   normal: {
     textureKey: "monster_normal_sheet",
     assetPath: "assets/generated/image2_processed/monsters/monster_normal_sheet_4x4.png",
@@ -120,6 +191,33 @@ export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetC
       move: 7,
       attack: 9,
       charge: 10,
+      hurt: 11,
+      death: 1
+    }
+  },
+  skirmisher: {
+    textureKey: "monster_normal_sheet",
+    assetPath: "assets/generated/image2_processed/monsters/monster_normal_sheet_4x4.png",
+    frameWidth: 314,
+    frameHeight: 314,
+    columns: 4,
+    rows: 4,
+    displaySize: MONSTER_VISUAL_PROFILES.skirmisher.displaySize,
+    directionalCoverage: "full",
+    actions: {
+      idle: [0, 1, 2, 1],
+      move: [4, 5, 6, 7, 6, 5],
+      attack: [8, 9, 10, 9],
+      charge: [8, 9, 10, 9],
+      hurt: [10, 9],
+      death: [11]
+    },
+    directionalActions: buildFourDirectionActions(),
+    frameRates: {
+      idle: 5,
+      move: 9,
+      attack: 10,
+      charge: 11,
       hurt: 11,
       death: 1
     }
@@ -148,6 +246,60 @@ export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetC
       attack: 8,
       charge: 9,
       hurt: 10,
+      death: 1
+    }
+  },
+  brute: {
+    textureKey: "monster_elite_sheet",
+    assetPath: "assets/generated/image2_processed/monsters/monster_elite_sheet_4x4.png",
+    frameWidth: 314,
+    frameHeight: 314,
+    columns: 4,
+    rows: 4,
+    displaySize: MONSTER_VISUAL_PROFILES.brute.displaySize,
+    directionalCoverage: "full",
+    actions: {
+      idle: [0, 1, 2, 1],
+      move: [4, 5, 6, 7, 6, 5],
+      attack: [8, 9, 10, 10, 9],
+      charge: [8, 9, 10, 10],
+      hurt: [10, 9],
+      death: [11]
+    },
+    directionalActions: buildFourDirectionActions(),
+    frameRates: {
+      idle: 4,
+      move: 5,
+      attack: 6,
+      charge: 6,
+      hurt: 9,
+      death: 1
+    }
+  },
+  archer: {
+    textureKey: "monster_normal_sheet",
+    assetPath: "assets/generated/image2_processed/monsters/monster_normal_sheet_4x4.png",
+    frameWidth: 314,
+    frameHeight: 314,
+    columns: 4,
+    rows: 4,
+    displaySize: MONSTER_VISUAL_PROFILES.archer.displaySize,
+    directionalCoverage: "full",
+    actions: {
+      idle: [0, 1, 2, 1],
+      move: [4, 5, 6, 7, 6, 5],
+      attack: [8, 9, 10, 9],
+      charge: [8, 9, 10, 9],
+      hurt: [10, 9],
+      death: [11]
+    },
+    directionalActions: buildFourDirectionActions(),
+    frameRates: {
+      idle: 4,
+      move: 6,
+      attack: 7,
+      charge: 8,
+      hurt: 9,
       death: 1
     }
   },

@@ -1,7 +1,11 @@
 import type { Vector2 } from "./game.js";
 
-export type MonsterType = "normal" | "elite" | "boss";
+export type MonsterType = "basic" | "normal" | "elite" | "boss" | "skirmisher" | "brute" | "archer";
 export type EliteMonsterRole = "sentinel" | "hunter" | "bruiser";
+export type SpawnPhase = "opening" | "skirmish" | "danger" | "extract";
+export type MusicMode = "lobby" | "calm" | "skirmish" | "danger" | "extract_pressure" | "death" | "victory";
+export type MonsterProjectileType = "arrow";
+export type MonsterArchetypeState = "lunging" | "retreating";
 
 export type MonsterBehaviorPhase = "idle" | "hunt" | "windup" | "charge" | "recover";
 export type MonsterSkillState = "smash" | "charge" | "chargedStrike";
@@ -29,7 +33,9 @@ export interface MonsterState {
   phaseEndsAt?: number;
   skillState?: MonsterSkillState;
   skillEndsAt?: number;
+  archetypeState?: MonsterArchetypeState;
   windingUpAttackUntil?: number;
+  windingUpSlamUntil?: number;
   berserk?: boolean;
   isEnraged?: boolean;
   lastAttackAt?: number;
@@ -40,6 +46,8 @@ export interface MonsterState {
 export interface MonsterKilledPayload {
   monsterId: string;
   tier: MonsterType;
+  x: number;
+  y: number;
   killerPlayerId: string;
   killedAt: number;
 }
@@ -49,4 +57,38 @@ export interface MonsterSpawnDefinition {
   type: MonsterType;
   x: number;
   y: number;
+}
+
+export interface SpawnPhaseChangedPayload {
+  phase: SpawnPhase;
+  atRunSeconds: number;
+}
+
+export interface MusicModePayload {
+  mode: MusicMode;
+  ts: number;
+}
+
+export interface MonsterProjectileSpawn {
+  id: string;
+  monsterId: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  ttlMs: number;
+  damage: number;
+  type: MonsterProjectileType;
+}
+
+export interface MonsterProjectileHit {
+  id: string;
+  hitPlayerId: string | null;
+  x: number;
+  y: number;
+}
+
+export interface MonsterProjectileDespawn {
+  id: string;
+  reason: "timeout" | "hit" | "blocked";
 }

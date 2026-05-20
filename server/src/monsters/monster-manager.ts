@@ -3,9 +3,13 @@ import type {
   AttackRequestPayload,
   CombatEventPayload,
   MonsterKilledPayload,
+  MonsterProjectileDespawn,
+  MonsterProjectileHit,
+  MonsterProjectileSpawn,
   MonsterSpawnDefinition,
   MonsterState,
   MonsterType,
+  MusicModePayload,
   SkillCastPayload
 } from "@gamer/shared";
 import { WEAPON_DEFINITIONS } from "@gamer/shared";
@@ -50,6 +54,13 @@ import {
 } from "../combat/player-effects.js";
 import { doesSegmentIntersectObstacle, isPointInsideRiverHazard } from "../match-layout.js";
 import type { DropState, RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../types.js";
+import {
+  ensureProjectileState,
+  spawnMonsterProjectile,
+  tickMonsterProjectiles,
+  toProjectileHitPayload
+} from "./projectile-manager.js";
+import { advanceSpawnDirector, getCurrentPhase, initializeSpawnDirector } from "../spawn/spawn-director.js";
 
 interface CombatPlayerState {
   x: number;
@@ -121,6 +132,25 @@ const NORMAL_BERSERK_HP_THRESHOLD = 0.3;
 const NORMAL_BERSERK_MOVE_SPEED_MULTIPLIER = 1.3;
 const NORMAL_BERSERK_ATTACK_COOLDOWN_MULTIPLIER = 0.83;
 const OPENING_PASSIVE_AGGRO_GRACE_MS = 25_000;
+const SKIRMISHER_MAX_HP = 25;
+const SKIRMISHER_MOVE_SPEED = Math.round(NORMAL_MONSTER_MOVE_SPEED * 1.5);
+const SKIRMISHER_ATTACK_DAMAGE = 12;
+const SKIRMISHER_ATTACK_COOLDOWN_MS = 1500;
+const SKIRMISHER_RETREAT_DISTANCE = 180;
+const BRUTE_MAX_HP = 120;
+const BRUTE_MOVE_SPEED = Math.round(NORMAL_MONSTER_MOVE_SPEED * 0.55);
+const BRUTE_ATTACK_DAMAGE = 50;
+const BRUTE_ATTACK_RANGE = 110;
+const BRUTE_ATTACK_ARC_DEG = 120;
+const BRUTE_WINDUP_MS = 1500;
+const BRUTE_ATTACK_COOLDOWN_MS = 2800;
+const ARCHER_MAX_HP = 40;
+const ARCHER_MOVE_SPEED = Math.round(NORMAL_MONSTER_MOVE_SPEED * 0.9);
+const ARCHER_ATTACK_DAMAGE = 22;
+const ARCHER_ATTACK_COOLDOWN_MS = 2200;
+const ARCHER_RETREAT_DISTANCE = 180;
+const ARCHER_RETREAT_TRIGGER_RANGE = 120;
+const ARCHER_PROJECTILE_TTL_MS = 850;
 
 export interface PlayerAttackOutcome {
   monsters: MonsterState[];
@@ -135,6 +165,11 @@ export interface MonsterTickResult {
   drops: DropState[];
   combatEvents: CombatEventPayload[];
   playerStateChanged: boolean;
+  spawnPhaseChanged?: { phase: "opening" | "skirmish" | "danger" | "extract"; atRunSeconds: number };
+  musicModeEvents: MusicModePayload[];
+  monsterProjectileSpawns: MonsterProjectileSpawn[];
+  monsterProjectileHits: MonsterProjectileHit[];
+  monsterProjectileDespawns: MonsterProjectileDespawn[];
 }
 
 export interface PlayerSkillOutcome {
@@ -144,6 +179,8 @@ export interface PlayerSkillOutcome {
   spawnedDrops: DropState[];
   monsterKills: MonsterKilledPayload[];
 }
+
+type InternalMonsterBehaviorTickResult = Pick<MonsterTickResult, "monsters" | "drops" | "combatEvents" | "playerStateChanged">;
 
 export function ensureMonsterState(room: RuntimeRoom): Map<string, RuntimeMonster> {
   if (!room.monsters) {
@@ -156,11 +193,12 @@ export function ensureMonsterState(room: RuntimeRoom): Map<string, RuntimeMonste
 export function spawnInitialMonsters(room: RuntimeRoom): MonsterState[] {
   const monsters = ensureMonsterState(room);
   monsters.clear();
-
+  ensureProjectileState(room).clear();
   room.pendingMonsterRespawns = [];
-  room.monsterSpawnDefinitions = generateMonsterSpawnDefinitions(room);
+  room.monsterSpawnDefinitions = [];
+  initializeSpawnDirector(room);
 
-  for (const spawn of room.monsterSpawnDefinitions) {
+  for (const spawn of generateBossSpawnDefinitions(room)) {
     const monster = buildRuntimeMonster(spawn);
     monsters.set(monster.id, monster);
   }
@@ -185,7 +223,9 @@ export function listMonsterStates(room: RuntimeRoom): MonsterState[] {
     phaseEndsAt: monster.phaseEndsAt,
     skillState: monster.skillState,
     skillEndsAt: monster.skillEndsAt,
+    archetypeState: monster.archetypeState,
     windingUpAttackUntil: monster.windingUpAttackUntil,
+    windingUpSlamUntil: monster.windingUpSlamUntil,
     berserk: isNormalMonsterBerserk(monster),
     isEnraged: monster.isEnraged,
     lastAttackAt: monster.lastAttackAt,
@@ -227,16 +267,35 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
   const room = context.room;
   const monsters = ensureMonsterState(room);
   const combatEvents: CombatEventPayload[] = [];
+  const monsterProjectileSpawns: MonsterProjectileSpawn[] = [];
+  const monsterProjectileHits: MonsterProjectileHit[] = [];
+  const monsterProjectileDespawns: MonsterProjectileDespawn[] = [];
   let playerStateChanged = false;
   const now = Date.now();
+  const spawnTick = advanceSpawnDirector(room, now);
+  let spawnPhaseChanged = spawnTick.phaseChanged;
+  const musicModeEvents: MusicModePayload[] = [];
 
-  processMonsterRespawns(room, now);
+  if (spawnPhaseChanged) {
+    musicModeEvents.push(...emitMusicModeForRoom(room, mapPhaseToMusicMode(spawnPhaseChanged.phase), now));
+  }
+
+  for (const spawn of spawnTick.spawns) {
+    const monster = buildRuntimeMonster(spawn);
+    monsters.set(monster.id, monster);
+  }
+
   if (process.env.MONSTER_AI_DISABLED === "true") {
     return {
       monsters: listMonsterStates(room),
       drops: listWorldDrops(room),
       combatEvents,
-      playerStateChanged
+      playerStateChanged,
+      spawnPhaseChanged,
+      musicModeEvents,
+      monsterProjectileSpawns,
+      monsterProjectileHits,
+      monsterProjectileDespawns
     };
   }
 
@@ -263,7 +322,7 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
       continue;
     }
 
-    if (resolveNonBossAttackPhase(monster, room, now, combatEvents)) {
+    if (resolveNonBossAttackPhase(monster, room, now, combatEvents, musicModeEvents)) {
       playerStateChanged = true;
       continue;
     }
@@ -280,8 +339,35 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
 
     syncPlayerCombatState(target, now);
     const distance = distanceBetween(monster.x, monster.y, target.state.x, target.state.y);
+
+    if (monster.type === "skirmisher") {
+      if (tickSkirmisher(room, monster, target, distance, now, combatEvents)) {
+        playerStateChanged = true;
+      }
+      continue;
+    }
+
+    if (monster.type === "brute") {
+      if (tickBrute(room, monster, target, distance, now, combatEvents, musicModeEvents)) {
+        playerStateChanged = true;
+      }
+      continue;
+    }
+
+    if (monster.type === "archer") {
+      const archerResult = tickArcher(room, monster, target, distance, now);
+      if (archerResult.playerStateChanged) {
+        playerStateChanged = true;
+      }
+      if (archerResult.projectileSpawn) {
+        monsterProjectileSpawns.push(archerResult.projectileSpawn);
+      }
+      continue;
+    }
+
     if (shouldStartEliteChargedStrike(room, monster, target, distance, now)) {
       startEliteChargedStrike(monster, target, now);
+      musicModeEvents.push(...emitMusicModeForRoom(room, "danger", now));
       continue;
     }
 
@@ -297,11 +383,29 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
     startNonBossAttackWindup(monster, target.id, now);
   }
 
+  const projectileTick = tickMonsterProjectiles(room, now);
+  for (const impact of projectileTick.impacts) {
+    const hitPayload = toProjectileHitPayload(impact);
+    monsterProjectileHits.push(hitPayload);
+    const hitPlayer = impact.hitPlayerId ? room.players.get(impact.hitPlayerId) : undefined;
+    const sourceMonster = monsters.get(impact.projectile.monsterId);
+    if (sourceMonster && hitPlayer?.state?.isAlive) {
+      combatEvents.push(applyMonsterDamage(sourceMonster, hitPlayer, impact.projectile.damage, now));
+      playerStateChanged = true;
+    }
+  }
+  monsterProjectileDespawns.push(...projectileTick.despawned);
+
   return {
     monsters: listMonsterStates(room),
     drops: listWorldDrops(room),
     combatEvents,
-    playerStateChanged
+    playerStateChanged,
+    spawnPhaseChanged,
+    musicModeEvents,
+    monsterProjectileSpawns,
+    monsterProjectileHits,
+    monsterProjectileDespawns
   };
 }
 
@@ -446,6 +550,30 @@ export function handlePlayerSkill(
   }
 }
 
+function mapPhaseToMusicMode(phase: "opening" | "skirmish" | "danger" | "extract"): MusicModePayload["mode"] {
+  if (phase === "opening") return "calm";
+  if (phase === "skirmish") return "skirmish";
+  if (phase === "danger") return "danger";
+  return "extract_pressure";
+}
+
+function emitMusicModeForRoom(room: RuntimeRoom, mode: MusicModePayload["mode"], now: number): MusicModePayload[] {
+  room.musicModeByPlayerId ??= {};
+  const key = "__room";
+  const previous = room.musicModeByPlayerId[key];
+  if (previous && previous.mode === mode && now - previous.lastEmittedAt < 1000) {
+    return [];
+  }
+  room.musicModeByPlayerId[key] = {
+    mode,
+    lastEmittedAt: now
+  };
+  return [{
+    mode,
+    ts: now
+  }];
+}
+
 type EliteGuardRole = "sentinel" | "hunter" | "bruiser";
 
 function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
@@ -454,12 +582,13 @@ function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
   const stats = spawn.type === "elite"
     ? applyEliteGuardRoleStats(baseStats, eliteRole!)
     : baseStats;
+  const normalizedType = spawn.type === "normal" ? "basic" : spawn.type;
   return {
     id: `monster_${spawn.id}_${crypto.randomUUID().slice(0, 8)}`,
     spawnId: spawn.id,
-    type: spawn.type,
+    type: normalizedType,
     eliteRole,
-    name: spawn.type === "boss" ? "灾厄监工" : undefined,
+    name: normalizedType === "boss" ? "灾厄监工" : undefined,
     x: spawn.x,
     y: spawn.y,
     hp: stats.maxHp,
@@ -486,7 +615,9 @@ function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
     phaseEndsAt: undefined,
     skillState: undefined,
     skillEndsAt: undefined,
+    archetypeState: undefined,
     windingUpAttackUntil: undefined,
+    windingUpSlamUntil: undefined,
     recoverUntil: undefined,
     isEnraged: false,
     enrageThreshold: stats.enrageThreshold,
@@ -508,7 +639,13 @@ function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
     idleUntil: Date.now() + randomBetween(MONSTER_IDLE_MIN_MS, MONSTER_IDLE_MAX_MS),
     pendingAttackTargetId: undefined,
     lastAttackAt: undefined,
-    lastDamagedAt: undefined
+    lastDamagedAt: undefined,
+    retreatUntil: undefined,
+    retreatTargetX: undefined,
+    retreatTargetY: undefined,
+    slamAnchorX: undefined,
+    slamAnchorY: undefined,
+    archerCooldownUntil: undefined
   };
 }
 
@@ -593,6 +730,63 @@ function getMonsterStats(monsterType: MonsterType) {
       attackCooldownMs: ELITE_MONSTER_ATTACK_COOLDOWN_MS,
       patrolRadius: ELITE_MONSTER_PATROL_RADIUS,
       guardRadius: ELITE_MONSTER_GUARD_RADIUS,
+      returnDelayMs: MONSTER_RETURN_DELAY_MS,
+      enrageThreshold: 0,
+      enrageAttackDamageBonus: 0,
+      enrageMoveSpeedBonus: 0,
+      enrageCooldownMultiplier: 1
+    };
+  }
+
+  if (monsterType === "skirmisher") {
+    return {
+      maxHp: SKIRMISHER_MAX_HP,
+      aggroRange: NORMAL_MONSTER_AGGRO_RANGE + 40,
+      leashRange: NORMAL_MONSTER_LEASH_RANGE + 80,
+      attackRange: NORMAL_MONSTER_ATTACK_RANGE,
+      attackDamage: SKIRMISHER_ATTACK_DAMAGE,
+      moveSpeed: SKIRMISHER_MOVE_SPEED,
+      attackCooldownMs: SKIRMISHER_ATTACK_COOLDOWN_MS,
+      patrolRadius: NORMAL_MONSTER_PATROL_RADIUS + 20,
+      guardRadius: NORMAL_MONSTER_GUARD_RADIUS + 20,
+      returnDelayMs: MONSTER_RETURN_DELAY_MS,
+      enrageThreshold: 0,
+      enrageAttackDamageBonus: 0,
+      enrageMoveSpeedBonus: 0,
+      enrageCooldownMultiplier: 1
+    };
+  }
+
+  if (monsterType === "brute") {
+    return {
+      maxHp: BRUTE_MAX_HP,
+      aggroRange: NORMAL_MONSTER_AGGRO_RANGE + 90,
+      leashRange: NORMAL_MONSTER_LEASH_RANGE + 120,
+      attackRange: BRUTE_ATTACK_RANGE,
+      attackDamage: BRUTE_ATTACK_DAMAGE,
+      moveSpeed: BRUTE_MOVE_SPEED,
+      attackCooldownMs: BRUTE_ATTACK_COOLDOWN_MS,
+      patrolRadius: NORMAL_MONSTER_PATROL_RADIUS - 20,
+      guardRadius: NORMAL_MONSTER_GUARD_RADIUS + 40,
+      returnDelayMs: MONSTER_RETURN_DELAY_MS,
+      enrageThreshold: 0,
+      enrageAttackDamageBonus: 0,
+      enrageMoveSpeedBonus: 0,
+      enrageCooldownMultiplier: 1
+    };
+  }
+
+  if (monsterType === "archer") {
+    return {
+      maxHp: ARCHER_MAX_HP,
+      aggroRange: NORMAL_MONSTER_AGGRO_RANGE + 150,
+      leashRange: NORMAL_MONSTER_LEASH_RANGE + 180,
+      attackRange: 420,
+      attackDamage: ARCHER_ATTACK_DAMAGE,
+      moveSpeed: ARCHER_MOVE_SPEED,
+      attackCooldownMs: ARCHER_ATTACK_COOLDOWN_MS,
+      patrolRadius: NORMAL_MONSTER_PATROL_RADIUS + 60,
+      guardRadius: NORMAL_MONSTER_GUARD_RADIUS + 60,
       returnDelayMs: MONSTER_RETURN_DELAY_MS,
       enrageThreshold: 0,
       enrageAttackDamageBonus: 0,
@@ -889,9 +1083,11 @@ function createMonsterKilledPayload(monster: RuntimeMonster, killerPlayerId: str
   return {
     monsterId: monster.id,
     tier: monster.type,
+    x: Math.round(monster.x),
+    y: Math.round(monster.y),
     killerPlayerId,
     killedAt
-  };
+  } as MonsterKilledPayload;
 }
 
 function markMonsterDead(room: RuntimeRoom, monster: RuntimeMonster, deadAt: number): void {
@@ -1255,7 +1451,7 @@ function getBossMoveSpeed(monster: RuntimeMonster): number {
 }
 
 function isNormalMonsterBerserk(monster: RuntimeMonster): boolean {
-  return monster.type === "normal"
+  return (monster.type === "normal" || monster.type === "basic")
     && monster.isAlive
     && monster.hp > 0
     && monster.hp / monster.maxHp < NORMAL_BERSERK_HP_THRESHOLD;
@@ -1290,7 +1486,7 @@ function tickBossMonster(
   monster: RuntimeMonster,
   target: RuntimePlayer | undefined,
   now: number
-): MonsterTickResult {
+): InternalMonsterBehaviorTickResult {
   const combatEvents: CombatEventPayload[] = [];
   let playerStateChanged = false;
 
@@ -1546,6 +1742,164 @@ function applyEliteHeavyStrike(
   return ["slow"];
 }
 
+function tickSkirmisher(
+  room: RuntimeRoom,
+  monster: RuntimeMonster,
+  target: RuntimePlayer,
+  distance: number,
+  now: number,
+  combatEvents: CombatEventPayload[]
+): boolean {
+  if (monster.retreatUntil && now < monster.retreatUntil && typeof monster.retreatTargetX === "number" && typeof monster.retreatTargetY === "number") {
+    monster.archetypeState = "retreating";
+    moveMonsterTowards(monster, {
+      x: monster.retreatTargetX,
+      y: monster.retreatTargetY,
+      direction: { x: 0, y: 0 }
+    }, monster.moveSpeed);
+    if (distanceBetween(monster.x, monster.y, monster.retreatTargetX, monster.retreatTargetY) <= 12) {
+      monster.retreatUntil = undefined;
+      monster.retreatTargetX = undefined;
+      monster.retreatTargetY = undefined;
+      monster.archetypeState = undefined;
+      monster.behaviorPhase = "idle";
+    }
+    return true;
+  }
+
+  monster.retreatUntil = undefined;
+  monster.retreatTargetX = undefined;
+  monster.retreatTargetY = undefined;
+  monster.archetypeState = "lunging";
+
+  if (distance > monster.attackRange + MONSTER_CONTACT_RADIUS + PLAYER_HIT_RADIUS) {
+    moveMonsterTowards(monster, target.state!, monster.moveSpeed);
+    return true;
+  }
+
+  if (now < monster.nextAttackAt) {
+    return true;
+  }
+
+  combatEvents.push(applyMonsterDamage(monster, target, monster.attackDamage, now));
+  monster.nextAttackAt = now + monster.attackCooldownMs;
+  const retreatDirection = normalizeDirection({
+    x: monster.x - target.state!.x,
+    y: monster.y - target.state!.y
+  });
+  monster.retreatTargetX = clamp(monster.x + retreatDirection.x * SKIRMISHER_RETREAT_DISTANCE, 48, MATCH_MAP_WIDTH - 48);
+  monster.retreatTargetY = clamp(monster.y + retreatDirection.y * SKIRMISHER_RETREAT_DISTANCE, 48, MATCH_MAP_HEIGHT - 48);
+  monster.retreatUntil = now + 900;
+  monster.archetypeState = "retreating";
+  monster.behaviorPhase = "recover";
+  monster.phaseEndsAt = now + 420;
+  return true;
+}
+
+function tickBrute(
+  room: RuntimeRoom,
+  monster: RuntimeMonster,
+  target: RuntimePlayer,
+  distance: number,
+  now: number,
+  combatEvents: CombatEventPayload[],
+  musicModeEvents: MusicModePayload[]
+): boolean {
+  if ((monster.windingUpSlamUntil ?? 0) > now) {
+    monster.behaviorPhase = "windup";
+    monster.phaseEndsAt = monster.windingUpSlamUntil;
+    monster.windingUpAttackUntil = undefined;
+    monster.slamAnchorX ??= monster.x;
+    monster.slamAnchorY ??= monster.y;
+    return true;
+  }
+
+  if (monster.windingUpSlamUntil && monster.windingUpSlamUntil <= now) {
+    const anchorX = monster.slamAnchorX ?? monster.x;
+    const anchorY = monster.slamAnchorY ?? monster.y;
+    const facing = normalizeDirection({ x: target.state!.x - anchorX, y: target.state!.y - anchorY });
+    for (const player of room.players.values()) {
+      if (!player.state?.isAlive) continue;
+      const dx = player.state.x - anchorX;
+      const dy = player.state.y - anchorY;
+      const playerDistance = Math.hypot(dx, dy);
+      if (playerDistance > BRUTE_ATTACK_RANGE + PLAYER_HIT_RADIUS) continue;
+      const angleDeg = getAngleBetween(facing, normalizeDirection({ x: dx, y: dy }));
+      if (angleDeg > BRUTE_ATTACK_ARC_DEG / 2) continue;
+      combatEvents.push(applyMonsterDamage(monster, player, BRUTE_ATTACK_DAMAGE, now));
+    }
+    monster.windingUpSlamUntil = undefined;
+    monster.slamAnchorX = undefined;
+    monster.slamAnchorY = undefined;
+    monster.nextAttackAt = now + monster.attackCooldownMs;
+    monster.behaviorPhase = "recover";
+    monster.phaseEndsAt = now + 650;
+    return true;
+  }
+
+  if (distance > BRUTE_ATTACK_RANGE + 24) {
+    moveMonsterTowards(monster, target.state!, monster.moveSpeed);
+    return true;
+  }
+
+  if (now < monster.nextAttackAt) {
+    return true;
+  }
+
+  monster.windingUpSlamUntil = now + BRUTE_WINDUP_MS;
+  monster.phaseEndsAt = monster.windingUpSlamUntil;
+  monster.behaviorPhase = "windup";
+  monster.slamAnchorX = monster.x;
+  monster.slamAnchorY = monster.y;
+  musicModeEvents.push(...emitMusicModeForRoom(room, "danger", now));
+  return true;
+}
+
+function tickArcher(
+  room: RuntimeRoom,
+  monster: RuntimeMonster,
+  target: RuntimePlayer,
+  distance: number,
+  now: number
+): { projectileSpawn?: MonsterProjectileSpawn; playerStateChanged: boolean } {
+  if (distance <= ARCHER_RETREAT_TRIGGER_RANGE) {
+    const retreatDirection = normalizeDirection({
+      x: monster.x - target.state!.x,
+      y: monster.y - target.state!.y
+    });
+    moveMonsterTowards(monster, {
+      x: monster.x + retreatDirection.x * ARCHER_RETREAT_DISTANCE,
+      y: monster.y + retreatDirection.y * ARCHER_RETREAT_DISTANCE,
+      direction: { x: 0, y: 0 }
+    }, monster.moveSpeed);
+    monster.behaviorPhase = "recover";
+    monster.phaseEndsAt = now + 260;
+    return { playerStateChanged: true };
+  }
+
+  if (distance > monster.attackRange) {
+    moveMonsterTowards(monster, target.state!, monster.moveSpeed);
+    return { playerStateChanged: true };
+  }
+
+  if (now < monster.nextAttackAt) {
+    return { playerStateChanged: false };
+  }
+
+  monster.nextAttackAt = now + monster.attackCooldownMs;
+  monster.lastAttackAt = now;
+  const projectileSpawn = spawnMonsterProjectile(room, {
+    monsterId: monster.id,
+    x: monster.x,
+    y: monster.y,
+    targetX: target.state!.x,
+    targetY: target.state!.y,
+    ttlMs: ARCHER_PROJECTILE_TTL_MS,
+    damage: ARCHER_ATTACK_DAMAGE
+  }, now);
+  return { projectileSpawn, playerStateChanged: false };
+}
+
 function getNonBossAttackWindupMs(monster: RuntimeMonster): number {
   return monster.type === "elite" ? ELITE_ATTACK_WINDUP_MS : MONSTER_ATTACK_WINDUP_MS;
 }
@@ -1554,13 +1908,15 @@ function startNonBossAttackWindup(monster: RuntimeMonster, targetId: string, now
   monster.behaviorPhase = "windup";
   monster.pendingAttackTargetId = targetId;
   monster.phaseEndsAt = now + getNonBossAttackWindupMs(monster);
+  monster.windingUpAttackUntil = monster.phaseEndsAt;
 }
 
 function resolveNonBossAttackPhase(
   monster: RuntimeMonster,
   room: RuntimeRoom,
   now: number,
-  combatEvents: CombatEventPayload[]
+  combatEvents: CombatEventPayload[],
+  _musicModeEvents: MusicModePayload[]
 ): boolean {
   if (monster.behaviorPhase === "recover") {
     if ((monster.phaseEndsAt ?? 0) > now) {
@@ -1587,6 +1943,7 @@ function resolveNonBossAttackPhase(
   monster.nextAttackAt = now + getNonBossAttackCooldown(monster);
   monster.behaviorPhase = "recover";
   monster.phaseEndsAt = now + MONSTER_ATTACK_RECOVER_MS;
+  monster.windingUpAttackUntil = undefined;
 
   if (!target?.state?.isAlive) {
     return true;
@@ -1717,8 +2074,22 @@ function getMonsterDisplayName(monster: RuntimeMonster): string | undefined {
     return "精英";
   }
 
+  if (monster.type === "skirmisher") {
+    return "突刺游猎者";
+  }
+
+  if (monster.type === "brute") {
+    return "重锤蛮兵";
+  }
+
+  if (monster.type === "archer") {
+    return "弧箭掠手";
+  }
+
   return "游荡者";
 }
+
+
 
 export function isBossMonsterState(monster: MonsterState): boolean {
   return monster.type === "boss";

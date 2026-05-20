@@ -21,6 +21,14 @@ import type {
 } from "@gamer/shared";
 import type { Affix, ConsumableEffect, ItemRarity, MonsterState, MonsterType, SkillId, StatusEffectType } from "@gamer/shared";
 import type { MonsterBehaviorPhase, MonsterSkillState } from "@gamer/shared";
+import type {
+  MonsterArchetypeState,
+  MonsterProjectileDespawn,
+  MonsterProjectileHit,
+  MonsterProjectileSpawn,
+  MusicMode,
+  SpawnPhase
+} from "@gamer/shared";
 import type { Socket } from "socket.io";
 
 export interface SocketSession {
@@ -429,11 +437,63 @@ export interface RuntimeMonster extends MonsterState {
   pendingAttackTargetId?: string;
   lastAttackAt?: number;
   lastDamagedAt?: number;
+  archetypeState?: MonsterArchetypeState;
+  retreatUntil?: number;
+  retreatTargetX?: number;
+  retreatTargetY?: number;
+  windingUpSlamUntil?: number;
+  slamAnchorX?: number;
+  slamAnchorY?: number;
+  archerCooldownUntil?: number;
 }
 
 export interface MonsterRespawnEntry {
   spawnId: string;
   respawnAt: number;
+}
+
+export interface RuntimeMonsterProjectile {
+  id: string;
+  monsterId: string;
+  type: "arrow";
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  ttlMs: number;
+  damage: number;
+  spawnedAt: number;
+  expiresAt: number;
+  targetX: number;
+  targetY: number;
+  lastUpdatedAt: number;
+}
+
+export interface SpawnDirectorState {
+  phase: SpawnPhase;
+  lastPhaseBroadcast?: SpawnPhase;
+  nextSpawnAt: number;
+  phaseStartedAt: number;
+}
+
+export interface SpawnDirectorTickResult {
+  phaseChanged?: {
+    payload: { phase: SpawnPhase; atRunSeconds: number };
+  };
+  spawnedMonsterIds: string[];
+}
+
+export interface ProjectileTickResult {
+  spawned: MonsterProjectileSpawn[];
+  hits: MonsterProjectileHit[];
+  despawned: MonsterProjectileDespawn[];
+  combatEvents: CombatEventPayload[];
+  playerStateChanged: boolean;
+}
+
+export interface MusicModeStateEntry {
+  mode: MusicMode;
+  lastEmittedAt: number;
 }
 
 export interface RuntimeRoom {
@@ -451,6 +511,9 @@ export interface RuntimeRoom {
   monsters?: Map<string, RuntimeMonster>;
   monsterSpawnDefinitions?: Array<{ id: string; type: MonsterType; x: number; y: number }>;
   pendingMonsterRespawns?: MonsterRespawnEntry[];
+  monsterProjectiles?: Map<string, RuntimeMonsterProjectile>;
+  spawnDirector?: SpawnDirectorState;
+  musicModeByPlayerId?: Record<string, MusicModeStateEntry>;
   drops?: Map<string, DropState>;
   chests?: Map<string, Chest>;
   contestedChestNoise?: {

@@ -148,7 +148,7 @@ export function listWorldDrops(room: RuntimeRoom): DropState[] {
 }
 
 function pickDropDefinitions(monsterType: MonsterType): string[] {
-  if (monsterType === "normal" && Math.random() > NORMAL_DROP_RATE) {
+  if ((monsterType === "normal" || monsterType === "basic" || monsterType === "skirmisher" || monsterType === "archer") && Math.random() > NORMAL_DROP_RATE) {
     return [];
   }
 
@@ -160,8 +160,8 @@ function pickDropDefinitions(monsterType: MonsterType): string[] {
     ];
   }
 
-  const table = monsterType === "elite" ? ELITE_DROP_TABLE : NORMAL_DROP_TABLE;
-  const dropCount = monsterType === "elite" ? 2 : 1;
+  const table = monsterType === "elite" || monsterType === "brute" ? ELITE_DROP_TABLE : NORMAL_DROP_TABLE;
+  const dropCount = monsterType === "elite" || monsterType === "brute" ? 2 : 1;
   const results: string[] = [];
 
   for (let index = 0; index < dropCount; index += 1) {
@@ -173,7 +173,7 @@ function pickDropDefinitions(monsterType: MonsterType): string[] {
 
 export function buildInventoryItem(
   definitionId: string,
-  sourceMonsterType: MonsterType = "normal",
+  sourceMonsterType: MonsterType = "basic",
   options?: {
     forceRarity?: ItemRarity;
   }
@@ -227,7 +227,7 @@ function shouldRollQuality(category: ItemCategory, equipmentSlot: EquipmentSlot 
 function rollItemRarity(monsterType: MonsterType): ItemRarity {
   const weights = monsterType === "boss"
     ? BOSS_QUALITY_WEIGHTS
-    : monsterType === "elite"
+    : monsterType === "elite" || monsterType === "brute"
       ? ELITE_QUALITY_WEIGHTS
       : NORMAL_QUALITY_WEIGHTS;
   return pickWeighted(weights).rarity;
