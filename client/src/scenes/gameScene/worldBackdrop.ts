@@ -19,12 +19,18 @@ export interface WorldBackdropRefs {
   extractProgressRing?: Phaser.GameObjects.Graphics;
   extractBeacon?: Phaser.GameObjects.Container;
   extractLabel?: Phaser.GameObjects.Text;
+  extractZoneMarkers: Array<{
+    outer: Phaser.GameObjects.Arc;
+    inner: Phaser.GameObjects.Arc;
+    label: Phaser.GameObjects.Text;
+  }>;
   crossingSprites: Phaser.GameObjects.GameObject[];
   regionLabels: Phaser.GameObjects.Text[];
 }
 
 export function createWorldBackdropRefs(): WorldBackdropRefs {
   return {
+    extractZoneMarkers: [],
     crossingSprites: [],
     regionLabels: []
   };
@@ -44,6 +50,11 @@ export function rebuildWorldBackdrop(
   refs.extractProgressRing?.destroy();
   refs.extractBeacon?.destroy(true);
   refs.extractLabel?.destroy();
+  refs.extractZoneMarkers.forEach((marker) => {
+    marker.outer.destroy();
+    marker.inner.destroy();
+    marker.label.destroy();
+  });
   refs.crossingSprites.forEach((sprite) => sprite.destroy());
   refs.regionLabels.forEach((label) => label.destroy());
 
@@ -73,6 +84,7 @@ export function rebuildWorldBackdrop(
   const atmosphereLayer = scene.add.graphics();
   atmosphereLayer.setDepth(-10);
   drawCorpseFogAtmosphere(atmosphereLayer, state, width, height);
+  const extractZoneMarkers = drawExtractZoneMarkers(scene, state);
 
   return {
     terrainLayer,
@@ -84,6 +96,7 @@ export function rebuildWorldBackdrop(
     extractProgressRing: undefined,
     extractBeacon: undefined,
     extractLabel: undefined,
+    extractZoneMarkers,
     crossingSprites,
     regionLabels: [
       createRegionLabel(scene, width * 0.18, height * 0.16, "拾荒者山脊"),
@@ -180,6 +193,26 @@ export function syncExtractBackdrop(
   extractLabel.setAlpha(extractState.isOpen ? 0.88 : 0.72);
   extractLabel.setWordWrapWidth(240, true);
 
+  const zones = state.layout?.extractZones ?? [];
+  refs.extractZoneMarkers.forEach((marker, index) => {
+    const zone = zones[index] as (typeof zones)[number] & { isOpen?: boolean } | undefined;
+    if (!zone) {
+      marker.outer.setVisible(false);
+      marker.inner.setVisible(false);
+      marker.label.setVisible(false);
+      return;
+    }
+
+    marker.outer.setVisible(true);
+    marker.inner.setVisible(true);
+    marker.label.setVisible(true);
+    const openZone = extractState.zones?.find((entry) => entry.zoneId === zone.zoneId);
+    const isOpen = openZone?.isOpen ?? extractState.isOpen;
+    marker.outer.setPosition(zone.x, zone.y).setRadius(zone.radius + 22).setFillStyle(GAMEPLAY_THEME.colors.signal, isOpen ? 0.08 : 0.06).setStrokeStyle(6, GAMEPLAY_THEME.colors.accent, isOpen ? 0.24 : 0.16);
+    marker.inner.setPosition(zone.x, zone.y).setRadius(zone.radius - 10).setFillStyle(GAMEPLAY_THEME.colors.signal, isOpen ? 0.05 : 0.03).setStrokeStyle(2, GAMEPLAY_THEME.colors.bone, isOpen ? 0.18 : 0.12);
+    marker.label.setText(`撤离点 ${index + 1}`).setPosition(zone.x, zone.y + zone.radius + 16).setAlpha(zone.isOpen ? 0.94 : 0.68);
+  });
+
   // 3c) Extract Burst on Success
   if (extractState.phase === "succeeded" && extractState.didSucceed) {
     spawnExtractSuccessBurst(scene, centerX, centerY, zoneRadius);
@@ -196,7 +229,8 @@ export function syncExtractBackdrop(
     extractInnerRing,
     extractProgressRing,
     extractBeacon,
-    extractLabel
+    extractLabel,
+    extractZoneMarkers: refs.extractZoneMarkers
   };
 }
 
@@ -225,6 +259,27 @@ function spawnExtractInterruptWarning(scene: Phaser.Scene, x: number, y: number,
   });
 }
 
+function drawExtractZoneMarkers(scene: Phaser.Scene, state: MatchViewState): Array<{
+  outer: Phaser.GameObjects.Arc;
+  inner: Phaser.GameObjects.Arc;
+  label: Phaser.GameObjects.Text;
+}> {
+  return (state.layout?.extractZones ?? []).map((zone, index) => {
+    const outer = scene.add.circle(zone.x, zone.y, zone.radius + 22, GAMEPLAY_THEME.colors.signal, 0.06).setDepth(-7);
+    outer.setStrokeStyle(6, GAMEPLAY_THEME.colors.accent, 0.16);
+    const inner = scene.add.circle(zone.x, zone.y, Math.max(40, zone.radius - 10), GAMEPLAY_THEME.colors.signal, 0.03).setDepth(-6.5);
+    inner.setStrokeStyle(2, GAMEPLAY_THEME.colors.bone, 0.12);
+    const label = scene.add.text(zone.x, zone.y + zone.radius + 16, `撤离点 ${index + 1}`, {
+      fontFamily: GAMEPLAY_THEME.fonts.body,
+      fontSize: "13px",
+      color: "#f1e3c4",
+      stroke: "#120d0a",
+      strokeThickness: 3
+    }).setOrigin(0.5).setDepth(-6.2);
+    return { outer, inner, label };
+  });
+}
+
 function drawCorpseRiver(
   detailLayer: Phaser.GameObjects.Graphics,
   riverLayer: Phaser.GameObjects.Graphics,
@@ -233,7 +288,6 @@ function drawCorpseRiver(
   const hazards = state.layout?.riverHazards ?? [];
   if (hazards.length === 0) return;
 
-  const extractZone = state.layout?.extractZones[0];
   const plan = buildRiverVisualPlan({
     riverHazards: hazards,
     safeCrossings: state.layout?.safeCrossings ?? [],
@@ -354,7 +408,7 @@ function drawCorpseRiver(
     }
   }
 
-  if (extractZone) {
+  for (const extractZone of state.layout?.extractZones ?? []) {
     detailLayer.fillStyle(0x2a2118, 0.12);
     detailLayer.fillCircle(extractZone.x, extractZone.y, extractZone.radius + EXTRACT_VISUAL_CLEARANCE_PADDING);
     detailLayer.lineStyle(6, GAMEPLAY_THEME.colors.iron900, 0.2);

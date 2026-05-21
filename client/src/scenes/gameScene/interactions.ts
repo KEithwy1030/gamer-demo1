@@ -201,7 +201,7 @@ export class GameSceneInteractions {
       this.extractAutoStarted = false;
       this.extractAutoRearmRequired = false;
       this.extractLastPhase = extractState.phase;
-      this.syncExtractZone(extractState);
+      this.syncExtractZone(extractState, playerMarker);
       return;
     }
 
@@ -212,7 +212,7 @@ export class GameSceneInteractions {
       : extractState.carrier?.holderPlayerId === playerMarker?.id;
     if (!playerMarker || !canTryExtract) return;
 
-    this.syncExtractZone(extractState);
+    this.syncExtractZone(extractState, playerMarker);
     if (!this.extractZone) return;
 
     const distance = distanceBetween(
@@ -696,7 +696,25 @@ export class GameSceneInteractions {
     return zoneRadius + grace;
   }
 
-  private syncExtractZone(extractState: ExtractUiState): void {
+  private syncExtractZone(extractState: ExtractUiState, playerMarker?: PlayerMarker): void {
+    const openZones = extractState.zones?.filter((zone) => zone.isOpen) ?? [];
+    if (openZones.length > 0) {
+      const chosenZone = playerMarker
+        ? [...openZones].sort((left, right) => (
+          distanceBetween(playerMarker.root.x, playerMarker.root.y, left.x, left.y)
+          - distanceBetween(playerMarker.root.x, playerMarker.root.y, right.x, right.y)
+        ))[0]
+        : openZones[0];
+      if (chosenZone) {
+        this.extractZone = {
+          x: chosenZone.x,
+          y: chosenZone.y,
+          radius: chosenZone.radius
+        };
+        return;
+      }
+    }
+
     if (
       typeof extractState.x === "number"
       && typeof extractState.y === "number"

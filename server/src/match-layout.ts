@@ -144,7 +144,11 @@ export function buildMatchLayout(options: BuildMatchLayoutOptions): MatchLayout 
     safeZones.push({ squadId, x: anchor.x, y: anchor.y, radius: SAFE_RADIUS });
   });
 
-  const extractZones: MatchLayoutExtractZone[] = [buildExtractZone("extract_center")];
+  const extractZones: MatchLayoutExtractZone[] = [
+    buildExtractZone("extract_north", 2400, 2080),
+    buildExtractZone("extract_southwest", 2080, 2640),
+    buildExtractZone("extract_southeast", 2720, 2640)
+  ];
 
   const riverHazards: MatchLayoutRiverHazard[] = RIVER_SEGMENTS.map((segment) => ({
     ...segment,
@@ -317,11 +321,11 @@ function buildLandmarks(
   ];
 }
 
-function buildExtractZone(zoneId: string): MatchLayoutExtractZone {
+function buildExtractZone(zoneId: string, x: number, y: number): MatchLayoutExtractZone {
   return {
     zoneId,
-    x: MAP_CENTER_X,
-    y: MAP_CENTER_Y,
+    x,
+    y,
     radius: EXTRACT_CENTER_RADIUS,
     openAtSec: EXTRACT_OPEN_SEC,
     channelDurationMs: EXTRACT_CHANNEL_DURATION_MS

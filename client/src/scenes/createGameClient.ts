@@ -100,15 +100,19 @@ export function createGameClientController(
       });
       chestOpeningCuePlayed.clear();
       extractState = createInitialExtractState();
-      const primaryZone = payload.room.layout?.extractZones?.[0];
-      if (primaryZone) {
-        extractState = {
-          ...extractState,
-          x: primaryZone.x,
-          y: primaryZone.y,
-          radius: primaryZone.radius
-        };
-      }
+      const zones = payload.room.layout?.extractZones?.map((zone) => ({ ...zone, isOpen: false })) ?? [];
+      const primaryZone = zones[0];
+      extractState = {
+        ...extractState,
+        zones,
+        ...(primaryZone
+          ? {
+              x: primaryZone.x,
+              y: primaryZone.y,
+              radius: primaryZone.radius
+            }
+          : {})
+      };
       options.onExtractStateChange?.(extractState);
       options.onInventoryChange?.(null);
       mount();
@@ -308,10 +312,13 @@ export function createGameClientController(
     busOn("MonsterProjectileHit", (payload: unknown) => logEvent("COMBAT", "monster.projectile_hit", payload as Record<string, unknown>)),
     busOn("MonsterProjectileDespawned", (payload: unknown) => logEvent("COMBAT", "monster.projectile_despawn", payload as Record<string, unknown>)),
     busOn("ExtractOpened", (payload: { zoneIds?: string[]; pressure?: string }) => {
+      const zones = controller.getMatchSnapshot()?.layout?.extractZones ?? [];
       const zone = resolveExtractZone(payload.zoneIds?.[0]);
+      const openZoneIds = new Set(payload.zoneIds ?? []);
       controller.setExtractState({
         phase: "idle",
         isOpen: true,
+        zones: zones.map((entry) => ({ ...entry, isOpen: openZoneIds.has(entry.zoneId) })),
         message: payload.pressure === "active"
           ? "\u5f52\u8425\u706b\u58f0\u5df2\u66b4\u9732\uff0c\u654c\u4eba\u4f1a\u5411\u8fd9\u91cc\u6536\u7f29\u3002"
           : null,

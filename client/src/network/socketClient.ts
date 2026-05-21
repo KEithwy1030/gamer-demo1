@@ -57,6 +57,7 @@ export interface ExtractProgressPayload {
   durationMs: number;
   reason?: "damaged" | "left_zone" | "dead" | "timeout";
   squadStatus?: ExtractSquadStatus;
+  zones?: ExtractOpenedPayload["zones"];
   pressure?: {
     zoneId: string;
     playerId: string;

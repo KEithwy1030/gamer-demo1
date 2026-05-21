@@ -11,6 +11,15 @@ export interface ExtractUiState {
   didSucceed: boolean;
   carrier?: ExtractCarrierState;
   squadStatus?: ExtractSquadStatus;
+  zones?: Array<{
+    zoneId: string;
+    x: number;
+    y: number;
+    radius: number;
+    channelDurationMs: number;
+    openAtSec: number;
+    isOpen: boolean;
+  }>;
   pressure?: ExtractProgressPayload["pressure"];
   x?: number;
   y?: number;
@@ -26,6 +35,7 @@ export function createInitialExtractState(): ExtractUiState {
     secondsRemaining: null,
     message: "携带归营火种前往中心归营火，点燃后开始撤离。",
     didSucceed: false,
+    zones: [],
     squadStatus: {
       activeSquadId: null,
       activeZoneId: null,
@@ -77,6 +87,7 @@ export function normalizeExtractProgress(payload: ExtractProgressPayload | numbe
     message: interrupted ? "撤离被打断，立即拉开重进。" : (active ? "撤离读条中，受击会中断。" : (didSucceed ? "撤离完成，收益结算中。" : "撤离点待命")),
     didSucceed,
     squadStatus: payload?.squadStatus,
+    zones: payload?.zones,
     pressure: exposed ? payload?.pressure : undefined
   };
 }
@@ -93,6 +104,7 @@ export function normalizeExtractOpened(current: ExtractUiState, payload: Extract
     secondsRemaining: hasActiveProgress ? current.secondsRemaining : resolveCountdownSeconds(payload),
     message: hasActiveProgress ? current.message : buildExtractMessage(payload),
     didSucceed: current.didSucceed,
+    zones: payload?.zones,
     pressure: hasActiveProgress ? current.pressure : undefined
   };
 }
