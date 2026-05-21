@@ -35,6 +35,7 @@ import type {
   RuntimePlayer,
   RuntimeRoom
 } from "../types.js";
+import { emitDomain } from "../event-bus/index.js";
 
 export interface CombatResolution {
   combatEvents: CombatEventPayload[];
@@ -312,7 +313,7 @@ function applyDamageToTargets(
     target.state.isAlive = targetAlive;
     const statusApplied = applyOnHitEffect(target, onHitEffect, timestamp);
 
-    combatEvents.push({
+    const combatEvent: CombatEventPayload = {
       attackerId: attacker.id,
       targetId: target.id,
       amount: mitigatedAmount,
@@ -322,7 +323,9 @@ function applyDamageToTargets(
       statusApplied,
       targetHp: target.state.hp,
       targetAlive
-    });
+    };
+    combatEvents.push(combatEvent);
+    emitPlayerDamagedDomain(room, combatEvent);
 
     if (!targetAlive) {
       const attackerCombatState = ensureCombatState(attacker);
@@ -615,7 +618,11 @@ export function tickPlayerCombatEffects(
   for (const player of room.players.values()) {
     const wasAlive = player.state?.isAlive === true;
     syncPlayerCombatState(player, now);
-    combatEvents.push(...drainPendingCombatEvents(player));
+    const pendingEvents = drainPendingCombatEvents(player);
+    combatEvents.push(...pendingEvents);
+    for (const event of pendingEvents) {
+      emitPlayerDamagedDomain(room, event);
+    }
     if (wasAlive && player.state && !player.state.isAlive) {
       deaths.push({
         playerId: player.id,
@@ -626,6 +633,24 @@ export function tickPlayerCombatEffects(
     }
   }
   return { combatEvents, deaths };
+}
+
+function emitPlayerDamagedDomain(room: RuntimeRoom, event: CombatEventPayload): void {
+  if (event.amount <= 0) {
+    return;
+  }
+
+  emitDomain(room, {
+    type: "PlayerDamaged",
+    payload: {
+      attackerId: event.attackerId,
+      targetId: event.targetId,
+      amount: event.amount,
+      critMultiplier: event.critMultiplier,
+      damageType: event.damageType,
+      interruptsExtract: event.interruptsExtract ?? true
+    }
+  });
 }
 
 function buildBasicAttackHitEffect(
