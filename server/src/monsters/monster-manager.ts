@@ -14,7 +14,7 @@ import type {
   SkillCastPayload,
   Vector2
 } from "@gamer/shared";
-import { WEAPON_DEFINITIONS } from "@gamer/shared";
+import { SKILL_DEFINITIONS, WEAPON_DEFINITIONS } from "@gamer/shared";
 import {
   LOCK_ASSIST_ACQUIRE_RANGE_BUFFER,
   LOCK_ASSIST_FRONT_CONE_DEG,
@@ -531,8 +531,9 @@ export function handlePlayerSkill(
 
   switch (payload.skillId) {
     case "sword_dashSlash": {
-      const targets = findDashSlashMonsters(room, skillSourceState, 150);
-      movePlayerByDirection(player.state, 150);
+      const dashDistance = SKILL_DEFINITIONS.sword_dashSlash.dashDistancePx ?? 64;
+      const targets = findDashSlashMonsters(room, skillSourceState, dashDistance);
+      movePlayerByDirection(player.state, dashDistance);
       return applySkillDamageToMonsters(
         room,
         player,

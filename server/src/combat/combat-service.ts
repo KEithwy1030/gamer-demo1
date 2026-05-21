@@ -5,7 +5,7 @@ import type {
   StatusEffectType
 } from "@gamer/shared";
 import type { WeaponType } from "@gamer/shared";
-import { WEAPON_DEFINITIONS, getSkillCooldownMs } from "@gamer/shared";
+import { SKILL_DEFINITIONS, WEAPON_DEFINITIONS, getSkillCooldownMs } from "@gamer/shared";
 import {
   ATTACK_CONE_BLADE_DEG,
   LOCK_ASSIST_ACQUIRE_RANGE_BUFFER,
@@ -128,8 +128,9 @@ export function resolvePlayerSkillCast(
     }
     case "sword_dashSlash": {
       requireSkillCooldown(combatState, payload.skillId, now, getSkillCooldownMs(payload.skillId));
-      const targets = selectDashSlashTargets(room, caster, 150);
-      movePlayerByDirection(caster.state!, 150);
+      const dashDistance = SKILL_DEFINITIONS.sword_dashSlash.dashDistancePx ?? 64;
+      const targets = selectDashSlashTargets(room, caster, dashDistance);
+      movePlayerByDirection(caster.state!, dashDistance);
       return applyDamageToTargets(
         room,
         caster,

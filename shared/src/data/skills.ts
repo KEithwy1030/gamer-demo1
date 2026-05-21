@@ -5,6 +5,8 @@ export interface SkillDefinition {
   id: SkillId;
   cooldownMs: number;
   windupMs: number;
+  dashDistancePx?: number;
+  dashSpeedScale?: number;
 }
 
 export const PRIMARY_SKILL_BY_WEAPON: Record<WeaponType, SkillId> = {
@@ -20,7 +22,7 @@ export const SKILLS_BY_WEAPON: Record<WeaponType, [SkillId, SkillId, SkillId]> =
 };
 
 export const SKILL_DEFINITIONS: Record<SkillId, SkillDefinition> = {
-  sword_dashSlash: { id: "sword_dashSlash", cooldownMs: 6000, windupMs: 0 },
+  sword_dashSlash: { id: "sword_dashSlash", cooldownMs: 6000, windupMs: 0, dashDistancePx: 64, dashSpeedScale: 0.85 },
   sword_bladeFlurry: { id: "sword_bladeFlurry", cooldownMs: 10000, windupMs: 0 },
   sword_shadowStep: { id: "sword_shadowStep", cooldownMs: 12000, windupMs: 0 },
   blade_sweep: { id: "blade_sweep", cooldownMs: 7000, windupMs: 0 },
