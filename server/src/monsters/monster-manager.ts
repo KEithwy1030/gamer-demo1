@@ -398,7 +398,7 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
     const hitPlayer = impact.hitPlayerId ? room.players.get(impact.hitPlayerId) : undefined;
     const sourceMonster = monsters.get(impact.projectile.monsterId);
     if (sourceMonster && hitPlayer?.state?.isAlive) {
-      combatEvents.push(applyMonsterDamage(sourceMonster, hitPlayer, impact.projectile.damage, now));
+      combatEvents.push(applyMonsterDamage(room, sourceMonster, hitPlayer, impact.projectile.damage, now));
       playerStateChanged = true;
     }
   }
@@ -1277,6 +1277,24 @@ function emitMonsterProjectileDespawnedDomain(room: RuntimeRoom, projectile: Mon
   });
 }
 
+function emitPlayerDamagedDomain(room: RuntimeRoom, event: CombatEventPayload): void {
+  if (event.amount <= 0) {
+    return;
+  }
+
+  emitDomain(room, {
+    type: "PlayerDamaged",
+    payload: {
+      attackerId: event.attackerId,
+      targetId: event.targetId,
+      amount: event.amount,
+      critMultiplier: event.critMultiplier,
+      damageType: event.damageType,
+      interruptsExtract: event.interruptsExtract ?? true
+    }
+  });
+}
+
 function generateMonsterSpawnDefinitions(room: RuntimeRoom): MonsterSpawnDefinition[] {
   const normals = generateNormalSpawnDefinitions(room);
   const elites = generateEliteSpawnDefinitions(room);
@@ -1649,7 +1667,7 @@ function tickBossMonster(
   if (monster.skillState === "smash" && monster.skillEndsAt && now >= monster.skillEndsAt) {
     const smashTarget = monster.windupTargetId ? room.players.get(monster.windupTargetId) : undefined;
     const event = smashTarget?.state?.isAlive
-      ? applyMonsterDamage(monster, smashTarget, monster.isEnraged ? BOSS_SMASH_DAMAGE_ENRAGED : BOSS_SMASH_DAMAGE, now)
+      ? applyMonsterDamage(room, monster, smashTarget, monster.isEnraged ? BOSS_SMASH_DAMAGE_ENRAGED : BOSS_SMASH_DAMAGE, now)
       : undefined;
     finishBossSkill(monster, "smash", now);
     if (event) {
@@ -1757,7 +1775,7 @@ function tickBossMonster(
   }
 
   monster.nextAttackAt = now + getBossCooldown(monster, monster.attackCooldownMs);
-  combatEvents.push(applyMonsterDamage(monster, target, getBossAttackDamage(monster), now));
+  combatEvents.push(applyMonsterDamage(room, monster, target, getBossAttackDamage(monster), now));
   monster.behaviorPhase = "recover";
   monster.phaseEndsAt = now + MONSTER_ATTACK_RECOVER_MS;
   playerStateChanged = true;
@@ -1796,7 +1814,7 @@ function moveBossCharge(
       continue;
     }
 
-    combatEvents.push(applyMonsterDamage(monster, player, monster.isEnraged ? BOSS_CHARGE_DAMAGE_ENRAGED : BOSS_CHARGE_DAMAGE, now));
+    combatEvents.push(applyMonsterDamage(room, monster, player, monster.isEnraged ? BOSS_CHARGE_DAMAGE_ENRAGED : BOSS_CHARGE_DAMAGE, now));
     playerStateChanged = true;
     finishBossSkill(monster, "charge", now);
     break;
@@ -1819,6 +1837,7 @@ function finishBossSkill(monster: RuntimeMonster, skill: RuntimeMonster["skillSt
 }
 
 function applyMonsterDamage(
+  room: RuntimeRoom,
   monster: RuntimeMonster,
   target: RuntimePlayer,
   baseDamage: number,
@@ -1849,7 +1868,7 @@ function applyMonsterDamage(
     ? undefined
     : applyEliteHeavyStrike(monster, target, now);
 
-  return {
+  const event = {
     attackerId: monster.id,
     targetId: target.id,
     amount: mitigatedDamage,
@@ -1858,6 +1877,8 @@ function applyMonsterDamage(
     targetHp: target.state!.hp,
     targetAlive: target.state!.isAlive
   };
+  emitPlayerDamagedDomain(room, event);
+  return event;
 }
 
 function applyEliteHeavyStrike(
@@ -1919,7 +1940,7 @@ function tickSkirmisher(
     return true;
   }
 
-  combatEvents.push(applyMonsterDamage(monster, target, monster.attackDamage, now));
+  combatEvents.push(applyMonsterDamage(room, monster, target, monster.attackDamage, now));
   monster.nextAttackAt = now + monster.attackCooldownMs;
   const retreatDirection = normalizeDirection({
     x: monster.x - target.state!.x,
@@ -1964,7 +1985,7 @@ function tickBrute(
       if (playerDistance > BRUTE_ATTACK_RANGE + PLAYER_HIT_RADIUS) continue;
       const angleDeg = getAngleBetween(facing, normalizeDirection({ x: dx, y: dy }));
       if (angleDeg > BRUTE_ATTACK_ARC_DEG / 2) continue;
-      combatEvents.push(applyMonsterDamage(monster, player, BRUTE_ATTACK_DAMAGE, now));
+      combatEvents.push(applyMonsterDamage(room, monster, player, BRUTE_ATTACK_DAMAGE, now));
     }
     monster.windingUpSlamUntil = undefined;
     monster.slamAnchorX = undefined;
@@ -2094,7 +2115,7 @@ function resolveNonBossAttackPhase(
     return true;
   }
 
-  combatEvents.push(applyMonsterDamage(monster, target, monster.attackDamage, now));
+  combatEvents.push(applyMonsterDamage(room, monster, target, monster.attackDamage, now));
   return true;
 }
 
@@ -2166,7 +2187,7 @@ function resolveEliteChargedStrikePhase(
       continue;
     }
 
-    combatEvents.push(applyMonsterDamage(monster, player, ELITE_CHARGED_STRIKE_DAMAGE, now, { applyEliteSlow: false }));
+    combatEvents.push(applyMonsterDamage(room, monster, player, ELITE_CHARGED_STRIKE_DAMAGE, now, { applyEliteSlow: false }));
   }
 
   finishEliteChargedStrike(monster, now);
