@@ -59,7 +59,7 @@ import {
   startChestOpening,
   tickChestOpenings
 } from "./chests/chest-manager.js";
-import { processChestInterruptsFromEvents } from "./chests/listeners.js";
+import { processChestInterruptsFromEvents, processChestPhaseEvents } from "./chests/listeners.js";
 import { DevLogService } from "./dev/devLog.js";
 import { createDevLogRouter } from "./dev/devLogRoutes.js";
 import { applyDevRoomPreset, resolveEnabledDevRoomPreset } from "./dev-test-hooks.js";
@@ -328,6 +328,7 @@ function emitBotTickResult(roomCode: string, result: BotTickResult): void {
 }
 
 function flushRoomEvents(room: RuntimeRoom): void {
+  processChestPhaseEvents(room);
   processExtractInterruptsFromEvents(room);
   processChestInterruptsFromEvents(room);
   flushEvents(room, io);

@@ -517,6 +517,7 @@ export interface RuntimeRoom {
   musicModeByPlayerId?: Record<string, MusicModeStateEntry>;
   drops?: Map<string, DropState>;
   chests?: Map<string, Chest>;
+  chestLootPhase?: SpawnPhase;
   contestedChestNoise?: {
     chestId: string;
     playerId: string;

@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { findFirstFitRect } from "@gamer/shared";
-import type { ChestQualityTier, ItemCategory, ItemRarity, WorldDrop } from "@gamer/shared";
+import type { ChestQualityTier, ItemCategory, ItemRarity, SpawnPhase, WorldDrop } from "@gamer/shared";
 import { emitDomain } from "../event-bus/index.js";
 import { buildInventoryItem, ensureDropState } from "../loot/loot-manager.js";
 import type {
@@ -62,7 +62,25 @@ const NORMAL_CHEST_LOOT_TABLE: ChestLootEntry[] = [
   { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 3 },
   { templates: CONSUMABLE_TEMPLATES, weight: 16 },
   { templates: COIN_TEMPLATES, weight: 4 }
-] as const;
+];
+
+const DANGER_CHEST_LOOT_TABLE: ChestLootEntry[] = [
+  { rarity: "common", templates: COMMON_EQUIPMENT_TEMPLATES, weight: 32 },
+  { rarity: "uncommon", templates: UNCOMMON_EQUIPMENT_TEMPLATES, weight: 28 },
+  { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 15 },
+  { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 5 },
+  { templates: CONSUMABLE_TEMPLATES, weight: 14 },
+  { templates: COIN_TEMPLATES, weight: 6 }
+];
+
+const EXTRACT_CHEST_LOOT_TABLE: ChestLootEntry[] = [
+  { rarity: "common", templates: COMMON_EQUIPMENT_TEMPLATES, weight: 24 },
+  { rarity: "uncommon", templates: UNCOMMON_EQUIPMENT_TEMPLATES, weight: 30 },
+  { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 18 },
+  { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 8 },
+  { templates: CONSUMABLE_TEMPLATES, weight: 14 },
+  { templates: COIN_TEMPLATES, weight: 6 }
+];
 
 const RICH_CHEST_LOOT_TABLE: ChestLootEntry[] = [
   { rarity: "common", templates: COMMON_EQUIPMENT_TEMPLATES, weight: 24 },
@@ -71,13 +89,41 @@ const RICH_CHEST_LOOT_TABLE: ChestLootEntry[] = [
   { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 12 },
   { templates: CONSUMABLE_TEMPLATES, weight: 16 },
   { templates: COIN_TEMPLATES, weight: 4 }
-] as const;
+];
+
+const DANGER_RICH_CHEST_LOOT_TABLE: ChestLootEntry[] = [
+  { rarity: "uncommon", templates: UNCOMMON_EQUIPMENT_TEMPLATES, weight: 32 },
+  { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 28 },
+  { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 18 },
+  { templates: CONSUMABLE_TEMPLATES, weight: 14 },
+  { templates: COIN_TEMPLATES, weight: 8 }
+];
+
+const EXTRACT_RICH_CHEST_LOOT_TABLE: ChestLootEntry[] = [
+  { rarity: "uncommon", templates: UNCOMMON_EQUIPMENT_TEMPLATES, weight: 28 },
+  { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 32 },
+  { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 22 },
+  { templates: CONSUMABLE_TEMPLATES, weight: 12 },
+  { templates: COIN_TEMPLATES, weight: 6 }
+];
 
 const RICH_NON_WHITE_GUARANTEE_TABLE: ChestLootEntry[] = [
   { rarity: "uncommon", templates: UNCOMMON_EQUIPMENT_TEMPLATES, weight: 24 },
   { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 20 },
   { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 12 }
-] as const;
+];
+
+const DANGER_RICH_NON_WHITE_GUARANTEE_TABLE: ChestLootEntry[] = [
+  { rarity: "uncommon", templates: UNCOMMON_EQUIPMENT_TEMPLATES, weight: 32 },
+  { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 28 },
+  { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 18 }
+];
+
+const EXTRACT_RICH_NON_WHITE_GUARANTEE_TABLE: ChestLootEntry[] = [
+  { rarity: "uncommon", templates: UNCOMMON_EQUIPMENT_TEMPLATES, weight: 28 },
+  { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 32 },
+  { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 22 }
+];
 
 const NORMAL_MIN_LOOT = 3;
 const NORMAL_MAX_LOOT = 5;
@@ -101,11 +147,16 @@ function pickChestLootItem(table: readonly ChestLootEntry[]): InventoryItem | un
 }
 
 function generateStarterChestLoot(): InventoryItem[] {
-  const count = NORMAL_MIN_LOOT + Math.floor(Math.random() * (NORMAL_MAX_LOOT - NORMAL_MIN_LOOT + 1));
-  const loot: InventoryItem[] = [];
+  return generateChestLoot("normal", "opening");
+}
 
-  for (let i = 0; i < count; i += 1) {
-    const item = pickChestLootItem(NORMAL_CHEST_LOOT_TABLE);
+function generateContestedChestLoot(phase: SpawnPhase = "opening"): InventoryItem[] {
+  const count = RICH_MIN_LOOT + Math.floor(Math.random() * (RICH_MAX_LOOT - RICH_MIN_LOOT + 1));
+  const guaranteedNonWhite = pickChestLootItem(getChestLootTable("rich", phase, true));
+  const loot: InventoryItem[] = guaranteedNonWhite ? [guaranteedNonWhite] : [];
+
+  while (loot.length < count) {
+    const item = pickChestLootItem(getChestLootTable("rich", phase));
     if (item) {
       loot.push(item);
     }
@@ -114,19 +165,47 @@ function generateStarterChestLoot(): InventoryItem[] {
   return loot;
 }
 
-function generateContestedChestLoot(): InventoryItem[] {
-  const count = RICH_MIN_LOOT + Math.floor(Math.random() * (RICH_MAX_LOOT - RICH_MIN_LOOT + 1));
-  const guaranteedNonWhite = pickChestLootItem(RICH_NON_WHITE_GUARANTEE_TABLE);
-  const loot: InventoryItem[] = guaranteedNonWhite ? [guaranteedNonWhite] : [];
+function generateChestLoot(qualityTier: ChestQualityTier, phase: SpawnPhase = "opening"): InventoryItem[] {
+  const table = getChestLootTable(qualityTier, phase);
+  const count = qualityTier === "rich"
+    ? RICH_MIN_LOOT + Math.floor(Math.random() * (RICH_MAX_LOOT - RICH_MIN_LOOT + 1))
+    : NORMAL_MIN_LOOT + Math.floor(Math.random() * (NORMAL_MAX_LOOT - NORMAL_MIN_LOOT + 1));
+  const loot: InventoryItem[] = [];
 
-  while (loot.length < count) {
-    const item = pickChestLootItem(RICH_CHEST_LOOT_TABLE);
+  for (let i = 0; i < count; i += 1) {
+    const item = pickChestLootItem(table);
     if (item) {
       loot.push(item);
     }
   }
 
   return loot;
+}
+
+function getChestLootTable(
+  qualityTier: ChestQualityTier,
+  phase: SpawnPhase,
+  guaranteedNonWhite = false
+): ChestLootEntry[] {
+  if (qualityTier === "rich") {
+    if (phase === "extract") {
+      return guaranteedNonWhite ? EXTRACT_RICH_NON_WHITE_GUARANTEE_TABLE : EXTRACT_RICH_CHEST_LOOT_TABLE;
+    }
+    if (phase === "danger") {
+      return guaranteedNonWhite ? DANGER_RICH_NON_WHITE_GUARANTEE_TABLE : DANGER_RICH_CHEST_LOOT_TABLE;
+    }
+    return guaranteedNonWhite ? RICH_NON_WHITE_GUARANTEE_TABLE : RICH_CHEST_LOOT_TABLE;
+  }
+
+  if (phase === "extract") {
+    return EXTRACT_CHEST_LOOT_TABLE;
+  }
+
+  if (phase === "danger") {
+    return DANGER_CHEST_LOOT_TABLE;
+  }
+
+  return NORMAL_CHEST_LOOT_TABLE;
 }
 
 function resolveChestQualityTier(chest: { qualityTier?: ChestQualityTier; lane?: string }): ChestQualityTier {
@@ -143,7 +222,7 @@ export function spawnChests(room: RuntimeRoom): void {
   const zones = room.matchLayout?.chestZones ?? [];
   for (const zone of zones) {
     const qualityTier = resolveChestQualityTier(zone);
-    const loot = qualityTier === "rich" ? generateContestedChestLoot() : generateStarterChestLoot();
+    const loot = qualityTier === "rich" ? generateContestedChestLoot("opening") : generateStarterChestLoot();
     const chest: Chest = {
       id: zone.chestId || `chest_${crypto.randomUUID()}`,
       x: zone.x,
@@ -242,6 +321,13 @@ export function startChestOpening(
   if (distance > CHEST_INTERACT_RANGE) {
     throw new Error("Too far from the chest.");
   }
+
+  const lootPhase = room.chestLootPhase ?? room.spawnDirector?.phase ?? "opening";
+  chest.loot = chest.qualityTier === "rich"
+    ? generateContestedChestLoot(lootPhase)
+    : generateChestLoot(chest.qualityTier, lootPhase);
+  chest.totalItems = chest.loot.length;
+  chest.itemsDispensed = 0;
 
   player.openingChest = {
     chestId,
