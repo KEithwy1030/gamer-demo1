@@ -6,6 +6,7 @@ import {
   MATCH_DURATION_SEC
 } from "../internal-constants.js";
 import { InventoryService } from "../inventory/service.js";
+import { emitDomain } from "../event-bus/index.js";
 import type {
   ExtractOpenedPayload,
   ExtractProgressPayload,
@@ -139,6 +140,7 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
       throw new Error("Need the extract torch to ignite camp.");
     }
     openZoneForSquad(room, zone, player, now);
+    emitExtractOpenedDomain(room);
   }
 
   if (activeSquadId && activeSquadId !== player.squadId) {
@@ -194,6 +196,9 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
   syncExtractCarrier(room);
 
   const opened = openExtractIfReady(room, now);
+  if (opened) {
+    emitExtractOpenedDomain(room);
+  }
   const progressEvents: ExtractProgressPayload[] = [];
   const successEvents: ExtractSuccessPayload[] = [];
   const settlementEvents: MatchSettlementEnvelope[] = [];
@@ -335,10 +340,37 @@ function settleSquadExtraction(
       settlement: settlement.settlement,
       squadStatus: buildSquadStatus(room)
     });
+    emitExtractSucceededDomain(room, member.id, zoneId, settlement.settlement);
     settlementEvents.push(settlement);
   }
 
   return { successEvents, settlementEvents };
+}
+
+function emitExtractOpenedDomain(room: RuntimeRoom): void {
+  emitDomain(room, {
+    type: "ExtractOpened",
+    payload: {
+      zoneIds: (room.extract?.zones ?? []).filter((zone) => zone.isOpen).map((zone) => zone.zoneId),
+      pressure: room.extract?.activePressure ? "active" : "open"
+    }
+  });
+}
+
+function emitExtractSucceededDomain(
+  room: RuntimeRoom,
+  playerId: string,
+  zoneId: string,
+  settlement: SettlementPayload
+): void {
+  emitDomain(room, {
+    type: "ExtractSucceeded",
+    payload: {
+      playerId,
+      zoneId,
+      settlement
+    }
+  });
 }
 
 function openExtractIfReady(room: RuntimeRoom, now: number): ExtractOpenedPayload | undefined {
