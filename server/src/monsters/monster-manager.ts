@@ -54,6 +54,7 @@ import {
 } from "../combat/player-effects.js";
 import { doesSegmentIntersectObstacle, isPointInsideRiverHazard } from "../match-layout.js";
 import type { DropState, RuntimeContext, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "../types.js";
+import { emitDomain } from "../event-bus/index.js";
 import {
   ensureProjectileState,
   spawnMonsterProjectile,
@@ -201,6 +202,7 @@ export function spawnInitialMonsters(room: RuntimeRoom): MonsterState[] {
   for (const spawn of generateBossSpawnDefinitions(room)) {
     const monster = buildRuntimeMonster(spawn);
     monsters.set(monster.id, monster);
+    emitMonsterSpawnedDomain(room, monster);
   }
 
   return listMonsterStates(room);
@@ -283,6 +285,7 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
   for (const spawn of spawnTick.spawns) {
     const monster = buildRuntimeMonster(spawn);
     monsters.set(monster.id, monster);
+    emitMonsterSpawnedDomain(room, monster);
   }
 
   if (process.env.MONSTER_AI_DISABLED === "true") {
@@ -478,7 +481,9 @@ export function handlePlayerAttack(
       : 1;
     (player.state as unknown as Record<string, unknown>).killsMonsters = nextKills;
     spawnedDrops = createDropsForMonster(room, targetMonster);
-    monsterKills.push(createMonsterKilledPayload(targetMonster, player.id, now));
+    const kill = createMonsterKilledPayload(targetMonster, player.id, now);
+    monsterKills.push(kill);
+    emitMonsterKilledDomain(room, targetMonster, player.id, now);
   }
 
   return {
@@ -1055,7 +1060,9 @@ function applySkillDamageToMonsters(
         : 1;
       (player.state! as unknown as Record<string, unknown>).killsMonsters = nextKills;
       spawnedDrops.push(...createDropsForMonster(room, monster));
-      monsterKills.push(createMonsterKilledPayload(monster, player.id, now));
+      const kill = createMonsterKilledPayload(monster, player.id, now);
+      monsterKills.push(kill);
+      emitMonsterKilledDomain(room, monster, player.id, now);
     }
 
     updateBossEnrage(monster);
@@ -1140,9 +1147,40 @@ function processMonsterRespawns(room: RuntimeRoom, now: number): void {
 
     const monster = buildRuntimeMonster(spawn);
     monsters.set(monster.id, monster);
+    emitMonsterSpawnedDomain(room, monster);
   }
 
   room.pendingMonsterRespawns = remaining;
+}
+
+function emitMonsterSpawnedDomain(room: RuntimeRoom, monster: RuntimeMonster): void {
+  emitDomain(room, {
+    type: "MonsterSpawned",
+    payload: {
+      monsterId: monster.id,
+      monsterType: monster.type,
+      position: {
+        x: Math.round(monster.x),
+        y: Math.round(monster.y)
+      }
+    }
+  });
+}
+
+function emitMonsterKilledDomain(room: RuntimeRoom, monster: RuntimeMonster, killerPlayerId: string, killedAt: number): void {
+  emitDomain(room, {
+    type: "MonsterKilled",
+    payload: {
+      monsterId: monster.id,
+      monsterType: monster.type,
+      position: {
+        x: Math.round(monster.x),
+        y: Math.round(monster.y)
+      },
+      killerPlayerId,
+      killedAt
+    }
+  });
 }
 
 function generateMonsterSpawnDefinitions(room: RuntimeRoom): MonsterSpawnDefinition[] {
