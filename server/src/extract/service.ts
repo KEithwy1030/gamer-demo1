@@ -159,6 +159,7 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
     lastProgressBroadcastAt: now
   };
   recordExtractPressure(room, player, zone, now);
+  emitExtractChannelStartedDomain(room, player.id, zone.zoneId, zone.channelDurationMs);
 
   return {
     opened: buildOpenedPayload(room),
@@ -187,6 +188,7 @@ export function interruptPlayerExtract(
   player.extract.lastProgressBroadcastAt = now;
   player.extract.zoneId = undefined;
   clearExtractPressureIfIdle(room, zoneId);
+  emitExtractChannelInterruptedDomain(room, player.id, reason);
 
   return buildProgressPayload(room, player, zoneId, "interrupted", 0, reason);
 }
@@ -262,6 +264,7 @@ export function advanceExtractState(room: RuntimeRoom, now = Date.now()): Extrac
       if (!player.extract.lastProgressBroadcastAt || now - player.extract.lastProgressBroadcastAt >= PROGRESS_BROADCAST_INTERVAL_MS) {
         player.extract.lastProgressBroadcastAt = now;
         progressEvents.push(buildProgressPayload(room, player, zone.zoneId, "progress", remainingMs));
+        emitExtractChannelTickedDomain(room, player.id, remainingMs);
       }
       continue;
     }
@@ -369,6 +372,37 @@ function emitExtractSucceededDomain(
       playerId,
       zoneId,
       settlement
+    }
+  });
+}
+
+function emitExtractChannelStartedDomain(room: RuntimeRoom, playerId: string, zoneId: string, channelDurationMs: number): void {
+  emitDomain(room, {
+    type: "ExtractChannelStarted",
+    payload: {
+      playerId,
+      zoneId,
+      channelDurationMs
+    }
+  });
+}
+
+function emitExtractChannelTickedDomain(room: RuntimeRoom, playerId: string, remainingMs: number): void {
+  emitDomain(room, {
+    type: "ExtractChannelTicked",
+    payload: {
+      playerId,
+      remainingMs
+    }
+  });
+}
+
+function emitExtractChannelInterruptedDomain(room: RuntimeRoom, playerId: string, reason: ExtractInterruptReason): void {
+  emitDomain(room, {
+    type: "ExtractChannelInterrupted",
+    payload: {
+      playerId,
+      reason
     }
   });
 }
