@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { findFirstFitRect } from "@gamer/shared";
-import type { ChestQualityTier, ItemRarity } from "@gamer/shared";
+import type { ChestQualityTier, ItemCategory, ItemRarity, WorldDrop } from "@gamer/shared";
+import { emitDomain } from "../event-bus/index.js";
 import { buildInventoryItem, ensureDropState } from "../loot/loot-manager.js";
 import type {
   Chest,
@@ -249,6 +250,15 @@ export function startChestOpening(
   };
   chest.state = "rummaging";
   chest.rummagerId = playerId;
+  emitDomain(room, {
+    type: "ChestRummageStarted",
+    payload: {
+      chestId: chest.id,
+      playerId,
+      qualityTier: chest.qualityTier,
+      noiseRadius: chest.noiseRadius
+    }
+  });
 
   return buildChestProgressPayload({
     chest,
@@ -390,7 +400,16 @@ export function tickChestOpenings(
         player.openingChest = undefined;
       }
 
-      openedEvents.push(buildChestOpenedPayload(chest, player.id, dispensedItem, aggroedMonsterIds));
+      const openedPayload = buildChestOpenedPayload(chest, player.id, dispensedItem, aggroedMonsterIds);
+      openedEvents.push(openedPayload);
+      emitDomain(room, {
+        type: "ChestOpened",
+        payload: {
+          chestId: chest.id,
+          playerId: player.id,
+          drops: openedPayload.loot.map((item) => toWorldDrop(chest, item))
+        }
+      });
       progressEvents.push(buildChestProgressPayload({
         chest,
         playerId: player.id,
@@ -410,6 +429,35 @@ export function tickChestOpenings(
     inventoryUpdatedPlayerIds: [...inventoryUpdatedPlayerIds],
     dropsChanged
   };
+}
+
+function toWorldDrop(chest: Chest, item: InventoryItem): WorldDrop {
+  return {
+    id: item.instanceId,
+    item: {
+      instanceId: item.instanceId,
+      definitionId: item.templateId,
+      kind: toSharedItemCategory(item.kind),
+      rarity: item.rarity,
+      name: item.name,
+      goldValue: item.goldValue,
+      treasureValue: item.treasureValue,
+      tags: item.tags,
+      healAmount: item.healAmount,
+      consumableEffects: item.consumableEffects,
+      affixes: item.affixes,
+      modifiers: item.modifiers
+    },
+    definitionId: item.templateId,
+    x: Math.round(chest.x),
+    y: Math.round(chest.y)
+  };
+}
+
+function toSharedItemCategory(kind: InventoryItem["kind"]): ItemCategory {
+  if (kind === "equipment") return "armor";
+  if (kind === "currency") return "gold";
+  return kind;
 }
 
 function spawnChestDrops(room: RuntimeRoom, chest: Chest, loot: InventoryItem[]): DropState[] {
