@@ -96,6 +96,12 @@ git fetch && git status && git log --oneline -10
 
 ## 项目特定上下文
 
+## 项目施工宪法
+
+**任何 agent 在动这个项目代码前，必须先读 `docs/REFACTOR-GUIDE.md` 第一部分（产品铁则）。**
+
+23 个板块 + 40 个事件的完整架构定义在该指南。改一个功能只动一个板块，不允许跨板块塞代码。
+
 - **产品愿景**：见 `PITCH.md`（产品定位、世界观、核心情绪、不变锚点）
 - **数值规格**：见 `GDD.md`（数值参数、规则细节、技术规格）
 - **资产位置**：`client/public/assets/generated/`
