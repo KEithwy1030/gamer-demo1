@@ -260,6 +260,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+    this.events.once(Phaser.Scenes.Events.DESTROY, this.shutdown, this);
     this.cameras.main.setBackgroundColor("#0e0b08");
     const touchLayout = shouldUseTouchLayout();
     this.cameras.main.setZoom(touchLayout ? GAME_CAMERA_CONFIG.touchZoom : GAME_CAMERA_CONFIG.desktopZoom);
