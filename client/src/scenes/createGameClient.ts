@@ -27,6 +27,7 @@ import { GameSocketClient, type GameSocketClientOptions, type Unsubscribe } from
 import { MatchRuntimeStore, type MatchInventoryState } from "../game";
 import type { MatchInventoryItem } from "../game/matchRuntime";
 import { GameAudioController } from "../audio/gameAudio";
+import { clientEventBus } from "../core/event-bus";
 import { logEvent } from "../dev/runtimeLog";
 import { translateItemName } from "../ui/itemPresentation";
 import { GameScene } from "./GameScene";
@@ -273,6 +274,14 @@ export function createGameClientController(
   };
 
   subscriptions.push(
+    network.onAny((eventName, payload) => {
+      if (typeof eventName !== "string" || !eventName.startsWith("domain:")) {
+        return;
+      }
+
+      const domainType = eventName.slice("domain:".length) as Parameters<typeof clientEventBus.emit>[0];
+      clientEventBus.emit(domainType, payload as never);
+    }),
     network.onRoomError((payload) => {
       logEvent("NET", "room.error", {
         message: payload.message

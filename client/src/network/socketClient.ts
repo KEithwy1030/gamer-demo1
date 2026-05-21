@@ -186,6 +186,11 @@ export class GameSocketClient {
     this.socket.close();
   }
 
+  onAny(listener: (eventName: string, payload: unknown) => void): Unsubscribe {
+    this.socket.onAny(listener);
+    return () => this.socket.offAny(listener);
+  }
+
   get connected(): boolean {
     return this.socket.connected;
   }
