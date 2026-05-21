@@ -63,6 +63,7 @@ import {
 import { DevLogService } from "./dev/devLog.js";
 import { createDevLogRouter } from "./dev/devLogRoutes.js";
 import { applyDevRoomPreset, resolveEnabledDevRoomPreset } from "./dev-test-hooks.js";
+import { flushEvents } from "./event-bus/index.js";
 import type {
   ChestOpenedPayload,
   GameSocket,
@@ -560,6 +561,7 @@ function startPlayerSyncLoop(roomCode: string): void {
         SocketEvent.StatePlayers,
         roomStore.listPlayerStates(context.room)
       );
+      flushEvents(context.room, io);
 
       if (shouldCloseRoom) {
         stopPlayerSyncLoop(roomCode);
@@ -583,6 +585,7 @@ function startMatchTimerLoop(roomCode: string): void {
       }
 
       io.to(roomCode).emit(SocketEvent.MatchTimer, roomStore.getRemainingSeconds(roomCode));
+      flushEvents(context.room, io);
     } catch {
       stopMatchTimerLoop(roomCode);
     }
@@ -653,6 +656,7 @@ function startMonsterSyncLoop(roomCode: string): void {
           stopMonsterSyncLoop(roomCode);
         }
       }
+      flushEvents(context.room, io);
     } catch {
       stopMonsterSyncLoop(roomCode);
     }
@@ -672,6 +676,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       ensureSocketInRoom(socket, context.room.code);
       emitRoomState(context.room.code, context);
       io.to(socket.id).emit(SocketEvent.MusicMode, { mode: "lobby", ts: Date.now() });
+      flushEvents(context.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to create room.");
     }
@@ -686,6 +691,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       ensureSocketInRoom(socket, context.room.code);
       emitRoomState(context.room.code, context);
       io.to(socket.id).emit(SocketEvent.MusicMode, { mode: "lobby", ts: Date.now() });
+      flushEvents(context.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to join room.");
     }
@@ -701,6 +707,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       }
       if (context) {
         emitRoomState(context.room.code, context);
+        flushEvents(context.room, io);
       } else if (previousRoomCode) {
         stopPlayerSyncLoop(previousRoomCode);
         stopMatchTimerLoop(previousRoomCode);
@@ -721,6 +728,7 @@ function attachRoomHandlers(socket: GameSocket): void {
         serverConfig.maxRoomCapacity
       );
       emitRoomState(context.room.code, context);
+      flushEvents(context.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to update room capacity.");
     }
@@ -782,6 +790,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       if (context.room.extract?.zones?.length) {
         io.to(context.room.code).emit(SocketEvent.ExtractOpened, buildExtractOpenedPayload(context.room));
       }
+      flushEvents(context.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to start match.");
     }
@@ -791,6 +800,9 @@ function attachRoomHandlers(socket: GameSocket): void {
     try {
       const session = buildSession(socket);
       roomStore.setPlayerMoveInput(session, payload.direction);
+      if (session.roomCode) {
+        flushEvents(roomStore.getRoomByCodeSnapshot(session.roomCode).room, io);
+      }
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to move player.");
     }
@@ -810,6 +822,7 @@ function attachRoomHandlers(socket: GameSocket): void {
         io.to(session.roomCode).emit(SocketEvent.LootPicked, result.lootPicked);
       }
       io.to(session.roomCode).emit(SocketEvent.StateDrops, result.drops);
+      flushEvents(context.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to pick up loot.");
     }
@@ -830,6 +843,7 @@ function attachRoomHandlers(socket: GameSocket): void {
         SocketEvent.StatePlayers,
         roomStore.listPlayerStates(updatedContext.room)
       );
+      flushEvents(updatedContext.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to equip item.");
     }
@@ -850,6 +864,7 @@ function attachRoomHandlers(socket: GameSocket): void {
         SocketEvent.StatePlayers,
         roomStore.listPlayerStates(updatedContext.room)
       );
+      flushEvents(updatedContext.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to unequip item.");
     }
@@ -867,6 +882,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       io.to(socket.id).emit(SocketEvent.InventoryUpdate, result.inventoryUpdate);
       io.to(session.roomCode).emit(SocketEvent.StateDrops, result.drops);
       io.to(session.roomCode).emit(SocketEvent.StatePlayers, roomStore.listPlayerStates(context.room));
+      flushEvents(context.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to drop item.");
     }
@@ -887,6 +903,7 @@ function attachRoomHandlers(socket: GameSocket): void {
         SocketEvent.StatePlayers,
         roomStore.listPlayerStates(updatedContext.room)
       );
+      flushEvents(updatedContext.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to move item.");
     }
@@ -903,6 +920,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       const result = inventoryService.useItem(context.room, session.playerId, payload.itemInstanceId);
       io.to(socket.id).emit(SocketEvent.InventoryUpdate, result.inventoryUpdate);
       io.to(session.roomCode).emit(SocketEvent.StatePlayers, roomStore.listPlayerStates(context.room));
+      flushEvents(context.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to use item.");
     }
@@ -956,6 +974,7 @@ function attachRoomHandlers(socket: GameSocket): void {
         SocketEvent.StatePlayers,
         roomStore.listPlayerStates(context.room)
       );
+      flushEvents(context.room, io);
 
       if (shouldCloseRoom) {
         stopPlayerSyncLoop(roomCode);
@@ -1015,6 +1034,7 @@ function attachRoomHandlers(socket: GameSocket): void {
         SocketEvent.StatePlayers,
         roomStore.listPlayerStates(context.room)
       );
+      flushEvents(context.room, io);
 
       if (shouldCloseRoom) {
         stopPlayerSyncLoop(roomCode);
@@ -1044,6 +1064,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       for (const progress of result.progressEvents) {
         io.to(roomCode).emit(SocketEvent.ExtractProgress, progress);
       }
+      flushEvents(context.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to start extract.");
     }
@@ -1073,6 +1094,7 @@ function attachRoomHandlers(socket: GameSocket): void {
         payload.chestId
       );
       io.to(roomCode).emit(SocketEvent.ChestProgress, progress);
+      flushEvents(context.room, io);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to open chest.");
     }
@@ -1084,6 +1106,7 @@ function attachRoomHandlers(socket: GameSocket): void {
     const context = roomStore.leaveCurrentRoom(session);
     if (previousRoomCode && context) {
       emitRoomState(context.room.code, context);
+      flushEvents(context.room, io);
     } else if (previousRoomCode) {
       stopPlayerSyncLoop(previousRoomCode);
       stopMatchTimerLoop(previousRoomCode);
