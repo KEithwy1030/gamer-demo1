@@ -1,23 +1,24 @@
 import { clientEventBus } from "../../../core/event-bus";
+import type { GameAudioController } from "../../../audio/gameAudio";
 
-export function mountExtractAudio(): () => void {
-  const onBeaconLit = (payload: unknown) => {
-    console.log("[bus] BeaconLit received:", payload);
+export function mountExtractAudio(audio: GameAudioController, getSelfPlayerId: () => string | null): () => void {
+  const onBeaconLit = () => {
+    audio.play("warning");
   };
-  const onExtractOpened = (payload: unknown) => {
-    console.log("[bus] ExtractOpened received:", payload);
+  const onExtractOpened = () => {
+    audio.play("warning");
   };
-  const onExtractChannelStarted = (payload: unknown) => {
-    console.log("[bus] ExtractChannelStarted received:", payload);
+  const onExtractChannelStarted = (payload: { playerId?: string }) => {
+    audio.play(payload.playerId === getSelfPlayerId() ? "warning" : "thud");
   };
-  const onExtractChannelTicked = (payload: unknown) => {
-    console.log("[bus] ExtractChannelTicked received:", payload);
+  const onExtractChannelTicked = () => {
+    // The visual ring carries progress; audio stays on start/interrupt/success.
   };
-  const onExtractChannelInterrupted = (payload: unknown) => {
-    console.log("[bus] ExtractChannelInterrupted received:", payload);
+  const onExtractChannelInterrupted = (payload: { playerId?: string }) => {
+    if (payload.playerId === getSelfPlayerId()) audio.play("warning");
   };
-  const onExtractSucceeded = (payload: unknown) => {
-    console.log("[bus] ExtractSucceeded received:", payload);
+  const onExtractSucceeded = (payload: { playerId?: string }) => {
+    if (payload.playerId === getSelfPlayerId()) audio.play("extract");
   };
 
   clientEventBus.on("BeaconLit", onBeaconLit);

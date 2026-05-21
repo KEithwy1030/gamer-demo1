@@ -1,17 +1,19 @@
 import { clientEventBus } from "../../../core/event-bus";
+import type { GameAudioController } from "../../../audio/gameAudio";
 
-export function mountCombatAudio(): () => void {
-  const onPlayerAttacked = (payload: unknown) => {
-    console.log("[bus] PlayerAttacked received:", payload);
+export function mountCombatAudio(audio: GameAudioController, getSelfPlayerId: () => string | null): () => void {
+  const onPlayerAttacked = (payload: { playerId?: string }) => {
+    if (payload.playerId === getSelfPlayerId()) audio.play("attack");
   };
-  const onPlayerDamaged = (payload: unknown) => {
-    console.log("[bus] PlayerDamaged received:", payload);
+  const onPlayerDamaged = (payload: { targetId?: string; amount?: number }) => {
+    if ((payload.amount ?? 0) <= 0) return;
+    audio.play(payload.targetId === getSelfPlayerId() ? "hurt" : "hit");
   };
-  const onPlayerCriticalHit = (payload: unknown) => {
-    console.log("[bus] PlayerCriticalHit received:", payload);
+  const onPlayerCriticalHit = () => {
+    audio.play("hit");
   };
-  const onPlayerDied = (payload: unknown) => {
-    console.log("[bus] PlayerDied received:", payload);
+  const onPlayerDied = (payload: { playerId?: string }) => {
+    if (payload.playerId === getSelfPlayerId()) audio.play("death");
   };
 
   clientEventBus.on("PlayerAttacked", onPlayerAttacked);

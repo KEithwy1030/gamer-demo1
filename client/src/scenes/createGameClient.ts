@@ -3,21 +3,15 @@ import {
   AttackRequestPayload,
   INVENTORY_HEIGHT,
   INVENTORY_WIDTH,
-  CombatEventPayload,
   type ConsumableEffect,
   MatchStartedPayload,
-  type MonsterProjectileDespawn,
-  type MonsterProjectileHit,
-  type MonsterProjectileSpawn,
   MonsterState,
-  type MusicModePayload,
   PlayerState,
   RoomRuntimeSnapshot,
   SettlementItemDetail,
   SettlementPayload,
   type StatusEffectType,
   SkillId,
-  type SpawnPhaseChangedPayload,
   Vector2,
   WorldDrop
 } from "@gamer/shared";
@@ -28,10 +22,12 @@ import { MatchRuntimeStore, type MatchInventoryState } from "../game";
 import type { MatchInventoryItem } from "../game/matchRuntime";
 import { GameAudioController } from "../audio/gameAudio";
 import { clientEventBus } from "../core/event-bus";
+import { mountCombatAudio } from "../features/combat/audio/combatAudio";
+import { mountChestAudio } from "../features/chests/audio/chestAudio";
+import { mountExtractAudio } from "../features/extract/audio/extractAudio";
 import { logEvent } from "../dev/runtimeLog";
 import { translateItemName } from "../ui/itemPresentation";
 import { GameScene } from "./GameScene";
-import { applyHitFlash } from "../effects/hitFlash";
 import { applySmoothTextureSampling, GAME_RENDER_CONFIG } from "./gameScene/renderTuning";
 import {
   createInitialExtractState,
@@ -63,7 +59,6 @@ export interface GameClientController {
   applyMonsters(monsters: MonsterState[]): void;
   applyDrops(drops: WorldDrop[]): void;
   setInventory(payload: InventoryUpdateEvent): void;
-  setCombatResult(payload: CombatEventPayload): void;
   onPlayerAttack(payload: { playerId: string; attackId: string; targetId?: string }): void;
   setTimer(secondsRemaining: number): void;
   setExtractState(payload: Partial<ExtractUiState>): void;
@@ -105,6 +100,15 @@ export function createGameClientController(
       });
       chestOpeningCuePlayed.clear();
       extractState = createInitialExtractState();
+      const primaryZone = payload.room.layout?.extractZones?.[0];
+      if (primaryZone) {
+        extractState = {
+          ...extractState,
+          x: primaryZone.x,
+          y: primaryZone.y,
+          radius: primaryZone.radius
+        };
+      }
       options.onExtractStateChange?.(extractState);
       options.onInventoryChange?.(null);
       mount();
@@ -128,13 +132,6 @@ export function createGameClientController(
               state: monster.archetypeState
             });
           }
-          if (monster.windingUpAttackUntil || monster.windingUpSlamUntil) {
-            logEvent("COMBAT", "monster.windup_started", {
-              monsterId: monster.id,
-              monsterType: monster.type,
-              kind: monster.windingUpSlamUntil ? "slam" : "attack"
-            });
-          }
           continue;
         }
         const previous = previousMonsters.get(monster.id)!;
@@ -143,16 +140,6 @@ export function createGameClientController(
             monsterId: monster.id,
             monsterType: monster.type,
             state: monster.archetypeState
-          });
-        }
-        if (
-          (monster.windingUpAttackUntil && !previous.windingUpAttackUntil)
-          || (monster.windingUpSlamUntil && !previous.windingUpSlamUntil)
-        ) {
-          logEvent("COMBAT", "monster.windup_started", {
-            monsterId: monster.id,
-            monsterType: monster.type,
-            kind: monster.windingUpSlamUntil ? "slam" : "attack"
           });
         }
       }
@@ -192,26 +179,6 @@ export function createGameClientController(
       }
       runtime.setInventory(normalized);
       options.onInventoryChange?.(normalized);
-    },
-    setCombatResult(payload) {
-      const attackerMonster = runtime.getState().monsters.find((monster) => monster.id === payload.attackerId);
-      logEvent("COMBAT", "damage.received", {
-        attackerId: payload.attackerId,
-        targetId: payload.targetId,
-        amount: payload.amount,
-        critMultiplier: payload.critMultiplier ?? 1
-      });
-      if (attackerMonster && payload.amount > 0) {
-        logEvent("COMBAT", "monster.attack_hit", {
-          monsterId: attackerMonster.id,
-          monsterType: attackerMonster.type,
-          targetId: payload.targetId,
-          amount: payload.amount
-        });
-      }
-      const selfPlayerId = controller.getSelfPlayerId();
-      audio.play(payload.targetId === selfPlayerId ? "hurt" : "hit");
-      getScene()?.onCombatResult?.(payload);
     },
     onPlayerAttack(payload) {
       if (payload.playerId === controller.getSelfPlayerId()) {
@@ -273,7 +240,20 @@ export function createGameClientController(
     }
   };
 
+  const busOn = (type: any, handler: any): Unsubscribe => {
+    clientEventBus.on(type, handler);
+    return () => clientEventBus.off(type, handler);
+  };
+  const resolveExtractZone = (zoneId?: string) => {
+    const snapshot = controller.getMatchSnapshot();
+    const zones = snapshot?.layout?.extractZones ?? [];
+    return (zoneId ? zones.find((zone) => zone.zoneId === zoneId) : zones[0]) ?? zones[0];
+  };
+
   subscriptions.push(
+    mountCombatAudio(audio, () => controller.getSelfPlayerId()),
+    mountChestAudio(audio, () => controller.getSelfPlayerId()),
+    mountExtractAudio(audio, () => controller.getSelfPlayerId()),
     network.onAny((eventName, payload) => {
       if (typeof eventName !== "string" || !eventName.startsWith("domain:")) {
         return;
@@ -281,6 +261,136 @@ export function createGameClientController(
 
       const domainType = eventName.slice("domain:".length) as Parameters<typeof clientEventBus.emit>[0];
       clientEventBus.emit(domainType, payload as never);
+    }),
+    busOn("PlayerDamaged", (payload: { attackerId: string; targetId: string; amount: number; critMultiplier?: number }) => {
+      const attackerMonster = runtime.getState().monsters.find((monster) => monster.id === payload.attackerId);
+      logEvent("COMBAT", "damage.received", {
+        attackerId: payload.attackerId,
+        targetId: payload.targetId,
+        amount: payload.amount,
+        critMultiplier: payload.critMultiplier ?? 1
+      });
+      if (attackerMonster && payload.amount > 0) {
+        logEvent("COMBAT", "monster.attack_hit", {
+          monsterId: attackerMonster.id,
+          monsterType: attackerMonster.type,
+          targetId: payload.targetId,
+          amount: payload.amount
+        });
+      }
+    }),
+    busOn("MonsterKilled", (payload: { monsterId: string; monsterType?: string; killerPlayerId: string }) => {
+      logEvent("COMBAT", "kill", {
+        killerId: payload.killerPlayerId,
+        victimId: payload.monsterId,
+        victimTier: payload.monsterType ?? "unknown"
+      });
+    }),
+    busOn("MonsterWindupStarted", (payload: { monsterId: string; windupType?: string }) => {
+      logEvent("COMBAT", "monster.windup_domain", {
+        monsterId: payload.monsterId,
+        kind: payload.windupType ?? "attack"
+      });
+    }),
+    busOn("PhaseStarted", (payload: { phase: string; atRunSeconds: number }) => {
+      logEvent("COMBAT", "spawn.phase_changed", {
+        phase: payload.phase,
+        t: payload.atRunSeconds
+      });
+    }),
+    busOn("MusicModeChanged", (payload: { mode: string }) => {
+      logEvent("AUDIO", "music.mode_changed", {
+        mode: payload.mode,
+        ts: Date.now()
+      });
+    }),
+    busOn("MonsterProjectileSpawned", (payload: unknown) => logEvent("COMBAT", "monster.projectile_spawn", payload as Record<string, unknown>)),
+    busOn("MonsterProjectileHit", (payload: unknown) => logEvent("COMBAT", "monster.projectile_hit", payload as Record<string, unknown>)),
+    busOn("MonsterProjectileDespawned", (payload: unknown) => logEvent("COMBAT", "monster.projectile_despawn", payload as Record<string, unknown>)),
+    busOn("ExtractOpened", (payload: { zoneIds?: string[]; pressure?: string }) => {
+      const zone = resolveExtractZone(payload.zoneIds?.[0]);
+      controller.setExtractState({
+        phase: "idle",
+        isOpen: true,
+        message: payload.pressure === "active"
+          ? "\u5f52\u8425\u706b\u58f0\u5df2\u66b4\u9732\uff0c\u654c\u4eba\u4f1a\u5411\u8fd9\u91cc\u6536\u7f29\u3002"
+          : null,
+        x: zone?.x,
+        y: zone?.y,
+        radius: zone?.radius
+      });
+    }),
+    busOn("ExtractChannelStarted", (payload: { playerId: string; zoneId: string; channelDurationMs: number }) => {
+      const zone = resolveExtractZone(payload.zoneId);
+      controller.setExtractState({
+        phase: "extracting",
+        isOpen: true,
+        isExtracting: payload.playerId === controller.getSelfPlayerId(),
+        progress: 0,
+        secondsRemaining: Math.ceil(payload.channelDurationMs / 1000),
+        x: zone?.x,
+        y: zone?.y,
+        radius: zone?.radius
+      });
+    }),
+    busOn("ExtractChannelTicked", (payload: { playerId: string; remainingMs: number }) => {
+      if (payload.playerId !== controller.getSelfPlayerId()) return;
+      const total = extractState.secondsRemaining ? extractState.secondsRemaining * 1000 : payload.remainingMs;
+      controller.setExtractState({
+        phase: "extracting",
+        isOpen: true,
+        isExtracting: true,
+        progress: Phaser.Math.Clamp(1 - payload.remainingMs / Math.max(1, total), 0, 1),
+        secondsRemaining: Math.ceil(payload.remainingMs / 1000)
+      });
+    }),
+    busOn("ExtractChannelInterrupted", (payload: { playerId: string; reason: string }) => {
+      if (payload.playerId !== controller.getSelfPlayerId()) return;
+      controller.setExtractState({
+        phase: "interrupted",
+        isExtracting: false,
+        progress: null,
+        secondsRemaining: null,
+        message: payload.reason === "damaged" ? "\u53d7\u5230\u653b\u51fb\uff0c\u64a4\u79bb\u88ab\u4e2d\u65ad\u3002" : null
+      });
+    }),
+    busOn("ExtractSucceeded", (payload: { playerId: string; zoneId: string; settlement?: SettlementPayload }) => {
+      if (payload.playerId !== controller.getSelfPlayerId()) return;
+      controller.setExtractState({
+        phase: "succeeded",
+        isOpen: true,
+        isExtracting: false,
+        progress: 1,
+        secondsRemaining: 0,
+        message: "\u64a4\u79bb\u5b8c\u6210\uff0c\u6b63\u5728\u7ed3\u7b97",
+        didSucceed: true,
+        pressure: undefined
+      });
+    }),
+    busOn("ChestRummageStarted", (payload: { playerId: string; chestId: string; qualityTier?: string; noiseRadius?: number }) => {
+      if (payload.playerId !== controller.getSelfPlayerId()) return;
+      runtime.setChestProgress({
+        progress: 0,
+        remainingMs: 0,
+        lane: payload.qualityTier === "rich" ? "contested" : undefined,
+        noiseRadius: payload.noiseRadius
+      });
+    }),
+    busOn("ChestRummageTicked", (payload: { droppedItemCount: number; remainingItemCount: number }) => {
+      const total = payload.droppedItemCount + payload.remainingItemCount;
+      runtime.setChestProgress({
+        progress: Phaser.Math.Clamp(payload.droppedItemCount / Math.max(1, total), 0, 1),
+        remainingMs: 0
+      });
+    }),
+    busOn("ChestRummageInterrupted", (payload: { playerId: string }) => {
+      if (payload.playerId !== controller.getSelfPlayerId()) return;
+      runtime.setChestProgress(null);
+    }),
+    busOn("ChestOpened", (payload: { playerId?: string }) => {
+      if (!payload.playerId || payload.playerId === controller.getSelfPlayerId()) {
+        runtime.setChestProgress(null);
+      }
     }),
     network.onRoomError((payload) => {
       logEvent("NET", "room.error", {
@@ -292,151 +402,11 @@ export function createGameClientController(
     network.onDropsState((drops) => controller.applyDrops(drops)),
     network.onInventoryUpdate((payload) => controller.setInventory(payload)),
     network.onPlayerAttack((payload) => controller.onPlayerAttack(payload)),
-    network.onCombatResult((payload) => controller.setCombatResult(payload)),
-    network.onMonsterKilled((payload) => {
-      logEvent("COMBAT", "kill", {
-        killerId: payload.killerPlayerId,
-        victimId: payload.monsterId,
-        victimTier: payload.tier
-      });
-      getScene()?.onMonsterKilled?.(payload);
-    }),
-    network.onSpawnPhaseChanged((payload: SpawnPhaseChangedPayload) => {
-      logEvent("COMBAT", "spawn.phase_changed", {
-        phase: payload.phase,
-        t: payload.atRunSeconds
-      });
-    }),
-    network.onMusicMode((payload: MusicModePayload) => {
-      logEvent("AUDIO", "music.mode_changed", {
-        mode: payload.mode,
-        ts: payload.ts
-      });
-    }),
-    network.onMonsterProjectileSpawn((payload: MonsterProjectileSpawn) => {
-      logEvent("COMBAT", "monster.projectile_spawn", payload as unknown as Record<string, unknown>);
-    }),
-    network.onMonsterProjectileHit((payload: MonsterProjectileHit) => {
-      logEvent("COMBAT", "monster.projectile_hit", payload as unknown as Record<string, unknown>);
-    }),
-    network.onMonsterProjectileDespawn((payload: MonsterProjectileDespawn) => {
-      logEvent("COMBAT", "monster.projectile_despawn", payload as unknown as Record<string, unknown>);
-    }),
     network.onChestsInit((chests) => {
       pendingChestsInit = chests;
       getScene()?.applyChests(chests);
     }),
     network.onMatchTimer((secondsRemaining) => controller.setTimer(secondsRemaining)),
-    network.onExtractOpened((payload) => {
-      logEvent("EXTRACT", "extract.opened", {
-        openZones: payload?.zones?.filter((zone) => zone.isOpen).map((zone) => zone.zoneId) ?? [],
-        activeSquadId: payload?.squadStatus?.activeSquadId ?? null
-      });
-      const openedState = normalizeExtractOpened(extractState, payload);
-      controller.setExtractState({
-        ...openedState,
-        carrier: payload?.carrier,
-        squadStatus: payload?.squadStatus,
-        ...resolvePrimaryExtractZone(payload)
-      });
-    }),
-    network.onExtractProgress((payload) => {
-      if (payload && typeof payload === "object") {
-        logEvent("EXTRACT", "extract.progress", {
-          playerId: payload.playerId,
-          zoneId: payload.zoneId,
-          status: payload.status,
-          remainingMs: payload.remainingMs ?? null,
-          pressure: payload.pressure ? true : false
-        });
-      }
-      const selfPlayerId = controller.getSelfPlayerId();
-      if (payload && typeof payload === "object" && "playerId" in payload) {
-        const playerId = typeof payload.playerId === "string" ? payload.playerId : undefined;
-        if (playerId && playerId !== selfPlayerId) {
-          if (payload.pressure && (payload.status === "started" || payload.status === "progress")) {
-            if (payload.status === "started") {
-              audio.play("warning");
-            }
-            controller.setExtractState({
-              isOpen: true,
-              message: "\u654c\u65b9\u5df2\u70b9\u4eae\u5f52\u8425\u706b\uff0c\u4e2d\u5708\u6b63\u5728\u53d8\u6210\u4ea4\u706b\u70b9\u3002",
-              pressure: payload.pressure
-            });
-          } else if (extractState.pressure?.playerId === playerId) {
-            controller.setExtractState({
-              message: null,
-              pressure: undefined
-            });
-          }
-          return;
-        }
-      }
-      if (payload && typeof payload === "object" && payload.status === "started" && payload.pressure) {
-        audio.play("warning");
-      }
-      const normalizedExtract = normalizeExtractProgress(payload);
-      if (payload && typeof payload === "object" && payload.pressure && (payload.status === "started" || payload.status === "progress")) {
-        normalizedExtract.message = "\u5f52\u8425\u706b\u58f0\u5df2\u66b4\u9732\uff0c\u654c\u4eba\u4f1a\u5411\u8fd9\u91cc\u6536\u7f29\u3002";
-      }
-      controller.setExtractState(normalizedExtract);
-    }),
-    network.onExtractSuccess((payload) => {
-      if (payload) {
-        logEvent("EXTRACT", "extract.success", {
-          playerId: payload.playerId,
-          zoneId: payload.zoneId
-        });
-      }
-      const selfPlayerId = controller.getSelfPlayerId();
-      if (payload?.playerId && payload.playerId !== selfPlayerId) return;
-      audio.play("extract");
-      controller.setExtractState({
-        phase: "succeeded",
-        isOpen: true,
-        isExtracting: false,
-        progress: 1,
-        secondsRemaining: 0,
-        message: "撤离完成，正在结算",
-        didSucceed: true,
-        pressure: undefined,
-        squadStatus: payload?.squadStatus
-      });
-    }),
-    network.onChestProgress((payload) => {
-      const selfPlayerId = controller.getSelfPlayerId();
-      if (payload.playerId !== selfPlayerId) return;
-      if (payload.status === "interrupted") {
-        runtime.setChestProgress(null);
-        chestOpeningCuePlayed.delete(payload.chestId);
-        audio.play("warning");
-        return;
-      }
-
-      const isChestRummageStart =
-        payload.status === "started" ||
-        ((payload.itemsDispensed ?? 0) === 0 && payload.status === "progress");
-      if (isChestRummageStart && !chestOpeningCuePlayed.has(payload.chestId)) {
-        console.log("[audio] chest cue at rummage start", {
-          chestId: payload.chestId,
-          status: payload.status,
-          itemsDispensed: payload.itemsDispensed ?? 0,
-          lane: payload.lane
-        });
-        audio.play("chest");
-        chestOpeningCuePlayed.add(payload.chestId);
-      }
-
-      runtime.setChestProgress({
-        progress: Phaser.Math.Clamp(1 - payload.remainingMs / Math.max(payload.durationMs, 1), 0, 1),
-        remainingMs: payload.remainingMs,
-        lane: payload.lane,
-        noiseRadius: payload.noiseRadius
-      });
-      if (payload.status === "started" && payload.lane === "contested") {
-        audio.play("warning");
-      }
-    }),
     network.onSettlement((payload) => {
       const selfPlayerId = controller.getSelfPlayerId();
       if (payload && typeof payload === "object" && "playerId" in payload) {
@@ -459,12 +429,6 @@ export function createGameClientController(
       });
       options.onSettlement?.(settlement);
     }),
-    network.onChestOpened((payload) => {
-      if (!payload || payload.playerId === controller.getSelfPlayerId()) {
-        chestOpeningCuePlayed.delete(payload?.chestId ?? "");
-        runtime.setChestProgress(null);
-      }
-    })
   );
 
   return controller;
@@ -515,16 +479,12 @@ export function createGameClientController(
       },
       onStartExtract: () => network.sendStartExtract(),
       onOpenChest: (chestId: string) => network.sendOpenChest(chestId),
-      onAudioCue: (cue: any) => audio.play(cue),
-      applyHitFlash: applyHitFlash,
       onToggleInventory: () => controller.toggleInventory(),
       onSceneReady: () => {
         if (pendingChestsInit) {
           getScene()?.applyChests(pendingChestsInit);
         }
-      },
-      subscribeChestsInit: (cb: any) => network.onChestsInit(cb),
-      subscribeChestOpened: (cb: any) => network.onChestOpened(cb)
+      }
     });
     syncGameViewport();
     if (pendingChestsInit) {
