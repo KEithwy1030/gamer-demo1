@@ -79,11 +79,11 @@ export class GameSceneFeedbackFx {
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
     this.setupEmitters();
-    this.unsubscribes.push(
-      clientEventBus.on("PlayerDied", () => {
-        this.handlePlayerDied();
-      })
-    );
+    const onPlayerDied = () => {
+      this.handlePlayerDied();
+    };
+    clientEventBus.on("PlayerDied", onPlayerDied);
+    this.unsubscribes.push(() => clientEventBus.off("PlayerDied", onPlayerDied));
   }
 
   private setupEmitters(): void {

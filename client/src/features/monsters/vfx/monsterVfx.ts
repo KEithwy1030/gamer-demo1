@@ -79,16 +79,22 @@ export class GameSceneFeedbackFx {
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
     this.setupEmitters();
-    this.unsubscribes.push(
-      clientEventBus.on("MonsterKilled", (payload) => {
-        this.handleMonsterKilled({
-          monsterId: payload.monsterId,
-          x: payload.position.x,
-          y: payload.position.y,
-          tier: payload.monsterType === "boss" ? "boss" : payload.monsterType === "elite" ? "elite" : "normal"
-        });
-      })
-    );
+    const onMonsterKilled = (payload: {
+      monsterId: string;
+      monsterType: string;
+      position: { x: number; y: number };
+      killerPlayerId: string;
+      killedAt: number;
+    }) => {
+      this.handleMonsterKilled({
+        monsterId: payload.monsterId,
+        x: payload.position.x,
+        y: payload.position.y,
+        tier: payload.monsterType === "boss" ? "boss" : payload.monsterType === "elite" ? "elite" : "normal"
+      });
+    };
+    clientEventBus.on("MonsterKilled", onMonsterKilled);
+    this.unsubscribes.push(() => clientEventBus.off("MonsterKilled", onMonsterKilled));
   }
 
   private setupEmitters(): void {
