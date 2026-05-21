@@ -1,4 +1,4 @@
-import type { CombatEventPayload, SkillId, Vector2, WeaponType } from "@gamer/shared";
+import type { SkillId, Vector2, WeaponType } from "@gamer/shared";
 import Phaser from "phaser";
 import type { AttackRequestPayload } from "@gamer/shared";
 import { WEAPON_DEFINITIONS } from "@gamer/shared";
@@ -16,7 +16,7 @@ import {
   hasMonsterDirectionalCoverage
 } from "../game/entities/monsterVisuals";
 import { MatchRuntimeStore, type MatchViewState } from "../game";
-import type { ChestOpenedPayload, ChestProgressPayload, ChestState } from "../network/socketClient";
+import type { ChestState } from "../network/socketClient";
 import type { ExtractUiState } from "./createGameClient";
 import {
   createWorldBackdropRefs,
@@ -28,8 +28,13 @@ import { resolveCorpseFogVisualState } from "./gameScene/corpseFogVisualState";
 import { GameHudOverlay } from "./gameScene/hudOverlay";
 import { GameSceneInputBridge, shouldUseTouchLayout } from "./gameScene/inputBridge";
 import { GameSceneInteractions } from "./gameScene/interactions";
-import { GameSceneFeedbackFx } from "./gameScene/feedbackFx";
 import { MonsterSkillFxController } from "./gameScene/monsterSkillFx";
+import { mountCombatVfx } from "../features/combat/vfx/combatVfx";
+import { mountPlayerDeathVfx } from "../features/combat/vfx/playerDeathVfx";
+import { mountMonsterVfx } from "../features/monsters/vfx/monsterVfx";
+import { mountLootToastVfx } from "../features/inventory/vfx/lootToastVfx";
+import { mountChestVfx } from "../features/chests/vfx/chestVfx";
+import { mountExtractVfx } from "../features/extract/vfx/extractVfx";
 import {
   LOCK_ASSIST_CHASE_MAX_DURATION_MS,
   resolveAttackAssist,
@@ -55,16 +60,8 @@ export interface GameSceneInitData {
   onSkill?: (skillId: SkillId) => void;
   onPickup?: () => void;
   onStartExtract?: () => void;
-  onCombatResult?: (payload: CombatEventPayload) => void;
-  onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
-  onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss"; killerPlayerId: string }) => void;
   onOpenChest?: (chestId: string) => void;
-  onAudioCue?: (cue: string) => void;
-  applyHitFlash?: (target: Phaser.GameObjects.Container | Phaser.GameObjects.Sprite | Phaser.GameObjects.Image, isPlayerHurt: boolean) => void;
   onToggleInventory?: () => void;
-  subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
-  subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
-  subscribeChestProgress?: (callback: (payload: ChestProgressPayload) => void) => () => void;
   onSceneReady?: () => void;
 }
 
@@ -85,6 +82,7 @@ export class GameScene extends Phaser.Scene {
   private readonly playerMarkers = new Map<string, PlayerMarker>();
   public readonly monsterMarkers = new Map<string, MonsterMarker>();
   private readonly dropMarkers = new Map<string, DropMarker>();
+  private readonly chests = new Map<string, ChestState>();
   private worldBackdrop: WorldBackdropRefs = createWorldBackdropRefs();
   private extractPulseTween?: Phaser.Tweens.Tween;
   private corpseFogImage?: Phaser.GameObjects.Image;
@@ -94,9 +92,9 @@ export class GameScene extends Phaser.Scene {
   private hudOverlay?: GameHudOverlay;
   private inputBridge?: GameSceneInputBridge;
   private interactions?: GameSceneInteractions;
-  private feedbackFx?: GameSceneFeedbackFx;
   private monsterSkillFx?: MonsterSkillFxController;
   private lockAssistFeedback?: LockAssistFeedbackController;
+  private featureUnsubscribes: Array<() => void> = [];
   private latestState: MatchViewState | null = null;
   private worldSignature = "";
   private followedPlayerId: string | null = null;
@@ -116,22 +114,14 @@ export class GameScene extends Phaser.Scene {
   private onSkill?: (skillId: SkillId) => void;
   private onPickup?: () => void;
   private onStartExtract?: () => void;
-  public onCombatResult?: (payload: CombatEventPayload) => void;
   public onPlayerAttack?: (payload: { playerId: string; attackId: string; targetId?: string }) => void;
-  public onMonsterKilled?: (payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss"; killerPlayerId: string }) => void;
   private onOpenChest?: (chestId: string) => void;
-  public onAudioCue?: (cue: string) => void;
-  public applyHitFlash?: (target: Phaser.GameObjects.Container | Phaser.GameObjects.Sprite | Phaser.GameObjects.Image, isPlayerHurt: boolean) => void;
   private onToggleInventory?: () => void;
-  private monsterWindups = new Map<string, number>();
   private lastSelfAlive = true;
 
   private lastLocalAttackAt = 0;
   private lastLocalAttackTargetId?: string;
   private lastSelfDamageAt = 0;
-  private subscribeChestsInit?: (callback: (chests: ChestState[]) => void) => () => void;
-  private subscribeChestOpened?: (callback: (payload: ChestOpenedPayload) => void) => () => void;
-  private subscribeChestProgress?: (callback: (payload: ChestProgressPayload) => void) => () => void;
   private onSceneReady?: () => void;
   private localSkillCooldownEndsAt = 0;
   private localSkillWindupEndsAt = 0;
@@ -189,61 +179,15 @@ export class GameScene extends Phaser.Scene {
     this.onStartExtract = data.onStartExtract;
     this.onOpenChest = data.onOpenChest;
     this.onToggleInventory = data.onToggleInventory;
-    this.subscribeChestsInit = data.subscribeChestsInit;
-    this.subscribeChestOpened = data.subscribeChestOpened;
-    this.subscribeChestProgress = data.subscribeChestProgress;
     this.onSceneReady = data.onSceneReady;
-    this.applyHitFlash = data.applyHitFlash;
-    this.onCombatResult = (payload) => this.handleCombatResult(payload);
     this.onPlayerAttack = (payload) => this.handleServerPlayerAttack(payload);
-    this.onMonsterKilled = (payload) => this.handleMonsterKilled(payload);
 
     // The in-game HUD carries objectives now; keep the first combat view unobstructed.
-  }
-
-  private handleMonsterKilled(payload: { monsterId: string; x: number; y: number; tier: "normal" | "elite" | "boss"; killerPlayerId: string }): void {
-    this.feedbackFx?.handleMonsterKilled(payload);
   }
 
   private handleServerPlayerAttack(payload: { playerId: string; attackId: string; targetId?: string }): void {
     const player = this.latestState?.players.find((entry) => entry.id === payload.playerId);
     this.playerMarkers.get(payload.playerId)?.playAction("attack", player?.direction);
-    this.feedbackFx?.handleServerPlayerAttack(
-      payload,
-      this.latestState,
-      this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 },
-      this.playerMarkers
-    );
-
-  }
-
-  private handleCombatResult(payload: CombatEventPayload): void {
-    if (payload.targetId === this.latestState?.selfPlayerId && payload.amount > 0) {
-      this.lastSelfDamageAt = Date.now();
-    }
-    this.feedbackFx?.handleCombatResult(payload, this.latestState, this.playerMarkers, this.monsterMarkers);
-
-    if (!this.latestState) return;
-
-    const isPlayerHurt = payload.targetId === this.latestState.selfPlayerId;
-    let targetSprite: Phaser.GameObjects.Container | Phaser.GameObjects.Sprite | Phaser.GameObjects.Image | undefined;
-
-    if (isPlayerHurt) {
-      targetSprite = this.playerMarkers.get(payload.targetId)?.root;
-    } else {
-      targetSprite = this.monsterMarkers.get(payload.targetId)?.root;
-    }
-
-    if (targetSprite && this.applyHitFlash) {
-      this.applyHitFlash(targetSprite, isPlayerHurt);
-    }
-
-    if (
-      payload.attackerId === this.latestState?.selfPlayerId
-      && (!this.lastLocalAttackTargetId || payload.targetId === this.lastLocalAttackTargetId)
-    ) {
-      this.lastLocalAttackTargetId = undefined;
-    }
   }
 
   public resolveChestInterruptReason(): "moved" | "damaged" | "died" {
@@ -324,11 +268,37 @@ export class GameScene extends Phaser.Scene {
 
     this.hudOverlay = new GameHudOverlay(this, touchLayout);
     this.hudOverlay.mount();
-    this.feedbackFx = new GameSceneFeedbackFx(this);
     this.monsterSkillFx = new MonsterSkillFxController(this);
     this.lockAssistFeedback = new LockAssistFeedbackController(this);
     this.interactions = new GameSceneInteractions(this);
-    this.interactions.mount(this.subscribeChestsInit, this.subscribeChestOpened, this.subscribeChestProgress);
+    this.interactions.mount(undefined, undefined, undefined);
+    this.featureUnsubscribes = [
+      mountCombatVfx({
+        scene: this,
+        getSelfPlayerId: () => this.latestState?.selfPlayerId ?? null,
+        getPlayerMarker: (playerId) => this.playerMarkers.get(playerId),
+        getMonsterMarker: (monsterId) => this.monsterMarkers.get(monsterId),
+        getPlayerWeapon: (playerId) => this.latestState?.players.find((player) => player.id === playerId)?.weaponType,
+        getPlayerDirection: (playerId) => this.latestState?.players.find((player) => player.id === playerId)?.direction
+      }),
+      mountPlayerDeathVfx({ scene: this, getSelfPlayerId: () => this.latestState?.selfPlayerId ?? null }),
+      mountMonsterVfx({ scene: this }),
+      mountLootToastVfx({
+        scene: this,
+        getPlayerMarker: (playerId) => this.playerMarkers.get(playerId)
+      }),
+      mountChestVfx({
+        scene: this,
+        getChest: (chestId) => this.chests.get(chestId),
+        getPlayerMarker: (playerId) => this.playerMarkers.get(playerId),
+        getMonsterMarkers: () => this.monsterMarkers.values()
+      }),
+      mountExtractVfx({
+        scene: this,
+        getZonePosition: (zoneId?: string) => this.resolveExtractZonePosition(zoneId),
+        getPlayerMarker: (playerId) => this.playerMarkers.get(playerId)
+      })
+    ];
     this.inputBridge = new GameSceneInputBridge(this, {
       touchLayout,
       onMoveInput: (direction) => {
@@ -438,13 +408,6 @@ export class GameScene extends Phaser.Scene {
     this.localSkillCooldowns[slot] = { endsAt: this.localSkillCooldownEndsAt, durationMs: cooldownMs };
     this.pendingSkillCast?.remove(false);
     const direction = this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
-    this.feedbackFx?.playLocalSkill(
-      sid,
-      windupMs > 0 ? "windup" : "cast",
-      this.latestState,
-      direction
-    );
-
     if (windupMs > 0) {
       this.pendingSkillCast = this.time.delayedCall(windupMs, () => {
         if (!this.isSelfControllable()) {
@@ -454,12 +417,6 @@ export class GameScene extends Phaser.Scene {
         const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
         const castDirection = this.inputBridge?.getLastFacingDirection() ?? direction;
         if (self) this.playerMarkers.get(self.id)?.playAction("skill", castDirection);
-        this.feedbackFx?.playLocalSkill(
-          sid,
-          "cast",
-          this.latestState,
-          castDirection
-        );
         this.onSkill?.(sid);
         this.pendingSkillCast = undefined;
       });
@@ -483,14 +440,12 @@ export class GameScene extends Phaser.Scene {
     this.lastLocalAttackTargetId = attackPayload.targetId;
 
     this.playerMarkers.get(self.id)?.playAction("attack", direction);
-    this.feedbackFx?.playLocalAttackWindup(self.weaponType ?? "sword", self.x, self.y, direction);
     this.pendingBasicAttackFire?.remove(false);
     this.pendingBasicAttackFire = this.time.delayedCall(cadence.startupMs, () => {
       if (!this.isSelfControllable()) {
         this.pendingBasicAttackFire = undefined;
         return;
       }
-      this.feedbackFx?.playLocalAttack(this.latestState, direction);
       this.onAttack?.(attackPayload);
       this.pendingBasicAttackFire = undefined;
     });
@@ -508,12 +463,6 @@ export class GameScene extends Phaser.Scene {
     const self = this.latestState?.players.find((player) => player.id === this.latestState?.selfPlayerId);
     const direction = this.inputBridge?.getLastFacingDirection() ?? { x: 0, y: 1 };
     if (self) this.playerMarkers.get(self.id)?.playAction("dodge", direction);
-    this.feedbackFx?.playLocalSkill(
-      "common_dodge",
-      "cast",
-      this.latestState,
-      direction
-    );
     this.onSkill?.("common_dodge");
   }
 
@@ -525,6 +474,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   applyChests(chests: ChestState[]): void {
+    for (const chest of chests) {
+      const id = chest.chestId ?? chest.id;
+      if (id) this.chests.set(id, chest);
+    }
     this.interactions?.applyChests(chests);
   }
 
@@ -853,6 +806,8 @@ export class GameScene extends Phaser.Scene {
 
   shutdown(): void {
     this.unsubscribeRuntime?.();
+    this.featureUnsubscribes.forEach((unsubscribe) => unsubscribe());
+    this.featureUnsubscribes = [];
     this.input.keyboard?.off("keydown", this.handleSpectateKeydown);
     this.interactions?.destroy();
     this.interactions = undefined;
@@ -903,30 +858,15 @@ export class GameScene extends Phaser.Scene {
     });
 
     const self = state.players.find(p => p.id === state.selfPlayerId);
-    if (self && !self.isAlive && this.lastSelfAlive) {
-      this.feedbackFx?.handlePlayerDied();
-    }
     this.lastSelfAlive = self?.isAlive ?? true;
   }
 
   private syncMonsters(state: MatchViewState): void {
     const currentIds = new Set<string>();
-    const now = Date.now();
 
     for (const monster of state.monsters) {
       currentIds.add(monster.id);
       const existing = this.monsterMarkers.get(monster.id);
-      
-      // Track windups for audio cues
-      const prevWindupUntil = this.monsterWindups.get(monster.id) ?? 0;
-      const currentWindupUntil = monster.windingUpAttackUntil ?? 0;
-
-      if (currentWindupUntil > now && prevWindupUntil <= now) {
-        this.onAudioCue?.("charge-up");
-      } else if (currentWindupUntil <= now && prevWindupUntil > now) {
-        this.onAudioCue?.("thud");
-      }
-      this.monsterWindups.set(monster.id, currentWindupUntil);
 
       if (existing) {
         existing.sync(monster);
@@ -944,7 +884,6 @@ export class GameScene extends Phaser.Scene {
         this.monsterSkillFx?.destroy(id);
         marker.destroy();
         this.monsterMarkers.delete(id);
-        this.monsterWindups.delete(id);
       }
     }
   }
@@ -1089,7 +1028,25 @@ export class GameScene extends Phaser.Scene {
   }
 
   public showLootToast(x: number, y: number, amount: number): void {
-    this.feedbackFx?.showLootToast(x, y, amount);
+    void x;
+    void y;
+    void amount;
+  }
+
+  private resolveExtractZonePosition(zoneId?: string): { x: number; y: number; radius: number } | undefined {
+    const layoutZones = this.latestState?.layout?.extractZones ?? [];
+    const zone = (zoneId ? layoutZones.find((entry) => entry.zoneId === zoneId) : layoutZones[0]) ?? layoutZones[0];
+    if (zone) {
+      return { x: zone.x, y: zone.y, radius: zone.radius };
+    }
+    if (
+      typeof this.extractState.x === "number"
+      && typeof this.extractState.y === "number"
+      && typeof this.extractState.radius === "number"
+    ) {
+      return { x: this.extractState.x, y: this.extractState.y, radius: this.extractState.radius };
+    }
+    return undefined;
   }
 
   private showTutorial(): void {
