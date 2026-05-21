@@ -116,9 +116,11 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
     && !player.extract.settledAt
     && isInsideExtractZone(activeZone, player, "continue")
   ) {
+    const remainingMs = Math.max(0, player.extract.completesAt - now);
+    emitExtractChannelTickedDomain(room, player.id, remainingMs);
     return {
       opened: buildOpenedPayload(room),
-      progressEvents: [],
+      progressEvents: [buildProgressPayload(room, player, activeZone.zoneId, "progress", remainingMs)],
       successEvents: [],
       settlementEvents: [],
       shouldCloseRoom: false

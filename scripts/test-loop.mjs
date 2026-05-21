@@ -375,10 +375,38 @@ function attachClientState(socket, label) {
   socket.on("extract:opened", (payload) => {
     state.extractOpened = payload;
   });
+  socket.on("domain:ExtractOpened", (payload) => {
+    const zones = state.matchStarted?.room?.layout?.extractZones?.map((zone) => ({
+      ...zone,
+      isOpen: payload.zoneIds?.includes(zone.zoneId) ?? false
+    })) ?? [];
+    state.extractOpened = {
+      ...payload,
+      zones
+    };
+  });
   socket.on("extract:progress", (payload) => {
     state.extractProgress = payload;
   });
+  socket.on("domain:ExtractChannelStarted", (payload) => {
+    state.extractProgress = {
+      ...payload,
+      status: "started",
+      remainingMs: payload.channelDurationMs,
+      durationMs: payload.channelDurationMs
+    };
+  });
+  socket.on("domain:ExtractChannelTicked", (payload) => {
+    state.extractProgress = {
+      ...state.extractProgress,
+      ...payload,
+      status: "progress"
+    };
+  });
   socket.on("extract:success", (payload) => {
+    state.extractSuccess = payload;
+  });
+  socket.on("domain:ExtractSucceeded", (payload) => {
     state.extractSuccess = payload;
   });
   socket.on("match:settlement", (payload) => {

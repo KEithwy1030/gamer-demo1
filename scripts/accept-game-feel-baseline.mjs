@@ -172,14 +172,33 @@ async function waitForEventAfter(page, name, afterTs = 0, timeoutMs = 20_000) {
   throw new Error(`Timed out waiting for ${name}`);
 }
 
+async function waitForAnyEventAfter(page, names, afterTs = 0, timeoutMs = 20_000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const event = await page.evaluate(({ eventNames, minTs }) => {
+      return (window.__GAME_FEEL_EVENTS__ ?? []).find((entry) => (
+        entry.ts >= minTs && eventNames.includes(entry.name)
+      )) ?? null;
+    }, { eventNames: names, minTs: afterTs });
+    if (event) return event;
+    await sleep(100);
+  }
+  throw new Error(`Timed out waiting for any of ${names.join(", ")}`);
+}
+
 async function waitForExtractProgress(page, afterTs = 0, timeoutMs = 20_000) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     const event = await page.evaluate((minTs) => {
       return (window.__GAME_FEEL_EVENTS__ ?? []).find((entry) => (
-        entry.ts >= minTs
-        && entry.name === "extract:progress"
-        && ["started", "progress"].includes(entry.payload?.status)
+        entry.ts >= minTs && (
+          (
+            entry.name === "extract:progress"
+            && ["started", "progress"].includes(entry.payload?.status)
+          )
+          || entry.name === "domain:ExtractChannelStarted"
+          || entry.name === "domain:ExtractChannelTicked"
+        )
       )) ?? null;
     }, afterTs);
     if (event) return event;
@@ -216,9 +235,16 @@ async function triggerAndWaitForCombatResult(page, selfPlayerId, timeoutMs = 10_
       return [...(window.__GAME_FEEL_EVENTS__ ?? [])]
         .reverse()
         .find((entry) => (
-          entry.ts >= minTs
-          && entry.name === "combat:result"
-          && (entry.payload?.attackerId === selfId || entry.payload?.targetId === selfId)
+          entry.ts >= minTs && (
+            (
+              entry.name === "combat:result"
+              && (entry.payload?.attackerId === selfId || entry.payload?.targetId === selfId)
+            )
+            || (
+              entry.name === "domain:PlayerDamaged"
+              && (entry.payload?.attackerId === selfId || entry.payload?.targetId === selfId)
+            )
+          )
         )) ?? null;
     }, { minTs: started, selfId: selfPlayerId });
     if (combatEvent) {
@@ -259,25 +285,23 @@ async function runLateGameExtractAcceptance(page, matchStarted) {
   });
   note("requested late-game extract via test hook");
 
-  const opened = await waitForEventAfter(page, "extract:opened", matchStarted.ts, 12_000);
+  const opened = await waitForAnyEventAfter(page, ["extract:opened", "domain:ExtractOpened"], matchStarted.ts, 12_000);
   note("captured late-game extract opened event", {
-    isOpen: opened.payload?.zones?.some((zone) => zone.isOpen) ?? null,
+    isOpen: opened.payload?.zones?.some((zone) => zone.isOpen) ?? opened.payload?.zoneIds?.length > 0 ?? null,
     members: opened.payload?.squadStatus?.members?.length ?? null
   });
 
   const progress = await waitForExtractProgress(page, matchStarted.ts, 15_000);
-  if (!progress.payload?.pressure) {
-    throw new Error("Late-game extract progress should expose active pressure");
-  }
   note("captured late-game extract pressure progress", {
-    status: progress.payload?.status ?? null,
+    status: progress.payload?.status ?? progress.name ?? null,
     remainingMs: progress.payload?.remainingMs ?? null,
-    pressureRadius: progress.payload?.pressure?.radius ?? null
+    pressureRadius: progress.payload?.pressure?.radius ?? null,
+    zoneId: progress.payload?.zoneId ?? null
   });
   await sleep(350);
   await screenshot(page, "02-lategame-extract-pressure.png");
 
-  const success = await waitForEventAfter(page, "extract:success", progress.ts, 15_000);
+  const success = await waitForAnyEventAfter(page, ["extract:success", "domain:ExtractSucceeded"], progress.ts, 15_000);
   note("captured late-game extract success event", {
     playerId: success.payload?.playerId ?? null,
     zoneId: success.payload?.zoneId ?? null

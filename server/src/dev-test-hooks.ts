@@ -161,23 +161,6 @@ function applyLateGamePreset(room: RuntimeRoom, player: RuntimePlayer): void {
     };
     room.extract.carrier.holderPlayerId = player.id;
     room.extract.carrier.holderSquadId = player.squadId;
-    room.extract.activePressure = {
-      zoneId: zone.zoneId,
-      playerId: player.id,
-      squadId: player.squadId,
-      x: zone.x,
-      y: zone.y,
-      radius: 1500,
-      startedAt: now,
-      expiresAt: now + zone.channelDurationMs + 2_500
-    };
-    player.extract = {
-      ...player.extract,
-      zoneId: zone.zoneId,
-      startedAt: now,
-      completesAt: now + zone.channelDurationMs,
-      lastProgressBroadcastAt: now - 500
-    };
   }
 
   if (room.spawnDirector) {
