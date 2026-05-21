@@ -10,7 +10,9 @@ import type {
   MonsterState,
   MonsterType,
   MusicModePayload,
-  SkillCastPayload
+  SpawnPhase,
+  SkillCastPayload,
+  Vector2
 } from "@gamer/shared";
 import { WEAPON_DEFINITIONS } from "@gamer/shared";
 import {
@@ -279,6 +281,7 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
   const musicModeEvents: MusicModePayload[] = [];
 
   if (spawnPhaseChanged) {
+    emitPhaseStartedDomain(room, spawnPhaseChanged);
     musicModeEvents.push(...emitMusicModeForRoom(room, mapPhaseToMusicMode(spawnPhaseChanged.phase), now));
   }
 
@@ -310,7 +313,7 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
       continue;
     }
 
-    updateBossEnrage(monster);
+    updateBossEnrage(room, monster);
     const target = resolveTargetPlayer(room, monster);
     monster.targetPlayerId = target?.id;
 
@@ -364,12 +367,13 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
       }
       if (archerResult.projectileSpawn) {
         monsterProjectileSpawns.push(archerResult.projectileSpawn);
+        emitMonsterProjectileSpawnedDomain(room, archerResult.projectileSpawn);
       }
       continue;
     }
 
     if (shouldStartEliteChargedStrike(room, monster, target, distance, now)) {
-      startEliteChargedStrike(monster, target, now);
+      startEliteChargedStrike(room, monster, target, now);
       musicModeEvents.push(...emitMusicModeForRoom(room, "danger", now));
       continue;
     }
@@ -383,13 +387,14 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
       continue;
     }
 
-    startNonBossAttackWindup(monster, target.id, now);
+    startNonBossAttackWindup(room, monster, target.id, now);
   }
 
   const projectileTick = tickMonsterProjectiles(room, now);
   for (const impact of projectileTick.impacts) {
     const hitPayload = toProjectileHitPayload(impact);
     monsterProjectileHits.push(hitPayload);
+    emitMonsterProjectileHitDomain(room, hitPayload);
     const hitPlayer = impact.hitPlayerId ? room.players.get(impact.hitPlayerId) : undefined;
     const sourceMonster = monsters.get(impact.projectile.monsterId);
     if (sourceMonster && hitPlayer?.state?.isAlive) {
@@ -398,6 +403,9 @@ export function tickMonsters(context: RuntimeContext): MonsterTickResult {
     }
   }
   monsterProjectileDespawns.push(...projectileTick.despawned);
+  for (const despawn of projectileTick.despawned) {
+    emitMonsterProjectileDespawnedDomain(room, despawn);
+  }
 
   return {
     monsters: listMonsterStates(room),
@@ -462,7 +470,7 @@ export function handlePlayerAttack(
     markMonsterDead(room, targetMonster, now);
   }
 
-  updateBossEnrage(targetMonster);
+  updateBossEnrage(room, targetMonster);
   const combat: CombatEventPayload = {
     attackerId: player.id,
     targetId: targetMonster.id,
@@ -573,6 +581,12 @@ function emitMusicModeForRoom(room: RuntimeRoom, mode: MusicModePayload["mode"],
     mode,
     lastEmittedAt: now
   };
+  emitDomain(room, {
+    type: "MusicModeChanged",
+    payload: {
+      mode
+    }
+  });
   return [{
     mode,
     ts: now
@@ -1065,7 +1079,7 @@ function applySkillDamageToMonsters(
       emitMonsterKilledDomain(room, monster, player.id, now);
     }
 
-    updateBossEnrage(monster);
+    updateBossEnrage(room, monster);
     combatEvents.push({
       attackerId: player.id,
       targetId: monster.id,
@@ -1179,6 +1193,86 @@ function emitMonsterKilledDomain(room: RuntimeRoom, monster: RuntimeMonster, kil
       },
       killerPlayerId,
       killedAt
+    }
+  });
+}
+
+function emitPhaseStartedDomain(room: RuntimeRoom, phase: { phase: SpawnPhase; atRunSeconds: number }): void {
+  emitDomain(room, {
+    type: "PhaseStarted",
+    payload: {
+      phase: phase.phase,
+      atRunSeconds: phase.atRunSeconds
+    }
+  });
+}
+
+function emitMonsterWindupStartedDomain(
+  room: RuntimeRoom,
+  monster: RuntimeMonster,
+  windupType: "attack" | "slam",
+  targetId?: string,
+  targetPosition?: Vector2
+): void {
+  emitDomain(room, {
+    type: "MonsterWindupStarted",
+    payload: {
+      monsterId: monster.id,
+      windupType,
+      targetId,
+      targetPosition: targetPosition
+        ? { x: Math.round(targetPosition.x), y: Math.round(targetPosition.y) }
+        : undefined
+    }
+  });
+}
+
+function emitMonsterEnragedStartedDomain(room: RuntimeRoom, monster: RuntimeMonster): void {
+  emitDomain(room, {
+    type: "MonsterEnragedStarted",
+    payload: {
+      monsterId: monster.id
+    }
+  });
+}
+
+function emitMonsterProjectileSpawnedDomain(room: RuntimeRoom, projectile: MonsterProjectileSpawn): void {
+  const magnitude = Math.hypot(projectile.vx, projectile.vy);
+  emitDomain(room, {
+    type: "MonsterProjectileSpawned",
+    payload: {
+      projectileId: projectile.id,
+      monsterId: projectile.monsterId,
+      origin: { x: Math.round(projectile.x), y: Math.round(projectile.y) },
+      direction: magnitude > 0 ? { x: projectile.vx / magnitude, y: projectile.vy / magnitude } : { x: 0, y: 1 },
+      damage: projectile.damage,
+      projectileType: projectile.type,
+      ttlMs: projectile.ttlMs
+    }
+  });
+}
+
+function emitMonsterProjectileHitDomain(room: RuntimeRoom, projectile: MonsterProjectileHit): void {
+  if (!projectile.hitPlayerId) {
+    return;
+  }
+
+  emitDomain(room, {
+    type: "MonsterProjectileHit",
+    payload: {
+      projectileId: projectile.id,
+      hitPlayerId: projectile.hitPlayerId,
+      position: { x: Math.round(projectile.x), y: Math.round(projectile.y) }
+    }
+  });
+}
+
+function emitMonsterProjectileDespawnedDomain(room: RuntimeRoom, projectile: MonsterProjectileDespawn): void {
+  emitDomain(room, {
+    type: "MonsterProjectileDespawned",
+    payload: {
+      projectileId: projectile.id,
+      reason: projectile.reason
     }
   });
 }
@@ -1472,12 +1566,16 @@ function shuffleInPlace<T>(values: T[]): void {
   }
 }
 
-function updateBossEnrage(monster: RuntimeMonster): void {
+function updateBossEnrage(room: RuntimeRoom, monster: RuntimeMonster): void {
   if (monster.type !== "boss" || !monster.isAlive) {
     return;
   }
 
+  const wasEnraged = monster.isEnraged === true;
   monster.isEnraged = monster.hp > 0 && monster.hp / monster.maxHp <= monster.enrageThreshold;
+  if (!wasEnraged && monster.isEnraged) {
+    emitMonsterEnragedStartedDomain(room, monster);
+  }
 }
 
 function getBossAttackDamage(monster: RuntimeMonster): number {
@@ -1612,6 +1710,7 @@ function tickBossMonster(
     monster.phaseEndsAt = monster.skillEndsAt;
     monster.windupTargetId = target.id;
     monster.nextSmashAt = now + getBossCooldown(monster, monster.smashCooldownMs ?? BOSS_SMASH_COOLDOWN_MS);
+    emitMonsterWindupStartedDomain(room, monster, "slam", target.id, target.state);
     return {
       monsters: listMonsterStates(room),
       drops: listWorldDrops(room),
@@ -1629,6 +1728,7 @@ function tickBossMonster(
     monster.chargeTargetX = target.state.x;
     monster.chargeTargetY = target.state.y;
     monster.nextChargeAt = now + getBossCooldown(monster, monster.chargeCooldownMs ?? BOSS_CHARGE_COOLDOWN_MS);
+    emitMonsterWindupStartedDomain(room, monster, "attack", target.id, target.state);
     return {
       monsters: listMonsterStates(room),
       drops: listWorldDrops(room),
@@ -1889,6 +1989,7 @@ function tickBrute(
   monster.behaviorPhase = "windup";
   monster.slamAnchorX = monster.x;
   monster.slamAnchorY = monster.y;
+  emitMonsterWindupStartedDomain(room, monster, "slam", target.id, target.state);
   musicModeEvents.push(...emitMusicModeForRoom(room, "danger", now));
   return true;
 }
@@ -1942,11 +2043,12 @@ function getNonBossAttackWindupMs(monster: RuntimeMonster): number {
   return monster.type === "elite" ? ELITE_ATTACK_WINDUP_MS : MONSTER_ATTACK_WINDUP_MS;
 }
 
-function startNonBossAttackWindup(monster: RuntimeMonster, targetId: string, now: number): void {
+function startNonBossAttackWindup(room: RuntimeRoom, monster: RuntimeMonster, targetId: string, now: number): void {
   monster.behaviorPhase = "windup";
   monster.pendingAttackTargetId = targetId;
   monster.phaseEndsAt = now + getNonBossAttackWindupMs(monster);
   monster.windingUpAttackUntil = monster.phaseEndsAt;
+  emitMonsterWindupStartedDomain(room, monster, "attack", targetId);
 }
 
 function resolveNonBossAttackPhase(
@@ -2011,7 +2113,7 @@ function shouldStartEliteChargedStrike(
     && hasLineOfSight(room.matchLayout, monster, target, 8);
 }
 
-function startEliteChargedStrike(monster: RuntimeMonster, target: RuntimePlayer, now: number): void {
+function startEliteChargedStrike(room: RuntimeRoom, monster: RuntimeMonster, target: RuntimePlayer, now: number): void {
   monster.skillState = "chargedStrike";
   monster.behaviorPhase = "windup";
   monster.phaseEndsAt = now + ELITE_CHARGED_STRIKE_WINDUP_MS;
@@ -2019,6 +2121,7 @@ function startEliteChargedStrike(monster: RuntimeMonster, target: RuntimePlayer,
   monster.windingUpAttackUntil = monster.phaseEndsAt;
   monster.windupTargetId = target.id;
   monster.facingDirection = normalizeDirection({ x: target.state!.x - monster.x, y: target.state!.y - monster.y });
+  emitMonsterWindupStartedDomain(room, monster, "attack", target.id, target.state);
 }
 
 function resolveEliteChargedStrikePhase(
