@@ -124,7 +124,8 @@ export class RoomStore {
       status: "waiting",
       createdAt: Date.now(),
       botDifficulty: payload.botDifficulty ?? "normal",
-      players: new Map()
+      players: new Map(),
+      events: []
     };
 
     room.players.set(session.playerId, {

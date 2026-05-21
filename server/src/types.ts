@@ -3,6 +3,7 @@ import type {
   ChestKind as SharedChestKind,
   ChestQualityTier,
   CombatEventPayload,
+  DomainEvent,
   ExtractCarrierState,
   ExtractSquadStatus,
   LobbyPlayer,
@@ -527,6 +528,8 @@ export interface RuntimeRoom {
   };
   extract?: RuntimeRoomExtractState;
   matchLayout?: MatchLayout;
+  /** Domain event queue - pushed by domain managers, flushed each tick by flushEvents(). */
+  events?: DomainEvent[];
 }
 
 export interface RoomStateEnvelope extends RoomSummary {}
