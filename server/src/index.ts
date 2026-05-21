@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import http from "node:http";
 import cors from "cors";
 import express from "express";
@@ -8,6 +8,7 @@ import type {
   CreateMarketListingPayload,
   CreateRoomPayload,
   JoinRoomPayload,
+  MatchStartedPayload,
   ProfileMovePayload,
   ProfilePatchPayload,
   PlayerInputMovePayload,
@@ -36,11 +37,10 @@ import {
 } from "./internal-constants.js";
 import {
   advanceExtractState,
-  buildExtractOpenedPayload,
   initializeExtractState,
-  interruptPlayerExtract,
   startPlayerExtract
 } from "./extract/index.js";
+import { processExtractInterruptsFromEvents } from "./extract/listeners.js";
 import { getRiverHazardAtPoint, isPointInsideSafeCrossing } from "./match-layout.js";
 import { InventoryService } from "./inventory/index.js";
 import {
@@ -54,16 +54,16 @@ import { RoomStore } from "./room-store.js";
 import { MarketStore } from "./market-store.js";
 import { ProfileStore } from "./profile-store.js";
 import {
-  interruptChestOpening,
   listChests,
   spawnChests,
   startChestOpening,
   tickChestOpenings
 } from "./chests/chest-manager.js";
+import { processChestInterruptsFromEvents } from "./chests/listeners.js";
 import { DevLogService } from "./dev/devLog.js";
 import { createDevLogRouter } from "./dev/devLogRoutes.js";
 import { applyDevRoomPreset, resolveEnabledDevRoomPreset } from "./dev-test-hooks.js";
-import { flushEvents } from "./event-bus/index.js";
+import { emitDomain, flushEvents } from "./event-bus/index.js";
 import type {
   ChestOpenedPayload,
   GameSocket,
@@ -239,14 +239,51 @@ function emitRoomError(socket: GameSocket, message: string): void {
 
 function emitDrops(roomCode: string): void {
   const context = roomStore.getRoomByCodeSnapshot(roomCode);
-  io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
+  emitStateDrops(roomCode, context.room);
+}
+
+function emitInventoryUpdate(socketId: string, payload: ReturnType<InventoryService["buildInventoryUpdate"]>): void {
+  io.to(socketId).emit(SocketEvent.InventoryUpdate, payload);
+}
+
+function emitStateDrops(roomCode: string, room: RuntimeRoom): void {
+  io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(room));
+}
+
+function emitStatePlayers(roomCode: string, room: RuntimeRoom): void {
+  io.to(roomCode).emit(SocketEvent.StatePlayers, roomStore.listPlayerStates(room));
+}
+
+function emitStateMonsters(roomCode: string, monsters: ReturnType<typeof listMonsterStates>): void {
+  io.to(roomCode).emit(SocketEvent.StateMonsters, monsters);
+}
+
+function emitMatchTimer(roomCode: string): void {
+  io.to(roomCode).emit(SocketEvent.MatchTimer, roomStore.getRemainingSeconds(roomCode));
+}
+
+function emitMatchStarted(socketId: string, payload: MatchStartedPayload): void {
+  io.to(socketId).emit(SocketEvent.MatchStarted, payload);
+}
+
+function emitChestsInit(roomCode: string, chests: ReturnType<typeof listChests>): void {
+  io.to(roomCode).emit(SocketEvent.ChestsInit, chests);
+}
+
+function emitPlayerAttack(roomCode: string, payload: { playerId: string; attackId: string; targetId?: string }): void {
+  io.to(roomCode).emit(CombatSocketEvent.PlayerAttack, payload);
 }
 
 function emitMusicMode(roomCode: string, mode: "lobby" | "calm" | "skirmish" | "danger" | "extract_pressure" | "death" | "victory"): void {
-  io.to(roomCode).emit(SocketEvent.MusicMode, {
-    mode,
-    ts: Date.now()
+  const context = roomStore.getRoomByCodeSnapshot(roomCode);
+  emitDomain(context.room, {
+    type: "MusicModeChanged",
+    payload: {
+      mode,
+      ts: Date.now()
+    }
   });
+  flushRoomEvents(context.room);
 }
 
 function emitSettlement(roomCode: string, payload: MatchSettlementEnvelope): void {
@@ -285,41 +322,49 @@ function applyProfileLoadouts(room: RuntimeRoom): void {
 function emitBotTickResult(roomCode: string, result: BotTickResult): void {
   const context = roomStore.getRoomByCodeSnapshot(roomCode);
 
-  for (const event of result.combatEvents) {
-    emitExtractInterruptForCombatEvent(roomCode, context.room, event);
-    io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
-  }
-
   for (const death of result.playerDeaths) {
-    io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
-  }
-
-  for (const progress of result.extractProgressEvents) {
-    io.to(roomCode).emit(SocketEvent.ExtractProgress, progress);
-  }
-
-  for (const progress of result.chestProgressEvents) {
-    io.to(roomCode).emit(SocketEvent.ChestProgress, progress);
+    emitPlayerDiedDomain(context.room, death);
   }
 }
 
-function emitExtractInterruptForCombatEvent(
-  roomCode: string,
+function flushRoomEvents(room: RuntimeRoom): void {
+  processExtractInterruptsFromEvents(room);
+  processChestInterruptsFromEvents(room);
+  flushEvents(room, io);
+}
+
+function emitPlayerDiedDomain(
   room: RuntimeRoom,
-  event: CombatEventPayload
+  death: { playerId: string; killerId?: string },
+  fallbackReason = "killed"
 ): void {
-  if (event.amount <= 0 || event.interruptsExtract === false) {
+  const player = room.players.get(death.playerId);
+  emitDomain(room, {
+    type: "PlayerDied",
+    payload: {
+      playerId: death.playerId,
+      killerId: death.killerId,
+      reason: player?.deathReason ?? fallbackReason
+    }
+  });
+}
+
+function emitPlayerDamagedDomain(room: RuntimeRoom, event: CombatEventPayload): void {
+  if (event.amount <= 0) {
     return;
   }
 
-  const interruption = interruptPlayerExtract(room, event.targetId, "damaged");
-  if (interruption) {
-    io.to(roomCode).emit(SocketEvent.ExtractProgress, interruption);
-  }
-  const chestInterruption = interruptChestOpening(room, event.targetId);
-  if (chestInterruption) {
-    io.to(roomCode).emit(SocketEvent.ChestProgress, chestInterruption);
-  }
+  emitDomain(room, {
+    type: "PlayerDamaged",
+    payload: {
+      attackerId: event.attackerId,
+      targetId: event.targetId,
+      amount: event.amount,
+      critMultiplier: event.critMultiplier,
+      damageType: event.damageType,
+      interruptsExtract: event.interruptsExtract ?? true
+    }
+  });
 }
 
 function applyRiverHazardTick(roomCode: string, now = Date.now()): void {
@@ -369,12 +414,11 @@ function applyRiverHazardTick(roomCode: string, now = Date.now()): void {
   }
 
   for (const event of combatEvents) {
-    emitExtractInterruptForCombatEvent(roomCode, context.room, event);
-    io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
+    emitPlayerDamagedDomain(context.room, event);
   }
 
   for (const death of deaths) {
-    io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
+    emitPlayerDiedDomain(context.room, death, "riverHazard");
   }
 }
 
@@ -419,8 +463,7 @@ function applyCorpseFogTick(roomCode: string, now = Date.now()): Array<{ playerI
   }
 
   for (const event of combatEvents) {
-    emitExtractInterruptForCombatEvent(roomCode, room, event);
-    io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
+    emitPlayerDamagedDomain(room, event);
   }
 
   return deaths;
@@ -430,16 +473,8 @@ function applyExtractUpdate(roomCode: string): boolean {
   const context = roomStore.getRoomByCodeSnapshot(roomCode);
   const result = advanceExtractState(context.room);
 
-  if (result.opened) {
-    io.to(roomCode).emit(SocketEvent.ExtractOpened, result.opened);
-  }
-
-  for (const progress of result.progressEvents) {
-    io.to(roomCode).emit(SocketEvent.ExtractProgress, progress);
-  }
-
   for (const success of result.successEvents) {
-    io.to(roomCode).emit(SocketEvent.ExtractSuccess, success);
+    void success;
     emitMusicMode(roomCode, "victory");
   }
 
@@ -468,11 +503,11 @@ function flushDeathDrops(roomCode: string): void {
     }
 
     hasDropChanges = true;
-    io.to(player.socketId).emit(SocketEvent.InventoryUpdate, result.inventoryUpdate);
+    emitInventoryUpdate(player.socketId, result.inventoryUpdate);
   }
 
   if (hasDropChanges) {
-    io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
+    emitStateDrops(roomCode, context.room);
   }
 }
 
@@ -517,51 +552,32 @@ function startPlayerSyncLoop(roomCode: string): void {
       applyRiverHazardTick(roomCode);
       const fogDeaths = applyCorpseFogTick(roomCode);
       for (const death of fogDeaths) {
-        io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
+        emitPlayerDiedDomain(context.room, death, "corpseFog");
       }
       const effectResult = tickPlayerCombatEffects(context.room);
-      for (const event of effectResult.combatEvents) {
-        emitExtractInterruptForCombatEvent(roomCode, context.room, event);
-        io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
-      }
       for (const death of effectResult.deaths) {
-        io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
+        emitPlayerDiedDomain(context.room, death);
       }
       const botResult = tickBots(context);
       emitBotTickResult(roomCode, botResult);
       const chestTick = tickChestOpenings(context.room);
-      for (const event of chestTick.progressEvents) {
-        io.to(roomCode).emit(SocketEvent.ChestProgress, event);
-      }
-      for (const event of chestTick.openedEvents) {
-        io.to(roomCode).emit(SocketEvent.ChestOpened, event);
-      }
       for (const playerId of chestTick.inventoryUpdatedPlayerIds) {
         const chestPlayer = context.room.players.get(playerId);
         if (chestPlayer?.socketId) {
-          io.to(chestPlayer.socketId).emit(SocketEvent.InventoryUpdate, inventoryService.buildInventoryUpdate(chestPlayer));
+          emitInventoryUpdate(chestPlayer.socketId, inventoryService.buildInventoryUpdate(chestPlayer));
         }
       }
-      for (const event of botResult.chestOpenedEvents) {
-        io.to(roomCode).emit(SocketEvent.ChestOpened, event);
-      }
-      for (const event of botResult.lootPickedEvents) {
-        io.to(roomCode).emit(SocketEvent.LootPicked, event);
-      }
       if (chestTick.dropsChanged || chestTick.openedEvents.length > 0 || botResult.chestOpenedEvents.length > 0 || botResult.lootPickedEvents.length > 0) {
-        io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
+        emitStateDrops(roomCode, context.room);
       }
       if (botResult.monsterStateChanged) {
-        io.to(roomCode).emit(SocketEvent.StateMonsters, listMonsterStates(context.room));
-        io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
+        emitStateMonsters(roomCode, listMonsterStates(context.room));
+        emitStateDrops(roomCode, context.room);
       }
       flushDeathDrops(roomCode);
       const shouldCloseRoom = applyExtractUpdate(roomCode);
-      io.to(roomCode).emit(
-        SocketEvent.StatePlayers,
-        roomStore.listPlayerStates(context.room)
-      );
-      flushEvents(context.room, io);
+      emitStatePlayers(roomCode, context.room);
+      flushRoomEvents(context.room);
 
       if (shouldCloseRoom) {
         stopPlayerSyncLoop(roomCode);
@@ -584,8 +600,8 @@ function startMatchTimerLoop(roomCode: string): void {
         return;
       }
 
-      io.to(roomCode).emit(SocketEvent.MatchTimer, roomStore.getRemainingSeconds(roomCode));
-      flushEvents(context.room, io);
+      emitMatchTimer(roomCode);
+      flushRoomEvents(context.room);
     } catch {
       stopMatchTimerLoop(roomCode);
     }
@@ -605,28 +621,11 @@ function startMonsterSyncLoop(roomCode: string): void {
       }
 
       const result = tickMonsters(context);
-      io.to(roomCode).emit(SocketEvent.StateMonsters, result.monsters);
-      if (result.spawnPhaseChanged) {
-        io.to(roomCode).emit(SocketEvent.SpawnPhaseChanged, result.spawnPhaseChanged);
-      }
-      for (const event of result.musicModeEvents) {
-        io.to(roomCode).emit(SocketEvent.MusicMode, event);
-      }
-      for (const event of result.monsterProjectileSpawns) {
-        io.to(roomCode).emit(SocketEvent.MonsterProjectileSpawn, event);
-      }
-      for (const event of result.monsterProjectileHits) {
-        io.to(roomCode).emit(SocketEvent.MonsterProjectileHit, event);
-      }
-      for (const event of result.monsterProjectileDespawns) {
-        io.to(roomCode).emit(SocketEvent.MonsterProjectileDespawn, event);
-      }
+      emitStateMonsters(roomCode, result.monsters);
 
       for (const event of result.combatEvents) {
-        emitExtractInterruptForCombatEvent(roomCode, context.room, event);
-        io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
         if (!event.targetAlive) {
-          io.to(roomCode).emit(CombatSocketEvent.PlayerDied, {
+          emitPlayerDiedDomain(context.room, {
             playerId: event.targetId,
             killerId: event.attackerId
           });
@@ -644,11 +643,8 @@ function startMonsterSyncLoop(roomCode: string): void {
       if (result.playerStateChanged) {
         flushDeathDrops(roomCode);
         const shouldCloseRoom = applyExtractUpdate(roomCode);
-        io.to(roomCode).emit(
-          SocketEvent.StatePlayers,
-          roomStore.listPlayerStates(context.room)
-        );
-        io.to(roomCode).emit(SocketEvent.StateDrops, inventoryService.listDrops(context.room));
+        emitStatePlayers(roomCode, context.room);
+        emitStateDrops(roomCode, context.room);
 
         if (shouldCloseRoom) {
           stopPlayerSyncLoop(roomCode);
@@ -656,7 +652,7 @@ function startMonsterSyncLoop(roomCode: string): void {
           stopMonsterSyncLoop(roomCode);
         }
       }
-      flushEvents(context.room, io);
+      flushRoomEvents(context.room);
     } catch {
       stopMonsterSyncLoop(roomCode);
     }
@@ -675,8 +671,8 @@ function attachRoomHandlers(socket: GameSocket): void {
       const context = roomStore.createRoom(payload, session);
       ensureSocketInRoom(socket, context.room.code);
       emitRoomState(context.room.code, context);
-      io.to(socket.id).emit(SocketEvent.MusicMode, { mode: "lobby", ts: Date.now() });
-      flushEvents(context.room, io);
+      emitMusicMode(context.room.code, "lobby");
+      flushRoomEvents(context.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to create room.");
     }
@@ -690,8 +686,8 @@ function attachRoomHandlers(socket: GameSocket): void {
       const context = roomStore.joinRoom(payload, session);
       ensureSocketInRoom(socket, context.room.code);
       emitRoomState(context.room.code, context);
-      io.to(socket.id).emit(SocketEvent.MusicMode, { mode: "lobby", ts: Date.now() });
-      flushEvents(context.room, io);
+      emitMusicMode(context.room.code, "lobby");
+      flushRoomEvents(context.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to join room.");
     }
@@ -707,7 +703,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       }
       if (context) {
         emitRoomState(context.room.code, context);
-        flushEvents(context.room, io);
+        flushRoomEvents(context.room);
       } else if (previousRoomCode) {
         stopPlayerSyncLoop(previousRoomCode);
         stopMatchTimerLoop(previousRoomCode);
@@ -728,7 +724,7 @@ function attachRoomHandlers(socket: GameSocket): void {
         serverConfig.maxRoomCapacity
       );
       emitRoomState(context.room.code, context);
-      flushEvents(context.room, io);
+      flushRoomEvents(context.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to update room capacity.");
     }
@@ -762,35 +758,29 @@ function attachRoomHandlers(socket: GameSocket): void {
           continue;
         }
 
-        io.to(player.socketId).emit(SocketEvent.MatchStarted, payload);
-        io.to(player.socketId).emit(
-          SocketEvent.InventoryUpdate,
-          inventoryService.buildInventoryUpdate(player)
-        );
+        emitMatchStarted(player.socketId, payload);
+        emitInventoryUpdate(player.socketId, inventoryService.buildInventoryUpdate(player));
       }
 
-      io.to(context.room.code).emit(
-        SocketEvent.StatePlayers,
-        roomStore.listPlayerStates(context.room)
-      );
-      io.to(context.room.code).emit(
-        SocketEvent.StateDrops,
-        inventoryService.listDrops(context.room)
-      );
-      io.to(context.room.code).emit(
-        SocketEvent.StateMonsters,
-        listMonsterStates(context.room)
-      );
-      io.to(context.room.code).emit(
-        SocketEvent.MatchTimer,
-        roomStore.getRemainingSeconds(context.room.code)
-      );
+      emitStatePlayers(context.room.code, context.room);
+      emitStateDrops(context.room.code, context.room);
+      emitStateMonsters(context.room.code, listMonsterStates(context.room));
+      emitMatchTimer(context.room.code);
       const chests = listChests(context.room);
-      io.to(context.room.code).emit(SocketEvent.ChestsInit, chests);
-      if (context.room.extract?.zones?.length) {
-        io.to(context.room.code).emit(SocketEvent.ExtractOpened, buildExtractOpenedPayload(context.room));
+      emitChestsInit(context.room.code, chests);
+      const openExtractZoneIds = (context.room.extract?.zones ?? [])
+        .filter((zone) => zone.isOpen)
+        .map((zone) => zone.zoneId);
+      if (openExtractZoneIds.length > 0) {
+        emitDomain(context.room, {
+          type: "ExtractOpened",
+          payload: {
+            zoneIds: openExtractZoneIds,
+            pressure: context.room.extract?.activePressure ? "active" : "open"
+          }
+        });
       }
-      flushEvents(context.room, io);
+      flushRoomEvents(context.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to start match.");
     }
@@ -801,7 +791,7 @@ function attachRoomHandlers(socket: GameSocket): void {
       const session = buildSession(socket);
       roomStore.setPlayerMoveInput(session, payload.direction);
       if (session.roomCode) {
-        flushEvents(roomStore.getRoomByCodeSnapshot(session.roomCode).room, io);
+        flushRoomEvents(roomStore.getRoomByCodeSnapshot(session.roomCode).room);
       }
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to move player.");
@@ -817,12 +807,9 @@ function attachRoomHandlers(socket: GameSocket): void {
 
       const context = roomStore.getRoomByCodeSnapshot(session.roomCode);
       const result = inventoryService.pickup(context.room, session.playerId, payload.dropId);
-      io.to(socket.id).emit(SocketEvent.InventoryUpdate, result.inventoryUpdate);
-      if (result.lootPicked) {
-        io.to(session.roomCode).emit(SocketEvent.LootPicked, result.lootPicked);
-      }
-      io.to(session.roomCode).emit(SocketEvent.StateDrops, result.drops);
-      flushEvents(context.room, io);
+      emitInventoryUpdate(socket.id, result.inventoryUpdate);
+      emitStateDrops(session.roomCode, context.room);
+      flushRoomEvents(context.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to pick up loot.");
     }
@@ -838,12 +825,9 @@ function attachRoomHandlers(socket: GameSocket): void {
       const context = roomStore.getRoomByCodeSnapshot(session.roomCode);
       const result = inventoryService.equip(context.room, session.playerId, payload.itemInstanceId);
       const updatedContext = roomStore.getRoomByCodeSnapshot(session.roomCode);
-      io.to(socket.id).emit(SocketEvent.InventoryUpdate, result.inventoryUpdate);
-      io.to(session.roomCode).emit(
-        SocketEvent.StatePlayers,
-        roomStore.listPlayerStates(updatedContext.room)
-      );
-      flushEvents(updatedContext.room, io);
+      emitInventoryUpdate(socket.id, result.inventoryUpdate);
+      emitStatePlayers(session.roomCode, updatedContext.room);
+      flushRoomEvents(updatedContext.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to equip item.");
     }
@@ -859,12 +843,9 @@ function attachRoomHandlers(socket: GameSocket): void {
       const context = roomStore.getRoomByCodeSnapshot(session.roomCode);
       const result = inventoryService.unequip(context.room, session.playerId, payload.itemInstanceId);
       const updatedContext = roomStore.getRoomByCodeSnapshot(session.roomCode);
-      io.to(socket.id).emit(SocketEvent.InventoryUpdate, result.inventoryUpdate);
-      io.to(session.roomCode).emit(
-        SocketEvent.StatePlayers,
-        roomStore.listPlayerStates(updatedContext.room)
-      );
-      flushEvents(updatedContext.room, io);
+      emitInventoryUpdate(socket.id, result.inventoryUpdate);
+      emitStatePlayers(session.roomCode, updatedContext.room);
+      flushRoomEvents(updatedContext.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to unequip item.");
     }
@@ -879,10 +860,10 @@ function attachRoomHandlers(socket: GameSocket): void {
 
       const context = roomStore.getRoomByCodeSnapshot(session.roomCode);
       const result = inventoryService.dropItem(context.room, session.playerId, payload.itemInstanceId);
-      io.to(socket.id).emit(SocketEvent.InventoryUpdate, result.inventoryUpdate);
-      io.to(session.roomCode).emit(SocketEvent.StateDrops, result.drops);
-      io.to(session.roomCode).emit(SocketEvent.StatePlayers, roomStore.listPlayerStates(context.room));
-      flushEvents(context.room, io);
+      emitInventoryUpdate(socket.id, result.inventoryUpdate);
+      emitStateDrops(session.roomCode, context.room);
+      emitStatePlayers(session.roomCode, context.room);
+      flushRoomEvents(context.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to drop item.");
     }
@@ -898,12 +879,9 @@ function attachRoomHandlers(socket: GameSocket): void {
       const context = roomStore.getRoomByCodeSnapshot(session.roomCode);
       const result = inventoryService.move(context.room, session.playerId, payload);
       const updatedContext = roomStore.getRoomByCodeSnapshot(session.roomCode);
-      io.to(socket.id).emit(SocketEvent.InventoryUpdate, result.inventoryUpdate);
-      io.to(session.roomCode).emit(
-        SocketEvent.StatePlayers,
-        roomStore.listPlayerStates(updatedContext.room)
-      );
-      flushEvents(updatedContext.room, io);
+      emitInventoryUpdate(socket.id, result.inventoryUpdate);
+      emitStatePlayers(session.roomCode, updatedContext.room);
+      flushRoomEvents(updatedContext.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to move item.");
     }
@@ -918,9 +896,9 @@ function attachRoomHandlers(socket: GameSocket): void {
 
       const context = roomStore.getRoomByCodeSnapshot(session.roomCode);
       const result = inventoryService.useItem(context.room, session.playerId, payload.itemInstanceId);
-      io.to(socket.id).emit(SocketEvent.InventoryUpdate, result.inventoryUpdate);
-      io.to(session.roomCode).emit(SocketEvent.StatePlayers, roomStore.listPlayerStates(context.room));
-      flushEvents(context.room, io);
+      emitInventoryUpdate(socket.id, result.inventoryUpdate);
+      emitStatePlayers(session.roomCode, context.room);
+      flushRoomEvents(context.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to use item.");
     }
@@ -938,43 +916,25 @@ function attachRoomHandlers(socket: GameSocket): void {
       const resolution = resolvePlayerAttack(context.room, session.playerId, payload);
       const monsterOutcome = handleMonsterPlayerAttack(context, session.playerId, payload);
 
-      io.to(roomCode).emit(CombatSocketEvent.PlayerAttack, {
+      emitPlayerAttack(roomCode, {
         playerId: session.playerId,
         attackId: payload.attackId,
         targetId: payload.targetId
       });
 
-      for (const event of resolution.combatEvents) {
-        emitExtractInterruptForCombatEvent(roomCode, context.room, event);
-        io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
-      }
-
       for (const death of resolution.deaths) {
-        io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
-      }
-
-      if (monsterOutcome?.combat) {
-        io.to(roomCode).emit(CombatSocketEvent.CombatResult, monsterOutcome.combat);
+        emitPlayerDiedDomain(context.room, death);
       }
 
       if (monsterOutcome) {
-        for (const kill of monsterOutcome.monsterKills) {
-          io.to(roomCode).emit(SocketEvent.MonsterKilled, kill);
-        }
-        io.to(roomCode).emit(SocketEvent.StateMonsters, monsterOutcome.monsters);
-        if (monsterOutcome.spawnedDrops.length > 0) {
-          io.to(roomCode).emit(SocketEvent.LootSpawned, monsterOutcome.spawnedDrops);
-        }
+        emitStateMonsters(roomCode, monsterOutcome.monsters);
       }
 
       flushDeathDrops(roomCode);
       emitDrops(roomCode);
       const shouldCloseRoom = applyExtractUpdate(roomCode);
-      io.to(roomCode).emit(
-        SocketEvent.StatePlayers,
-        roomStore.listPlayerStates(context.room)
-      );
-      flushEvents(context.room, io);
+      emitStatePlayers(roomCode, context.room);
+      flushRoomEvents(context.room);
 
       if (shouldCloseRoom) {
         stopPlayerSyncLoop(roomCode);
@@ -1005,36 +965,19 @@ function attachRoomHandlers(socket: GameSocket): void {
       const resolution = resolvePlayerSkillCast(context.room, session.playerId, payload);
       const monsterOutcome = handleMonsterPlayerSkill(context, session.playerId, payload, skillOriginState);
 
-      for (const event of resolution.combatEvents) {
-        emitExtractInterruptForCombatEvent(roomCode, context.room, event);
-        io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
-      }
-
       for (const death of resolution.deaths) {
-        io.to(roomCode).emit(CombatSocketEvent.PlayerDied, death);
+        emitPlayerDiedDomain(context.room, death);
       }
 
       if (monsterOutcome) {
-        for (const event of monsterOutcome.combatEvents) {
-          io.to(roomCode).emit(CombatSocketEvent.CombatResult, event);
-        }
-        for (const kill of monsterOutcome.monsterKills) {
-          io.to(roomCode).emit(SocketEvent.MonsterKilled, kill);
-        }
-        io.to(roomCode).emit(SocketEvent.StateMonsters, monsterOutcome.monsters);
-        if (monsterOutcome.spawnedDrops.length > 0) {
-          io.to(roomCode).emit(SocketEvent.LootSpawned, monsterOutcome.spawnedDrops);
-        }
+        emitStateMonsters(roomCode, monsterOutcome.monsters);
       }
 
       flushDeathDrops(roomCode);
       emitDrops(roomCode);
       const shouldCloseRoom = applyExtractUpdate(roomCode);
-      io.to(roomCode).emit(
-        SocketEvent.StatePlayers,
-        roomStore.listPlayerStates(context.room)
-      );
-      flushEvents(context.room, io);
+      emitStatePlayers(roomCode, context.room);
+      flushRoomEvents(context.room);
 
       if (shouldCloseRoom) {
         stopPlayerSyncLoop(roomCode);
@@ -1055,16 +998,8 @@ function attachRoomHandlers(socket: GameSocket): void {
       }
 
       const context = roomStore.getRoomByCodeSnapshot(roomCode);
-      const result = startPlayerExtract(context.room, session.playerId);
-
-      if (result.opened) {
-        io.to(roomCode).emit(SocketEvent.ExtractOpened, result.opened);
-      }
-
-      for (const progress of result.progressEvents) {
-        io.to(roomCode).emit(SocketEvent.ExtractProgress, progress);
-      }
-      flushEvents(context.room, io);
+      startPlayerExtract(context.room, session.playerId);
+      flushRoomEvents(context.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to start extract.");
     }
@@ -1093,8 +1028,8 @@ function attachRoomHandlers(socket: GameSocket): void {
         session.playerId,
         payload.chestId
       );
-      io.to(roomCode).emit(SocketEvent.ChestProgress, progress);
-      flushEvents(context.room, io);
+      void progress;
+      flushRoomEvents(context.room);
     } catch (error) {
       emitRoomError(socket, error instanceof Error ? error.message : "Failed to open chest.");
     }
@@ -1106,7 +1041,7 @@ function attachRoomHandlers(socket: GameSocket): void {
     const context = roomStore.leaveCurrentRoom(session);
     if (previousRoomCode && context) {
       emitRoomState(context.room.code, context);
-      flushEvents(context.room, io);
+      flushRoomEvents(context.room);
     } else if (previousRoomCode) {
       stopPlayerSyncLoop(previousRoomCode);
       stopMatchTimerLoop(previousRoomCode);

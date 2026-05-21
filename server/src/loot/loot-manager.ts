@@ -3,12 +3,14 @@ import type {
   Affix,
   AffixKey,
   EquipmentSlot as SharedEquipmentSlot,
+  InventoryItemInstance,
   ItemCategory,
   ItemRarity
 } from "@gamer/shared";
 import type { MonsterType } from "@gamer/shared";
 import { ITEM_DEFINITIONS } from "@gamer/shared";
 import type { DropState, EquipmentSlot, InventoryItem, RuntimeMonster, RuntimeRoom } from "../types.js";
+import { emitDomain } from "../event-bus/index.js";
 
 interface WeightedDefinition {
   definitionId: string;
@@ -131,6 +133,15 @@ export function createDropsForMonster(room: RuntimeRoom, monster: RuntimeMonster
 
     dropState.set(drop.id, drop);
     drops.push(drop);
+    emitDomain(room, {
+      type: "LootSpawned",
+      payload: {
+        dropId: drop.id,
+        item: toDomainItem(drop.item),
+        position: { x: drop.x, y: drop.y },
+        source: drop.source
+      }
+    });
   });
 
   return drops;
@@ -231,6 +242,29 @@ function rollItemRarity(monsterType: MonsterType): ItemRarity {
       ? ELITE_QUALITY_WEIGHTS
       : NORMAL_QUALITY_WEIGHTS;
   return pickWeighted(weights).rarity;
+}
+
+function toDomainItem(item: InventoryItem): InventoryItemInstance {
+  return {
+    instanceId: item.instanceId,
+    definitionId: item.templateId,
+    kind: toDomainItemCategory(item),
+    rarity: item.rarity,
+    name: item.name,
+    goldValue: item.goldValue,
+    treasureValue: item.treasureValue,
+    tags: item.tags ? [...item.tags] : undefined,
+    healAmount: item.healAmount,
+    consumableEffects: item.consumableEffects?.map((effect) => ({ ...effect })),
+    affixes: item.affixes.map((affix) => ({ ...affix })),
+    modifiers: item.modifiers ? { ...item.modifiers } : undefined
+  };
+}
+
+function toDomainItemCategory(item: InventoryItem): ItemCategory {
+  if (item.kind === "equipment") return "armor";
+  if (item.kind === "currency") return "gold";
+  return item.kind;
 }
 
 function toInventoryKind(category: ItemCategory): InventoryItem["kind"] {

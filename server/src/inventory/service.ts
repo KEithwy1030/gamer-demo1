@@ -18,9 +18,10 @@ import {
   PLAYER_BASE_HP,
   PLAYER_BASE_MOVE_SPEED
 } from "../internal-constants.js";
-import { canPlaceRect, findFirstFitRect, INVENTORY_HEIGHT, INVENTORY_WIDTH } from "@gamer/shared";
+import { canPlaceRect, findFirstFitRect, INVENTORY_HEIGHT, INVENTORY_WIDTH, type InventoryItemInstance, type ItemCategory } from "@gamer/shared";
 import { addTimedModifier, removeStatusEffects, setPlayerBaseStats } from "../combat/player-effects.js";
 import { getItemTemplate, listSeedDropTemplateIds } from "./catalog.js";
+import { emitDomain } from "../event-bus/index.js";
 
 const PICKUP_RADIUS_PX = 140;
 const DROP_SPREAD_PX = 48;
@@ -115,6 +116,14 @@ export class InventoryService {
       y: placement.y
     });
     room.drops?.delete(dropId);
+    emitDomain(room, {
+      type: "LootPickedUp",
+      payload: {
+        playerId,
+        dropId,
+        item: toDomainItem(drop.item)
+      }
+    });
 
     return {
       inventoryUpdate: this.buildInventoryUpdate(player),
@@ -851,6 +860,29 @@ function createItemFromSnapshot(
   } catch {
     return undefined;
   }
+}
+
+function toDomainItem(item: InventoryItem): InventoryItemInstance {
+  return {
+    instanceId: item.instanceId,
+    definitionId: item.templateId,
+    kind: toDomainItemCategory(item),
+    rarity: item.rarity,
+    name: item.name,
+    goldValue: item.goldValue,
+    treasureValue: item.treasureValue,
+    tags: item.tags ? [...item.tags] : undefined,
+    healAmount: item.healAmount,
+    consumableEffects: item.consumableEffects?.map((effect) => ({ ...effect })),
+    affixes: item.affixes.map((affix) => ({ ...affix })),
+    modifiers: item.modifiers ? { ...item.modifiers } : undefined
+  };
+}
+
+function toDomainItemCategory(item: InventoryItem): ItemCategory {
+  if (item.kind === "equipment") return "armor";
+  if (item.kind === "currency") return "gold";
+  return item.kind;
 }
 
 function normalizeInventoryItemKind(value: string | undefined): InventoryItem["kind"] | undefined {
