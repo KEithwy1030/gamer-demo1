@@ -269,9 +269,32 @@ export function startChestOpening(
   });
 }
 
+function emitChestRummageTickedDomain(room: RuntimeRoom, chest: Chest): void {
+  emitDomain(room, {
+    type: "ChestRummageTicked",
+    payload: {
+      chestId: chest.id,
+      droppedItemCount: chest.itemsDispensed,
+      remainingItemCount: Math.max(0, chest.totalItems - chest.itemsDispensed)
+    }
+  });
+}
+
+function emitChestRummageInterruptedDomain(room: RuntimeRoom, chestId: string, playerId: string, reason: string): void {
+  emitDomain(room, {
+    type: "ChestRummageInterrupted",
+    payload: {
+      chestId,
+      playerId,
+      reason
+    }
+  });
+}
+
 export function interruptChestOpening(
   room: RuntimeRoom,
-  playerId: string
+  playerId: string,
+  reason = "damaged"
 ): ChestProgressPayload | undefined {
   const player = room.players.get(playerId);
   if (!player?.openingChest) {
@@ -285,6 +308,7 @@ export function interruptChestOpening(
     finalizeInterruptedChest(chest);
     clearRecordedChestNoise(room, chest.id);
   }
+  emitChestRummageInterruptedDomain(room, opening.chestId, playerId, reason);
   return buildChestProgressPayload({
     chest,
     chestId: opening.chestId,
@@ -326,6 +350,7 @@ export function tickChestOpenings(
         clearRecordedChestNoise(room, chest.id);
       }
       interruptedPlayerIds.push(player.id);
+      emitChestRummageInterruptedDomain(room, opening.chestId, player.id, "dead");
       progressEvents.push(buildChestProgressPayload({
         chest,
         chestId: opening.chestId,
@@ -343,6 +368,7 @@ export function tickChestOpenings(
       finalizeInterruptedChest(chest);
       clearRecordedChestNoise(room, chest.id);
       interruptedPlayerIds.push(player.id);
+      emitChestRummageInterruptedDomain(room, chest.id, player.id, "moved");
       progressEvents.push(buildChestProgressPayload({
         chest,
         playerId: player.id,
@@ -354,6 +380,7 @@ export function tickChestOpenings(
     }
 
     if (now < opening.nextDispenseAt) {
+      emitChestRummageTickedDomain(room, chest);
       progressEvents.push(buildChestProgressPayload({
         chest,
         playerId: player.id,
@@ -390,6 +417,7 @@ export function tickChestOpenings(
       }
 
       chest.itemsDispensed += 1;
+      emitChestRummageTickedDomain(room, chest);
       opening.nextDispenseAt += chest.rummageIntervalMs;
       const aggroedMonsterIds = alertMonstersToChestNoise(room, player.id, chest);
       recordContestedChestNoise(room, player.id, chest, aggroedMonsterIds, now);
