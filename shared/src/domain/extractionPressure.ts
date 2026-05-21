@@ -1,4 +1,8 @@
-import { EXTRACT_OPEN_SEC, MATCH_DURATION_SEC } from "../data/constants.js";
+import {
+  CORPSE_FOG_COUNTERATTACK_SEC,
+  CORPSE_FOG_INTENSIFIED_SEC,
+  CORPSE_FOG_MAX_PRESSURE_SEC
+} from "../data/constants.js";
 
 export type ExtractionPressurePhaseKind = "preopen" | "counterattack" | "intensified";
 
@@ -24,8 +28,8 @@ export function resolveExtractionPressurePhase(
   timeline: ExtractionPressureTimeline = {}
 ): ExtractionPressurePhase {
   const safeElapsedSec = Math.max(0, elapsedSec);
-  const extractOpenSec = timeline.extractOpenSec ?? EXTRACT_OPEN_SEC;
-  const intensifiedStartsAtSec = timeline.intensifiedStartsAtSec ?? extractOpenSec * 1.5;
+  const extractOpenSec = timeline.extractOpenSec ?? CORPSE_FOG_COUNTERATTACK_SEC;
+  const intensifiedStartsAtSec = timeline.intensifiedStartsAtSec ?? CORPSE_FOG_INTENSIFIED_SEC;
 
   if (safeElapsedSec >= intensifiedStartsAtSec) {
     return { kind: "intensified", elapsedSec: safeElapsedSec };
@@ -47,9 +51,9 @@ export function resolveCorpseFogPressureState(
   timeline: ExtractionPressureTimeline = {}
 ): CorpseFogPressureState {
   const safeElapsedSec = Math.max(0, elapsedSec);
-  const extractOpenSec = timeline.extractOpenSec ?? EXTRACT_OPEN_SEC;
-  const intensifiedStartsAtSec = timeline.intensifiedStartsAtSec ?? extractOpenSec * 1.5;
-  const maxPressureStartsAtSec = timeline.maxPressureStartsAtSec ?? MATCH_DURATION_SEC;
+  const extractOpenSec = timeline.extractOpenSec ?? CORPSE_FOG_COUNTERATTACK_SEC;
+  const intensifiedStartsAtSec = timeline.intensifiedStartsAtSec ?? CORPSE_FOG_INTENSIFIED_SEC;
+  const maxPressureStartsAtSec = timeline.maxPressureStartsAtSec ?? CORPSE_FOG_MAX_PRESSURE_SEC;
 
   if (safeElapsedSec <= extractOpenSec) {
     return {
