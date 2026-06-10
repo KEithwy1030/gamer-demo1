@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { buildMatchLayout } from "../server/src/match-layout.js";
+import { buildMatchLayout, isPointInsideObstacle, isPointInsideRiverHazard } from "../server/src/match-layout.js";
 import { spawnChests, startChestOpening, tickChestOpenings, CHEST_OPEN_DURATION_MS } from "../server/src/chests/chest-manager.js";
-import { spawnInitialMonsters } from "../server/src/monsters/monster-manager.js";
+import { spawnInitialMonsters, tickMonsters } from "../server/src/monsters/monster-manager.js";
 import { initializeExtractState } from "../server/src/extract/index.js";
 import { InventoryService } from "../server/src/inventory/service.js";
 import { tickBots } from "../server/src/bots/bot-manager.js";
@@ -20,31 +20,51 @@ assertBotStagesOnActiveExtractPressure();
 
 console.log("[pressure-ai-contract] PASS rich resource pressure, bot rummage loop, all-crate noise response, bot cargo extract intent, high-value cargo extract intent, intensified fog extract intent, active extract pressure staging");
 
+// 3aa7428 起精英不再静态驻守富箱：战斗压力改由 spawn-director 按阶段动态
+// 投放（opening 只出 basic，danger 阶段精英/弓手缺位必补、原型混合）。这里
+// 验证新契约：富箱仍是 4 个中央争夺点；danger 阶段必能补齐精英+弓手；
+// 落点不进河/障碍；非 boss 原型保持多样（接替旧的"精英守卫多 profile"）。
 function assertElitePressureNearRichResources(): void {
   const room = createRoom();
   spawnChests(room);
   spawnInitialMonsters(room);
 
   const richChests = room.matchLayout!.chestZones.filter((zone) => zone.qualityTier === "rich");
-  const elites = [...room.monsters!.values()].filter((monster) => monster.type === "elite");
   assert.equal(richChests.length, 4, "map should include four rich central crates");
-  assert.ok(elites.length >= 3, "resource pressure requires elite monsters");
-  assert.ok(
-    new Set(elites.map((elite) => `${elite.moveSpeed}:${elite.attackDamage}:${elite.patrolRadius}:${elite.guardRadius}`)).size >= 3,
-    "elite resource pressure should split into multiple guard profiles instead of one flat elite template"
-  );
 
-  const richPressureDistances = richChests.map((chest) => (
-    Math.min(...elites.map((elite) => Math.hypot(elite.x - chest.x, elite.y - chest.y)))
-  ));
-  const averagePressureDistance = richPressureDistances.reduce((sum, value) => sum + value, 0) / richPressureDistances.length;
+  room.startedAt = now - 250_000;
+  const hasTypes = () => {
+    const alive = [...room.monsters!.values()];
+    return alive.some((monster) => monster.type === "elite")
+      && alive.some((monster) => monster.type === "archer")
+      && alive.some((monster) => monster.type === "skirmisher" || monster.type === "brute" || monster.type === "basic");
+  };
+  for (let attempt = 0; attempt < 40 && !hasTypes(); attempt += 1) {
+    room.spawnDirector!.nextSpawnAt = 0;
+    tickMonsters({ room, roomState: room as any });
+  }
+  room.spawnDirector!.nextSpawnAt = Number.MAX_SAFE_INTEGER;
+  room.startedAt = now;
+  assert.ok(hasTypes(), "danger phase should backfill elite and archer pressure archetypes");
+
+  const nonBoss = [...room.monsters!.values()].filter((monster) => monster.type !== "boss");
+  for (const monster of nonBoss) {
+    assert.equal(
+      isPointInsideRiverHazard(room.matchLayout!, monster.x, monster.y),
+      false,
+      `pressure spawn ${monster.id} should not land in river hazard`
+    );
+    assert.equal(
+      isPointInsideObstacle(room.matchLayout!, monster.x, monster.y, 36),
+      false,
+      `pressure spawn ${monster.id} should not land inside an obstacle`
+    );
+  }
+
+  const archetypeProfiles = new Set(nonBoss.map((monster) => `${monster.type}:${monster.moveSpeed}:${monster.attackDamage}`));
   assert.ok(
-    Math.min(...richPressureDistances) <= 900,
-    `central rich zone should have at least one close elite anchor, got ${Math.min(...richPressureDistances)}`
-  );
-  assert.ok(
-    averagePressureDistance <= 1500,
-    `central rich zone should sit inside an elite pressure field on average, got ${averagePressureDistance}`
+    archetypeProfiles.size >= 3,
+    "phased pressure should mix at least three distinct combat archetype profiles"
   );
 }
 
@@ -151,7 +171,8 @@ function assertBotWithHighValueCargoPrioritizesExtract(): void {
 
 function assertBotExtractsWhenCorpseFogIntensifies(): void {
   const room = createRoom();
-  room.startedAt = now - 721_000;
+  // 雾强化时间线调参后（2799c66）为 13 分钟 = 780s。
+  room.startedAt = now - 781_000;
   initializeExtractState(room);
   room.players.get("player-1")!.state!.isAlive = false;
   const bot = room.players.get("bot_alpha_1")!;

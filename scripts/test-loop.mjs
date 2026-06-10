@@ -21,7 +21,6 @@ const MOVE_STEP_PER_INPUT = 28;
 const PICKUP_RADIUS = 140;
 const POSITION_TOLERANCE = 36;
 const EXTRACT_THREAT_RADIUS = 260;
-const BRIDGE_APPROACH_RADIUS = 96;
 const EXPECTED_HUMAN_CLIENT_COUNT = 2;
 
 const STEP_TIMEOUTS = {
@@ -31,7 +30,9 @@ const STEP_TIMEOUTS = {
   4: 5_000,
   5: 60_000,
   6: 8_000,
-  7: 10_000,
+  // 击杀的怪可能不产新掉落，此时 pickup 目标是最近的预置世界掉落，可能在
+  // 1000px+ 外还要绕障碍——10s 不够走完（实测 alive 满速仍超时）。
+  7: 25_000,
   8: 15_000,
   9: 12_000,
   10: 70_000
@@ -604,89 +605,227 @@ function getPreferredExtractZone(clientState) {
     })[0]?.zone;
 }
 
-function getBridgeAwareWaypoints(clientState, from, to) {
+// ---------------------------------------------------------------------------
+// 网格 BFS 路由
+//
+// 旧实现是"直线 + 几何绕行补丁"：直线路径在服务端只能沿轴滑动的碰撞模型下，
+// 垂直顶墙时滑动分量为零，玩家会顶着障碍/河岸永久卡死（kill / reach / pickup
+// 阶段随机超时的共同病灶）。改为对布局做 60px 网格 BFS：障碍 + 河（扣除桥、
+// 安全区、撤离区干岛——服务端 pointInsideRiverHazardShape 的同款规则）视为
+// 不可走，得到的路径再做视线平滑。
+// ---------------------------------------------------------------------------
+
+const ROUTE_CELL_PX = 60;
+const ROUTE_OBSTACLE_CLEARANCE = 42;
+const ROUTE_SMOOTH_CLEARANCE = 34;
+// 服务端河伤害的撤离区豁免半径是 zone.radius + 120；取 110 留余量。
+const ROUTE_EXTRACT_DRY_PADDING = 110;
+const routeGridCache = new WeakMap();
+
+function isRoutePointWalkable(clientState, x, y, clearance = ROUTE_OBSTACLE_CLEARANCE) {
   const layout = clientState.matchStarted?.room?.layout;
-  const safeCrossings = layout?.safeCrossings ?? [];
-  const hazards = layout?.riverHazards ?? [];
-  if (hazards.length === 0 || safeCrossings.length === 0) {
-    return [to];
+  if (!layout) {
+    return true;
   }
 
-  const pointInRect = (point, rect) => (
-    point.x >= rect.x
-    && point.x <= rect.x + rect.width
-    && point.y >= rect.y
-    && point.y <= rect.y + rect.height
-  );
+  const point = { x, y };
+  if ((layout.obstacleZones ?? []).some((rect) => pointInRectWithPadding(point, rect, clearance))) {
+    return false;
+  }
 
-  const pointInHazard = (point) => (
-    hazards.some((hazard) => pointInRect(point, hazard))
-    && !safeCrossings.some((crossing) => pointInRect(point, crossing))
-  );
-
-  const segmentIntersectsSegment = (a1, a2, b1, b2) => {
-    const subtract = (left, right) => ({ x: left.x - right.x, y: left.y - right.y });
-    const cross = (left, right) => (left.x * right.y) - (left.y * right.x);
-    const pointOnSegment = (start, point, end) => (
-      point.x >= Math.min(start.x, end.x)
-      && point.x <= Math.max(start.x, end.x)
-      && point.y >= Math.min(start.y, end.y)
-      && point.y <= Math.max(start.y, end.y)
+  if ((layout.riverHazards ?? []).some((rect) => pointInRectWithPadding(point, rect, 0))) {
+    const inCrossing = (layout.safeCrossings ?? []).some((rect) => pointInRectWithPadding(point, rect, -10));
+    const inExtractDryIsland = (layout.extractZones ?? []).some(
+      (zone) => distance(zone, point) < (zone.radius ?? 96) + ROUTE_EXTRACT_DRY_PADDING
     );
+    const inSafeZone = (layout.safeZones ?? []).some(
+      (zone) => distance(zone, point) < zone.radius
+    );
+    if (!inCrossing && !inExtractDryIsland && !inSafeZone) {
+      return false;
+    }
+  }
 
-    const d1 = cross(subtract(a2, a1), subtract(b1, a1));
-    const d2 = cross(subtract(a2, a1), subtract(b2, a1));
-    const d3 = cross(subtract(b2, b1), subtract(a1, b1));
-    const d4 = cross(subtract(b2, b1), subtract(a2, b1));
+  return true;
+}
 
-    if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
-      return true;
+function getRouteGrid(clientState) {
+  const matchStarted = clientState.matchStarted;
+  if (!matchStarted?.room?.layout) {
+    return undefined;
+  }
+
+  const cached = routeGridCache.get(matchStarted);
+  if (cached) {
+    return cached;
+  }
+
+  const width = matchStarted.room.width ?? 4800;
+  const height = matchStarted.room.height ?? 4800;
+  const cols = Math.max(1, Math.ceil(width / ROUTE_CELL_PX));
+  const rows = Math.max(1, Math.ceil(height / ROUTE_CELL_PX));
+  const blocked = new Uint8Array(cols * rows);
+  for (let cy = 0; cy < rows; cy += 1) {
+    for (let cx = 0; cx < cols; cx += 1) {
+      const center = {
+        x: cx * ROUTE_CELL_PX + ROUTE_CELL_PX / 2,
+        y: cy * ROUTE_CELL_PX + ROUTE_CELL_PX / 2
+      };
+      if (!isRoutePointWalkable(clientState, center.x, center.y)) {
+        blocked[cy * cols + cx] = 1;
+      }
+    }
+  }
+
+  const grid = { cols, rows, blocked };
+  routeGridCache.set(matchStarted, grid);
+  return grid;
+}
+
+function findNearestWalkableCell(grid, cx, cy) {
+  const inBounds = (x, y) => x >= 0 && y >= 0 && x < grid.cols && y < grid.rows;
+  if (inBounds(cx, cy) && !grid.blocked[cy * grid.cols + cx]) {
+    return { cx, cy };
+  }
+
+  for (let radius = 1; radius <= 10; radius += 1) {
+    for (let dy = -radius; dy <= radius; dy += 1) {
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) {
+          continue;
+        }
+        const nx = cx + dx;
+        const ny = cy + dy;
+        if (inBounds(nx, ny) && !grid.blocked[ny * grid.cols + nx]) {
+          return { cx: nx, cy: ny };
+        }
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function isRouteSegmentWalkable(clientState, from, to) {
+  const length = distance(from, to);
+  const steps = Math.max(1, Math.ceil(length / 24));
+  for (let step = 1; step <= steps; step += 1) {
+    const t = step / steps;
+    const x = from.x + (to.x - from.x) * t;
+    const y = from.y + (to.y - from.y) * t;
+    if (!isRoutePointWalkable(clientState, x, y, ROUTE_SMOOTH_CLEARANCE)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function computeGridRoute(clientState, from, to) {
+  const grid = getRouteGrid(clientState);
+  if (!grid) {
+    return undefined;
+  }
+
+  const toCell = (point) => ({
+    cx: Math.min(grid.cols - 1, Math.max(0, Math.floor(point.x / ROUTE_CELL_PX))),
+    cy: Math.min(grid.rows - 1, Math.max(0, Math.floor(point.y / ROUTE_CELL_PX)))
+  });
+  const cellCenter = (cell) => ({
+    x: cell.cx * ROUTE_CELL_PX + ROUTE_CELL_PX / 2,
+    y: cell.cy * ROUTE_CELL_PX + ROUTE_CELL_PX / 2
+  });
+
+  const start = findNearestWalkableCell(grid, toCell(from).cx, toCell(from).cy);
+  const goal = findNearestWalkableCell(grid, toCell(to).cx, toCell(to).cy);
+  if (!start || !goal) {
+    return undefined;
+  }
+
+  const startIndex = start.cy * grid.cols + start.cx;
+  const goalIndex = goal.cy * grid.cols + goal.cx;
+  if (startIndex !== goalIndex) {
+    const cameFrom = new Int32Array(grid.cols * grid.rows).fill(-1);
+    cameFrom[startIndex] = startIndex;
+    const queue = [startIndex];
+    let found = false;
+
+    for (let head = 0; head < queue.length && !found; head += 1) {
+      const current = queue[head];
+      const cx = current % grid.cols;
+      const cy = Math.floor(current / grid.cols);
+      for (let dy = -1; dy <= 1 && !found; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (dx === 0 && dy === 0) {
+            continue;
+          }
+          const nx = cx + dx;
+          const ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= grid.cols || ny >= grid.rows) {
+            continue;
+          }
+          const next = ny * grid.cols + nx;
+          if (grid.blocked[next] || cameFrom[next] !== -1) {
+            continue;
+          }
+          // 斜向移动不允许切角：两个正交邻格都必须可走。
+          if (dx !== 0 && dy !== 0) {
+            if (grid.blocked[cy * grid.cols + nx] || grid.blocked[ny * grid.cols + cx]) {
+              continue;
+            }
+          }
+          cameFrom[next] = current;
+          if (next === goalIndex) {
+            found = true;
+            break;
+          }
+          queue.push(next);
+        }
+      }
     }
 
-    return (d1 === 0 && pointOnSegment(a1, b1, a2))
-      || (d2 === 0 && pointOnSegment(a1, b2, a2))
-      || (d3 === 0 && pointOnSegment(b1, a1, b2))
-      || (d4 === 0 && pointOnSegment(b1, a2, b2));
-  };
-
-  const segmentIntersectsRect = (start, end, rect, padding = 110) => {
-    const expanded = {
-      x: rect.x - padding,
-      y: rect.y - padding,
-      width: rect.width + padding * 2,
-      height: rect.height + padding * 2
-    };
-
-    if (pointInRect(start, expanded) || pointInRect(end, expanded)) {
-      return true;
+    if (!found) {
+      return undefined;
     }
 
-    const minX = expanded.x;
-    const maxX = expanded.x + expanded.width;
-    const minY = expanded.y;
-    const maxY = expanded.y + expanded.height;
-    return segmentIntersectsSegment(start, end, { x: minX, y: minY }, { x: maxX, y: minY })
-      || segmentIntersectsSegment(start, end, { x: maxX, y: minY }, { x: maxX, y: maxY })
-      || segmentIntersectsSegment(start, end, { x: maxX, y: maxY }, { x: minX, y: maxY })
-      || segmentIntersectsSegment(start, end, { x: minX, y: maxY }, { x: minX, y: minY });
-  };
+    const cells = [];
+    for (let index = goalIndex; index !== startIndex; index = cameFrom[index]) {
+      cells.push({ cx: index % grid.cols, cy: Math.floor(index / grid.cols) });
+    }
+    cells.reverse();
 
-  const fromInRiver = pointInHazard(from);
-  const toInRiver = pointInHazard(to);
-  const crossesRiver = hazards.some((hazard) => segmentIntersectsRect(from, to, hazard));
+    const rawPoints = cells.map(cellCenter);
+    const smoothed = [];
+    let anchor = from;
+    let cursor = 0;
+    while (cursor < rawPoints.length) {
+      let reach = cursor;
+      for (let probe = rawPoints.length - 1; probe > cursor; probe -= 1) {
+        if (isRouteSegmentWalkable(clientState, anchor, rawPoints[probe])) {
+          reach = probe;
+          break;
+        }
+      }
+      smoothed.push(rawPoints[reach]);
+      anchor = rawPoints[reach];
+      cursor = reach + 1;
+    }
+    return smoothed;
+  }
 
-  if (!fromInRiver && !toInRiver && !crossesRiver) {
+  return [];
+}
+
+function getBridgeAwareWaypoints(clientState, from, to) {
+  const route = computeGridRoute(clientState, from, to);
+  if (!route) {
+    // 布局缺失或找不到可走格：退回直线，让行走层的 stopDistance 兜底。
     return [to];
   }
 
-  const bridgeCenter = [...safeCrossings]
-    .map((crossing) => ({
-      x: crossing.x + crossing.width / 2,
-      y: crossing.y + crossing.height / 2
-    }))
-    .sort((left, right) => (distance(from, left) + distance(left, to)) - (distance(from, right) + distance(right, to)))[0];
-
-  return addObstacleDetours(clientState, from, bridgeCenter ? [bridgeCenter, to] : [to]);
+  // 终点本体可能在不可走区（贴墙的掉落、河边读条点），永远保留真实目标，
+  // 行走层按 stopDistance 提前停。
+  route.push(to);
+  return route;
 }
 
 function pointInRectWithPadding(point, rect, padding = 0) {
@@ -768,81 +907,6 @@ function routeBlockScore(clientState, from, to) {
   return score;
 }
 
-function getBlockingObstacle(clientState, from, to, padding = 54) {
-  const obstacles = clientState.matchStarted?.room?.layout?.obstacleZones ?? [];
-  return obstacles.find((obstacle) => segmentIntersectsRectForRoute(from, to, obstacle, padding));
-}
-
-function isBlockedRoutePoint(clientState, point) {
-  const layout = clientState.matchStarted?.room?.layout;
-  if (!layout) {
-    return false;
-  }
-
-  return pointInRiverHazard(clientState, point)
-    || (layout.obstacleZones ?? []).some((obstacle) => pointInRectWithPadding(point, obstacle, 64));
-}
-
-function clampRoutePoint(clientState, point) {
-  const room = clientState.matchStarted?.room;
-  return {
-    x: Math.max(96, Math.min(room?.width ?? 4800, point.x)),
-    y: Math.max(96, Math.min(room?.height ?? 4800, point.y))
-  };
-}
-
-function resolveObstacleDetour(clientState, from, to) {
-  const obstacle = getBlockingObstacle(clientState, from, to);
-  if (!obstacle) {
-    return undefined;
-  }
-
-  const padding = 110;
-  const candidates = [
-    { x: obstacle.x - padding, y: obstacle.y - padding },
-    { x: obstacle.x + obstacle.width + padding, y: obstacle.y - padding },
-    { x: obstacle.x - padding, y: obstacle.y + obstacle.height + padding },
-    { x: obstacle.x + obstacle.width + padding, y: obstacle.y + obstacle.height + padding },
-    { x: obstacle.x + obstacle.width / 2, y: obstacle.y - padding },
-    { x: obstacle.x + obstacle.width / 2, y: obstacle.y + obstacle.height + padding },
-    { x: obstacle.x - padding, y: obstacle.y + obstacle.height / 2 },
-    { x: obstacle.x + obstacle.width + padding, y: obstacle.y + obstacle.height / 2 }
-  ].map((point) => clampRoutePoint(clientState, point));
-
-  return candidates
-    .filter((point) => !isBlockedRoutePoint(clientState, point))
-    .map((point) => ({
-      point,
-      score: distance(from, point)
-        + distance(point, to)
-        + routeBlockScore(clientState, from, point) * 1000
-        + routeBlockScore(clientState, point, to) * 1000
-    }))
-    .sort((left, right) => left.score - right.score)[0]?.point;
-}
-
-function addObstacleDetours(clientState, from, targets) {
-  const waypoints = [];
-  let current = from;
-
-  for (const target of targets) {
-    let segmentStart = current;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const detour = resolveObstacleDetour(clientState, segmentStart, target);
-      if (!detour) {
-        break;
-      }
-      waypoints.push(detour);
-      segmentStart = detour;
-    }
-    waypoints.push(target);
-    current = target;
-  }
-
-  return waypoints;
-}
-
-
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
@@ -858,9 +922,14 @@ function normalizeDirection(from, to) {
   return { x: dx / length, y: dy / length };
 }
 
+// BFS 路径的拐角点不能用 BRIDGE_APPROACH_RADIUS(96) 这种大半径跳过/提前
+// 截断——跳过拐角直奔下一个 waypoint 会斜穿障碍角。36px 与行走层的到达
+// 判定一致。
+const ROUTE_WAYPOINT_REACH = 36;
+
 function getNextSafeWaypoint(clientState, from, to) {
   const waypoints = getBridgeAwareWaypoints(clientState, from, to);
-  return waypoints.find((waypoint) => distance(from, waypoint) > BRIDGE_APPROACH_RADIUS) ?? to;
+  return waypoints.find((waypoint) => distance(from, waypoint) > ROUTE_WAYPOINT_REACH) ?? to;
 }
 
 function getAttackIntervalMs(player) {
@@ -885,6 +954,8 @@ function getAttackRangePx(player) {
 
 async function movePlayerTowards(client, target, stopDistance, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
+  let lastProgressPosition;
+  let lastProgressAt = Date.now();
   while (Date.now() < deadline) {
     const self = getSelfPlayer(client.state);
     if (!self) {
@@ -899,6 +970,20 @@ async function movePlayerTowards(client, target, stopDistance, timeoutMs) {
       return;
     }
 
+    // 卡死早抛：1.5s 没挪动就别烧预算，抛给上层用当前位置重新路由。
+    if (!lastProgressPosition || distance(self, lastProgressPosition) > 6) {
+      lastProgressPosition = { x: self.x, y: self.y };
+      lastProgressAt = Date.now();
+    } else if (Date.now() - lastProgressAt > 1_500) {
+      client.socket.emit("player:inputMove", {
+        direction: { x: 0, y: 0 }
+      });
+      throw new Error(
+        `${client.state.label} stuck while moving `
+        + `(self=${Math.round(self.x)},${Math.round(self.y)} target=${Math.round(target.x)},${Math.round(target.y)} remaining=${Math.round(remaining)})`
+      );
+    }
+
     client.socket.emit("player:inputMove", {
       direction: normalizeDirection(self, target)
     });
@@ -908,7 +993,13 @@ async function movePlayerTowards(client, target, stopDistance, timeoutMs) {
   client.socket.emit("player:inputMove", {
     direction: { x: 0, y: 0 }
   });
-  throw new Error(`${client.state.label} failed to reach target position`);
+  const lastSelf = getSelfPlayer(client.state);
+  throw new Error(
+    `${client.state.label} failed to reach target position `
+    + `(self=${lastSelf ? `${Math.round(lastSelf.x)},${Math.round(lastSelf.y)}` : "n/a"} `
+    + `target=${Math.round(target.x)},${Math.round(target.y)} `
+    + `remaining=${lastSelf ? Math.round(distance(lastSelf, target)) : "n/a"} stop=${Math.round(stopDistance)} budgetMs=${Math.round(timeoutMs)})`
+  );
 }
 
 async function movePlayerAlongSafeRoute(client, target, stopDistance, timeoutMs) {
@@ -921,12 +1012,22 @@ async function movePlayerAlongSafeRoute(client, target, stopDistance, timeoutMs)
   const waypoints = getBridgeAwareWaypoints(client.state, self, target);
   for (let index = 0; index < waypoints.length; index += 1) {
     const waypoint = waypoints[index];
-    const waypointStopDistance = index === waypoints.length - 1 ? stopDistance : BRIDGE_APPROACH_RADIUS;
+    const waypointStopDistance = index === waypoints.length - 1 ? stopDistance : ROUTE_WAYPOINT_REACH;
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) {
-      throw new Error(`${client.state.label} failed to reach target position`);
+      throw new Error(
+        `${client.state.label} route budget exhausted at waypoint ${index + 1}/${waypoints.length} `
+        + `route=[${waypoints.map((point) => `${Math.round(point.x)},${Math.round(point.y)}`).join(" -> ")}]`
+      );
     }
-    await movePlayerTowards(client, waypoint, waypointStopDistance, remainingMs);
+    try {
+      await movePlayerTowards(client, waypoint, waypointStopDistance, remainingMs);
+    } catch (error) {
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)} `
+        + `[waypoint ${index + 1}/${waypoints.length} route=[${waypoints.map((point) => `${Math.round(point.x)},${Math.round(point.y)}`).join(" -> ")}]]`
+      );
+    }
   }
 }
 
@@ -982,10 +1083,12 @@ async function killOneMonster(client, timeoutMs) {
     client.state.monsters.filter((monster) => monster.isAlive).map((monster) => monster.id)
   );
   let lastAttackAt = 0;
-  // 路由承诺：getNextSafeWaypoint 在 BRIDGE_APPROACH_RADIUS 边界两侧会无滞回地
-  // 翻转（桥点在身后/目标在前方时形成 ±一步的周期 2 振荡，永远走不到怪）。
-  // 选定 waypoint 后坚持走到 32px 内再重新询问路由。
+  // 路由承诺：getNextSafeWaypoint 在到达半径边界两侧会无滞回地翻转（waypoint
+  // 在身后/目标在前方时形成 ±一步的周期 2 振荡，永远走不到怪）。选定
+  // waypoint 后坚持走到 32px 内再重新询问路由；卡死超过 1.2s 则强制重路由。
   let committedWaypoint = null;
+  let stuckProbePosition = null;
+  let stuckProbeAt = Date.now();
 
   while (Date.now() < deadline) {
     if (!retargeted && Date.now() - (deadline - timeoutMs) >= timeoutMs * 0.5) {
@@ -1022,6 +1125,14 @@ async function killOneMonster(client, timeoutMs) {
     const attackRange = getAttackRangePx(self);
     const rangeToMonster = distance(self, targetMonster);
     if (rangeToMonster > attackRange + 16) {
+      if (!stuckProbePosition || distance(self, stuckProbePosition) > 6) {
+        stuckProbePosition = { x: self.x, y: self.y };
+        stuckProbeAt = Date.now();
+      } else if (Date.now() - stuckProbeAt > 1_200) {
+        committedWaypoint = null;
+        stuckProbePosition = null;
+        stuckProbeAt = Date.now();
+      }
       if (!committedWaypoint || distance(self, committedWaypoint) <= 32) {
         committedWaypoint = getNextSafeWaypoint(client.state, self, targetMonster);
       }
@@ -1075,6 +1186,8 @@ async function clearMonsterThreatNearPoint(client, targetMonsterId, center, radi
   let lastKnownDistance = distance(initialTargetMonster, center);
   let lastKnownType = initialTargetMonster.type;
   let threatWaypoint = null;
+  let threatStuckPosition = null;
+  let threatStuckAt = Date.now();
 
   while (Date.now() < deadline) {
     const targetMonster = client.state.monsters.find((monster) => monster.id === targetMonsterId);
@@ -1112,7 +1225,15 @@ async function clearMonsterThreatNearPoint(client, targetMonsterId, center, radi
     const attackRange = getAttackRangePx(self);
     const rangeToMonster = distance(self, targetMonster);
     if (rangeToMonster > attackRange + 16) {
-      // 与 killOneMonster 相同的路由承诺，避免 BRIDGE_APPROACH_RADIUS 边界振荡。
+      // 与 killOneMonster 相同的路由承诺 + 卡死强制重路由。
+      if (!threatStuckPosition || distance(self, threatStuckPosition) > 6) {
+        threatStuckPosition = { x: self.x, y: self.y };
+        threatStuckAt = Date.now();
+      } else if (Date.now() - threatStuckAt > 1_200) {
+        threatWaypoint = null;
+        threatStuckPosition = null;
+        threatStuckAt = Date.now();
+      }
       if (!threatWaypoint || distance(self, threatWaypoint) <= 32) {
         threatWaypoint = getNextSafeWaypoint(client.state, self, targetMonster);
       }
@@ -1170,10 +1291,26 @@ async function clearThreatsNearPoint(client, center, radius, timeoutMs) {
 
 async function pickupNearestDrop(client, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
+  const positionTrace = [];
+  // 目标承诺：每帧重选"最近掉落"在多掉落场景下会在两个近距目标间振荡；
+  // 选定后坚持到捡到或目标消失。waypoint 承诺与 killOneMonster 同理。
+  let committedDropId = null;
+  let pickupWaypoint = null;
+  let pickupStuckPosition = null;
+  let pickupStuckAt = Date.now();
   while (Date.now() < deadline) {
     const self = getSelfPlayer(client.state);
     if (!self) {
       throw new Error("PlayerA state unavailable during pickup");
+    }
+    if (!self.isAlive) {
+      throw new Error(
+        `${client.state.label} died during pickup (self=${Math.round(self.x)},${Math.round(self.y)} hp=${self.hp}/${self.maxHp})`
+      );
+    }
+    const lastTrace = positionTrace[positionTrace.length - 1];
+    if (!lastTrace || distance(self, lastTrace) > 24) {
+      positionTrace.push({ x: Math.round(self.x), y: Math.round(self.y), t: Date.now() });
     }
 
     if (client.state.drops.length === 0) {
@@ -1181,15 +1318,33 @@ async function pickupNearestDrop(client, timeoutMs) {
       continue;
     }
 
-    const sortedDrops = [...client.state.drops].sort(
-      (left, right) => distance(self, left) - distance(self, right)
-    );
-    const targetDrop = sortedDrops[0];
+    let targetDrop = committedDropId
+      ? client.state.drops.find((drop) => drop.id === committedDropId)
+      : undefined;
+    if (!targetDrop) {
+      targetDrop = [...client.state.drops].sort(
+        (left, right) => distance(self, left) - distance(self, right)
+      )[0];
+      committedDropId = targetDrop.id;
+      pickupWaypoint = null;
+    }
     const rangeToDrop = distance(self, targetDrop);
 
     if (rangeToDrop > PICKUP_RADIUS - 4) {
+      // 掉落可能在障碍/河对面：走路由，不走直线（直线顶墙会卡到超时）。
+      if (!pickupStuckPosition || distance(self, pickupStuckPosition) > 6) {
+        pickupStuckPosition = { x: self.x, y: self.y };
+        pickupStuckAt = Date.now();
+      } else if (Date.now() - pickupStuckAt > 1_200) {
+        pickupWaypoint = null;
+        pickupStuckPosition = null;
+        pickupStuckAt = Date.now();
+      }
+      if (!pickupWaypoint || distance(self, pickupWaypoint) <= 32) {
+        pickupWaypoint = getNextSafeWaypoint(client.state, self, targetDrop);
+      }
       client.socket.emit("player:inputMove", {
-        direction: normalizeDirection(self, targetDrop)
+        direction: normalizeDirection(self, pickupWaypoint)
       });
       await delay(70);
       continue;
@@ -1226,10 +1381,24 @@ async function pickupNearestDrop(client, timeoutMs) {
       return picked;
     }
 
+    // 确认失败（如服务端判距离不足）：放开目标承诺，允许换一个掉落重试。
+    committedDropId = null;
     await delay(120);
   }
 
-  throw new Error("Timed out before reaching a drop to pick up");
+  const lastSelf = getSelfPlayer(client.state);
+  const nearestDrop = lastSelf
+    ? [...client.state.drops].sort((left, right) => distance(lastSelf, left) - distance(lastSelf, right))[0]
+    : undefined;
+  throw new Error(
+    "Timed out before reaching a drop to pick up "
+    + `(self=${lastSelf ? `${Math.round(lastSelf.x)},${Math.round(lastSelf.y)} hp=${lastSelf.hp}/${lastSelf.maxHp} alive=${lastSelf.isAlive}` : "n/a"} `
+    + `drops=${client.state.drops.length} `
+    + `nearest=${nearestDrop ? `${Math.round(nearestDrop.x)},${Math.round(nearestDrop.y)} dist=${Math.round(distance(lastSelf, nearestDrop))}` : "n/a"} `
+    + `routeNext=${lastSelf && nearestDrop ? JSON.stringify(getNextSafeWaypoint(client.state, lastSelf, nearestDrop)) : "n/a"} `
+    + `errors=${JSON.stringify(client.state.roomErrors.slice(-3))} `
+    + `trace=${JSON.stringify(positionTrace.slice(-6))})`
+  );
 }
 
 async function cleanup({ clients, serverProcess }) {

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { spawnInitialMonsters, tickMonsters, handlePlayerAttack } from "../server/src/monsters/monster-manager.js";
+import { listMonsterStates, spawnInitialMonsters, tickMonsters, handlePlayerAttack } from "../server/src/monsters/monster-manager.js";
 import { ensureDropState } from "../server/src/loot/loot-manager.js";
+import { buildMatchLayout } from "../server/src/match-layout.js";
 import { applyEnvironmentalDamage, drainPendingCombatEvents } from "../server/src/combat/player-effects.js";
 import { getMonsterLabel, getMonsterReadabilitySnapshot } from "../client/src/game/entities/monsterReadability";
 import { MONSTER_ASSET_CONTRACTS, getMonsterActionFrameRate, getMonsterActionFrames, getMonsterTextureKey, getMonsterVisualProfile } from "../client/src/game/entities/monsterVisuals";
@@ -17,21 +18,11 @@ const TARGET_DISPLAY_SIZE = {
 const now = Date.now();
 const room = createRoom();
 ensureDropState(room);
-const spawned = spawnInitialMonsters(room);
+// spawnInitialMonsters 现在只生成 boss；基础/精英怪改由 spawn-director 在
+// tickMonsters 里按阶段动态生成，所以先放好玩家再强制推进刷怪。
+spawnInitialMonsters(room);
 
-const normal = spawned.find((monster) => monster.type === "normal");
-const elite = spawned.find((monster) => monster.type === "elite");
-const boss = spawned.find((monster) => monster.type === "boss");
-
-assert.ok(normal, "normal monster should spawn");
-assert.ok(elite, "elite monster should spawn");
-assert.ok(boss, "boss monster should spawn");
-
-const normalRuntime = [...room.monsters!.values()].find((monster) => monster.type === "normal") as RuntimeMonster;
-const eliteRuntime = [...room.monsters!.values()].find((monster) => monster.type === "elite") as RuntimeMonster;
-const bossRuntime = [...room.monsters!.values()].find((monster) => monster.type === "boss") as RuntimeMonster;
-
-const hunter = createPlayer("hunter", { x: normalRuntime.x - 60, y: normalRuntime.y, direction: { x: 1, y: 0 }, squadId: "player" });
+const hunter = createPlayer("hunter", { x: 2400, y: 2400, direction: { x: 1, y: 0 }, squadId: "player" });
 room.players.set(hunter.id, hunter);
 
 const context: RuntimeContext = {
@@ -47,6 +38,47 @@ const context: RuntimeContext = {
     hostPlayerId: hunter.id
   }
 };
+
+// 基础怪的运行时 type 是 "basic"（monster-manager 在 spawn 时把定义层的
+// "normal" 归一成 "basic"），可视化 contract 两个 key 都支持。
+const isBasicTier = (monster: { type: string }) => monster.type === "basic" || monster.type === "normal";
+
+// opening 阶段必出 basic、danger 阶段（精英缺位时）必出 elite：分两段强制
+// 推进（nextSpawnAt 清零 = 每 tick 刷一只），凑齐后冻结刷怪，避免后续断言
+// 期间地图被刷满。
+forceSpawnUntil(() => [...room.monsters!.values()].some(isBasicTier));
+room.startedAt = now - 250_000;
+forceSpawnUntil(() => [...room.monsters!.values()].some((monster) => monster.type === "elite"));
+room.startedAt = now;
+room.spawnDirector!.nextSpawnAt = Number.MAX_SAFE_INTEGER;
+
+const normalRuntime = [...room.monsters!.values()].find(isBasicTier) as RuntimeMonster;
+const eliteRuntime = [...room.monsters!.values()].find((monster) => monster.type === "elite") as RuntimeMonster;
+const bossRuntime = [...room.monsters!.values()].find((monster) => monster.type === "boss") as RuntimeMonster;
+
+assert.ok(normalRuntime, "normal monster should spawn");
+assert.ok(eliteRuntime, "elite monster should spawn");
+assert.ok(bossRuntime, "boss monster should spawn");
+
+// 精英守卫角色由 spawn id 推导（带随机后缀），label 断言需要确定的 sentinel。
+eliteRuntime.eliteRole = "sentinel";
+
+const stateSnapshot = listMonsterStates(room);
+const normal = stateSnapshot.find((monster) => monster.id === normalRuntime.id);
+const elite = stateSnapshot.find((monster) => monster.id === eliteRuntime.id);
+const boss = stateSnapshot.find((monster) => monster.id === bossRuntime.id);
+
+assert.ok(normal && elite && boss, "monster state snapshot should expose all three tiers");
+
+hunter.state!.x = normalRuntime.x - 60;
+hunter.state!.y = normalRuntime.y;
+
+function forceSpawnUntil(check: () => boolean): void {
+  for (let attempt = 0; attempt < 40 && !check(); attempt += 1) {
+    room.spawnDirector!.nextSpawnAt = 0;
+    tickMonsters(context);
+  }
+}
 
 assertVisualContracts();
 assertNormalAndEliteTelegraph();
@@ -170,29 +202,29 @@ function assertUnifiedDamageFeedback(): void {
   assert.equal(event?.attackerId, "corpse_fog", "environment damage should preserve source id");
   assert.equal(event?.interruptsExtract, false, "environment pressure should not make late extraction structurally impossible");
   assert.equal(drainPendingCombatEvents(hazardVictim).length, 0, "environment damage should not rely on a separate pending queue");
-  const feedbackFxSource = fs.readFileSync(new URL("../client/src/scenes/gameScene/feedbackFx.ts", import.meta.url), "utf8");
-  const bleedFontSize = Number(/bleed:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1] ?? 0);
-  const environmentFontSize = Number(/environment:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1] ?? 0);
-  assert.ok(environmentFontSize >= bleedFontSize, "environment damage numbers should remain readable and distinct");
+  // S5 重构后战斗反馈层是 features/combat/vfx/combatVfx.ts（feedbackFx.ts 已
+  // 删除）；statusApplied 即时标签由 PlayerMarker 的状态徽章取代（见
+  // assertPlayerStatusReadability）。这里按现行架构验证同一组意图。
+  const combatVfxSource = fs.readFileSync(new URL("../client/src/features/combat/vfx/combatVfx.ts", import.meta.url), "utf8");
+  const playerHitFontSize = Number(/playerHit:\s*\{\s*fontSize:\s*(\d+)/.exec(combatVfxSource)?.[1] ?? 0);
+  const playerCritFontSize = Number(/playerCrit:\s*\{\s*fontSize:\s*(\d+)/.exec(combatVfxSource)?.[1] ?? 0);
+  const playerHurtFontSize = Number(/playerHurt:\s*\{\s*fontSize:\s*(\d+)/.exec(combatVfxSource)?.[1] ?? 0);
+  assert.ok(playerHitFontSize > 0, "combat vfx should keep readable damage numbers for own hits");
+  assert.ok(playerCritFontSize > playerHitFontSize, "crit damage numbers should be visibly larger than normal hits");
+  assert.ok(playerHurtFontSize >= playerHitFontSize, "incoming damage numbers should remain at least as readable as outgoing");
   assert.ok(
-    /showBodyImpact\(target\.root\.x,\s*target\.root\.y,\s*target\.root\.depth,\s*payload\.damageType,\s*payload\.isCritical(?:\s*\?\?\s*false)?\)/.test(feedbackFxSource),
-    "damage events should always route through body impact feedback"
+    /on\("PlayerDamaged",[\s\S]*?showDamage\(/.test(combatVfxSource),
+    "damage events should always route through the unified damage feedback path"
   );
   assert.ok(
-    /showStatusAppliedTags\(payload\.statusApplied,\s*target\.root\.x,\s*target\.root\.y,\s*target\.root\.depth\)/.test(feedbackFxSource),
-    "combat feedback should surface statusApplied as a visible hit confirmation"
+    /spawnSparkParticles\(/.test(combatVfxSource),
+    "damage feedback should include a physical impact response, not only floating numbers"
   );
-  for (const label of ["减速", "流血", "护体", "强攻", "连斩", "疾行"]) {
-    assert.ok(feedbackFxSource.includes(label), `statusApplied label ${label} should remain visible in combat feedback`);
-  }
   assert.ok(
-    /if\s*\(\s*isEnvironment\s*\)[\s\S]*?this\.spawnFragments\(x,\s*y,\s*\{\s*x:\s*0\.2,\s*y:\s*-1\s*\}/.test(feedbackFxSource),
-    "environment damage should produce body-impact fragments, not only floating numbers"
+    /createWeaponVfx\([\s\S]*?spawnFragments\(/.test(combatVfxSource),
+    "basic attack feedback should produce body-impact fragments"
   );
-  const weaponVfxBody = /private createWeaponVfx[\s\S]*?\n  private createSkillVfx/.exec(feedbackFxSource)?.[0] ?? "";
-  assert.equal(weaponVfxBody.includes("lineTo("), false, "basic attack feedback should not draw demo-style judgement lines");
-  assert.equal(weaponVfxBody.includes("strokePath()"), false, "basic attack feedback should not rely on a single debug line as the main effect");
-  assert.ok(!feedbackFxSource.includes("showHitImpact("), "legacy hit-impact helper should not remain as the main effect path");
+  assert.ok(!combatVfxSource.includes("showHitImpact("), "legacy hit-impact helper should not remain as the main effect path");
 }
 
 function assertPlayerStatusReadability(): void {
@@ -238,18 +270,13 @@ function createRoom(): RuntimeRoom {
     createdAt: now,
     startedAt: now,
     players: new Map(),
-    matchLayout: {
-      templateId: "A",
-      squadSpawns: [],
-      extractZones: [],
-      chestZones: [
-        { chestId: "c1", x: 2100, y: 2100, lane: "contested" },
-        { chestId: "c2", x: 2500, y: 2400, lane: "contested" }
-      ],
-      safeZones: [],
-      riverHazards: [],
-      safeCrossings: []
-    }
+    // spawn 逻辑（基础怪/精英分布）依赖真实布局节点，合成的空 squadSpawns
+    // 布局只会出 boss——用服务端真实生成器。
+    matchLayout: buildMatchLayout({
+      roomCode: "READ",
+      startedAt: now,
+      squadIds: ["player", "bot_alpha"]
+    })
   };
 }
 

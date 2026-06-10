@@ -1,9 +1,23 @@
-import Phaser from "phaser";
+// type-only：本模块被 Node 端契约脚本（validate-extract-service）直接导入，
+// Phaser 的 CJS 入口在 import 阶段就触碰 window，值导入会让脚本直接崩。
+import type Phaser from "phaser";
 import type { ChestOpenedPayload, ChestProgressPayload, ChestState } from "../../network/socketClient";
 import type { ExtractUiState } from "../createGameClient";
 import type { PlayerMarker } from "../../game/entities/PlayerMarker";
 import { logEvent } from "../../dev/runtimeLog";
 import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
+
+function degToRad(degrees: number): number {
+  return degrees * (Math.PI / 180);
+}
+
+function randomIntBetween(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomFloatBetween(min: number, max: number): number {
+  return Math.random() * (max - min) + min;
+}
 
 function shouldSuppressAutoStartExtractForP0B(): boolean {
   if (typeof window === "undefined") {
@@ -485,8 +499,8 @@ export class GameSceneInteractions {
         ring.strokeCircle(0, 0, 40);
         
         ring.lineStyle(4, 0xf59e0b, 0.9);
-        const startAngle = Phaser.Math.DegToRad(-90);
-        const endAngle = startAngle + Phaser.Math.DegToRad(360 * ratio);
+        const startAngle = degToRad(-90);
+        const endAngle = startAngle + degToRad(360 * ratio);
         ring.beginPath();
         ring.arc(0, 0, 40, startAngle, endAngle, false);
         ring.strokePath();
@@ -513,9 +527,9 @@ export class GameSceneInteractions {
 
   private spawnDropSparks(x: number, y: number): void {
     for (let i = 0; i < 8; i++) {
-      const spark = this.scene.add.circle(x, y, Phaser.Math.Between(2, 4), 0xfacc15, 0.8).setDepth(y + 10);
-      const angle = Phaser.Math.FloatBetween(-Math.PI * 0.8, -Math.PI * 0.2);
-      const speed = Phaser.Math.Between(100, 200);
+      const spark = this.scene.add.circle(x, y, randomIntBetween(2, 4), 0xfacc15, 0.8).setDepth(y + 10);
+      const angle = randomFloatBetween(-Math.PI * 0.8, -Math.PI * 0.2);
+      const speed = randomIntBetween(100, 200);
       
       this.scene.tweens.add({
         targets: spark,

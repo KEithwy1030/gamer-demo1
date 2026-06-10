@@ -38,12 +38,17 @@ for (const spawn of layout.squadSpawns) {
   assert.equal(getRiverHazardAtPoint(layout, spawn.anchorX, spawn.anchorY), undefined, `spawn ${spawn.squadId} should not overlap raw river hazard bounds`);
   assert.equal(isPointInsideRiverHazard(layout, spawn.anchorX, spawn.anchorY), false, `spawn ${spawn.squadId} should not be in river hazard`);
   assertSpawnSafeRadiusNonDamaging(layout, spawn);
-  const starterChest = layout.chestZones.find((zone) => zone.lane === "starter" && zone.squadId === spawn.squadId);
-  assert.ok(starterChest, `spawn ${spawn.squadId} should have a starter chest`);
-  assert.equal(
-    doesSegmentRequireSafeCrossing(layout, { x: spawn.anchorX, y: spawn.anchorY }, { x: starterChest!.x, y: starterChest!.y }),
-    false,
-    `starter chest ${starterChest!.chestId} should be reachable without forcing a safe crossing for ${spawn.squadId}`
+  // 97ca1dd 重设计：starter/contested lane 移除，改为每队外围 abandoned 箱
+  // （squadId 归属）+ 中央 rich 箱。开局体验契约不变：本队至少有一个箱子
+  // 不需要强制过桥即可到达。
+  const squadChests = layout.chestZones.filter((zone) => zone.squadId === spawn.squadId && zone.qualityTier !== "rich");
+  assert.ok(squadChests.length > 0, `spawn ${spawn.squadId} should have assigned peripheral chests`);
+  const reachableChest = squadChests.find((zone) => (
+    !doesSegmentRequireSafeCrossing(layout, { x: spawn.anchorX, y: spawn.anchorY }, { x: zone.x, y: zone.y })
+  ));
+  assert.ok(
+    reachableChest,
+    `spawn ${spawn.squadId} should reach at least one peripheral chest without forcing a safe crossing`
   );
 }
 
@@ -172,7 +177,9 @@ function assertSpawnSafeRadiusNonDamaging(layout: MatchLayout, spawn: MatchLayou
 
 function assertRiverVisualBandsRespectExtract(layout: MatchLayout): void {
   const visualBands = getRiverVisualBands(layout);
-  assert.ok(visualBands.length >= 4, "visual river bands should preserve a multi-segment route");
+  // f1596ef 扩成 3 撤离点三角布局后，中部 3 段河带因撤离区净空被裁剪，
+  // 剩 3 段仍构成多段蜿蜒河道。
+  assert.ok(visualBands.length >= 3, "visual river bands should preserve a multi-segment route");
   for (const zone of layout.extractZones) {
     const clearRadius = getExtractClearRadius(zone);
     for (const band of visualBands) {

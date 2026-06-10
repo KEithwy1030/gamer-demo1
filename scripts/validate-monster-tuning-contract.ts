@@ -58,20 +58,36 @@ console.log("validate-monster-tuning-contract: ok");
 function validateNormalBerserkContract(): void {
   const room = createRoom();
   ensureDropState(room);
+  // spawnInitialMonsters 现在只生成 boss；基础怪由 spawn-director 在 opening
+  // 阶段动态生成（必出 basic）。startedAt 拨早 30s 越过开局被动仇恨宽限
+  // （25s）同时仍处 opening 阶段（0-90s）。
+  room.startedAt = now - 30_000;
   spawnInitialMonsters(room);
-  const normal = [...(room.monsters?.values() ?? [])].find((monster) => monster.type === "normal");
-  assert.ok(normal, "normal monster should spawn");
 
-  normal.hp = Math.floor(normal.maxHp * 0.29);
   const player = createPlayer("berserk-target", {
-    x: normal.x + 200,
-    y: normal.y,
+    x: 2400,
+    y: 2400,
     direction: { x: -1, y: 0 },
     squadId: "player"
   });
   room.players.set(player.id, player);
 
   const context = createContext(room, player.id);
+
+  let normal: RuntimeMonster | undefined;
+  for (let attempt = 0; attempt < 40 && !normal; attempt += 1) {
+    room.spawnDirector!.nextSpawnAt = 0;
+    tickMonsters(context);
+    normal = [...(room.monsters?.values() ?? [])].find(
+      (monster) => monster.type === "basic" || monster.type === "normal"
+    );
+  }
+  room.spawnDirector!.nextSpawnAt = Number.MAX_SAFE_INTEGER;
+  assert.ok(normal, "normal monster should spawn");
+
+  normal.hp = Math.floor(normal.maxHp * 0.29);
+  player.state!.x = normal.x + 200;
+  player.state!.y = normal.y;
   const startX = normal.x;
   const huntTick = tickMonsters(context);
   const snapshot = huntTick.monsters.find((monster) => monster.id === normal.id);
