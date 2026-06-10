@@ -12,7 +12,9 @@ export type GameAudioCue =
   | "warning"
   | "charge-up"
   | "thud"
-  | "rummage-tick";
+  | "rummage-tick"
+  | "rare-drop"
+  | "secured";
 
 interface CueShape {
   frequency: number;
@@ -34,7 +36,9 @@ const CUE_SHAPES: Record<GameAudioCue, CueShape> = {
   warning: { frequency: 190, durationMs: 150, type: "square", gain: 0.042, slideTo: 190 },
   "charge-up": { frequency: 120, durationMs: 400, type: "sine", gain: 0.035, slideTo: 240 },
   thud: { frequency: 60, durationMs: 120, type: "triangle", gain: 0.08, slideTo: 30 },
-  "rummage-tick": { frequency: 220, durationMs: 80, type: "sine", gain: 0.04, slideTo: 220 }
+  "rummage-tick": { frequency: 220, durationMs: 80, type: "sine", gain: 0.04, slideTo: 220 },
+  "rare-drop": { frequency: 660, durationMs: 320, type: "triangle", gain: 0.055, slideTo: 1320 },
+  secured: { frequency: 440, durationMs: 140, type: "sine", gain: 0.05, slideTo: 660 }
 };
 
 const CUE_FILES: Partial<Record<GameAudioCue, string>> = {

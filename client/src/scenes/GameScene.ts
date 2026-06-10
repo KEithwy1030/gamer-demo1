@@ -33,6 +33,7 @@ import { mountCombatVfx } from "../features/combat/vfx/combatVfx";
 import { mountPlayerDeathVfx } from "../features/combat/vfx/playerDeathVfx";
 import { mountMonsterVfx } from "../features/monsters/vfx/monsterVfx";
 import { mountLootToastVfx } from "../features/inventory/vfx/lootToastVfx";
+import { mountRareDropVfx } from "../features/inventory/vfx/rareDropVfx";
 import { mountChestVfx } from "../features/chests/vfx/chestVfx";
 import { mountExtractVfx } from "../features/extract/vfx/extractVfx";
 import {
@@ -289,6 +290,7 @@ export class GameScene extends Phaser.Scene {
         scene: this,
         getPlayerMarker: (playerId) => this.playerMarkers.get(playerId)
       }),
+      mountRareDropVfx({ scene: this }),
       mountChestVfx({
         scene: this,
         getChest: (chestId) => this.chests.get(chestId),

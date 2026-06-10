@@ -317,14 +317,42 @@ function formatSettlementReason(settlement: SettlementPayload): string {
 }
 
 function replaceStats(container: HTMLElement, settlement: SettlementPayload): void {
+  const netRow = createStatRow("净收益", formatSignedNumber(0));
   container.replaceChildren(
     createStatRow("生存时间", formatDuration(settlement.survivedSeconds)),
     createStatRow("击杀玩家", `${settlement.playerKills}`),
     createStatRow("击杀怪物", `${settlement.monsterKills}`),
     createStatRow("回收金币", `${settlement.extractedGold}`),
     createStatRow("高价值估值", `${settlement.extractedTreasureValue}`),
-    createStatRow("净收益", formatSignedNumber(settlement.profileGoldDelta))
+    netRow
   );
+
+  const netValue = container.querySelector<HTMLElement>("dd:last-of-type");
+  if (netValue) {
+    animateSignedCountUp(netValue, settlement.profileGoldDelta);
+  }
+}
+
+/** 净收益滚动结算：900ms 从 0 数到位，让"赚了多少"有一拍仪式感。 */
+function animateSignedCountUp(element: HTMLElement, target: number, durationMs = 900): void {
+  if (target === 0) {
+    element.textContent = formatSignedNumber(0);
+    return;
+  }
+
+  const startedAt = performance.now();
+  const step = (now: number): void => {
+    if (!element.isConnected) {
+      return;
+    }
+    const progress = Math.min(1, (now - startedAt) / durationMs);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    element.textContent = formatSignedNumber(Math.round(target * eased));
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    }
+  };
+  requestAnimationFrame(step);
 }
 
 function replaceItems(container: HTMLElement, items: SettlementItemDetail[]): void {
