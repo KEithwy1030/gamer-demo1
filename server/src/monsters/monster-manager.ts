@@ -464,6 +464,7 @@ export function handlePlayerAttack(
   }
   targetMonster.hp = Math.max(0, targetMonster.hp - attackPower);
   targetMonster.lastDamagedAt = now;
+  emitMonsterDamagedDomain(room, targetMonster, player.id, attackPower);
 
   const monsterDied = targetMonster.hp <= 0;
   if (monsterDied) {
@@ -1062,6 +1063,7 @@ function applySkillDamageToMonsters(
     monster.targetPlayerId = player.id;
     monster.hp = Math.max(0, monster.hp - damage);
     monster.lastDamagedAt = now;
+    emitMonsterDamagedDomain(room, monster, player.id, damage, isCritical);
     const monsterDied = monster.hp <= 0;
 
     if (monster.type === "boss") {
@@ -1194,6 +1196,31 @@ function emitMonsterKilledDomain(room: RuntimeRoom, monster: RuntimeMonster, kil
       },
       killerPlayerId,
       killedAt
+    }
+  });
+}
+
+function emitMonsterDamagedDomain(
+  room: RuntimeRoom,
+  monster: RuntimeMonster,
+  attackerPlayerId: string,
+  amount: number,
+  isCritical?: boolean
+): void {
+  emitDomain(room, {
+    type: "MonsterDamaged",
+    payload: {
+      monsterId: monster.id,
+      monsterType: monster.type,
+      attackerPlayerId,
+      amount,
+      isCritical,
+      position: {
+        x: Math.round(monster.x),
+        y: Math.round(monster.y)
+      },
+      remainingHp: monster.hp,
+      monsterAlive: monster.hp > 0
     }
   });
 }

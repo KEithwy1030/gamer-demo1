@@ -54,9 +54,10 @@ const CUE_VOLUMES: Partial<Record<GameAudioCue, number>> = {
   attack: 0.5,
   hit: 0.7,
   thud: 0.8,
-  hurt: 0.75,
+  // grunts 是 49.7s 的长文件随机截段，内容不可控——压低存在感待替换
+  hurt: 0.5,
   pickup: 0.6,
-  chest: 0.45
+  chest: 0.4
 };
 
 export class GameAudioController {

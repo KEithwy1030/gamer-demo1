@@ -178,15 +178,14 @@ export class PlayerMarker {
     if (this.currentState !== "DIE" && Date.now() >= this.actionLockedUntil) {
       const dx = this.root.x - prevX;
       const dy = this.root.y - prevY;
-      
-      if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
-        this.facing = movementToDirectionKey(dx, dy);
+
+      // 朝向只认 sync() 里服务端下发的 direction（真相源）。这里的每帧插值
+      // 增量只用来判断"在走还是停"——历史实现用它重写 facing，lerp 收尾的
+      // 亚像素抖动会让朝向每帧翻转（人物动作前后对换的根因）。
+      // 0.6px/帧 ≈ 36px/s，低于任何真实移动速度，高于插值残余抖动。
+      if (Math.abs(dx) > 0.6 || Math.abs(dy) > 0.6) {
         const moveAnim = getPlayerAnimKey(this.weaponType, "move", this.facing);
-        if (Math.abs(dx) > Math.abs(dy)) {
-          this.sprite.anims.play(moveAnim, true);
-        } else {
-          this.sprite.anims.play(moveAnim, true);
-        }
+        this.sprite.anims.play(moveAnim, true);
       } else {
         this.playIdle();
       }
@@ -376,10 +375,6 @@ function directionToKey(direction: { x: number; y: number }): DirectionKey {
     return direction.x >= 0 ? "right" : "left";
   }
   return direction.y < 0 ? "up" : "down";
-}
-
-function movementToDirectionKey(dx: number, dy: number): DirectionKey {
-  return directionToKey({ x: dx, y: dy });
 }
 
 function getIdleFrame(direction: DirectionKey): number {

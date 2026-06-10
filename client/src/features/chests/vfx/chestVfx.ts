@@ -41,8 +41,12 @@ export function mountChestVfx(ctx: ChestVfxContext): () => void {
     if (!sprite) return;
     sprite.setTexture("chest_open").setAlpha(1).clearTint().setAngle(0);
     ctx.scene.tweens.killTweensOf(sprite);
-    sprite.setScale(0.5);
-    ctx.scene.tweens.add({ targets: sprite, scale: 1, duration: 400, ease: "Back.easeOut" });
+    // 贴图原始 1254px，世界显示尺寸由 setDisplaySize(110) 决定（scale≈0.088）。
+    // 弹跳动画必须回到这个 scale，tween 到 1 会把宝箱放大到原始像素糊满屏幕。
+    sprite.setDisplaySize(110, 110);
+    const targetScale = sprite.scaleX;
+    sprite.setScale(targetScale * 0.5);
+    ctx.scene.tweens.add({ targets: sprite, scale: targetScale, duration: 400, ease: "Back.easeOut" });
     spawnOpenBurst(ctx.scene, sprite.x, sprite.y);
     spawnLootPopups(ctx.scene, sprite.x, sprite.y, p.drops);
     labels.get(p.chestId)?.destroy(); labels.delete(p.chestId);

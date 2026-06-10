@@ -9,7 +9,8 @@ import { logEvent } from "../../dev/runtimeLog";
  */
 
 const CROSSFADE_SEC = 1.6;
-const MASTER_CEILING = 0.5;
+// BGM 必须明显低于音效层。0.5 的首版被反馈与杂音难区分，压到 0.38。
+const MASTER_CEILING = 0.38;
 
 interface DroneSpec {
   freq: number;

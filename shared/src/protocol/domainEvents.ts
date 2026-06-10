@@ -131,6 +131,20 @@ export interface MonsterKilledEvent {
   };
 }
 
+export interface MonsterDamagedEvent {
+  type: "MonsterDamaged";
+  payload: {
+    monsterId: string;
+    monsterType: MonsterType;
+    attackerPlayerId: string;
+    amount: number;
+    isCritical?: boolean;
+    position: Vector2;
+    remainingHp: number;
+    monsterAlive: boolean;
+  };
+}
+
 export interface MonsterProjectileSpawnedEvent {
   type: "MonsterProjectileSpawned";
   payload: {
@@ -546,6 +560,7 @@ export type DomainEvent =
   | MonsterAttackedEvent
   | MonsterEnragedStartedEvent
   | MonsterKilledEvent
+  | MonsterDamagedEvent
   | MonsterProjectileSpawnedEvent
   | MonsterProjectileHitEvent
   | MonsterProjectileDespawnedEvent
@@ -610,6 +625,7 @@ export const DOMAIN_EVENT_TYPES = [
   "MonsterAttacked",
   "MonsterEnragedStarted",
   "MonsterKilled",
+  "MonsterDamaged",
   "MonsterProjectileSpawned",
   "MonsterProjectileHit",
   "MonsterProjectileDespawned",

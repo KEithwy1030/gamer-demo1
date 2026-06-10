@@ -32,6 +32,7 @@ export class MonsterMarker {
   private targetX: number;
   private targetY: number;
   public isAlive = true;
+  private hitFlashUntil = 0;
   private lastAliveState: boolean | null = null;
   private lastHpWidth = -1;
   private lastPhaseWidth = -1;
@@ -172,6 +173,22 @@ export class MonsterMarker {
     if (Math.abs(this.root.depth - this.root.y) > 0.5) {
       this.root.setDepth(this.root.y);
     }
+    // 受击白闪到期后恢复（applyState 的状态着色会在下一次 sync 覆盖回来）
+    if (this.hitFlashUntil > 0 && Date.now() >= this.hitFlashUntil) {
+      this.hitFlashUntil = 0;
+      this.sprite.clearTint();
+    }
+  }
+
+  /** 受击反馈：全白闪 + 冲击椭圆。由战斗板块在 MonsterDamaged 时调用。
+   *  不做缩放回弹——sprite 缩放归 applyState 管，避免两个所有者打架。 */
+  flashHit(): void {
+    if (!this.isAlive) {
+      return;
+    }
+    this.hitFlashUntil = Date.now() + 80;
+    this.sprite.setTintFill(0xffffff);
+    this.impactFlash.setVisible(true).setAlpha(0.55);
   }
 
   destroy(): void {
@@ -305,12 +322,18 @@ export class MonsterMarker {
   private applyVisualPose(monster: MonsterState, snapshot: ReturnType<typeof getMonsterReadabilitySnapshot>): void {
     this.facing = resolveMonsterFacing(monster, { x: this.targetX - this.root.x, y: this.targetY - this.root.y }, this.facing);
     this.playAction(getMonsterAction(monster, { isRecentlyHit: snapshot.isRecentlyHit }));
-    
+
+    // 受击白闪窗口内不被状态着色覆盖（20Hz 同步会在闪烁期间跑进来）
+    const inHitFlash = this.hitFlashUntil > Date.now();
     if (monster.berserk) {
-      this.sprite.setTint(0xff8888); // [待人工调优]
+      if (!inHitFlash) {
+        this.sprite.setTint(0xff8888); // [待人工调优]
+      }
       this.sprite.anims.timeScale = 1.25; // [待人工调优]
     } else {
-      this.sprite.setTint(snapshot.isBoss ? (monster.isEnraged ? 0xfb7185 : 0xc2410c) : snapshot.isElite ? 0xf59e0b : 0xffffff);
+      if (!inHitFlash) {
+        this.sprite.setTint(snapshot.isBoss ? (monster.isEnraged ? 0xfb7185 : 0xc2410c) : snapshot.isElite ? 0xf59e0b : 0xffffff);
+      }
       this.sprite.anims.timeScale = 1;
     }
 
@@ -320,7 +343,7 @@ export class MonsterMarker {
     this.sprite.setAngle(snapshot.isWarning ? -3 : snapshot.isAttacking ? 3 : 0);
 
     if (snapshot.isRecovering && !snapshot.isWarning) {
-      if (!monster.berserk) {
+      if (!monster.berserk && this.hitFlashUntil <= Date.now()) {
         this.sprite.setTint(snapshot.isBoss ? 0xfca5a5 : snapshot.isElite ? 0xfdba74 : 0xe7d7bf);
       }
       this.sprite.setAlpha(0.88);

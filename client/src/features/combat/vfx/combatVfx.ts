@@ -18,7 +18,9 @@ const DAMAGE_NUMBER_STYLE: Record<string, DamageStyle> = {
   playerHit: { fontSize: 22, strokeThickness: 4, rise: 40, duration: 700, color: "#fbbf24", startScale: 0.5, peakScale: 1.2, xJitter: 12, yOffset: -60 },
   playerCrit: { fontSize: 28, strokeThickness: 5, rise: 50, duration: 900, color: "#fb923c", startScale: 0.4, peakScale: 1.6, xJitter: 16, yOffset: -70 },
   playerHurt: { fontSize: 24, strokeThickness: 5, rise: 40, duration: 800, color: "#ef4444", startScale: 0.6, peakScale: 1.3, xJitter: 14, yOffset: -60 },
-  other: { fontSize: 20, strokeThickness: 3, rise: 35, duration: 700, color: "#e2e8f0", startScale: 0.5, peakScale: 1.1, xJitter: 10, yOffset: -55 }
+  other: { fontSize: 20, strokeThickness: 3, rise: 35, duration: 700, color: "#e2e8f0", startScale: 0.5, peakScale: 1.1, xJitter: 10, yOffset: -55 },
+  monsterHit: { fontSize: 22, strokeThickness: 4, rise: 44, duration: 700, color: "#f8fafc", startScale: 0.5, peakScale: 1.25, xJitter: 12, yOffset: -56 },
+  monsterCrit: { fontSize: 28, strokeThickness: 5, rise: 54, duration: 900, color: "#fb923c", startScale: 0.4, peakScale: 1.6, xJitter: 16, yOffset: -64 }
 };
 
 export function mountCombatVfx(ctx: CombatVfxContext): () => void {
@@ -39,6 +41,18 @@ export function mountCombatVfx(ctx: CombatVfxContext): () => void {
       shakeCamera(ctx.scene, 0.012, 180);
       applyHitStop(ctx.scene, 100);
     }),
+    // S5 切换时打怪反馈（白闪/数字/震屏）随 feedbackFx 一起丢失；这里按
+    // MonsterDamaged 域事件补回——这是"命中有没有反馈"的手感主干。
+    on("MonsterDamaged", (payload) => {
+      const target = ctx.getMonsterMarker(payload.monsterId);
+      if (!target) return;
+      (target as { flashHit?: () => void }).flashHit?.();
+      showMonsterDamage(ctx.scene, target.root, payload.amount, payload.isCritical === true);
+      if (payload.attackerPlayerId === ctx.getSelfPlayerId()) {
+        spawnSparkParticles(ctx.scene, target.root, ctx.getPlayerMarker(payload.attackerPlayerId)?.root);
+        shakeCamera(ctx.scene, 0.005, 90);
+      }
+    }),
     on("PlayerAttacked", (payload) => {
       const actor = ctx.getPlayerMarker(payload.playerId);
       if (!actor) return;
@@ -58,6 +72,15 @@ function on<K extends keyof DomainEventByType>(type: K, handler: (payload: Domai
   return () => clientEventBus.off(type, handler);
 }
 function marker(ctx: CombatVfxContext, id: string): MarkerRef | undefined { return ctx.getPlayerMarker(id) ?? ctx.getMonsterMarker(id); }
+function showMonsterDamage(scene: Phaser.Scene, target: Phaser.GameObjects.Container, amount: number, isCritical: boolean): void {
+  const style = isCritical ? DAMAGE_NUMBER_STYLE.monsterCrit : DAMAGE_NUMBER_STYLE.monsterHit;
+  const text = scene.add.text(target.x + Phaser.Math.Between(-style.xJitter, style.xJitter), target.y + style.yOffset, `-${amount}`, {
+    fontFamily: GAMEPLAY_THEME.fonts.display, fontSize: `${style.fontSize}px`, fontStyle: "bold", color: style.color, stroke: "#000000", strokeThickness: style.strokeThickness
+  }).setOrigin(0.5).setDepth(3000).setScale(style.startScale);
+  scene.tweens.add({ targets: text, y: `-=${style.rise}`, duration: style.duration, ease: "Cubic.out" });
+  scene.tweens.add({ targets: text, alpha: 0, delay: Math.round(style.duration * 0.4), duration: Math.round(style.duration * 0.6), ease: "Quad.in", onComplete: () => text.destroy() });
+  scene.tweens.add({ targets: text, scaleX: style.peakScale, scaleY: style.peakScale, duration: 100, yoyo: true, ease: "Back.easeOut" });
+}
 function showDamage(scene: Phaser.Scene, target: Phaser.GameObjects.Container, p: PlayerDamagedPayload, ctx: CombatVfxContext): void {
   const self = ctx.getSelfPlayerId();
   const style = p.targetId === self ? DAMAGE_NUMBER_STYLE.playerHurt : p.attackerId === self ? (p.isCritical ? DAMAGE_NUMBER_STYLE.playerCrit : DAMAGE_NUMBER_STYLE.playerHit) : DAMAGE_NUMBER_STYLE.other;

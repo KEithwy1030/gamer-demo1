@@ -15,16 +15,21 @@ export function mountCombatAudio(audio: GameAudioController, getSelfPlayerId: ()
   const onPlayerDied = (payload: { playerId?: string }) => {
     if (payload.playerId === getSelfPlayerId()) audio.play("death");
   };
+  const onMonsterDamaged = (payload: { attackerPlayerId?: string }) => {
+    if (payload.attackerPlayerId === getSelfPlayerId()) audio.play("hit");
+  };
 
   clientEventBus.on("PlayerAttacked", onPlayerAttacked);
   clientEventBus.on("PlayerDamaged", onPlayerDamaged);
   clientEventBus.on("PlayerCriticalHit", onPlayerCriticalHit);
   clientEventBus.on("PlayerDied", onPlayerDied);
+  clientEventBus.on("MonsterDamaged", onMonsterDamaged);
 
   return () => {
     clientEventBus.off("PlayerAttacked", onPlayerAttacked);
     clientEventBus.off("PlayerDamaged", onPlayerDamaged);
     clientEventBus.off("PlayerCriticalHit", onPlayerCriticalHit);
     clientEventBus.off("PlayerDied", onPlayerDied);
+    clientEventBus.off("MonsterDamaged", onMonsterDamaged);
   };
 }
