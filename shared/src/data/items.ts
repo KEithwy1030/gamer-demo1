@@ -300,5 +300,222 @@ export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
     rarity: "common",
     size: { width: 1, height: 3 },
     tags: ["extract_key", "non_extractable"]
+  },
+  soldier_warblade: {
+    id: "soldier_warblade",
+    name: "军阵阔剑",
+    category: "weapon",
+    rarity: "uncommon",
+    size: { width: 1, height: 3 },
+    slot: "weapon",
+    weaponType: "sword",
+    goldAmount: 26,
+    stats: { attackPower: 4, maxHpBonus: 6 }
+  },
+  executioner_greatsword: {
+    id: "executioner_greatsword",
+    name: "处刑大剑",
+    category: "weapon",
+    rarity: "epic",
+    size: { width: 1, height: 4 },
+    slot: "weapon",
+    weaponType: "sword",
+    goldAmount: 130,
+    stats: { attackPower: 7, critDamage: 0.3 }
+  },
+  nightfang_dagger: {
+    id: "nightfang_dagger",
+    name: "夜牙短刃",
+    category: "weapon",
+    rarity: "uncommon",
+    size: { width: 1, height: 2 },
+    slot: "weapon",
+    weaponType: "blade",
+    goldAmount: 28,
+    stats: { attackPower: 4, critRate: 0.04, attackSpeedBonus: 0.06 }
+  },
+  bloodletter_falx: {
+    id: "bloodletter_falx",
+    name: "放血弯钩",
+    category: "weapon",
+    rarity: "epic",
+    size: { width: 1, height: 3 },
+    slot: "weapon",
+    weaponType: "blade",
+    goldAmount: 135,
+    stats: { attackPower: 6, critRate: 0.08, critDamage: 0.25 }
+  },
+  serpent_pike: {
+    id: "serpent_pike",
+    name: "蛇形骑矛",
+    category: "weapon",
+    rarity: "rare",
+    size: { width: 1, height: 4 },
+    slot: "weapon",
+    weaponType: "spear",
+    goldAmount: 78,
+    stats: { attackPower: 6, moveSpeedBonus: 8 }
+  },
+  gravewarden_halberd: {
+    id: "gravewarden_halberd",
+    name: "守墓者长戟",
+    category: "weapon",
+    rarity: "epic",
+    size: { width: 1, height: 4 },
+    slot: "weapon",
+    weaponType: "spear",
+    goldAmount: 140,
+    stats: { attackPower: 7, maxHpBonus: 10, damageReduction: 0.03 }
+  },
+  iron_barbute: {
+    id: "iron_barbute",
+    name: "铸铁筒盔",
+    category: "armor",
+    rarity: "rare",
+    size: { width: 2, height: 2 },
+    slot: "head",
+    armorType: "head",
+    goldAmount: 62,
+    stats: { maxHpBonus: 14, damageReduction: 0.03 }
+  },
+  plague_doctor_mask: {
+    id: "plague_doctor_mask",
+    name: "疫医鸟喙面具",
+    category: "armor",
+    rarity: "epic",
+    size: { width: 2, height: 2 },
+    slot: "head",
+    armorType: "head",
+    goldAmount: 125,
+    stats: { maxHpBonus: 12, hpRegen: 1, dodgeRate: 0.03 }
+  },
+  ghoul_hide_wrap: {
+    id: "ghoul_hide_wrap",
+    name: "食尸鬼皮裹甲",
+    category: "armor",
+    rarity: "uncommon",
+    size: { width: 2, height: 3 },
+    slot: "chest",
+    armorType: "chest",
+    goldAmount: 30,
+    stats: { maxHpBonus: 18, hpRegen: 1 }
+  },
+  brigandine_vest: {
+    id: "brigandine_vest",
+    name: "暗扣布面甲",
+    category: "armor",
+    rarity: "rare",
+    size: { width: 2, height: 3 },
+    slot: "chest",
+    armorType: "chest",
+    goldAmount: 80,
+    stats: { maxHpBonus: 22, damageReduction: 0.06 }
+  },
+  bracers_of_haste: {
+    id: "bracers_of_haste",
+    name: "疾手缚腕",
+    category: "armor",
+    rarity: "rare",
+    size: { width: 2, height: 2 },
+    slot: "hands",
+    armorType: "hands",
+    goldAmount: 66,
+    stats: { attackSpeedBonus: 0.14, critRate: 0.04 }
+  },
+  assassin_tabi: {
+    id: "assassin_tabi",
+    name: "无声足袋",
+    category: "armor",
+    rarity: "rare",
+    size: { width: 2, height: 2 },
+    slot: "shoes",
+    armorType: "shoes",
+    goldAmount: 70,
+    stats: { moveSpeedBonus: 30, dodgeRate: 0.05 }
+  },
+  bulwark_sabatons: {
+    id: "bulwark_sabatons",
+    name: "壁垒铁靴",
+    category: "armor",
+    rarity: "epic",
+    size: { width: 2, height: 2 },
+    slot: "shoes",
+    armorType: "shoes",
+    goldAmount: 118,
+    stats: { maxHpBonus: 20, moveSpeedBonus: 10, damageReduction: 0.04 }
+  },
+  silver_candelabrum: {
+    id: "silver_candelabrum",
+    name: "银烛台",
+    category: "treasure",
+    rarity: "uncommon",
+    size: { width: 1, height: 2 },
+    treasureSize: "medium",
+    treasureValue: 60
+  },
+  bishops_signet: {
+    id: "bishops_signet",
+    name: "主教印戒",
+    category: "treasure",
+    rarity: "rare",
+    size: { width: 1, height: 1 },
+    treasureSize: "small",
+    treasureValue: 70
+  },
+  ancient_coin_hoard: {
+    id: "ancient_coin_hoard",
+    name: "古币堆",
+    category: "treasure",
+    rarity: "rare",
+    size: { width: 2, height: 1 },
+    treasureSize: "medium",
+    treasureValue: 95
+  },
+  gilded_reliquary: {
+    id: "gilded_reliquary",
+    name: "鎏金圣髑匣",
+    category: "treasure",
+    rarity: "epic",
+    size: { width: 2, height: 2 },
+    treasureSize: "large",
+    treasureValue: 280
+  },
+  crown_of_the_fallen: {
+    id: "crown_of_the_fallen",
+    name: "陨落者王冠",
+    category: "treasure",
+    rarity: "epic",
+    size: { width: 2, height: 2 },
+    treasureSize: "large",
+    treasureValue: 310
+  },
+  field_ration: {
+    id: "field_ration",
+    name: "行军干粮",
+    category: "consumable",
+    rarity: "common",
+    size: { width: 1, height: 1 },
+    goldAmount: 4,
+    healAmount: 15
+  },
+  army_medkit: {
+    id: "army_medkit",
+    name: "军用医疗包",
+    category: "consumable",
+    rarity: "rare",
+    size: { width: 1, height: 2 },
+    goldAmount: 26,
+    healAmount: 65
+  },
+  berserk_draught: {
+    id: "berserk_draught",
+    name: "蛮勇药剂",
+    category: "consumable",
+    rarity: "uncommon",
+    size: { width: 1, height: 1 },
+    goldAmount: 16,
+    consumableEffects: [
+      { kind: "timedModifier", type: "attackBoost", durationMs: 6000, magnitude: 0.2, attackDamageMultiplier: 0.2 }
+    ]
   }
 };

@@ -32,7 +32,12 @@ const NORMAL_DROP_TABLE: WeightedDefinition[] = [
   { definitionId: "weapon_blade_basic", weight: 14 },
   { definitionId: "health_potion", weight: 12 },
   { definitionId: "coagulant_bandage", weight: 8 },
-  { definitionId: "rust_stimulant", weight: 6 }
+  { definitionId: "rust_stimulant", weight: 6 },
+  { definitionId: "soldier_warblade", weight: 8 },
+  { definitionId: "nightfang_dagger", weight: 8 },
+  { definitionId: "ghoul_hide_wrap", weight: 8 },
+  { definitionId: "silver_candelabrum", weight: 8 },
+  { definitionId: "field_ration", weight: 10 }
 ];
 
 const ELITE_DROP_TABLE: WeightedDefinition[] = [
@@ -46,7 +51,16 @@ const ELITE_DROP_TABLE: WeightedDefinition[] = [
   { definitionId: "health_potion", weight: 18 },
   { definitionId: "coagulant_bandage", weight: 12 },
   { definitionId: "rust_stimulant", weight: 10 },
-  { definitionId: "miasma_tonic", weight: 8 }
+  { definitionId: "miasma_tonic", weight: 8 },
+  { definitionId: "serpent_pike", weight: 12 },
+  { definitionId: "iron_barbute", weight: 10 },
+  { definitionId: "brigandine_vest", weight: 10 },
+  { definitionId: "bracers_of_haste", weight: 10 },
+  { definitionId: "assassin_tabi", weight: 8 },
+  { definitionId: "bishops_signet", weight: 8 },
+  { definitionId: "ancient_coin_hoard", weight: 8 },
+  { definitionId: "berserk_draught", weight: 8 },
+  { definitionId: "army_medkit", weight: 8 }
 ];
 
 const BOSS_DROP_TABLE: WeightedDefinition[] = [
@@ -58,13 +72,23 @@ const BOSS_DROP_TABLE: WeightedDefinition[] = [
   { definitionId: "weapon_spear_basic", weight: 14 },
   { definitionId: "health_potion", weight: 16 },
   { definitionId: "miasma_tonic", weight: 12 },
-  { definitionId: "rust_stimulant", weight: 8 }
+  { definitionId: "rust_stimulant", weight: 8 },
+  { definitionId: "gravewarden_halberd", weight: 14 },
+  { definitionId: "executioner_greatsword", weight: 12 },
+  { definitionId: "bloodletter_falx", weight: 12 },
+  { definitionId: "plague_doctor_mask", weight: 10 },
+  { definitionId: "bulwark_sabatons", weight: 10 },
+  { definitionId: "gilded_reliquary", weight: 8 },
+  { definitionId: "crown_of_the_fallen", weight: 8 },
+  { definitionId: "army_medkit", weight: 10 }
 ];
 
 const BOSS_HIGH_VALUE_DROP_TABLE: WeightedDefinition[] = [
   { definitionId: "treasure_cursed_reliquary", weight: 3 },
   { definitionId: "treasure_large_statue", weight: 2 },
-  { definitionId: "treasure_medium_tablet", weight: 1 }
+  { definitionId: "treasure_medium_tablet", weight: 1 },
+  { definitionId: "gilded_reliquary", weight: 2 },
+  { definitionId: "crown_of_the_fallen", weight: 2 }
 ];
 
 const NORMAL_QUALITY_WEIGHTS: QualityWeight[] = [

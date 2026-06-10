@@ -33,6 +33,34 @@ function assertItemDepth(): void {
     (ITEM_DEFINITIONS.warlord_cuirass.stats?.damageReduction ?? 0) > (ITEM_DEFINITIONS.armor_chest_common.stats?.damageReduction ?? 0),
     "warlord_cuirass should provide more mitigation than the common chest armor"
   );
+
+  for (const id of [
+    "soldier_warblade", "executioner_greatsword", "nightfang_dagger", "bloodletter_falx",
+    "serpent_pike", "gravewarden_halberd", "iron_barbute", "plague_doctor_mask",
+    "ghoul_hide_wrap", "brigandine_vest", "bracers_of_haste", "assassin_tabi",
+    "bulwark_sabatons", "silver_candelabrum", "bishops_signet", "ancient_coin_hoard",
+    "gilded_reliquary", "crown_of_the_fallen", "field_ration", "army_medkit", "berserk_draught"
+  ]) {
+    assert.ok(ITEM_DEFINITIONS[id], `${id} should exist in the expanded item catalog`);
+  }
+
+  for (const weaponType of ["sword", "blade", "spear"] as const) {
+    const tiers = new Set(
+      Object.values(ITEM_DEFINITIONS)
+        .filter((def) => def.weaponType === weaponType)
+        .map((def) => def.rarity)
+    );
+    assert.ok(tiers.size >= 3, `${weaponType} weapons should span at least 3 base rarity tiers, got ${tiers.size}`);
+  }
+
+  assert.ok(
+    (ITEM_DEFINITIONS.executioner_greatsword.stats?.attackPower ?? 0) > (ITEM_DEFINITIONS.soldier_warblade.stats?.attackPower ?? 0),
+    "epic sword should out-damage the uncommon sword"
+  );
+  assert.ok(
+    (ITEM_DEFINITIONS.assassin_tabi.stats?.moveSpeedBonus ?? 0) > (ITEM_DEFINITIONS.runner_boots.stats?.moveSpeedBonus ?? 0),
+    "rare shoes should out-run the uncommon shoes"
+  );
 }
 
 function assertDropTables(): void {

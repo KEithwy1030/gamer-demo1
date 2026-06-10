@@ -33,26 +33,48 @@ const COMMON_EQUIPMENT_TEMPLATES = [
 const UNCOMMON_EQUIPMENT_TEMPLATES = [
   "hunter_cowl",
   "runner_boots",
-  "scavenger_coat"
+  "scavenger_coat",
+  "soldier_warblade",
+  "nightfang_dagger",
+  "ghoul_hide_wrap"
 ] as const;
 
 const RARE_EQUIPMENT_TEMPLATES = [
-  "duelist_blade"
+  "duelist_blade",
+  "serpent_pike",
+  "iron_barbute",
+  "brigandine_vest",
+  "bracers_of_haste",
+  "assassin_tabi"
 ] as const;
 
 const EPIC_EQUIPMENT_TEMPLATES = [
-  "warlord_cuirass"
+  "warlord_cuirass",
+  "executioner_greatsword",
+  "bloodletter_falx",
+  "gravewarden_halberd",
+  "plague_doctor_mask",
+  "bulwark_sabatons"
 ] as const;
 
 const CONSUMABLE_TEMPLATES = [
   "health_potion",
   "coagulant_bandage",
   "rust_stimulant",
-  "miasma_tonic"
+  "miasma_tonic",
+  "field_ration",
+  "berserk_draught",
+  "army_medkit"
 ] as const;
 
 const COIN_TEMPLATES = [
   "gold_pouch"
+] as const;
+
+const TREASURE_TEMPLATES = [
+  "silver_candelabrum",
+  "bishops_signet",
+  "ancient_coin_hoard"
 ] as const;
 
 const NORMAL_CHEST_LOOT_TABLE: ChestLootEntry[] = [
@@ -88,7 +110,8 @@ const RICH_CHEST_LOOT_TABLE: ChestLootEntry[] = [
   { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 20 },
   { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 12 },
   { templates: CONSUMABLE_TEMPLATES, weight: 16 },
-  { templates: COIN_TEMPLATES, weight: 4 }
+  { templates: COIN_TEMPLATES, weight: 4 },
+  { templates: TREASURE_TEMPLATES, weight: 6 }
 ];
 
 const DANGER_RICH_CHEST_LOOT_TABLE: ChestLootEntry[] = [
@@ -96,7 +119,8 @@ const DANGER_RICH_CHEST_LOOT_TABLE: ChestLootEntry[] = [
   { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 28 },
   { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 18 },
   { templates: CONSUMABLE_TEMPLATES, weight: 14 },
-  { templates: COIN_TEMPLATES, weight: 8 }
+  { templates: COIN_TEMPLATES, weight: 8 },
+  { templates: TREASURE_TEMPLATES, weight: 8 }
 ];
 
 const EXTRACT_RICH_CHEST_LOOT_TABLE: ChestLootEntry[] = [
@@ -104,7 +128,8 @@ const EXTRACT_RICH_CHEST_LOOT_TABLE: ChestLootEntry[] = [
   { rarity: "rare", templates: RARE_EQUIPMENT_TEMPLATES, weight: 32 },
   { rarity: "epic", templates: EPIC_EQUIPMENT_TEMPLATES, weight: 22 },
   { templates: CONSUMABLE_TEMPLATES, weight: 12 },
-  { templates: COIN_TEMPLATES, weight: 6 }
+  { templates: COIN_TEMPLATES, weight: 6 },
+  { templates: TREASURE_TEMPLATES, weight: 10 }
 ];
 
 const RICH_NON_WHITE_GUARANTEE_TABLE: ChestLootEntry[] = [

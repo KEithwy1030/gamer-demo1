@@ -57,7 +57,28 @@ const ITEM_PRESETS: Record<string, ItemPresentationPreset> = {
   coagulant_bandage: { icon: "🧪", badge: "绷", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_consumable_bandage_v1.png", names: ["凝血绷带", "Coagulant Bandage"] },
   rust_stimulant: { icon: "🧪", badge: "兴", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_consumable_stimulant_v1.png", names: ["锈热兴奋剂", "Rust Stimulant"] },
   miasma_tonic: { icon: "🧪", badge: "抗", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_consumable_miasma_tonic_v1.png", names: ["尸毒抗性药", "Miasma Tonic"] },
-  extract_torch: { icon: "◈", badge: "火", categoryLabel: "任务", variant: "quest", assetPath: "assets/generated/image2_processed/items/icon_treasure_small_idol_v2.png", names: ["归营火种", "Extract Torch"] }
+  extract_torch: { icon: "◈", badge: "火", categoryLabel: "任务", variant: "quest", assetPath: "assets/generated/image2_processed/items/icon_treasure_small_idol_v2.png", names: ["归营火种", "Extract Torch"] },
+  soldier_warblade: { icon: "⚔", badge: "剑", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_sword_v2.png", names: ["军阵阔剑", "Soldier Warblade"] },
+  executioner_greatsword: { icon: "⚔", badge: "剑", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_sword_v2.png", names: ["处刑大剑", "Executioner Greatsword"] },
+  nightfang_dagger: { icon: "🗡", badge: "刃", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_blade_v2.png", names: ["夜牙短刃", "Nightfang Dagger"] },
+  bloodletter_falx: { icon: "🗡", badge: "刃", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_blade_v2.png", names: ["放血弯钩", "Bloodletter Falx"] },
+  serpent_pike: { icon: "✦", badge: "矛", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_spear_v2.png", names: ["蛇形骑矛", "Serpent Pike"] },
+  gravewarden_halberd: { icon: "✦", badge: "矛", categoryLabel: "武器", slotLabel: "武器", variant: "weapon", assetPath: "assets/generated/image2_processed/items/icon_weapon_spear_v2.png", names: ["守墓者长戟", "Gravewarden Halberd"] },
+  iron_barbute: { icon: "⛑", badge: "头", categoryLabel: "护甲", slotLabel: "头部", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_head_v2.png", names: ["铸铁筒盔", "Iron Barbute"] },
+  plague_doctor_mask: { icon: "⛑", badge: "头", categoryLabel: "护甲", slotLabel: "头部", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_head_v2.png", names: ["疫医鸟喙面具", "Plague Doctor Mask"] },
+  ghoul_hide_wrap: { icon: "🜁", badge: "甲", categoryLabel: "护甲", slotLabel: "胸甲", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_chest_v2.png", names: ["食尸鬼皮裹甲", "Ghoul Hide Wrap"] },
+  brigandine_vest: { icon: "🜁", badge: "甲", categoryLabel: "护甲", slotLabel: "胸甲", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_chest_v2.png", names: ["暗扣布面甲", "Brigandine Vest"] },
+  bracers_of_haste: { icon: "✊", badge: "手", categoryLabel: "护甲", slotLabel: "手部", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_hands_v2.png", names: ["疾手缚腕", "Bracers of Haste"] },
+  assassin_tabi: { icon: "👢", badge: "靴", categoryLabel: "护甲", slotLabel: "鞋子", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_feet_v2.png", names: ["无声足袋", "Assassin Tabi"] },
+  bulwark_sabatons: { icon: "👢", badge: "靴", categoryLabel: "护甲", slotLabel: "鞋子", variant: "armor", assetPath: "assets/generated/image2_processed/items/icon_armor_feet_v2.png", names: ["壁垒铁靴", "Bulwark Sabatons"] },
+  silver_candelabrum: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_small_idol_v2.png", names: ["银烛台", "Silver Candelabrum"] },
+  bishops_signet: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_small_idol_v2.png", names: ["主教印戒", "Bishop's Signet"] },
+  ancient_coin_hoard: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_gold_pouch_v2.png", names: ["古币堆", "Ancient Coin Hoard"] },
+  gilded_reliquary: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_broken_statue_v2.png", names: ["鎏金圣髑匣", "Gilded Reliquary"] },
+  crown_of_the_fallen: { icon: "◈", badge: "宝", categoryLabel: "宝物", variant: "treasure", assetPath: "assets/generated/image2_processed/items/icon_treasure_broken_statue_v2.png", names: ["陨落者王冠", "Crown of the Fallen"] },
+  field_ration: { icon: "🧪", badge: "粮", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_consumable_bandage_v1.png", names: ["行军干粮", "Field Ration"] },
+  army_medkit: { icon: "🧪", badge: "医", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_health_potion_v2.png", names: ["军用医疗包", "Army Medkit"] },
+  berserk_draught: { icon: "🧪", badge: "狂", categoryLabel: "消耗品", variant: "consumable", assetPath: "assets/generated/image2_processed/items/icon_consumable_stimulant_v1.png", names: ["蛮勇药剂", "Berserk Draught"] }
 };
 
 const NAME_LOOKUP = new Map<string, string>();
