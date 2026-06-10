@@ -160,6 +160,12 @@ export function startPlayerExtract(room: RuntimeRoom, playerId: string, now = Da
     completesAt: now + zone.channelDurationMs,
     lastProgressBroadcastAt: now
   };
+  // 引导开始即把小队的活跃营地对齐到实际营地，squadStatus / 火把失守
+  // 后的保活判定（hasActiveExtractingSquad）才不会盯着定时开放预设的
+  // 第一个营地。
+  if (room.extract) {
+    room.extract.activeZoneId = zone.zoneId;
+  }
   recordExtractPressure(room, player, zone, now);
   emitExtractChannelStartedDomain(room, player.id, zone.zoneId, zone.channelDurationMs);
 
@@ -324,7 +330,10 @@ function settleSquadExtraction(
   const successEvents: ExtractSuccessPayload[] = [];
   const settlementEvents: MatchSettlementEnvelope[] = [];
   const squadId = room.extract?.activeSquadId ?? triggeringPlayer.squadId;
-  const zoneId = room.extract?.activeZoneId ?? zone.zoneId;
+  // 资格判定必须用引导实际完成的营地。定时开放会把所有营地同时打开并把
+  // activeZoneId 预设为第一个，若玩家在其它营地完成引导，按 activeZoneId
+  // 查人会永远查空，settlement 每 tick 空转、永不发出。
+  const zoneId = zone.zoneId;
   const eligibleMembers = getExtractEligibleSquadMembers(room, squadId, zoneId);
 
   for (const member of eligibleMembers) {
