@@ -1,7 +1,8 @@
 import {
   CORPSE_FOG_COUNTERATTACK_SEC,
   CORPSE_FOG_INTENSIFIED_SEC,
-  CORPSE_FOG_MAX_PRESSURE_SEC
+  CORPSE_FOG_MAX_PRESSURE_SEC,
+  EXTRACT_OPEN_SEC
 } from "../data/constants.js";
 
 export type ExtractionPressurePhaseKind = "preopen" | "counterattack" | "intensified";
@@ -28,7 +29,10 @@ export function resolveExtractionPressurePhase(
   timeline: ExtractionPressureTimeline = {}
 ): ExtractionPressurePhase {
   const safeElapsedSec = Math.max(0, elapsedSec);
-  const extractOpenSec = timeline.extractOpenSec ?? CORPSE_FOG_COUNTERATTACK_SEC;
+  // secondsUntilExtractOpen 是 HUD"距归营火"倒计时，必须按撤离开放时间
+  // （8 分钟），不能绑雾反扑时间（6 分钟）——雾伤害时间线由
+  // resolveCorpseFogPressureState 单独负责。
+  const extractOpenSec = timeline.extractOpenSec ?? EXTRACT_OPEN_SEC;
   const intensifiedStartsAtSec = timeline.intensifiedStartsAtSec ?? CORPSE_FOG_INTENSIFIED_SEC;
 
   if (safeElapsedSec >= intensifiedStartsAtSec) {
