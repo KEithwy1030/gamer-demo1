@@ -80,6 +80,18 @@ export async function patchServerProfile(
   return persistServerProfile(await response.json() as ProfileSnapshot);
 }
 
+export async function upgradeServerBackpack(profileId: string): Promise<LocalProfile> {
+  const response = await fetch(`${resolveServerUrl()}/profiles/${encodeURIComponent(profileId)}/backpack-upgrade`, {
+    method: "POST"
+  });
+  if (!response.ok) {
+    const body = await safeErrorBody(response);
+    throw new Error(body || "背包扩容失败。");
+  }
+
+  return persistServerProfile(await response.json() as ProfileSnapshot);
+}
+
 export async function moveServerProfileItem(
   profileId: string,
   payload: ProfileMovePayload
@@ -138,6 +150,7 @@ function toLocalProfile(snapshot: ProfileSnapshot): LocalProfile {
       : null,
     botDifficulty: snapshot.botDifficulty,
     merchantRep: Math.max(0, Math.floor(snapshot.merchantRep ?? 0)),
+    inventoryRows: Math.max(snapshot.inventory.height, Math.floor(snapshot.inventoryRows ?? snapshot.inventory.height)),
     lifetimeStats: {
       totalRuns: snapshot.lifetimeStats?.totalRuns ?? 0,
       totalExtracts: snapshot.lifetimeStats?.totalExtracts ?? 0,

@@ -14,7 +14,8 @@ import { buildProfileLoadoutSnapshot, type LocalProfile } from "../profile/local
 import {
   getServerProfile,
   moveServerProfileItem,
-  patchServerProfile
+  patchServerProfile,
+  upgradeServerBackpack
 } from "../profile/profileClient";
 
 const normalizeName = (value: string) => value.trim().slice(0, 18);
@@ -132,6 +133,9 @@ export class LobbyApp {
       },
       onMarketProfileChanged: () => {
         void this.refreshProfile("黑市状态已同步。");
+      },
+      onUpgradeBackpack: () => {
+        void this.handleUpgradeBackpack();
       }
     });
   }
@@ -228,6 +232,21 @@ export class LobbyApp {
         infoMessage: "行囊已整理。"
       });
     });
+  }
+
+  private async handleUpgradeBackpack(): Promise<void> {
+    try {
+      const nextProfile = await upgradeServerBackpack(this.state.profile.profileId);
+      this.applyProfile(nextProfile);
+      this.patchState({
+        errorMessage: null,
+        infoMessage: `背包已扩容至 ${nextProfile.inventoryRows} 行。`
+      });
+    } catch (error) {
+      this.patchState({
+        errorMessage: error instanceof Error ? error.message : "背包扩容失败。"
+      });
+    }
   }
 
   private async refreshProfile(infoMessage?: string): Promise<void> {

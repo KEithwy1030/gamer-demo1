@@ -133,6 +133,14 @@ app.post("/profiles/:profileId/items/move", (request, response) => {
   }
 });
 
+app.post("/profiles/:profileId/backpack-upgrade", (request, response) => {
+  try {
+    response.json(profileStore.upgradeBackpack(request.params.profileId));
+  } catch (error) {
+    response.status(400).json({ message: error instanceof Error ? error.message : "Failed to upgrade backpack." });
+  }
+});
+
 app.get("/market/listings", (request, response) => {
   const playerId = String(request.query.playerId ?? "").trim();
   if (!playerId) {

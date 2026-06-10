@@ -5,7 +5,7 @@ import type {
   LobbyRuntimeApi,
   LobbyController,
 } from "../app/lobbyTypes";
-import { DEFAULT_ROOM_CAPACITY, MAX_ROOM_CAPACITY, nextMerchantRepTier, resolveMerchantRepTier, type SettlementPayload } from "@gamer/shared";
+import { backpackUpgradeCost, DEFAULT_ROOM_CAPACITY, MAX_ROOM_CAPACITY, nextMerchantRepTier, resolveMerchantRepTier, type SettlementPayload } from "@gamer/shared";
 import { LobbyBackground } from "./lobbyBackground";
 import { createStashView, type StashViewApi } from "./stashView";
 import { createMarketView, type MarketViewApi } from "./marketView";
@@ -33,6 +33,7 @@ interface LobbyViewCallbacks {
   onTabChange(activeTab: LobbyTab): void;
   onStashMoveItem(payload: LocalProfileMovePayload): void;
   onMarketProfileChanged(): void;
+  onUpgradeBackpack(): void;
 }
 
 const MAX_VISIBLE_SLOTS = MAX_ROOM_CAPACITY;
@@ -90,6 +91,7 @@ export class LobbyView {
   private readonly repBonus: HTMLElement;
   private readonly lifetimeExtracts: HTMLElement;
   private readonly lifetimeBest: HTMLElement;
+  private backpackUpgrade!: HTMLButtonElement;
   private readonly resultVerdict: HTMLElement;
   private readonly resultRoute: HTMLElement;
   private readonly resultBuildTag: HTMLElement;
@@ -358,6 +360,10 @@ export class LobbyView {
     this.lifetimeExtracts = appendStashCell(repRow, "生涯撤离", "0 / 0");
     this.lifetimeBest = appendStashCell(repRow, "最佳单局", "+0", "warn");
     loadoutPanel.append(repRow);
+    this.backpackUpgrade = createElement("button", "room-code-copy", "扩容背包") as HTMLButtonElement;
+    this.backpackUpgrade.type = "button";
+    this.backpackUpgrade.addEventListener("click", () => this.callbacks.onUpgradeBackpack());
+    loadoutPanel.append(this.backpackUpgrade);
     rightPanel.append(loadoutPanel);
 
     const resultPanel = createElement("div", "panel");
@@ -459,6 +465,16 @@ export class LobbyView {
     this.repBonus.textContent = `+${Math.round((repTier.sellRatio - 1) * 100)}%`;
     this.lifetimeExtracts.textContent = `${state.profile.lifetimeStats.totalExtracts} / ${state.profile.lifetimeStats.totalRuns}`;
     this.lifetimeBest.textContent = `+${state.profile.lifetimeStats.bestRunValue.toLocaleString("zh-CN")}`;
+
+    const currentRows = state.profile.inventoryRows;
+    const upgradeCost = backpackUpgradeCost(currentRows);
+    if (upgradeCost == null) {
+      this.backpackUpgrade.textContent = `背包 ${currentRows} 行（已满级）`;
+      this.backpackUpgrade.disabled = true;
+    } else {
+      this.backpackUpgrade.textContent = `扩容背包 ${currentRows}→${currentRows + 1} 行（${upgradeCost.toLocaleString("zh-CN")} 金币）`;
+      this.backpackUpgrade.disabled = state.profile.gold < upgradeCost;
+    }
     this.stashDifficulty.textContent = state.botDifficulty === "easy" ? "简单" : state.botDifficulty === "hard" ? "困难" : "中等";
 
     if (state.profile.lastRun) {

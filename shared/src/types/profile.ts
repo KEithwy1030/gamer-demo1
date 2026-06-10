@@ -46,6 +46,8 @@ export interface ProfileSnapshot {
   /** 商人信誉：累计卖出金额。决定系统收购价倍率（见 MERCHANT_REP_TIERS） */
   merchantRep: number;
   lifetimeStats: ProfileLifetimeStats;
+  /** 背包行数（永久升级，6 起步，最高 BACKPACK_MAX_ROWS） */
+  inventoryRows: number;
   version: number;
 }
 

@@ -14,7 +14,7 @@ import type {
   ProfileRunSummary,
   SettlementPayload
 } from "@gamer/shared";
-import { canPlaceRect, findFirstFitRect, INVENTORY_HEIGHT, INVENTORY_WIDTH, resolveEquipmentSlot as resolveSharedEquipmentSlot } from "@gamer/shared";
+import { BACKPACK_BASE_ROWS, BACKPACK_MAX_ROWS, backpackUpgradeCost, canPlaceRect, findFirstFitRect, INVENTORY_HEIGHT, INVENTORY_WIDTH, resolveEquipmentSlot as resolveSharedEquipmentSlot } from "@gamer/shared";
 import type { InventoryItem, InventoryState as RuntimeInventoryState } from "./types.js";
 import { getItemTemplate } from "./inventory/catalog.js";
 
@@ -154,7 +154,7 @@ export class ProfileStore {
     const securedItems = (runtimeInventory?.securePouch ?? []).map((entry) => runtimeItemToProfileItem(entry.item));
     const goldDelta = settlement.profileGoldDelta ?? 0;
     profile.gold = Math.max(0, profile.gold + goldDelta);
-    profile.inventory = createEmptyInventory(INVENTORY_WIDTH, INVENTORY_HEIGHT);
+    profile.inventory = createEmptyInventory(INVENTORY_WIDTH, profile.inventoryRows);
     profile.equipment = {};
 
     if (settlement.result === "success") {
@@ -198,6 +198,28 @@ export class ProfileStore {
   addMerchantRep(profileId: string, amount: number): ProfileSnapshot {
     const profile = this.getMutable(profileId);
     profile.merchantRep = Math.max(0, Math.floor(profile.merchantRep + Math.max(0, amount)));
+    profile.version += 1;
+    this.save();
+    return cloneProfile(profile);
+  }
+
+  upgradeBackpack(profileId: string): ProfileSnapshot {
+    const profile = this.getMutable(profileId);
+    if (profile.inventoryRows >= BACKPACK_MAX_ROWS) {
+      throw new Error("背包已达最大容量。");
+    }
+
+    const cost = backpackUpgradeCost(profile.inventoryRows);
+    if (cost == null) {
+      throw new Error("背包已达最大容量。");
+    }
+    if (profile.gold < cost) {
+      throw new Error(`金币不足，扩容需要 ${cost} 金币。`);
+    }
+
+    profile.gold -= cost;
+    profile.inventoryRows += 1;
+    profile.inventory.height = Math.max(profile.inventory.height, profile.inventoryRows);
     profile.version += 1;
     this.save();
     return cloneProfile(profile);
@@ -287,6 +309,7 @@ function createDefaultProfile(profileId: string, displayName?: string): ProfileS
     botDifficulty: "normal",
     merchantRep: 0,
     lifetimeStats: createEmptyLifetimeStats(),
+    inventoryRows: BACKPACK_BASE_ROWS,
     version: PROFILE_VERSION
   };
   ensureStarterWeapon(profile);
@@ -320,6 +343,10 @@ function normalizeProfile(raw: unknown): ProfileSnapshot {
   profile.botDifficulty = normalizeBotDifficulty(record.botDifficulty);
   profile.merchantRep = normalizeNonNegativeInt(record.merchantRep, 0);
   profile.lifetimeStats = normalizeLifetimeStats(record.lifetimeStats);
+  profile.inventoryRows = Math.min(
+    BACKPACK_MAX_ROWS,
+    Math.max(BACKPACK_BASE_ROWS, normalizeNonNegativeInt(record.inventoryRows, BACKPACK_BASE_ROWS))
+  );
   profile.version = typeof record.version === "number" && Number.isFinite(record.version)
     ? Math.max(PROFILE_VERSION, Math.floor(record.version))
     : PROFILE_VERSION;

@@ -43,3 +43,15 @@ export function resolveMerchantRepTier(rep: number): MerchantRepTier {
 export function nextMerchantRepTier(rep: number): MerchantRepTier | undefined {
   return MERCHANT_REP_TIERS.find((tier) => tier.minRep > rep);
 }
+
+/** 背包扩容：金币购买的永久升级（铁则 A 允许的搬砖成果之一）。目标行数 → 金币价格。 */
+export const BACKPACK_BASE_ROWS = 6;
+export const BACKPACK_MAX_ROWS = 8;
+export const BACKPACK_UPGRADE_COSTS: Record<number, number> = {
+  7: 1500,
+  8: 5000
+};
+
+export function backpackUpgradeCost(currentRows: number): number | undefined {
+  return BACKPACK_UPGRADE_COSTS[currentRows + 1];
+}

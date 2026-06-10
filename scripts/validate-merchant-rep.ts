@@ -96,7 +96,43 @@ try {
   const lowRepAfter = profileStore.get("profile-low-rep").merchantRep;
   assert.equal(lowRepAfter, lowRepPrice, "selling should grant rep equal to the sale value");
 
-  console.log("[merchant-rep] PASS rep tiers price scaling, sale rep gain, lifetime stats accumulation");
+  // 背包扩容契约
+  const upgradeId = "profile-backpack-upgrade";
+  const before = profileStore.get(upgradeId);
+  assert.equal(before.inventoryRows, 6, "fresh profile starts with 6 backpack rows");
+  assert.throws(
+    () => profileStore.upgradeBackpack(upgradeId),
+    /金币不足/,
+    "upgrade should fail when gold is insufficient"
+  );
+  profileStore.addGold(upgradeId, 10000);
+  const upgraded = profileStore.upgradeBackpack(upgradeId);
+  assert.equal(upgraded.inventoryRows, 7, "first upgrade should reach 7 rows");
+  assert.equal(upgraded.inventory.height, 7, "current inventory grid should expand with the upgrade");
+  const upgraded2 = profileStore.upgradeBackpack(upgradeId);
+  assert.equal(upgraded2.inventoryRows, 8, "second upgrade should reach 8 rows");
+  assert.throws(
+    () => profileStore.upgradeBackpack(upgradeId),
+    /最大容量/,
+    "upgrade past max rows should fail"
+  );
+  const settled = profileStore.settleRun(upgradeId, {
+    result: "failure",
+    reason: "killed",
+    survivedSeconds: 10,
+    playerKills: 0,
+    monsterKills: 0,
+    extractedGold: 0,
+    extractedTreasureValue: 0,
+    extractedItems: [],
+    retainedItems: [],
+    lostItems: [],
+    loadoutLost: true,
+    profileGoldDelta: 0
+  }, emptyInventory);
+  assert.equal(settled.inventory.height, 8, "post-run inventory reset should keep the upgraded row count");
+
+  console.log("[merchant-rep] PASS rep tiers price scaling, sale rep gain, lifetime stats, backpack upgrade persistence");
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

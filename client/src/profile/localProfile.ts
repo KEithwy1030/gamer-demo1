@@ -71,6 +71,7 @@ export interface LocalProfile {
   botDifficulty: BotDifficulty;
   merchantRep: number;
   lifetimeStats: ProfileLifetimeStats;
+  inventoryRows: number;
 }
 
 export interface LocalProfileMovePayload {
@@ -111,7 +112,8 @@ export function loadLocalProfile(): LocalProfile {
     lastRun: normalizeLastRun(parsed.lastRun ?? legacy.lastRun),
     botDifficulty: normalizeBotDifficulty(parsed.botDifficulty ?? legacy.botDifficulty),
     merchantRep: Math.max(0, Math.floor(toNumber(parsed.merchantRep, 0))),
-    lifetimeStats: normalizeLifetimeStats(parsed.lifetimeStats)
+    lifetimeStats: normalizeLifetimeStats(parsed.lifetimeStats),
+    inventoryRows: Math.max(INVENTORY_HEIGHT, Math.floor(toNumber(parsed.inventoryRows, INVENTORY_HEIGHT)))
   };
 
   migrateLegacyProfile(profile, legacy);
