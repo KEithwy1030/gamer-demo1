@@ -934,6 +934,19 @@ function pickNearestAliveMonster(client) {
   return pickNearestAliveMonsterExcept(client, new Set());
 }
 
+// 杀怪取掉落的预算只够打小怪。boss 260hp / 精英 2 倍血会把 STEP_TIMEOUTS[5]
+// 整个耗光——历史版本判 type === "normal"，但基础怪的运行时 type 是 "basic"，
+// 重命名后比较器失效，boss 反而常被选中（carry-loop 超时的根因）。
+function monsterTierScore(type) {
+  if (type === "boss") {
+    return 2;
+  }
+  if (type === "elite" || type === "brute") {
+    return 1;
+  }
+  return 0;
+}
+
 function pickNearestAliveMonsterExcept(client, excludedIds) {
   const self = getSelfPlayer(client.state);
   if (!self) {
@@ -942,8 +955,9 @@ function pickNearestAliveMonsterExcept(client, excludedIds) {
 
   const aliveMonsters = client.state.monsters.filter((monster) => monster.isAlive && !excludedIds.has(monster.id));
   aliveMonsters.sort((left, right) => {
-    if (left.type !== right.type) {
-      return left.type === "normal" ? -1 : 1;
+    const tierDiff = monsterTierScore(left.type) - monsterTierScore(right.type);
+    if (tierDiff !== 0) {
+      return tierDiff;
     }
     const leftBlockScore = routeBlockScore(client.state, self, left);
     const rightBlockScore = routeBlockScore(client.state, self, right);
@@ -968,6 +982,10 @@ async function killOneMonster(client, timeoutMs) {
     client.state.monsters.filter((monster) => monster.isAlive).map((monster) => monster.id)
   );
   let lastAttackAt = 0;
+  // 路由承诺：getNextSafeWaypoint 在 BRIDGE_APPROACH_RADIUS 边界两侧会无滞回地
+  // 翻转（桥点在身后/目标在前方时形成 ±一步的周期 2 振荡，永远走不到怪）。
+  // 选定 waypoint 后坚持走到 32px 内再重新询问路由。
+  let committedWaypoint = null;
 
   while (Date.now() < deadline) {
     if (!retargeted && Date.now() - (deadline - timeoutMs) >= timeoutMs * 0.5) {
@@ -975,6 +993,7 @@ async function killOneMonster(client, timeoutMs) {
       if (nextTarget && nextTarget.id !== targetMonsterId) {
         targetMonsterId = nextTarget.id;
         retargeted = true;
+        committedWaypoint = null;
         await delay(30);
         continue;
       }
@@ -1003,13 +1022,16 @@ async function killOneMonster(client, timeoutMs) {
     const attackRange = getAttackRangePx(self);
     const rangeToMonster = distance(self, targetMonster);
     if (rangeToMonster > attackRange + 16) {
-      const routeTarget = getNextSafeWaypoint(client.state, self, targetMonster);
+      if (!committedWaypoint || distance(self, committedWaypoint) <= 32) {
+        committedWaypoint = getNextSafeWaypoint(client.state, self, targetMonster);
+      }
       client.socket.emit("player:inputMove", {
-        direction: normalizeDirection(self, routeTarget)
+        direction: normalizeDirection(self, committedWaypoint)
       });
       await delay(25);
       continue;
     }
+    committedWaypoint = null;
 
     if (rangeToMonster > attackRange - 12) {
       client.socket.emit("player:inputMove", {
@@ -1052,6 +1074,7 @@ async function clearMonsterThreatNearPoint(client, targetMonsterId, center, radi
   let lastAttackAt = Date.now();
   let lastKnownDistance = distance(initialTargetMonster, center);
   let lastKnownType = initialTargetMonster.type;
+  let threatWaypoint = null;
 
   while (Date.now() < deadline) {
     const targetMonster = client.state.monsters.find((monster) => monster.id === targetMonsterId);
@@ -1089,13 +1112,17 @@ async function clearMonsterThreatNearPoint(client, targetMonsterId, center, radi
     const attackRange = getAttackRangePx(self);
     const rangeToMonster = distance(self, targetMonster);
     if (rangeToMonster > attackRange + 16) {
-      const routeTarget = getNextSafeWaypoint(client.state, self, targetMonster);
+      // 与 killOneMonster 相同的路由承诺，避免 BRIDGE_APPROACH_RADIUS 边界振荡。
+      if (!threatWaypoint || distance(self, threatWaypoint) <= 32) {
+        threatWaypoint = getNextSafeWaypoint(client.state, self, targetMonster);
+      }
       client.socket.emit('player:inputMove', {
-        direction: normalizeDirection(self, routeTarget)
+        direction: normalizeDirection(self, threatWaypoint)
       });
       await delay(25);
       continue;
     }
+    threatWaypoint = null;
 
     if (rangeToMonster > attackRange - 12) {
       client.socket.emit('player:inputMove', {

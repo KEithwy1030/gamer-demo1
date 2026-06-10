@@ -593,7 +593,8 @@ function startPlayerSyncLoop(roomCode: string): void {
         stopMatchTimerLoop(roomCode);
         stopMonsterSyncLoop(roomCode);
       }
-    } catch {
+    } catch (error) {
+      console.error(`[server] player sync loop crashed for room ${roomCode}; stopping loop`, error);
       stopPlayerSyncLoop(roomCode);
     }
   }, tickMs);

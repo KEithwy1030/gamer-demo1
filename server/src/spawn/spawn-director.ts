@@ -1,5 +1,6 @@
 import type { MonsterSpawnDefinition, SpawnPhase, SpawnPhaseChangedPayload } from "@gamer/shared";
 import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "../internal-constants.js";
+import { isPointInsideObstacle, isPointInsideRiverHazard } from "../match-layout.js";
 import type { RuntimePlayer, RuntimeRoom } from "../types.js";
 
 const PHASE_TIMINGS: Array<{ phase: SpawnPhase; startSec: number; endSec: number; cap: number; spawnIntervalMs: number }> = [
@@ -181,6 +182,13 @@ function findPointWithFallback(room: RuntimeRoom, factory: () => { x: number; y:
     }
   }
 
+  for (let index = 0; index < 40; index += 1) {
+    const point = clampPoint(randomMapPoint());
+    if (isValidSpawnPoint(room, point.x, point.y)) {
+      return point;
+    }
+  }
+
   return clampPoint(randomMapPoint());
 }
 
@@ -199,6 +207,16 @@ function isValidSpawnPoint(room: RuntimeRoom, x: number, y: number): boolean {
   }
 
   if (layout.extractZones.some((zone) => distance(x, y, zone.x, zone.y) <= zone.radius + 96)) {
+    return false;
+  }
+
+  // 怪物出生在障碍体内（不可达、打不到）或河道里（持续掉血秒杀自己）都是废点。
+  // 留 48px 缓冲，避免出生即贴墙导致追击路径退化。
+  if (isPointInsideObstacle(layout, x, y, 48)) {
+    return false;
+  }
+
+  if (isPointInsideRiverHazard(layout, x, y)) {
     return false;
   }
 

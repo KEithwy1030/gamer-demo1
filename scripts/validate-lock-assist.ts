@@ -435,44 +435,30 @@ function validateFeedbackEventMappings(): void {
 }
 
 function validateDamageNumberStyleContract(): void {
-  const feedbackFxPath = path.resolve(currentDir, "../client/src/scenes/gameScene/feedbackFx.ts");
-  const feedbackFxSource = fs.readFileSync(feedbackFxPath, "utf8");
+  // S5 cutover moved damage number styles from feedbackFx.ts into the combat
+  // feature module and re-tuned the scale (playerHit/playerCrit/playerHurt/other).
+  // The contract intent is unchanged: crits must read bigger and float higher
+  // than normal hits, and all numbers stay readable.
+  const combatVfxPath = path.resolve(currentDir, "../client/src/features/combat/vfx/combatVfx.ts");
+  const combatVfxSource = fs.readFileSync(combatVfxPath, "utf8");
 
-  assert.equal(
-    /normal:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1] ? Number(/normal:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1]) >= 34 : false,
-    true,
-    "normal hit damage numbers should stay at or above 34px"
-  );
-  assert.equal(
-    /critical:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1] ? Number(/critical:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1]) >= 48 : false,
-    true,
-    "critical hit damage numbers should stay at or above 48px"
-  );
-  assert.equal(
-    /bleed:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1]
-      && /normal:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1]
-      ? Number(/bleed:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1])
-        < Number(/normal:\s*\{[\s\S]*?fontSize:\s*(\d+)/.exec(feedbackFxSource)?.[1])
-      : false,
-    true,
-    "bleed tick numbers should remain visually smaller than normal hits"
-  );
-  assert.equal(
-    /normal:\s*\{[\s\S]*?strokeThickness:\s*(\d+)/.exec(feedbackFxSource)?.[1]
-      ? Number(/normal:\s*\{[\s\S]*?strokeThickness:\s*(\d+)/.exec(feedbackFxSource)?.[1]) >= 8
-      : false,
-    true,
-    "normal hit damage numbers should keep a stronger outline"
-  );
-  assert.equal(
-    /critical:\s*\{[\s\S]*?rise:\s*(\d+)/.exec(feedbackFxSource)?.[1]
-      && /normal:\s*\{[\s\S]*?rise:\s*(\d+)/.exec(feedbackFxSource)?.[1]
-      ? Number(/critical:\s*\{[\s\S]*?rise:\s*(\d+)/.exec(feedbackFxSource)?.[1])
-        > Number(/normal:\s*\{[\s\S]*?rise:\s*(\d+)/.exec(feedbackFxSource)?.[1])
-      : false,
-    true,
-    "critical hit damage numbers should float higher than normal hits"
-  );
+  const readStyleNumber = (styleKey: string, field: string): number | undefined => {
+    const match = new RegExp(`${styleKey}:\\s*\\{[^}]*?${field}:\\s*(\\d+)`).exec(combatVfxSource);
+    return match?.[1] ? Number(match[1]) : undefined;
+  };
+
+  const hitFont = readStyleNumber("playerHit", "fontSize");
+  const critFont = readStyleNumber("playerCrit", "fontSize");
+  const otherFont = readStyleNumber("other", "fontSize");
+  const hitRise = readStyleNumber("playerHit", "rise");
+  const critRise = readStyleNumber("playerCrit", "rise");
+  const hitStroke = readStyleNumber("playerHit", "strokeThickness");
+
+  assert.equal(hitFont != null && hitFont >= 18, true, "player hit damage numbers should stay at or above 18px for readability");
+  assert.equal(critFont != null && hitFont != null && critFont > hitFont, true, "critical hit damage numbers should read bigger than normal hits");
+  assert.equal(critRise != null && hitRise != null && critRise > hitRise, true, "critical hit damage numbers should float higher than normal hits");
+  assert.equal(otherFont != null && hitFont != null && otherFont < hitFont, true, "other players' damage numbers should be less prominent than self hits");
+  assert.equal(hitStroke != null && hitStroke >= 3, true, "player hit damage numbers should keep an outline for contrast");
 }
 
 function createAssistSelf(): LockAssistSelf {

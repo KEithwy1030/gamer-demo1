@@ -583,6 +583,13 @@ function resolveObstacleAwarePosition(
     return { x: nextX, y: nextY };
   }
 
+  // 碰撞只阻止"进入"障碍，绝不阻止"离开"。出生点 / 位移落点恰好在障碍体
+  // （或其 18px 缓冲带）内时，老实现会把四个候选位置全部判废，玩家永久卡死
+  // 在原地——carry-loop 验收随机超时的根因。已在障碍内时放行任何移动。
+  if (isPointInsideObstacle(layout, currentX, currentY, 18)) {
+    return { x: nextX, y: nextY };
+  }
+
   if (!isPointInsideObstacle(layout, nextX, currentY, 18)) {
     return { x: nextX, y: currentY };
   }

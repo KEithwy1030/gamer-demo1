@@ -1,0 +1,24 @@
+{
+  "script": "validate-lategame-smoke",
+  "runId": "lategame-smoke-2026-06-10T11-36-53-601Z",
+  "artifactDir": "E:\\CursorData\\gamer\\.codex-artifacts\\lategame-smoke\\lategame-smoke-2026-06-10T11-36-53-601Z",
+  "serverUrl": "http://127.0.0.1:5299",
+  "serverPort": 5299,
+  "startedAt": "2026-06-10T11:36:53.604Z",
+  "finishedAt": "2026-06-10T11:37:09.379Z",
+  "result": "pass",
+  "observations": [
+    {
+      "ts": "2026-06-10T11:37:00.339Z",
+      "message": "extract started",
+      "zoneId": "extract_north",
+      "remainingMs": 9000
+    },
+    {
+      "ts": "2026-06-10T11:37:01.092Z",
+      "message": "extract progress snapshot",
+      "status": "progress",
+      "remainingMs": 8433
+    }
+  ]
+}
