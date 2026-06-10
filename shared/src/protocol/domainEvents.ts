@@ -336,6 +336,14 @@ export interface ItemEquippedEvent {
   };
 }
 
+export interface ItemSecuredEvent {
+  type: "ItemSecured";
+  payload: {
+    playerId: string;
+    item: InventoryItemInstance;
+  };
+}
+
 export interface ItemUnequippedEvent {
   type: "ItemUnequipped";
   payload: {
@@ -559,6 +567,7 @@ export type DomainEvent =
   | ChestOpenedEvent
   | LootSpawnedEvent
   | LootPickedUpEvent
+  | ItemSecuredEvent
   | ItemEquippedEvent
   | ItemUnequippedEvent
   | ItemUsedEvent
@@ -622,6 +631,7 @@ export const DOMAIN_EVENT_TYPES = [
   "ChestOpened",
   "LootSpawned",
   "LootPickedUp",
+  "ItemSecured",
   "ItemEquipped",
   "ItemUnequipped",
   "ItemUsed",

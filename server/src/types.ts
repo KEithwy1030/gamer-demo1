@@ -85,6 +85,8 @@ export interface InventoryState {
   height: number;
   items: InventoryEntry[];
   equipment: Partial<Record<EquipmentSlot, InventoryItem>>;
+  /** 保险袋（1x2）：死亡不掉落，赛后无论胜负回流仓库 */
+  securePouch?: InventoryEntry[];
 }
 
 export interface DropState {
@@ -179,7 +181,7 @@ export interface PlayerDropItemPayload {
 
 export interface PlayerMoveItemPayload {
   itemInstanceId: string;
-  targetArea: "grid" | "equipment";
+  targetArea: "grid" | "equipment" | "securePouch";
   slot?: EquipmentSlot;
   swapItemInstanceId?: string;
   x?: number;

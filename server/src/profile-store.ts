@@ -150,6 +150,8 @@ export class ProfileStore {
   settleRun(profileId: string, settlement: SettlementPayload, runtimeInventory?: RuntimeInventoryState): ProfileSnapshot {
     const profile = this.getMutable(profileId);
     const items = runtimeInventory ? collectRuntimeItems(runtimeInventory) : [];
+    // 保险袋物品死亡也不丢：无论胜负都回流仓库。
+    const securedItems = (runtimeInventory?.securePouch ?? []).map((entry) => runtimeItemToProfileItem(entry.item));
     const goldDelta = settlement.profileGoldDelta ?? 0;
     profile.gold = Math.max(0, profile.gold + goldDelta);
     profile.inventory = createEmptyInventory(INVENTORY_WIDTH, INVENTORY_HEIGHT);
@@ -157,14 +159,20 @@ export class ProfileStore {
 
     if (settlement.result === "success") {
       const overflow: InventoryItemInstance[] = [];
-      for (const item of items) {
+      for (const item of [...items, ...securedItems]) {
         if (!placeInAnyStashPage(profile, item)) {
           overflow.push(stripGridPosition(item));
         }
       }
       profile.pendingReturn = overflow.length > 0 ? { items: overflow } : null;
     } else {
-      profile.pendingReturn = null;
+      const overflow: InventoryItemInstance[] = [];
+      for (const item of securedItems) {
+        if (!placeInAnyStashPage(profile, item)) {
+          overflow.push(stripGridPosition(item));
+        }
+      }
+      profile.pendingReturn = overflow.length > 0 ? { items: overflow } : null;
       ensureStarterWeapon(profile);
     }
 

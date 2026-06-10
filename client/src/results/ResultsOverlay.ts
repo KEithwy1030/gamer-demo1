@@ -61,6 +61,17 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
   const itemsList = document.createElement("ul");
   itemsList.className = "results-items-list";
 
+  const securedSection = document.createElement("div");
+  securedSection.className = "results-items results-items--secured";
+  securedSection.hidden = true;
+
+  const securedLabel = document.createElement("p");
+  securedLabel.className = "results-items-label results-items-label--secured";
+  securedLabel.textContent = "保险袋已保全";
+
+  const securedList = document.createElement("ul");
+  securedList.className = "results-items-list";
+
   const nextRun = document.createElement("div");
   nextRun.className = "results-next-run";
 
@@ -129,7 +140,8 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
   nextRun.append(nextRunLabel, nextRunText);
   actions.append(copyNoteButton, returnButton, dismissButton);
   itemsSection.append(itemsLabel, itemsList);
-  content.append(eyebrow, buildTag, title, subtitle, stats, itemsSection, nextRun);
+  securedSection.append(securedLabel, securedList);
+  content.append(eyebrow, buildTag, title, subtitle, stats, itemsSection, securedSection, nextRun);
   card.append(content, actions);
   element.append(card);
   let latestSettlement: SettlementPayload | null = null;
@@ -174,6 +186,11 @@ export function createResultsOverlay(options: ResultsOverlayOptions = {}): Resul
     subtitle.textContent = copy.subtitle;
     replaceStats(stats, settlement);
     replaceItems(itemsList, settlement.result === "success" ? settlement.extractedItemDetails ?? [] : settlement.lostItemDetails ?? []);
+    const securedItems = settlement.result === "failure" ? settlement.retainedItemDetails ?? [] : [];
+    securedSection.hidden = securedItems.length === 0;
+    if (securedItems.length > 0) {
+      replaceItems(securedList, securedItems);
+    }
     nextRunText.textContent = buildNextRunPrompt(settlement);
   }
 }

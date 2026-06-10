@@ -554,6 +554,7 @@ function buildSettlement(
   }
 
   const lostItems = collectAllItems(player);
+  const securedItems = collectPouchDetails(player);
   return {
     result: "failure",
     reason: outcome.reason,
@@ -564,8 +565,8 @@ function buildSettlement(
     extractedTreasureValue: 0,
     extractedItems: [],
     extractedItemDetails: [],
-    retainedItems: [],
-    retainedItemDetails: [],
+    retainedItems: securedItems.map((item) => item.name),
+    retainedItemDetails: securedItems,
     lostItems: lostItems.names,
     lostItemDetails: lostItems.details,
     loadoutLost: lostItems.names.length > 0,
@@ -574,7 +575,7 @@ function buildSettlement(
 }
 
 function collectExtractedItems(player: RuntimePlayer): { gold: number; treasureValue: number; names: string[]; details: SettlementItemDetail[] } {
-  const details = collectItemDetails(player);
+  const details = [...collectItemDetails(player), ...collectPouchDetails(player)];
 
   return {
     gold: details.reduce((sum, item) => sum + item.goldValue, 0),
@@ -634,7 +635,15 @@ function collectItemDetails(player: RuntimePlayer): SettlementItemDetail[] {
     ...(player.inventory?.items.map((entry) => entry.item) ?? []),
     ...Object.values(player.inventory?.equipment ?? {}).filter((item): item is NonNullable<typeof item> => Boolean(item))
   ];
-  return items.map((item) => ({
+  return items.map(toSettlementItemDetail);
+}
+
+function collectPouchDetails(player: RuntimePlayer): SettlementItemDetail[] {
+  return (player.inventory?.securePouch ?? []).map((entry) => toSettlementItemDetail(entry.item));
+}
+
+function toSettlementItemDetail(item: NonNullable<RuntimePlayer["inventory"]>["items"][number]["item"]): SettlementItemDetail {
+  return {
     instanceId: item.instanceId,
     definitionId: item.templateId,
     name: item.name,
@@ -642,7 +651,7 @@ function collectItemDetails(player: RuntimePlayer): SettlementItemDetail[] {
     rarity: item.rarity,
     goldValue: item.goldValue,
     treasureValue: item.treasureValue
-  }));
+  };
 }
 
 function collectAllItems(player: RuntimePlayer): { names: string[]; details: SettlementItemDetail[] } {

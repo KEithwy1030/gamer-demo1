@@ -18,7 +18,7 @@ import {
   PLAYER_BASE_HP,
   PLAYER_BASE_MOVE_SPEED
 } from "../internal-constants.js";
-import { canPlaceRect, findFirstFitRect, INVENTORY_HEIGHT, INVENTORY_WIDTH, type InventoryItemInstance, type ItemCategory } from "@gamer/shared";
+import { canPlaceRect, findFirstFitRect, INVENTORY_HEIGHT, INVENTORY_WIDTH, SECURE_POUCH_HEIGHT, SECURE_POUCH_WIDTH, type InventoryItemInstance, type ItemCategory } from "@gamer/shared";
 import { addTimedModifier, removeStatusEffects, setPlayerBaseStats } from "../combat/player-effects.js";
 import { getItemTemplate, listSeedDropTemplateIds } from "./catalog.js";
 import { emitDomain } from "../event-bus/index.js";
@@ -199,7 +199,36 @@ export class InventoryService {
     }
 
     try {
-      if (payload.targetArea === "equipment") {
+      if (payload.targetArea === "securePouch") {
+        if (payload.swapItemInstanceId) {
+          throw new Error("Secure pouch does not support swap.");
+        }
+
+        const x = Number.isFinite(payload.x) ? Math.floor(payload.x!) : undefined;
+        const y = Number.isFinite(payload.y) ? Math.floor(payload.y!) : undefined;
+        const placement = x != null && y != null
+          ? (canPlaceInPouch(inventory, item, x, y) ? { x, y } : undefined)
+          : findFirstFitInPouch(inventory, item);
+
+        if (!placement) {
+          throw new Error("Secure pouch is full or the item does not fit.");
+        }
+
+        inventory.securePouch = inventory.securePouch ?? [];
+        inventory.securePouch.push({
+          item,
+          x: placement.x,
+          y: placement.y
+        });
+
+        emitDomain(room, {
+          type: "ItemSecured",
+          payload: {
+            playerId,
+            item: toDomainItem(item)
+          }
+        });
+      } else if (payload.targetArea === "equipment") {
         const slot = payload.slot ?? item.equipmentSlot;
         if (!slot || item.equipmentSlot !== slot) {
           throw new Error("Item cannot be equipped.");
@@ -661,11 +690,22 @@ function collectAllItems(inventory: InventoryState): InventoryItem[] {
   return collected;
 }
 
-function removeInventoryItem(inventory: InventoryState, itemInstanceId: string): InventoryEntry | { item: InventoryItem } | undefined {
+type RemovedInventoryItem =
+  | InventoryEntry
+  | { item: InventoryItem }
+  | { item: InventoryItem; x: number; y: number; fromPouch: true };
+
+function removeInventoryItem(inventory: InventoryState, itemInstanceId: string): RemovedInventoryItem | undefined {
   const entryIndex = inventory.items.findIndex((entry) => entry.item.instanceId === itemInstanceId);
   if (entryIndex >= 0) {
     const [entry] = inventory.items.splice(entryIndex, 1);
     return entry;
+  }
+
+  const pouchIndex = (inventory.securePouch ?? []).findIndex((entry) => entry.item.instanceId === itemInstanceId);
+  if (pouchIndex >= 0) {
+    const [entry] = inventory.securePouch!.splice(pouchIndex, 1);
+    return { item: entry.item, x: entry.x, y: entry.y, fromPouch: true };
   }
 
   for (const slot of Object.keys(inventory.equipment) as Array<keyof InventoryState["equipment"]>) {
@@ -679,7 +719,17 @@ function removeInventoryItem(inventory: InventoryState, itemInstanceId: string):
   return undefined;
 }
 
-function restoreInventoryItem(inventory: InventoryState, removed: InventoryEntry | { item: InventoryItem }): void {
+function restoreInventoryItem(inventory: InventoryState, removed: RemovedInventoryItem): void {
+  if ("fromPouch" in removed) {
+    inventory.securePouch = inventory.securePouch ?? [];
+    inventory.securePouch.push({
+      item: cloneItem(removed.item),
+      x: removed.x,
+      y: removed.y
+    });
+    return;
+  }
+
   if ("x" in removed && "y" in removed) {
     inventory.items.push({
       item: cloneItem(removed.item),
@@ -720,6 +770,31 @@ function canPlaceItem(inventory: InventoryState, item: InventoryItem, x: number,
     width: item.width,
     height: item.height
   });
+}
+
+function getPouchRects(inventory: InventoryState): Array<{ x: number; y: number; width: number; height: number }> {
+  return (inventory.securePouch ?? []).map((entry) => ({
+    x: entry.x,
+    y: entry.y,
+    width: entry.item.width,
+    height: entry.item.height
+  }));
+}
+
+function canPlaceInPouch(inventory: InventoryState, item: InventoryItem, x: number, y: number): boolean {
+  return canPlaceRect(
+    { width: SECURE_POUCH_WIDTH, height: SECURE_POUCH_HEIGHT },
+    getPouchRects(inventory),
+    { x, y, width: item.width, height: item.height }
+  );
+}
+
+function findFirstFitInPouch(inventory: InventoryState, item: InventoryItem): { x: number; y: number } | undefined {
+  return findFirstFitRect(
+    { width: SECURE_POUCH_WIDTH, height: SECURE_POUCH_HEIGHT },
+    getPouchRects(inventory),
+    { width: item.width, height: item.height }
+  );
 }
 
 function getInventoryRects(inventory: InventoryState): Array<{ x: number; y: number; width: number; height: number }> {
@@ -763,7 +838,12 @@ function cloneInventory(inventory: InventoryState): InventoryState {
       x: entry.x,
       y: entry.y
     })),
-    equipment
+    equipment,
+    securePouch: (inventory.securePouch ?? []).map((entry) => ({
+      item: cloneItem(entry.item),
+      x: entry.x,
+      y: entry.y
+    }))
   };
 }
 

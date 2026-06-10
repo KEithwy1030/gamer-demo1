@@ -3,6 +3,10 @@ import type { ItemDefinition } from "../types/inventory";
 export const INVENTORY_WIDTH = 10;
 export const INVENTORY_HEIGHT = 6;
 
+// 保险袋：死亡不掉落的随身小容器。1x2 格，只装得下小件贵重品。
+export const SECURE_POUCH_WIDTH = 1;
+export const SECURE_POUCH_HEIGHT = 2;
+
 export const ITEM_DEFINITIONS: Record<string, ItemDefinition> = {
   weapon_sword_basic: {
     id: "weapon_sword_basic",

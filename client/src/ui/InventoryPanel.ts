@@ -23,7 +23,7 @@ export interface InventoryPanelApi {
 }
 
 export interface InventoryPanelOptions {
-  onMove(payload: { itemInstanceId: string; targetArea: "grid" | "equipment"; slot?: string; swapItemInstanceId?: string; x?: number; y?: number }): void;
+  onMove(payload: { itemInstanceId: string; targetArea: "grid" | "equipment" | "securePouch"; slot?: string; swapItemInstanceId?: string; x?: number; y?: number }): void;
   onEquip(instanceId: string): void;
   onUnequip(instanceId: string): void;
   onDrop(instanceId: string): void;
@@ -31,7 +31,7 @@ export interface InventoryPanelOptions {
 }
 
 type EquipmentSlotKey = "weapon" | "head" | "chest" | "hands" | "shoes";
-type ItemArea = "backpack" | "equipment";
+type ItemArea = "backpack" | "equipment" | "securePouch";
 type DragState = {
   item: MatchInventoryItem;
   area: ItemArea;
@@ -74,6 +74,8 @@ const GRID_GAP = 4;
 const GRID_METRICS = { cellSize: GRID_CELL_SIZE, gap: GRID_GAP };
 const STABLE_BACKPACK_WIDTH = 376;
 const BACKPACK_SURFACE_PADDING = 10;
+const SECURE_POUCH_WIDTH = 1;
+const SECURE_POUCH_HEIGHT = 2;
 
 export function createInventoryPanel(options: InventoryPanelOptions): InventoryPanelApi {
   let inventoryState: MatchInventoryState | null = null;
@@ -139,9 +141,28 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   backpackStage.append(backpackCells, backpackHighlight, backpackItems);
   backpackSurface.append(backpackStage);
 
+  const pouchSection = document.createElement("section");
+  pouchSection.className = "inventory-section inventory-section--pouch";
+  const pouchTitle = document.createElement("h4");
+  pouchTitle.textContent = "保险袋（死亡保全）";
+  const pouchSurface = document.createElement("div");
+  pouchSurface.className = "inventory-pouch-surface";
+  const pouchStage = document.createElement("div");
+  pouchStage.className = "inventory-pouch-stage";
+  const pouchCells = document.createElement("div");
+  pouchCells.className = "inventory-pouch-cells";
+  const pouchHighlight = document.createElement("div");
+  pouchHighlight.className = "inventory-grid-drop-preview";
+  pouchHighlight.hidden = true;
+  const pouchItems = document.createElement("div");
+  pouchItems.className = "inventory-pouch-items";
+  pouchStage.append(pouchCells, pouchHighlight, pouchItems);
+  pouchSurface.append(pouchStage);
+  pouchSection.append(pouchTitle, pouchSurface);
+
   equipmentSection.append(equipmentTitle, equipmentGrid);
   backpackSection.append(backpackTitle, backpackSurface);
-  body.append(equipmentSection, backpackSection);
+  body.append(equipmentSection, pouchSection, backpackSection);
 
   header.append(titleWrap, toggle, mobileClose);
   element.append(header, body);
@@ -324,6 +345,10 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
       actions.append(createActionButton("卸下", () => options.onUnequip(item.instanceId)));
     }
 
+    if (area === "securePouch") {
+      actions.append(createActionButton("取出", () => options.onMove({ itemInstanceId: item.instanceId, targetArea: "grid" })));
+    }
+
     if (area === "backpack") {
       actions.append(createActionButton("丢弃", () => options.onDrop(item.instanceId), true));
     }
@@ -412,10 +437,49 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     backpackHighlight.hidden = true;
     backpackHighlight.classList.remove("inventory-grid-drop-preview--invalid");
 
+    currentPouchCandidate = null;
+    pouchHighlight.hidden = true;
+    pouchHighlight.classList.remove("inventory-grid-drop-preview--invalid");
+
     if (currentEquipmentCandidate) {
       equipmentSlotElements.get(currentEquipmentCandidate)?.classList.remove("inventory-drop-target--candidate", "inventory-drop-target--invalid");
     }
     currentEquipmentCandidate = null;
+  }
+
+  function renderPouchHighlight(candidate: DragGridCandidate | null): void {
+    currentPouchCandidate = candidate;
+    if (!candidate) {
+      pouchHighlight.hidden = true;
+      pouchHighlight.classList.remove("inventory-grid-drop-preview--invalid");
+      return;
+    }
+
+    const styles = formatHighlightRect(candidate, GRID_METRICS);
+    pouchHighlight.hidden = false;
+    pouchHighlight.classList.toggle("inventory-grid-drop-preview--invalid", !candidate.valid);
+    pouchHighlight.style.left = styles.left;
+    pouchHighlight.style.top = styles.top;
+    pouchHighlight.style.width = styles.width;
+    pouchHighlight.style.height = styles.height;
+  }
+
+  function resolvePouchCandidate(clientX: number, clientY: number): DragGridCandidate | null {
+    if (!inventoryState || !activeDrag) return null;
+    return resolveGridCandidate({
+      grid: { width: SECURE_POUCH_WIDTH, height: SECURE_POUCH_HEIGHT },
+      pointer: { x: clientX, y: clientY },
+      surfaceRect: pouchCells.getBoundingClientRect(),
+      metrics: GRID_METRICS,
+      item: activeDrag.item,
+      occupants: toDragOccupants((inventoryState.securePouch ?? []).map(it => ({
+        ...it,
+        x: it.x ?? 0,
+        y: it.y ?? 0
+      }))),
+      anchor: activeDrag.gridAnchor,
+      ignoreInstanceIds: [activeDrag.item.instanceId]
+    });
   }
 
   function renderBackpackHighlight(candidate: DragGridCandidate | null): void {
@@ -477,6 +541,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
   let activeDrag: DragState | null = null;
   let currentGridCandidate: DragGridCandidate | null = null;
+  let currentPouchCandidate: DragGridCandidate | null = null;
   let currentEquipmentCandidate: EquipmentSlotKey | null = null;
   let interactionSessionId: string | null = null;
 
@@ -524,6 +589,13 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
       return;
     }
 
+    const pouchRect = pouchCells.getBoundingClientRect();
+    if (isPointWithinRect(event.clientX, event.clientY, pouchRect)) {
+      const candidate = resolvePouchCandidate(event.clientX, event.clientY);
+      renderPouchHighlight(candidate);
+      return;
+    }
+
     const backpackRect = backpackCells.getBoundingClientRect();
     if (isPointWithinRect(event.clientX, event.clientY, backpackRect)) {
       const candidate = resolveBackpackCandidate(event.clientX, event.clientY);
@@ -559,6 +631,13 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
           swapItemInstanceId: candidate.swapItemInstanceId
         });
       }
+    } else if (currentPouchCandidate?.valid && inventoryState) {
+      options.onMove({
+        itemInstanceId: sourceInstanceId,
+        targetArea: "securePouch",
+        x: currentPouchCandidate.x,
+        y: currentPouchCandidate.y
+      });
     } else if (currentGridCandidate?.valid && inventoryState) {
       options.onMove({
         itemInstanceId: sourceInstanceId,
@@ -647,13 +726,24 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     }
 
     const instanceId = button.dataset.instanceId;
-    const area = button.dataset.area === "equipment" ? "equipment" : button.dataset.area === "backpack" ? "backpack" : null;
+    const area = button.dataset.area === "equipment"
+      ? "equipment"
+      : button.dataset.area === "backpack"
+        ? "backpack"
+        : button.dataset.area === "securePouch"
+          ? "securePouch"
+          : null;
     if (!instanceId || !area) {
       return null;
     }
 
     if (area === "equipment") {
       const item = Object.values(inventoryState.equipment).find((entry) => entry?.instanceId === instanceId);
+      return item ? { item, area } : null;
+    }
+
+    if (area === "securePouch") {
+      const item = (inventoryState.securePouch ?? []).find((entry) => entry.instanceId === instanceId);
       return item ? { item, area } : null;
     }
 
@@ -737,6 +827,31 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
   let currentGridWidth = 0;
   let currentGridHeight = 0;
+  let pouchCellsBuilt = false;
+
+  function renderPouchGrid(): void {
+    const gridWidth = SECURE_POUCH_WIDTH * GRID_CELL_SIZE + (SECURE_POUCH_WIDTH - 1) * GRID_GAP;
+    const gridHeight = SECURE_POUCH_HEIGHT * GRID_CELL_SIZE + (SECURE_POUCH_HEIGHT - 1) * GRID_GAP;
+
+    if (!pouchCellsBuilt || pouchCells.childElementCount === 0) {
+      pouchCells.replaceChildren();
+      for (let y = 0; y < SECURE_POUCH_HEIGHT; y += 1) {
+        for (let x = 0; x < SECURE_POUCH_WIDTH; x += 1) {
+          const cell = document.createElement("div");
+          cell.className = "inventory-grid-cell inventory-grid-cell--pouch";
+          cell.style.left = `${x * (GRID_CELL_SIZE + GRID_GAP)}px`;
+          cell.style.top = `${y * (GRID_CELL_SIZE + GRID_GAP)}px`;
+          cell.style.width = `${GRID_CELL_SIZE}px`;
+          cell.style.height = `${GRID_CELL_SIZE}px`;
+          pouchCells.append(cell);
+        }
+      }
+      pouchCellsBuilt = true;
+    }
+
+    pouchStage.style.width = `${gridWidth}px`;
+    pouchStage.style.height = `${gridHeight}px`;
+  }
 
   function renderBackpackGrid(width: number, height: number): void {
     const gridWidth = width * GRID_CELL_SIZE + (width - 1) * GRID_GAP;
@@ -778,6 +893,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
       equipmentGrid.replaceChildren();
       backpackCells.replaceChildren();
       backpackItems.replaceChildren();
+      pouchItems.replaceChildren();
       itemElementCache.clear();
       interactionSessionId = null;
       return;
@@ -809,6 +925,35 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     }
 
     renderBackpackGrid(width, height);
+    renderPouchGrid();
+
+    (inventory.securePouch ?? []).forEach(item => {
+      activeIds.add(item.instanceId);
+
+      let el = itemElementCache.get(item.instanceId);
+      if (!el) {
+        el = createInventoryItemElement(item, "securePouch");
+        itemElementCache.set(item.instanceId, el);
+      }
+      updateInventoryItemElement(el, item, "securePouch");
+
+      const isCurrentlyDragged = interactionSessionId === item.instanceId;
+      el.style.visibility = isCurrentlyDragged ? "hidden" : "";
+      el.classList.toggle("inventory-item--dragging", isCurrentlyDragged);
+      el.classList.remove("inventory-item--equipment");
+
+      const x = Number.isFinite(item.x) ? Number(item.x) : 0;
+      const y = Number.isFinite(item.y) ? Number(item.y) : 0;
+      const itemWidth = Math.max(1, item.width ?? 1);
+      const itemHeight = Math.max(1, item.height ?? 1);
+
+      el.style.width = `${itemWidth * GRID_CELL_SIZE + (itemWidth - 1) * GRID_GAP}px`;
+      el.style.height = `${itemHeight * GRID_CELL_SIZE + (itemHeight - 1) * GRID_GAP}px`;
+      el.style.left = `${x * (GRID_CELL_SIZE + GRID_GAP)}px`;
+      el.style.top = `${y * (GRID_CELL_SIZE + GRID_GAP)}px`;
+
+      if (el.parentElement !== pouchItems) pouchItems.append(el);
+    });
 
     inventory.items.forEach(item => {
       activeIds.add(item.instanceId);

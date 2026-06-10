@@ -36,6 +36,7 @@ export interface MatchInventoryState {
   height: number;
   items: MatchInventoryItem[];
   equipment: Partial<Record<string, MatchInventoryItem>>;
+  securePouch?: MatchInventoryItem[];
 }
 
 export interface MatchBootstrap {
@@ -175,7 +176,8 @@ function cloneInventory(inventory: MatchInventoryState): MatchInventoryState {
     width: inventory.width,
     height: inventory.height,
     items: inventory.items.map((item) => ({ ...item })),
-    equipment
+    equipment,
+    securePouch: inventory.securePouch?.map((item) => ({ ...item }))
   };
 }
 

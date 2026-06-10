@@ -587,37 +587,40 @@ function resolveParentElement(parent: HTMLElement | string): HTMLElement | null 
 function normalizeInventoryEvent(payload: InventoryUpdateEvent): MatchInventoryState {
   const inventoryRoot = payload.inventory;
   const inventoryItems = Array.isArray(inventoryRoot.items) ? inventoryRoot.items : [];
+  const pouchItems = Array.isArray(inventoryRoot.securePouch) ? inventoryRoot.securePouch : [];
   const rawEquipment = isRecord(inventoryRoot.equipment) ? inventoryRoot.equipment : {};
+  const normalizePlacedEntry = (entry: unknown): MatchInventoryItem[] => {
+    if (!isRecord(entry) || !isRecord(entry.item)) return [];
+    const item = entry.item;
+    return [{
+      instanceId: asString(item.instanceId, cryptoId()),
+      definitionId: asString(item.templateId, asString(item.definitionId, "unknown")),
+      name: translateItemName(
+        asString(item.name, asString(item.templateId, "未知物品")),
+        asString(item.templateId, asString(item.definitionId, "unknown"))
+      ),
+      kind: asOptionalStringValue(item.kind),
+      rarity: asOptionalStringValue(item.rarity),
+      tags: normalizeStringArray(item.tags),
+      width: asOptionalNumber(item.width),
+      height: asOptionalNumber(item.height),
+      x: asOptionalNumber(entry.x),
+      y: asOptionalNumber(entry.y),
+      slot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot),
+      equipmentSlot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot),
+      goldValue: asNumber(item.goldValue, 0),
+      treasureValue: asNumber(item.treasureValue, 0),
+      healAmount: asOptionalNumber(item.healAmount),
+      consumableEffects: normalizeConsumableEffects(item.consumableEffects),
+      modifiers: normalizeItemModifiers(item.modifiers),
+      affixes: normalizeAffixes(item.affixes)
+    }];
+  };
   return {
     width: asNumber(inventoryRoot.width, INVENTORY_WIDTH),
     height: asNumber(inventoryRoot.height, INVENTORY_HEIGHT),
-    items: inventoryItems.flatMap((entry) => {
-      if (!isRecord(entry) || !isRecord(entry.item)) return [];
-      const item = entry.item;
-      return [{
-        instanceId: asString(item.instanceId, cryptoId()),
-        definitionId: asString(item.templateId, asString(item.definitionId, "unknown")),
-        name: translateItemName(
-          asString(item.name, asString(item.templateId, "未知物品")),
-          asString(item.templateId, asString(item.definitionId, "unknown"))
-        ),
-        kind: asOptionalStringValue(item.kind),
-        rarity: asOptionalStringValue(item.rarity),
-        tags: normalizeStringArray(item.tags),
-        width: asOptionalNumber(item.width),
-        height: asOptionalNumber(item.height),
-        x: asOptionalNumber(entry.x),
-        y: asOptionalNumber(entry.y),
-        slot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot),
-        equipmentSlot: asOptionalStringValue(item.equipmentSlot) ?? asOptionalStringValue(item.slot),
-        goldValue: asNumber(item.goldValue, 0),
-        treasureValue: asNumber(item.treasureValue, 0),
-        healAmount: asOptionalNumber(item.healAmount),
-        consumableEffects: normalizeConsumableEffects(item.consumableEffects),
-        modifiers: normalizeItemModifiers(item.modifiers),
-        affixes: normalizeAffixes(item.affixes)
-      }];
-    }),
+    items: inventoryItems.flatMap(normalizePlacedEntry),
+    securePouch: pouchItems.flatMap(normalizePlacedEntry),
     equipment: Object.fromEntries(
       Object.entries(rawEquipment).flatMap(([slot, item]) => {
         if (!isRecord(item)) return [];

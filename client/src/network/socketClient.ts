@@ -128,6 +128,7 @@ export interface InventoryUpdateEvent {
     height: number;
     items: Array<{ item: Record<string, unknown>; x: number; y: number }>;
     equipment?: Record<string, Record<string, unknown> | undefined>;
+    securePouch?: Array<{ item: Record<string, unknown>; x: number; y: number }>;
   };
 }
 
@@ -348,7 +349,7 @@ export class GameSocketClient {
     this.socket.emit(SocketEvent.PlayerDropItem, payload);
   }
 
-  sendMoveItem(payload: { itemInstanceId: string; targetArea: "grid" | "equipment"; slot?: string; swapItemInstanceId?: string; x?: number; y?: number }): void {
+  sendMoveItem(payload: { itemInstanceId: string; targetArea: "grid" | "equipment" | "securePouch"; slot?: string; swapItemInstanceId?: string; x?: number; y?: number }): void {
     this.socket.emit(SocketEvent.PlayerMoveItem, payload);
   }
 

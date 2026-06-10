@@ -112,6 +112,8 @@ export interface InventoryState {
   width: number;
   height: number;
   items: InventoryPlacedItem[];
+  /** 保险袋（1x2）：放进来的物品死亡时不掉落，赛后无论胜负都回流仓库 */
+  securePouch?: InventoryPlacedItem[];
 }
 
 export interface EquipmentState {
@@ -140,7 +142,7 @@ export interface DropItemPayload {
 
 export interface MoveInventoryItemPayload {
   itemInstanceId: string;
-  targetArea: "grid" | "equipment";
+  targetArea: "grid" | "equipment" | "securePouch";
   slot?: EquipmentSlot;
   swapItemInstanceId?: string;
   x?: number;
