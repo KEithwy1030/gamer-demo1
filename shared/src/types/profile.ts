@@ -18,6 +18,19 @@ export interface ProfileStashState {
   pages: InventoryState[];
 }
 
+/** 生涯累计统计：搬砖成果的展示面，不影响战斗力（铁则 A） */
+export interface ProfileLifetimeStats {
+  totalRuns: number;
+  totalExtracts: number;
+  totalDeaths: number;
+  totalMonsterKills: number;
+  totalPlayerKills: number;
+  /** 累计正向收益（只累计赚到的，不抵扣亏损） */
+  totalGoldEarned: number;
+  /** 单局最高净收益 */
+  bestRunValue: number;
+}
+
 export interface ProfileSnapshot {
   profileId: string;
   displayName: string;
@@ -30,6 +43,9 @@ export interface ProfileSnapshot {
   } | null;
   lastRun: ProfileRunSummary | null;
   botDifficulty: BotDifficulty;
+  /** 商人信誉：累计卖出金额。决定系统收购价倍率（见 MERCHANT_REP_TIERS） */
+  merchantRep: number;
+  lifetimeStats: ProfileLifetimeStats;
   version: number;
 }
 

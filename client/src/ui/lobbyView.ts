@@ -5,7 +5,7 @@ import type {
   LobbyRuntimeApi,
   LobbyController,
 } from "../app/lobbyTypes";
-import { DEFAULT_ROOM_CAPACITY, MAX_ROOM_CAPACITY, type SettlementPayload } from "@gamer/shared";
+import { DEFAULT_ROOM_CAPACITY, MAX_ROOM_CAPACITY, nextMerchantRepTier, resolveMerchantRepTier, type SettlementPayload } from "@gamer/shared";
 import { LobbyBackground } from "./lobbyBackground";
 import { createStashView, type StashViewApi } from "./stashView";
 import { createMarketView, type MarketViewApi } from "./marketView";
@@ -86,6 +86,10 @@ export class LobbyView {
   private readonly stashAssetValue: HTMLElement;
   private readonly stashItems: HTMLElement;
   private readonly stashDifficulty: HTMLElement;
+  private readonly repTier: HTMLElement;
+  private readonly repBonus: HTMLElement;
+  private readonly lifetimeExtracts: HTMLElement;
+  private readonly lifetimeBest: HTMLElement;
   private readonly resultVerdict: HTMLElement;
   private readonly resultRoute: HTMLElement;
   private readonly resultBuildTag: HTMLElement;
@@ -348,6 +352,12 @@ export class LobbyView {
     this.stashItems = appendStashCell(stashRow, "行囊物件", "0");
     this.stashDifficulty = appendStashCell(stashRow, "敌队 Bot", "中等", "warn");
     loadoutPanel.append(stashRow);
+    const repRow = createElement("div", "stash-row");
+    this.repTier = appendStashCell(repRow, "商人信誉", "生面孔");
+    this.repBonus = appendStashCell(repRow, "收购加成", "+0%", "hot");
+    this.lifetimeExtracts = appendStashCell(repRow, "生涯撤离", "0 / 0");
+    this.lifetimeBest = appendStashCell(repRow, "最佳单局", "+0", "warn");
+    loadoutPanel.append(repRow);
     rightPanel.append(loadoutPanel);
 
     const resultPanel = createElement("div", "panel");
@@ -440,6 +450,15 @@ export class LobbyView {
     this.stashGold.textContent = state.profile.gold.toLocaleString("zh-CN");
     this.stashAssetValue.textContent = getProfileAssetValue(state.profile).toLocaleString("zh-CN");
     this.stashItems.textContent = String(getProfileStashItemCount(state.profile));
+
+    const repTier = resolveMerchantRepTier(state.profile.merchantRep);
+    const nextTier = nextMerchantRepTier(state.profile.merchantRep);
+    this.repTier.textContent = nextTier
+      ? `${repTier.name} (${state.profile.merchantRep.toLocaleString("zh-CN")}/${nextTier.minRep.toLocaleString("zh-CN")})`
+      : repTier.name;
+    this.repBonus.textContent = `+${Math.round((repTier.sellRatio - 1) * 100)}%`;
+    this.lifetimeExtracts.textContent = `${state.profile.lifetimeStats.totalExtracts} / ${state.profile.lifetimeStats.totalRuns}`;
+    this.lifetimeBest.textContent = `+${state.profile.lifetimeStats.bestRunValue.toLocaleString("zh-CN")}`;
     this.stashDifficulty.textContent = state.botDifficulty === "easy" ? "简单" : state.botDifficulty === "hard" ? "困难" : "中等";
 
     if (state.profile.lastRun) {

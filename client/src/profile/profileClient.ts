@@ -136,7 +136,17 @@ function toLocalProfile(snapshot: ProfileSnapshot): LocalProfile {
           itemDetails: snapshot.lastRun.itemDetails?.map((item) => ({ ...item }))
         }
       : null,
-    botDifficulty: snapshot.botDifficulty
+    botDifficulty: snapshot.botDifficulty,
+    merchantRep: Math.max(0, Math.floor(snapshot.merchantRep ?? 0)),
+    lifetimeStats: {
+      totalRuns: snapshot.lifetimeStats?.totalRuns ?? 0,
+      totalExtracts: snapshot.lifetimeStats?.totalExtracts ?? 0,
+      totalDeaths: snapshot.lifetimeStats?.totalDeaths ?? 0,
+      totalMonsterKills: snapshot.lifetimeStats?.totalMonsterKills ?? 0,
+      totalPlayerKills: snapshot.lifetimeStats?.totalPlayerKills ?? 0,
+      totalGoldEarned: snapshot.lifetimeStats?.totalGoldEarned ?? 0,
+      bestRunValue: snapshot.lifetimeStats?.bestRunValue ?? 0
+    }
   };
 
   profile.stashItems = profile.stash.pages.flatMap((page) => page.items.map((item) => item.name));

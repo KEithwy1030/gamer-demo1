@@ -11,6 +11,7 @@ import type {
   SystemSellMarketResult,
   UpdateMarketListingPayload
 } from "@gamer/shared";
+import { resolveMerchantRepTier } from "@gamer/shared";
 import type { ProfileStore } from "./profile-store.js";
 import { getItemTemplate } from "./inventory/catalog.js";
 
@@ -72,7 +73,9 @@ export class MarketStore {
     const item = this.profileStore.removeItemForMarket(playerId, itemInstanceId);
     const template = safeTemplate(item.definitionId);
     const listingItem = buildListingItem(item, template);
-    const goldDelta = estimateSystemSellPrice(listingItem);
+    const repTier = resolveMerchantRepTier(this.profileStore.get(playerId).merchantRep);
+    const goldDelta = Math.max(1, Math.floor(estimateSystemSellPrice(listingItem) * repTier.sellRatio));
+    this.profileStore.addMerchantRep(playerId, goldDelta);
     const profile = this.profileStore.addGold(playerId, goldDelta);
     const receipt: MarketSettlementReceipt = {
       listingId: `system-${randomUUID()}`,
@@ -114,6 +117,7 @@ export class MarketStore {
 
     let profileGold = this.profileStore.get(ownerId).gold;
     for (const receipt of sold) {
+      this.profileStore.addMerchantRep(ownerId, receipt.price);
       profileGold = this.profileStore.addGold(ownerId, receipt.price).gold;
     }
     if (sold.length > 0) {

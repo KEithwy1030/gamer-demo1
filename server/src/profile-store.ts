@@ -177,6 +177,27 @@ export class ProfileStore {
     }
 
     profile.lastRun = buildRunSummary(settlement, goldDelta);
+
+    const stats = profile.lifetimeStats;
+    stats.totalRuns += 1;
+    if (settlement.result === "success") {
+      stats.totalExtracts += 1;
+    } else {
+      stats.totalDeaths += 1;
+    }
+    stats.totalMonsterKills += Math.max(0, settlement.monsterKills);
+    stats.totalPlayerKills += Math.max(0, settlement.playerKills);
+    stats.totalGoldEarned += Math.max(0, goldDelta);
+    stats.bestRunValue = Math.max(stats.bestRunValue, goldDelta);
+
+    profile.version += 1;
+    this.save();
+    return cloneProfile(profile);
+  }
+
+  addMerchantRep(profileId: string, amount: number): ProfileSnapshot {
+    const profile = this.getMutable(profileId);
+    profile.merchantRep = Math.max(0, Math.floor(profile.merchantRep + Math.max(0, amount)));
     profile.version += 1;
     this.save();
     return cloneProfile(profile);
@@ -264,10 +285,24 @@ function createDefaultProfile(profileId: string, displayName?: string): ProfileS
     pendingReturn: null,
     lastRun: null,
     botDifficulty: "normal",
+    merchantRep: 0,
+    lifetimeStats: createEmptyLifetimeStats(),
     version: PROFILE_VERSION
   };
   ensureStarterWeapon(profile);
   return profile;
+}
+
+function createEmptyLifetimeStats(): ProfileSnapshot["lifetimeStats"] {
+  return {
+    totalRuns: 0,
+    totalExtracts: 0,
+    totalDeaths: 0,
+    totalMonsterKills: 0,
+    totalPlayerKills: 0,
+    totalGoldEarned: 0,
+    bestRunValue: 0
+  };
 }
 
 function normalizeProfile(raw: unknown): ProfileSnapshot {
@@ -283,6 +318,8 @@ function normalizeProfile(raw: unknown): ProfileSnapshot {
   profile.pendingReturn = normalizePendingReturn(record.pendingReturn);
   profile.lastRun = normalizeLastRun(record.lastRun);
   profile.botDifficulty = normalizeBotDifficulty(record.botDifficulty);
+  profile.merchantRep = normalizeNonNegativeInt(record.merchantRep, 0);
+  profile.lifetimeStats = normalizeLifetimeStats(record.lifetimeStats);
   profile.version = typeof record.version === "number" && Number.isFinite(record.version)
     ? Math.max(PROFILE_VERSION, Math.floor(record.version))
     : PROFILE_VERSION;
@@ -345,6 +382,19 @@ function normalizePendingReturn(raw: unknown): ProfileSnapshot["pendingReturn"] 
   }
   const items = raw.items.map(normalizeItem).filter((item): item is InventoryItemInstance => Boolean(item));
   return items.length > 0 ? { items } : null;
+}
+
+function normalizeLifetimeStats(raw: unknown): ProfileSnapshot["lifetimeStats"] {
+  const record = isRecord(raw) ? raw : {};
+  return {
+    totalRuns: normalizeNonNegativeInt(record.totalRuns, 0),
+    totalExtracts: normalizeNonNegativeInt(record.totalExtracts, 0),
+    totalDeaths: normalizeNonNegativeInt(record.totalDeaths, 0),
+    totalMonsterKills: normalizeNonNegativeInt(record.totalMonsterKills, 0),
+    totalPlayerKills: normalizeNonNegativeInt(record.totalPlayerKills, 0),
+    totalGoldEarned: normalizeNonNegativeInt(record.totalGoldEarned, 0),
+    bestRunValue: normalizeNonNegativeInt(record.bestRunValue, 0)
+  };
 }
 
 function normalizeLastRun(raw: unknown): ProfileRunSummary | null {
@@ -714,7 +764,8 @@ function cloneProfile(profile: ProfileSnapshot): ProfileSnapshot {
           items: [...profile.lastRun.items],
           itemDetails: profile.lastRun.itemDetails?.map((item) => ({ ...item }))
         }
-      : null
+      : null,
+    lifetimeStats: { ...profile.lifetimeStats }
   };
 }
 

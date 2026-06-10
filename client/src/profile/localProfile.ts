@@ -11,6 +11,7 @@ import {
   type InventorySnapshotPayload,
   type ItemCategory,
   type ItemRarity,
+  type ProfileLifetimeStats,
   type SettlementItemDetail,
   type SettlementPayload
 } from "@gamer/shared";
@@ -68,6 +69,8 @@ export interface LocalProfile {
   } | null;
   lastRun: LocalRunSummary | null;
   botDifficulty: BotDifficulty;
+  merchantRep: number;
+  lifetimeStats: ProfileLifetimeStats;
 }
 
 export interface LocalProfileMovePayload {
@@ -106,7 +109,9 @@ export function loadLocalProfile(): LocalProfile {
     stash: normalizeStash(parsed.stash),
     pendingReturn: normalizePendingReturn(parsed.pendingReturn),
     lastRun: normalizeLastRun(parsed.lastRun ?? legacy.lastRun),
-    botDifficulty: normalizeBotDifficulty(parsed.botDifficulty ?? legacy.botDifficulty)
+    botDifficulty: normalizeBotDifficulty(parsed.botDifficulty ?? legacy.botDifficulty),
+    merchantRep: Math.max(0, Math.floor(toNumber(parsed.merchantRep, 0))),
+    lifetimeStats: normalizeLifetimeStats(parsed.lifetimeStats)
   };
 
   migrateLegacyProfile(profile, legacy);
@@ -153,6 +158,18 @@ export function applySettlementToProfile(
       itemDetails: settlement.result === "success" ? settlement.extractedItemDetails : settlement.lostItemDetails
     },
     botDifficulty: profile.botDifficulty
+  };
+
+  const goldDelta = settlement.profileGoldDelta ?? 0;
+  next.lifetimeStats = {
+    ...base.lifetimeStats,
+    totalRuns: base.lifetimeStats.totalRuns + 1,
+    totalExtracts: base.lifetimeStats.totalExtracts + (settlement.result === "success" ? 1 : 0),
+    totalDeaths: base.lifetimeStats.totalDeaths + (settlement.result === "failure" ? 1 : 0),
+    totalMonsterKills: base.lifetimeStats.totalMonsterKills + Math.max(0, settlement.monsterKills),
+    totalPlayerKills: base.lifetimeStats.totalPlayerKills + Math.max(0, settlement.playerKills),
+    totalGoldEarned: base.lifetimeStats.totalGoldEarned + Math.max(0, goldDelta),
+    bestRunValue: Math.max(base.lifetimeStats.bestRunValue, goldDelta)
   };
 
   if (settlement.result === "failure" && settlement.loadoutLost) {
@@ -484,6 +501,19 @@ function normalizeLastRun(value: unknown): LocalRunSummary | null {
     goldDelta: toNumber(value.goldDelta, 0),
     items: Array.isArray(value.items) ? value.items.map(String).filter(Boolean) : [],
     itemDetails: Array.isArray(value.itemDetails) ? value.itemDetails.flatMap(normalizeSettlementItemDetail) : undefined
+  };
+}
+
+function normalizeLifetimeStats(value: unknown): ProfileLifetimeStats {
+  const record = isRecord(value) ? value : {};
+  return {
+    totalRuns: Math.max(0, Math.floor(toNumber(record.totalRuns, 0))),
+    totalExtracts: Math.max(0, Math.floor(toNumber(record.totalExtracts, 0))),
+    totalDeaths: Math.max(0, Math.floor(toNumber(record.totalDeaths, 0))),
+    totalMonsterKills: Math.max(0, Math.floor(toNumber(record.totalMonsterKills, 0))),
+    totalPlayerKills: Math.max(0, Math.floor(toNumber(record.totalPlayerKills, 0))),
+    totalGoldEarned: Math.max(0, Math.floor(toNumber(record.totalGoldEarned, 0))),
+    bestRunValue: Math.max(0, Math.floor(toNumber(record.bestRunValue, 0)))
   };
 }
 
@@ -915,7 +945,8 @@ function cloneProfile(profile: LocalProfile): LocalProfile {
           items: [...profile.lastRun.items],
           itemDetails: profile.lastRun.itemDetails?.map((item) => ({ ...item }))
         }
-      : null
+      : null,
+    lifetimeStats: { ...profile.lifetimeStats }
   };
 }
 
