@@ -25,6 +25,7 @@ import { clientEventBus } from "../core/event-bus";
 import { mountCombatAudio } from "../features/combat/audio/combatAudio";
 import { mountChestAudio } from "../features/chests/audio/chestAudio";
 import { mountExtractAudio } from "../features/extract/audio/extractAudio";
+import { mountMusicDirector } from "../features/music/musicDirector";
 import { logEvent } from "../dev/runtimeLog";
 import { translateItemName } from "../ui/itemPresentation";
 import { GameScene } from "./GameScene";
@@ -258,6 +259,7 @@ export function createGameClientController(
     mountCombatAudio(audio, () => controller.getSelfPlayerId()),
     mountChestAudio(audio, () => controller.getSelfPlayerId()),
     mountExtractAudio(audio, () => controller.getSelfPlayerId()),
+    mountMusicDirector(),
     network.onAny((eventName, payload) => {
       if (typeof eventName !== "string" || !eventName.startsWith("domain:")) {
         return;

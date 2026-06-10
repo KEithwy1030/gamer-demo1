@@ -14,17 +14,14 @@
 
 ## 监听哪些事件
 
-- `PhaseStarted`
-- `PlayerDied`
-- `ExtractSucceeded`
-- `ExtractChannelStarted`
-- `BeaconLit`
-- `MusicModeChanged`
+- `MusicModeChanged`（唯一输入。服务端是模式真相源，本板块不从 PhaseStarted/PlayerDied 等事件自行推断模式）
 
 ## 数据存哪里
 
-当前 BGM 模式
+当前 BGM 模式（`ProceduralMusicEngine.scene.mode`）
 
 ## 当前代码位置
 
-（新独立板块）
+- `musicDirector.ts` — `mountMusicDirector()` 在 `createGameClient` 与其余音频板块一起挂载。
+- 实现是程序化 WebAudio 合成（drone / pad / pulse / heartbeat 四层），无外部音频文件。
+- 各模式配器参数在 `MODE_SPECS` 常量里，调音只动这个表。
