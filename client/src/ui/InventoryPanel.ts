@@ -144,7 +144,14 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   const pouchSection = document.createElement("section");
   pouchSection.className = "inventory-section inventory-section--pouch";
   const pouchTitle = document.createElement("h4");
-  pouchTitle.textContent = "保险袋（死亡保全）";
+  pouchTitle.className = "inventory-pouch-title";
+  const pouchTitleIcon = document.createElement("img");
+  pouchTitleIcon.className = "inventory-pouch-title__icon";
+  pouchTitleIcon.src = "assets/generated/image2_processed/items/icon_secure_pouch_v1.png";
+  pouchTitleIcon.alt = "";
+  const pouchTitleText = document.createElement("span");
+  pouchTitleText.textContent = "保险袋（死亡保全）";
+  pouchTitle.append(pouchTitleIcon, pouchTitleText);
   const pouchSurface = document.createElement("div");
   pouchSurface.className = "inventory-pouch-surface";
   const pouchStage = document.createElement("div");

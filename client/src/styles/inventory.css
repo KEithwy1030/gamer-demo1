@@ -699,3 +699,15 @@ body.inventory-dragging * {
   border-color: rgba(168, 132, 58, 0.55);
   background: linear-gradient(180deg, #26200f 0%, #15110a 100%);
 }
+
+.inventory-pouch-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inventory-pouch-title__icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
