@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { MatchViewState } from "../../game";
 import type { ExtractUiState } from "../createGameClient";
 import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
+import { logEvent } from "../../dev/runtimeLog";
 import { buildRiverVisualPlan } from "./riverVisualPlan";
 
 export { resolveCorpseFogVisualState } from "./corpseFogVisualState";
@@ -26,13 +27,15 @@ export interface WorldBackdropRefs {
   }>;
   crossingSprites: Phaser.GameObjects.GameObject[];
   regionLabels: Phaser.GameObjects.Text[];
+  decorSprites: Phaser.GameObjects.Image[];
 }
 
 export function createWorldBackdropRefs(): WorldBackdropRefs {
   return {
     extractZoneMarkers: [],
     crossingSprites: [],
-    regionLabels: []
+    regionLabels: [],
+    decorSprites: []
   };
 }
 
@@ -57,6 +60,7 @@ export function rebuildWorldBackdrop(
   });
   refs.crossingSprites.forEach((sprite) => sprite.destroy());
   refs.regionLabels.forEach((label) => label.destroy());
+  refs.decorSprites.forEach((sprite) => sprite.destroy());
 
   const width = state.width;
   const height = state.height;
@@ -80,6 +84,7 @@ export function rebuildWorldBackdrop(
   riverLayer.setDepth(-33);
   drawCorpseRiver(detailLayer, riverLayer, state);
   const crossingSprites = drawSafeCrossings(scene, state);
+  const decorSprites = drawDecorLayer(scene, state);
 
   const atmosphereLayer = scene.add.graphics();
   atmosphereLayer.setDepth(-10);
@@ -98,6 +103,7 @@ export function rebuildWorldBackdrop(
     extractLabel: undefined,
     extractZoneMarkers,
     crossingSprites,
+    decorSprites,
     regionLabels: [
       createRegionLabel(scene, width * 0.18, height * 0.16, "拾荒者山脊"),
       createRegionLabel(scene, width * 0.82, height * 0.15, "尸毒溶河"),
@@ -257,6 +263,101 @@ function spawnExtractInterruptWarning(scene: Phaser.Scene, x: number, y: number,
     repeat: 1,
     onComplete: () => warning.destroy()
   });
+}
+
+const DECOR_TEXTURE_KEY = "world_decor";
+const DECOR_COUNT = 240;
+const DECOR_MIN_SCALE = 0.16;
+const DECOR_MAX_SCALE = 0.34;
+const DECOR_EXTRACT_CLEARANCE = 60;
+const DECOR_FRAME_COUNT = 16;
+
+/**
+ * FNV-1a 哈希种子 + mulberry32 输出。注意不要照抄 match-layout 的
+ * `(h>>>0)*16777619^h` 步进——JS 浮点乘法在大数下丢低位，序列分布坍缩
+ * （实测 150 个"均匀"点全部避开出生视口）。mulberry32 用 Math.imul 保持
+ * 32 位整数语义，分布均匀。
+ */
+function createSeededRandom(seed: string): () => number {
+  let h = 2166136261;
+  for (let index = 0; index < seed.length; index += 1) {
+    h ^= seed.charCodeAt(index);
+    h = Math.imul(h, 16777619);
+  }
+  let a = h >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * 纯视觉装饰密度层：残骸/白骨/植被贴片按房间码种子撒点（跨客户端一致），
+ * 无碰撞、不进服务端。修"世界空旷不像游戏"的观感问题。
+ */
+function drawDecorLayer(scene: Phaser.Scene, state: MatchViewState): Phaser.GameObjects.Image[] {
+  if (!scene.textures.exists(DECOR_TEXTURE_KEY)) {
+    logEvent("UI", "decor.texture_missing", { key: DECOR_TEXTURE_KEY });
+    return [];
+  }
+
+  const layout = state.layout;
+  const random = createSeededRandom(`decor:${state.code || "default"}`);
+  const sprites: Phaser.GameObjects.Image[] = [];
+
+  const insideRect = (x: number, y: number, rect: { x: number; y: number; width: number; height: number }, pad = 0) =>
+    x >= rect.x - pad && x <= rect.x + rect.width + pad && y >= rect.y - pad && y <= rect.y + rect.height + pad;
+
+  const isBlocked = (x: number, y: number): boolean => {
+    if (!layout) {
+      return false;
+    }
+    for (const zone of layout.extractZones ?? []) {
+      if (Math.hypot(x - zone.x, y - zone.y) < (zone.radius ?? 96) + DECOR_EXTRACT_CLEARANCE) {
+        return true;
+      }
+    }
+    for (const hazard of layout.riverHazards ?? []) {
+      if (insideRect(x, y, hazard, 24)) {
+        return true;
+      }
+    }
+    for (const crossing of layout.safeCrossings ?? []) {
+      if (insideRect(x, y, crossing, 16)) {
+        return true;
+      }
+    }
+    for (const obstacle of layout.obstacleZones ?? []) {
+      if (insideRect(x, y, obstacle, 8)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  let attempts = 0;
+  while (sprites.length < DECOR_COUNT && attempts < DECOR_COUNT * 4) {
+    attempts += 1;
+    const x = 60 + random() * (state.width - 120);
+    const y = 60 + random() * (state.height - 120);
+    if (isBlocked(x, y)) {
+      continue;
+    }
+
+    const frame = Math.floor(random() * DECOR_FRAME_COUNT);
+    const scale = DECOR_MIN_SCALE + random() * (DECOR_MAX_SCALE - DECOR_MIN_SCALE);
+    const sprite = scene.add.image(Math.round(x), Math.round(y), DECOR_TEXTURE_KEY, frame)
+      .setScale(scale)
+      .setDepth(-34.5)
+      .setAlpha(0.92)
+      .setFlipX(random() > 0.5);
+    sprites.push(sprite);
+  }
+
+  logEvent("UI", "decor.layer_built", { count: sprites.length, attempts });
+  return sprites;
 }
 
 function drawExtractZoneMarkers(scene: Phaser.Scene, state: MatchViewState): Array<{

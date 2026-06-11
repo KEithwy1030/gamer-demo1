@@ -41,7 +41,11 @@ def flood_remove_background(img: Image.Image) -> Image.Image:
     w, h = img.size
     px = img.load()
     bg = detect_background(px, w, h)
-    tol_sq = EDGE_TOLERANCE ** 2
+    # 饱和底色（洋红等）边缘有很宽的混色渐变，泛洪容差放大才吃得干净；
+    # 中性底色（黑/白/灰）容差必须小，否则会蚀进角色的暗部/高光。
+    bg_saturation = max(bg) - min(bg)
+    tolerance = 110 if bg_saturation > 80 else EDGE_TOLERANCE
+    tol_sq = tolerance ** 2
 
     def is_bg(x: int, y: int) -> bool:
         r, g, b, _ = px[x, y]
@@ -86,10 +90,19 @@ def flood_remove_background(img: Image.Image) -> Image.Image:
                 r, g, b, a = px[x, y]
                 px[x, y] = (r, g, b, min(a, 255 - FRINGE_ALPHA_BAND))
 
-    # 饱和底色（如洋红）会在前景边缘留宽幅溢色渐变，泛洪容差够不到。
-    # 仅当底色高饱和时做全局色相压制：命中底色色相的像素被中和并按接近度降透明。
-    # 黑/白底色饱和度低，不会触发此分支，避免误伤角色内部的暗部/高光。
-    bg_saturation = max(bg) - min(bg)
+    # 封闭孔洞（如车轮辐条之间）泛洪进不去：饱和底色时按严格色距全局清除。
+    # 中性底色不做全局清除——会蚀掉角色内部暗部/高光。
+    if bg_saturation > 80:
+        hole_tol_sq = EDGE_TOLERANCE ** 2
+        for y in range(h):
+            for x in range(w):
+                r, g, b, a = px[x, y]
+                if a == 0:
+                    continue
+                if (r - bg[0]) ** 2 + (g - bg[1]) ** 2 + (b - bg[2]) ** 2 <= hole_tol_sq:
+                    px[x, y] = (0, 0, 0, 0)
+
+    # 饱和底色的残余溢色（泛洪边界外侧 1-2px）做色相压制兜底。
     if bg_saturation > 80:
         wide_tol_sq = (EDGE_TOLERANCE * 2.6) ** 2
         for y in range(h):

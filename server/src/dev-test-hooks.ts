@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { MatchLayoutSpawnZone } from "@gamer/shared";
 import { ITEM_DEFINITIONS } from "@gamer/shared";
 import { startChestOpening } from "./chests/chest-manager.js";
+import { isPointInsideObstacle } from "./match-layout.js";
 import { buildRuntimeMonster } from "./monsters/monster-manager.js";
 import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "./internal-constants.js";
 import type { DropState, InventoryItem, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "./types.js";
@@ -82,11 +83,26 @@ function applySandboxPreset(room: RuntimeRoom, player: RuntimePlayer): void {
 
   room.monsters?.clear();
   room.pendingMonsterRespawns = [];
+  // 候选偏移逐个试，避开障碍体（含缓冲），保证木桩/宝箱与玩家之间直线可达
+  const pickClearSpot = (offsets: Array<{ x: number; y: number }>): { x: number; y: number } => {
+    for (const offset of offsets) {
+      const x = Math.round(baseX + offset.x);
+      const y = Math.round(baseY + offset.y);
+      if (!layout || !isPointInsideObstacle(layout, x, y, 64)) {
+        return { x, y };
+      }
+    }
+    return { x: Math.round(baseX + offsets[0]!.x), y: Math.round(baseY + offsets[0]!.y) };
+  };
+
+  const dummySpot = pickClearSpot([
+    { x: 220, y: 0 }, { x: 220, y: 140 }, { x: 220, y: -140 }, { x: 0, y: 220 }, { x: 0, y: -220 }
+  ]);
   const dummy = buildRuntimeMonster({
     id: `sandbox_dummy_${crypto.randomUUID().slice(0, 8)}`,
     type: "basic",
-    x: Math.round(baseX + 220),
-    y: Math.round(baseY)
+    x: dummySpot.x,
+    y: dummySpot.y
   });
   dummy.aggroRange = 0;
   dummy.moveSpeed = 0;
@@ -97,8 +113,11 @@ function applySandboxPreset(room: RuntimeRoom, player: RuntimePlayer): void {
 
   const chest = [...(room.chests?.values() ?? [])][0];
   if (chest) {
-    chest.x = Math.round(baseX - 160);
-    chest.y = Math.round(baseY);
+    const chestSpot = pickClearSpot([
+      { x: -160, y: 0 }, { x: -160, y: 140 }, { x: -160, y: -140 }, { x: 0, y: -180 }
+    ]);
+    chest.x = chestSpot.x;
+    chest.y = chestSpot.y;
   }
 
   delayBots(room, now);

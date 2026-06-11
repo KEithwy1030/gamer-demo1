@@ -150,9 +150,11 @@ async function getSelfPos(page, selfId) {
   }, selfId);
 }
 
-/** 带反馈的直线导航：每步读权威位置修正，停在目标 ±18px 内。 */
-async function walkToX(page, selfId, targetX, timeoutMs = 12_000) {
+/** 带反馈的两轴导航：每步读权威位置修正，停在目标 ±20px 内；停滞时垂直侧移绕障碍。 */
+async function walkTo(page, selfId, targetX, targetY, timeoutMs = 15_000) {
   const started = Date.now();
+  let last = null;
+  let stallCount = 0;
   while (Date.now() - started < timeoutMs) {
     const pos = await getSelfPos(page, selfId);
     if (!pos) {
@@ -160,13 +162,33 @@ async function walkToX(page, selfId, targetX, timeoutMs = 12_000) {
       continue;
     }
     const dx = targetX - pos.x;
-    if (Math.abs(dx) <= 18) {
+    const dy = targetY - pos.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist <= 20) {
       return pos;
     }
-    const burstMs = Math.max(60, Math.min(400, Math.round((Math.abs(dx) / 300) * 1000) - 40));
-    await moveFor(page, { x: Math.sign(dx), y: 0 }, burstMs);
+    if (last && Math.hypot(pos.x - last.x, pos.y - last.y) < 6) {
+      stallCount += 1;
+      // 垂直于前进方向侧移
+      const sidestep = Math.abs(dx) >= Math.abs(dy)
+        ? { x: 0, y: stallCount % 2 === 0 ? 1 : -1 }
+        : { x: stallCount % 2 === 0 ? 1 : -1, y: 0 };
+      await moveFor(page, sidestep, 320);
+    }
+    last = pos;
+    const burstMs = Math.max(60, Math.min(400, Math.round((dist / 300) * 1000) - 40));
+    await moveFor(page, { x: dx / dist, y: dy / dist }, burstMs);
   }
-  throw new Error(`walkToX timed out heading to ${targetX}`);
+  throw new Error(`walkTo timed out heading to ${targetX},${targetY}`);
+}
+
+async function getDummyPos(page) {
+  return page.evaluate(() => {
+    const states = (window.__SANDBOX_EVENTS__ ?? []).filter((entry) => entry.name === "state:monsters");
+    const latest = states[states.length - 1]?.payload;
+    const dummy = Array.isArray(latest) ? latest.find((monster) => monster.isAlive) : null;
+    return dummy ? { x: Math.round(dummy.x), y: Math.round(dummy.y) } : null;
+  });
 }
 
 async function run() {
@@ -232,10 +254,18 @@ async function run() {
     await sleep(260);
   }
 
-  // 带反馈走到宝箱（预设放在出生点左侧 160px）并开箱。注意：此阶段不点击
-  // canvas，点击会触发攻击并短暂锁操作。
+  // 带反馈走到宝箱并开箱（位置从 chests:init 事件读真实坐标）。注意：此阶段
+  // 不点击 canvas，点击会触发攻击并短暂锁操作。
   const canvas = page.locator("canvas:not(.lobby-background)").first();
-  await walkToX(page, selfId, spawnPos.x - 160);
+  const chestPos = await page.evaluate(() => {
+    const init = (window.__SANDBOX_EVENTS__ ?? []).find((entry) => entry.name === "chests:init");
+    if (!Array.isArray(init?.payload)) return null;
+    const chests = init.payload.map((chest) => ({ x: Math.round(chest.x), y: Math.round(chest.y) }));
+    return chests[0] ?? null;
+  });
+  const chestTarget = chestPos ?? { x: spawnPos.x - 160, y: spawnPos.y };
+  note("chest target", chestTarget);
+  await walkTo(page, selfId, chestTarget.x, chestTarget.y - 30);
   let chestOpened = null;
   for (let attempt = 0; attempt < 6 && !chestOpened; attempt += 1) {
     await page.keyboard.press("e");
@@ -243,7 +273,7 @@ async function run() {
       chestOpened = await waitForEventAfter(page, ["chest:progress", "domain:ChestRummageStarted"], matchStarted.ts, 1_800);
     } catch {
       note("chest attempt miss", { attempt, selfPos: await getSelfPos(page, selfId) });
-      await walkToX(page, selfId, spawnPos.x - 160);
+      await walkTo(page, selfId, chestTarget.x, chestTarget.y - 30);
     }
   }
   if (!chestOpened) {
@@ -255,16 +285,29 @@ async function run() {
   await sleep(450);
   await screenshot(page, "02-chest-opened.png");
 
-  // 走向木桩（出生点右侧 220px）并攻击，验证 MonsterDamaged 链路。
-  // 站在木桩左侧 ~90px（剑程 116px 内），向右点击攻击。
-  await walkToX(page, selfId, spawnPos.x + 130);
+  // 走向木桩（位置从 state:monsters 读真实坐标）并攻击，验证 MonsterDamaged 链路。
+  const dummyPos = await getDummyPos(page) ?? { x: spawnPos.x + 220, y: spawnPos.y };
+  note("dummy target", dummyPos);
+  const attackAt = async () => {
+    const pos = await getSelfPos(page, selfId);
+    if (!pos) return;
+    // 相机以玩家为中心(800,450)，把点击点放在朝木桩方向 ~100px 处
+    const dx = dummyPos.x - pos.x;
+    const dy = dummyPos.y - pos.y;
+    const mag = Math.max(1, Math.hypot(dx, dy));
+    await canvas.click({
+      position: { x: Math.round(800 + (dx / mag) * 110), y: Math.round(450 + (dy / mag) * 110) },
+      force: true
+    }).catch(() => {});
+  };
   let monsterDamaged = null;
   for (let attempt = 0; attempt < 8 && !monsterDamaged; attempt += 1) {
-    await canvas.click({ position: { x: 960, y: 450 }, force: true }).catch(() => {});
+    await walkTo(page, selfId, dummyPos.x - 90, dummyPos.y).catch(() => {});
+    await attackAt();
     try {
       monsterDamaged = await waitForEventAfter(page, ["domain:MonsterDamaged"], matchStarted.ts, 1_500);
     } catch {
-      await walkToX(page, selfId, spawnPos.x + 130);
+      // 重试
     }
   }
   if (!monsterDamaged) {
