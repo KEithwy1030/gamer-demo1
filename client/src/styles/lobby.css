@@ -122,9 +122,9 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .game-scale-canvas {
-  width: 1280px;
-  height: 720px;
-  min-height: 720px;
+  width: 1920px;
+  height: 1080px;
+  min-height: 1080px;
   overflow: hidden;
   position: relative;
 }

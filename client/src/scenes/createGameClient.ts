@@ -32,6 +32,7 @@ import { logEvent } from "../dev/runtimeLog";
 import { translateItemName } from "../ui/itemPresentation";
 import { GameScene } from "./GameScene";
 import { applySmoothTextureSampling, GAME_RENDER_CONFIG } from "./gameScene/renderTuning";
+import { GAME_VIEW_HEIGHT, GAME_VIEW_WIDTH } from "./gameScene/renderConfig";
 import {
   createInitialExtractState,
   normalizeExtractOpened,
@@ -77,8 +78,6 @@ export interface GameClientController {
 export function createGameClientController(
   options: GameClientControllerOptions
 ): GameClientController {
-  const GAME_VIEW_WIDTH = 1280;
-  const GAME_VIEW_HEIGHT = 720;
   const runtime = new MatchRuntimeStore();
   const network = new GameSocketClient(options);
   const audio = new GameAudioController();

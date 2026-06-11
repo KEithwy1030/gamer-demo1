@@ -146,8 +146,8 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
     gameViewport.className = "game-scale-canvas";
     sceneRoot.className = "game-scene-root";
     const gameScaler = attachViewportScaler(gameRoot, gameViewport, {
-      designWidth: 1280,
-      designHeight: 720,
+      designWidth: 1920,
+      designHeight: 1080,
       maxScale: Number.POSITIVE_INFINITY,
       centerY: true
     });

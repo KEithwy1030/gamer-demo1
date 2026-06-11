@@ -48,6 +48,10 @@ export class PlayerMarker {
 
     // Pixel-style Foot Glow & Shadow
     this.shadow = scene.add.graphics();
+    // 方向性投影（光源左上→影子右下偏移）：把角色"压"在地面上，
+    // 消除纸片悬浮感。先画投影，再叠队伍识别光圈。
+    this.shadow.fillStyle(0x0a0805, 0.32);
+    this.shadow.fillEllipse(9, 42, 92, 26);
     if (isSelf) {
       this.shadow.fillStyle(0xe8602c, 0.28);
       this.shadow.fillEllipse(0, 38, 76, 26);

@@ -56,13 +56,14 @@ export class MonsterMarker {
     const phaseY = hpY - 12;
     const hpWidth = profile.hpWidth;
 
+    // 方向性投影：右下偏移 + 加宽，和生成资产的左上光源一致，压住"纸片悬浮"感
     this.shadow = scene.add.ellipse(
-      0,
-      profile.shadow.y,
-      profile.shadow.width,
+      8,
+      profile.shadow.y + 3,
+      profile.shadow.width * 1.18,
       profile.shadow.height,
-      0x0e0b08,
-      0.42
+      0x0a0805,
+      0.48
     );
     this.threatAura = scene.add.ellipse(
       0,
