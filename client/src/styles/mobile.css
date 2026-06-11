@@ -264,3 +264,25 @@
     user-select: none;
   }
 }
+
+.audio-mute-toggle {
+  position: absolute;
+  right: 12px;
+  top: 96px;
+  z-index: 60;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 10px;
+  font-size: 20px;
+  line-height: 1;
+  background: rgba(26, 16, 10, 0.82);
+  border: 1px solid rgba(232, 96, 44, 0.7);
+  border-radius: 8px;
+  color: #f5e9d6;
+  cursor: pointer;
+}
+
+.audio-mute-toggle--muted {
+  border-color: rgba(120, 113, 108, 0.8);
+  opacity: 0.75;
+}

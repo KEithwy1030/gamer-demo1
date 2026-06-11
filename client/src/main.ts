@@ -257,6 +257,23 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
     activeGameController = gameController;
     cleanupP0BTestHooks = installP0BTestHooks(gameController);
 
+    const muteButton = document.createElement("button");
+    muteButton.type = "button";
+    muteButton.className = "audio-mute-toggle";
+    const syncMuteLabel = () => {
+      const muted = gameController?.isAudioMuted() ?? false;
+      muteButton.textContent = muted ? "🔇" : "🔊";
+      muteButton.title = muted ? "取消静音" : "静音";
+      muteButton.classList.toggle("audio-mute-toggle--muted", muted);
+    };
+    muteButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      gameController?.setAudioMuted(!(gameController?.isAudioMuted() ?? false));
+      syncMuteLabel();
+    });
+    syncMuteLabel();
+    gameViewport.append(muteButton);
+
     const lobbyController = createNetworkLobbyController(
       gameController.network,
       (payload) => {

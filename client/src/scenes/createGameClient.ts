@@ -27,6 +27,7 @@ import { mountChestAudio } from "../features/chests/audio/chestAudio";
 import { mountExtractAudio } from "../features/extract/audio/extractAudio";
 import { mountMusicDirector } from "../features/music/musicDirector";
 import { mountLootAudio } from "../features/inventory/audio/lootAudio";
+import { loadAudioSettings, saveAudioSettings } from "../audio/audioSettings";
 import { logEvent } from "../dev/runtimeLog";
 import { translateItemName } from "../ui/itemPresentation";
 import { GameScene } from "./GameScene";
@@ -69,6 +70,8 @@ export interface GameClientController {
   getMatchSnapshot(): RoomRuntimeSnapshot | null;
   sendMoveInput(direction: Vector2): void;
   startExtract(): void;
+  setAudioMuted(muted: boolean): void;
+  isAudioMuted(): boolean;
 }
 
 export function createGameClientController(
@@ -79,7 +82,10 @@ export function createGameClientController(
   const runtime = new MatchRuntimeStore();
   const network = new GameSocketClient(options);
   const audio = new GameAudioController();
-  const subscriptions: Unsubscribe[] = [];
+  const audioSettings = loadAudioSettings();
+  audio.setMuted(audioSettings.muted);
+  const musicDirector = mountMusicDirector(audioSettings.muted);
+  const subscriptions: Unsubscribe[] = [musicDirector.destroy];
 
   let game: Phaser.Game | null = null;
   let extractState = createInitialExtractState();
@@ -243,6 +249,15 @@ export function createGameClientController(
     },
     startExtract() {
       network.sendStartExtract();
+    },
+    setAudioMuted(muted) {
+      audioSettings.muted = muted;
+      audio.setMuted(muted);
+      musicDirector.setMuted(muted);
+      saveAudioSettings(audioSettings);
+    },
+    isAudioMuted() {
+      return audioSettings.muted;
     }
   };
 
@@ -261,7 +276,6 @@ export function createGameClientController(
     mountChestAudio(audio, () => controller.getSelfPlayerId()),
     mountExtractAudio(audio, () => controller.getSelfPlayerId()),
     mountLootAudio(audio, () => controller.getSelfPlayerId()),
-    mountMusicDirector(),
     network.onAny((eventName, payload) => {
       if (typeof eventName !== "string" || !eventName.startsWith("domain:")) {
         return;

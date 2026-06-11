@@ -106,6 +106,7 @@ class ProceduralMusicEngine {
   private scene?: ActiveScene;
   private pendingMode?: MusicMode;
   private destroyed = false;
+  private muted = false;
 
   private readonly unlock = (): void => {
     void this.resumeAndStartPending();
@@ -133,6 +134,22 @@ class ProceduralMusicEngine {
     }
 
     this.startScene(context, mode);
+  }
+
+  setMuted(muted: boolean): void {
+    this.muted = muted;
+    const context = this.context;
+    const scene = this.scene;
+    if (!context || !scene) {
+      return;
+    }
+
+    const spec = MODE_SPECS[scene.mode];
+    scene.gain.gain.cancelScheduledValues(context.currentTime);
+    scene.gain.gain.setValueAtTime(
+      muted ? 0.0001 : Math.max(0.0002, spec.master * MASTER_CEILING),
+      context.currentTime
+    );
   }
 
   destroy(): void {
@@ -180,7 +197,7 @@ class ProceduralMusicEngine {
     const master = context.createGain();
     master.gain.setValueAtTime(0.0001, context.currentTime);
     master.gain.exponentialRampToValueAtTime(
-      Math.max(0.0002, spec.master * MASTER_CEILING),
+      this.muted ? 0.0001 : Math.max(0.0002, spec.master * MASTER_CEILING),
       context.currentTime + CROSSFADE_SEC
     );
     master.connect(context.destination);
@@ -373,8 +390,14 @@ function isMusicMode(value: unknown): value is MusicMode {
   return typeof value === "string" && (MUSIC_MODES as readonly string[]).includes(value);
 }
 
-export function mountMusicDirector(): () => void {
+export interface MusicDirectorControls {
+  destroy(): void;
+  setMuted(muted: boolean): void;
+}
+
+export function mountMusicDirector(initialMuted = false): MusicDirectorControls {
   const engine = new ProceduralMusicEngine();
+  engine.setMuted(initialMuted);
 
   const onModeChanged = (payload: { mode?: string }): void => {
     if (isMusicMode(payload.mode)) {
@@ -384,8 +407,13 @@ export function mountMusicDirector(): () => void {
 
   clientEventBus.on("MusicModeChanged", onModeChanged);
 
-  return () => {
-    clientEventBus.off("MusicModeChanged", onModeChanged);
-    engine.destroy();
+  return {
+    destroy() {
+      clientEventBus.off("MusicModeChanged", onModeChanged);
+      engine.destroy();
+    },
+    setMuted(muted: boolean) {
+      engine.setMuted(muted);
+    }
   };
 }
