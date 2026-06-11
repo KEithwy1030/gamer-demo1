@@ -34,6 +34,9 @@ export function getSpawnCap(phase: SpawnPhase): number {
 }
 
 export function advanceSpawnDirector(room: RuntimeRoom, now = Date.now()): SpawnDirectorAdvanceResult {
+  if (room.devSandbox) {
+    return { phase: getCurrentPhase(room, now), spawns: [] };
+  }
   if (!room.spawnDirector) {
     initializeSpawnDirector(room, now);
   }

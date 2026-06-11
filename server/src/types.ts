@@ -516,6 +516,8 @@ export interface RuntimeRoom {
   pendingMonsterRespawns?: MonsterRespawnEntry[];
   monsterProjectiles?: Map<string, RuntimeMonsterProjectile>;
   spawnDirector?: SpawnDirectorState;
+  /** 沙盒预设：true 时跳过怪物刷新 / 尸毒雾 / 河道伤害（dev-test-hooks 设置） */
+  devSandbox?: boolean;
   musicModeByPlayerId?: Record<string, MusicModeStateEntry>;
   drops?: Map<string, DropState>;
   chests?: Map<string, Chest>;

@@ -2,10 +2,11 @@ import crypto from "node:crypto";
 import type { MatchLayoutSpawnZone } from "@gamer/shared";
 import { ITEM_DEFINITIONS } from "@gamer/shared";
 import { startChestOpening } from "./chests/chest-manager.js";
+import { buildRuntimeMonster } from "./monsters/monster-manager.js";
 import { MATCH_MAP_HEIGHT, MATCH_MAP_WIDTH } from "./internal-constants.js";
 import type { DropState, InventoryItem, RuntimeMonster, RuntimePlayer, RuntimeRoom } from "./types.js";
 
-export type DevRoomPreset = "boss" | "extract" | "inventory" | "contested" | "lategame";
+export type DevRoomPreset = "boss" | "extract" | "inventory" | "contested" | "lategame" | "sandbox";
 
 const ENABLE_TEST_HOOKS = process.env.ENABLE_TEST_HOOKS === "1";
 const BOSS_LOCK_CHASE_DISTANCE = 220;
@@ -27,7 +28,7 @@ export function resolveEnabledDevRoomPreset(value: unknown): DevRoomPreset | und
     return undefined;
   }
 
-  return value === "boss" || value === "extract" || value === "inventory" || value === "contested" || value === "lategame"
+  return value === "boss" || value === "extract" || value === "inventory" || value === "contested" || value === "lategame" || value === "sandbox"
     ? value
     : undefined;
 }
@@ -54,7 +55,53 @@ export function applyDevRoomPreset(room: RuntimeRoom, preset: DevRoomPreset): vo
     case "lategame":
       applyLateGamePreset(room, player);
       break;
+    case "sandbox":
+      applySandboxPreset(room, player);
+      break;
   }
+}
+
+/**
+ * 沙盒：测单一机制的最小可视环境。空场（无怪物刷新 / 无雾 / 无河伤 / bot 冻结），
+ * 玩家旁边放一只冻结木桩怪（验打击反馈）和一个搬来的宝箱（验开箱流程）。
+ */
+function applySandboxPreset(room: RuntimeRoom, player: RuntimePlayer): void {
+  if (!player.state) {
+    return;
+  }
+
+  const now = Date.now();
+  room.devSandbox = true;
+
+  const layout = room.matchLayout;
+  const spawnZone = layout ? getPlayerSpawnZone(layout.squadSpawns, player.squadId) : undefined;
+  const baseX = player.state.x ?? spawnZone?.anchorX ?? MATCH_MAP_WIDTH / 2;
+  const baseY = player.state.y ?? spawnZone?.anchorY ?? MATCH_MAP_HEIGHT / 2;
+  placePlayer(player, baseX, baseY, { x: 1, y: 0 });
+  stabilizePlayer(player);
+
+  room.monsters?.clear();
+  room.pendingMonsterRespawns = [];
+  const dummy = buildRuntimeMonster({
+    id: `sandbox_dummy_${crypto.randomUUID().slice(0, 8)}`,
+    type: "basic",
+    x: Math.round(baseX + 220),
+    y: Math.round(baseY)
+  });
+  dummy.aggroRange = 0;
+  dummy.moveSpeed = 0;
+  dummy.behaviorPhase = "idle";
+  dummy.nextAttackAt = now + 10 * 60 * 1000;
+  room.monsters ??= new Map();
+  room.monsters.set(dummy.id, dummy);
+
+  const chest = [...(room.chests?.values() ?? [])][0];
+  if (chest) {
+    chest.x = Math.round(baseX - 160);
+    chest.y = Math.round(baseY);
+  }
+
+  delayBots(room, now);
 }
 
 function applyBossPreset(room: RuntimeRoom, player: RuntimePlayer): void {

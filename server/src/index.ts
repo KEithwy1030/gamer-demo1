@@ -379,7 +379,7 @@ function emitPlayerDamagedDomain(room: RuntimeRoom, event: CombatEventPayload): 
 function applyRiverHazardTick(roomCode: string, now = Date.now()): void {
   const context = roomStore.getRoomByCodeSnapshot(roomCode);
   const layout = context.room.matchLayout;
-  if (!layout) {
+  if (!layout || context.room.devSandbox) {
     return;
   }
 
@@ -434,7 +434,7 @@ function applyRiverHazardTick(roomCode: string, now = Date.now()): void {
 function applyCorpseFogTick(roomCode: string, now = Date.now()): Array<{ playerId: string; killerId: string; roomCode: string; timestamp: number }> {
   const context = roomStore.getRoomByCodeSnapshot(roomCode);
   const room = context.room;
-  if (!room.startedAt) {
+  if (!room.startedAt || room.devSandbox) {
     return [];
   }
 

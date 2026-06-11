@@ -597,7 +597,7 @@ function emitMusicModeForRoom(room: RuntimeRoom, mode: MusicModePayload["mode"],
 
 type EliteGuardRole = "sentinel" | "hunter" | "bruiser";
 
-function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
+export function buildRuntimeMonster(spawn: MonsterSpawnDefinition): RuntimeMonster {
   const baseStats = getMonsterStats(spawn.type);
   const eliteRole = spawn.type === "elite" ? getEliteGuardRole(spawn.id) : undefined;
   const stats = spawn.type === "elite"

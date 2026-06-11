@@ -63,7 +63,9 @@ await assertRequiredPortsAvailable();
 const children = [
   runNpmScript("dev:server", [], {
     PORT: String(serverPort),
-    CLIENT_ORIGIN: `http://localhost:${clientPort},http://127.0.0.1:${clientPort}`
+    CLIENT_ORIGIN: `http://localhost:${clientPort},http://127.0.0.1:${clientPort}`,
+    // 本地开发/手测默认开启 dev 预设（?devRoomPreset=sandbox 等），生产部署不走此脚本
+    ENABLE_TEST_HOOKS: "1"
   }),
   runNpmScript("dev:client", [], {
     VITE_SERVER_URL: `http://127.0.0.1:${serverPort}`
