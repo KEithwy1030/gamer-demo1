@@ -94,6 +94,37 @@ git fetch && git status && git log --oneline -10
 
 ---
 
+## C. 测试与验证
+
+### 8. 测试分层：按被测对象选最小环境，不是所有测试都要开全局
+
+| 被测对象 | 用什么 | 例子 |
+|---|---|---|
+| 纯逻辑 / 规则 / 状态机 | Node 契约脚本（零地图、零怪物、零浏览器，直接 import 服务端模块构造假 room） | `validate-chest-contract.ts`、`validate-secure-pouch.ts` |
+| 单一机制的视觉 / 交互 | 沙盒预设：`?devRoomPreset=sandbox`（真客户端+真服务端，但空场、无怪物刷新、无雾压力，玩家旁放好被测对象） | 开箱动画、打击反馈、新资产观感 |
+| 跨系统链路（结算 / 档案回流 / 多人 / 撤离全程） | 全局测试（`validate:carry-loop-release`、`accept:*` 脚本） | 装备带出带回、结算金币入账 |
+
+判断口诀：**被测行为依赖几个系统，就开几个系统**。开箱不需要地图和野怪；结算回流必须开全局。全局测试慢、变量多（野怪会打死测试玩家），只留给真正跨系统的验证。
+
+**禁止为测试复制一份游戏代码**（拎一份宝箱代码单独跑之类）。复制出来的副本会和真实代码漂移，产生假报警——本项目 test-loop.mjs 的"模拟玩家"曾因此烧掉数倍于其价值的维护成本。正确做法永远是：**跑真实代码，控制环境**（沙盒预设就是为此存在的）。
+
+### 9. 画面级闭环：契约绿 ≠ 验证完成
+
+任何改动如果玩家**看得见或听得见**，提交前必须亲眼验证渲染结果：
+
+- 跑 `node scripts/accept-game-feel-baseline.mjs`（`GAME_FEEL_PRESET` 环境变量可选 boss/extract/contested/lategame/sandbox），然后 **Read 它产出的 `.codex-artifacts` 截图亲眼看**；或用 preview 工具开 `localhost:5288` 手动走流程截图
+- 历史教训：开箱后宝箱被放大到 1254px 糊满全屏的 bug，在全部契约脚本绿灯的情况下存活了几十个提交——因为没有任何验证看过屏幕
+- 音频无法"听"，用波形统计（时长 / RMS / 零交叉率 / 峰值）判断资产是否离谱
+- 改动后查 `.devlog/latest.jsonl` 确认对应事件真的发生了
+
+### 10. 测试基建速查
+
+- **dev 预设**（URL 参数 `?devRoomPreset=...`，需服务端 `ENABLE_TEST_HOOKS=1`）：`boss`（贴脸 boss）/ `extract`（撤离就绪）/ `inventory`（满背包）/ `contested`（高危箱旁自动开箱）/ `lategame`（后期时间线）/ `sandbox`（空场+木桩怪+宝箱，测单一机制首选）
+- **客户端注入钩子**（URL 加 `&p0bTestHooks=1`）：`window.__P0B_TEST_HOOKS__` 提供 `sendMoveInput` / `startExtract` / `getSnapshot`——合成 KeyboardEvent 进不了 Phaser 输入层，自动化移动要走这个
+- `npm run playtest:manual` 已默认开启 ENABLE_TEST_HOOKS；它有 20 分钟自动停机，长测试注意重启
+
+---
+
 ## 项目特定上下文
 
 ## 项目施工宪法
