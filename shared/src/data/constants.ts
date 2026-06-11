@@ -15,6 +15,9 @@ export const CORPSE_FOG_TIMELINE_OVERRIDE_SEC = 0;
 export const SQUAD_COUNT = 2;
 export const SQUAD_SIZE = 3;
 
+/** 开箱判定半径（服务端权威）。客户端提示半径必须 ≤ 此值，否则出现"看见提示按 E 却被拒"。 */
+export const CHEST_INTERACT_RANGE_PX = 60;
+
 /** 商人信誉等级：卖出累计金额达到 minRep 解锁。sellRatio 是系统急售价相对基准价的倍率加成。 */
 export interface MerchantRepTier {
   name: string;

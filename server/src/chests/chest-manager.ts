@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { findFirstFitRect } from "@gamer/shared";
+import { CHEST_INTERACT_RANGE_PX, findFirstFitRect } from "@gamer/shared";
 import type { ChestQualityTier, ItemCategory, ItemRarity, SpawnPhase, WorldDrop } from "@gamer/shared";
 import { emitDomain } from "../event-bus/index.js";
 import { buildInventoryItem, ensureDropState } from "../loot/loot-manager.js";
@@ -155,7 +155,7 @@ const NORMAL_MAX_LOOT = 5;
 const RICH_MIN_LOOT = 3;
 const RICH_MAX_LOOT = 5;
 export const CHEST_OPEN_DURATION_MS = 1_200;
-const CHEST_INTERACT_RANGE = 60;
+const CHEST_INTERACT_RANGE = CHEST_INTERACT_RANGE_PX;
 const CHEST_NOISE_RADIUS = 720;
 const CONTESTED_CHEST_NOISE_TTL_MS = 18_000;
 
@@ -344,7 +344,9 @@ export function startChestOpening(
 
   const distance = Math.hypot(player.state.x - chest.x, player.state.y - chest.y);
   if (distance > CHEST_INTERACT_RANGE) {
-    throw new Error("Too far from the chest.");
+    throw new Error(
+      `Too far from the chest. (distance ${Math.round(distance)}px, player ${Math.round(player.state.x)},${Math.round(player.state.y)}, chest ${Math.round(chest.x)},${Math.round(chest.y)})`
+    );
   }
 
   const lootPhase = room.chestLootPhase ?? room.spawnDirector?.phase ?? "opening";

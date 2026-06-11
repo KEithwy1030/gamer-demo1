@@ -215,11 +215,13 @@ export class GameSceneInputBridge {
       this.lastFacingDirection = { ...this.facingLockDirection };
     }
 
-    if (
-      Math.abs(direction.x - this.lastMoveDirection.x) < 0.01
-      && Math.abs(direction.y - this.lastMoveDirection.y) < 0.01
-      && time - this.lastMoveSentAt < 60
-    ) {
+    const unchanged = Math.abs(direction.x - this.lastMoveDirection.x) < 0.01
+      && Math.abs(direction.y - this.lastMoveDirection.y) < 0.01;
+    const isZero = Math.abs(direction.x) < 0.001 && Math.abs(direction.y) < 0.001;
+    // 零向量只在"变为零"那一刻发送一次：静止时每 60ms 重发 (0,0) 不仅是
+    // 空包浪费，还会持续覆盖测试钩子(__P0B_TEST_HOOKS__)注入的移动方向。
+    // 移动中保留 60ms keepalive 作为冗余。
+    if (unchanged && (isZero || time - this.lastMoveSentAt < 60)) {
       return;
     }
 

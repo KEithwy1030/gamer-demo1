@@ -1,6 +1,7 @@
 // type-only：本模块被 Node 端契约脚本（validate-extract-service）直接导入，
 // Phaser 的 CJS 入口在 import 阶段就触碰 window，值导入会让脚本直接崩。
 import type Phaser from "phaser";
+import { CHEST_INTERACT_RANGE_PX } from "@gamer/shared";
 import type { ChestOpenedPayload, ChestProgressPayload, ChestState } from "../../network/socketClient";
 import type { ExtractUiState } from "../createGameClient";
 import type { PlayerMarker } from "../../game/entities/PlayerMarker";
@@ -157,13 +158,19 @@ export class GameSceneInteractions {
     chests.forEach((chest) => this.syncChest(chest));
   }
 
-  updateChestPrompt(playerMarker?: PlayerMarker): void {
+  updateChestPrompt(playerMarker?: PlayerMarker, authoritativePosition?: { x: number; y: number }): void {
     if (!playerMarker || !this.interactionPrompt) return;
     let nearest: string | null = null;
-    let minDistance = 80;
+    // 距离判定必须用服务端权威坐标：marker 是插值平滑的视觉位置，移动中会
+    // 拖后/超前服务端 50-100px——按视觉位置亮提示会出现"提示亮着按 E 被拒"。
+    const originX = authoritativePosition?.x ?? playerMarker.root.x;
+    const originY = authoritativePosition?.y ?? playerMarker.root.y;
+    // 比服务端 CHEST_INTERACT_RANGE_PX(60) 收 8px 滞回：提示出现即保证 E 必然成功。
+    // 历史值 80 > 服务端 60，玩家在 60-80px 看到提示按 E 会被服务端拒绝。
+    let minDistance = CHEST_INTERACT_RANGE_PX - 8;
     for (const [id, sprite] of this.chestSprites.entries()) {
       if (sprite.texture.key === "chest_closed" && sprite.alpha > 0.6) {
-        const distance = distanceBetween(playerMarker.root.x, playerMarker.root.y, sprite.x, sprite.y);
+        const distance = distanceBetween(originX, originY, sprite.x, sprite.y);
         if (distance < minDistance) {
           minDistance = distance;
           nearest = id;

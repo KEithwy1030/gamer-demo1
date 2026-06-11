@@ -157,6 +157,7 @@ export class GameScene extends Phaser.Scene {
       });
     }
     this.load.spritesheet("world_structures", "assets/generated/image2_processed/atlases/atlas_world_structures_3x3.png", { frameWidth: 418, frameHeight: 418 });
+    this.load.spritesheet("world_decor", "assets/generated/image2_processed/atlases/atlas_world_decor_4x4.png", { frameWidth: 314, frameHeight: 314 });
     this.load.image("drop", "assets/generated/image2_processed/items/loot_drop_bag.png");
     this.load.image("chest_closed", "assets/generated/image2_processed/items/loot_chest_closed.png");
     this.load.image("chest_open", "assets/generated/image2_processed/items/loot_chest_open.png");
@@ -557,7 +558,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.interactions?.updateChestPrompt(this.playerMarkers.get(player.id));
+    this.interactions?.updateChestPrompt(this.playerMarkers.get(player.id), { x: player.x, y: player.y });
     this.interactions?.updateAutoExtract(this.playerMarkers.get(player.id), this.extractState, this.onStartExtract);
   }
 
