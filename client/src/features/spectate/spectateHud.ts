@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { MatchViewState } from "../../game";
+import { anchorScreenSpace } from "../../scenes/gameScene/renderConfig";
 
 interface SpectateHudRefs {
   container: Phaser.GameObjects.Container;
@@ -99,7 +100,8 @@ export class SpectateHudController {
   layoutSpectateHud(width: number): void {
     if (!this.hud) return;
     const panelWidth = Math.min(540, width - 24), panelHeight = 74, left = -panelWidth / 2, right = panelWidth / 2;
-    this.hud.container.setPosition(width / 2, 18).setVisible(true);
+    const anchor = anchorScreenSpace(this.scene.cameras.main, width / 2, 18);
+    this.hud.container.setPosition(anchor.x, anchor.y).setScale(anchor.scale).setVisible(true);
     this.hud.background.clear().fillStyle(0x120d0a, 0.9).fillRoundedRect(left, 0, panelWidth, panelHeight, 10).lineStyle(2, 0x5f7e86, 0.7).strokeRoundedRect(left, 0, panelWidth, panelHeight, 10);
     this.hud.titleText.setPosition(left + 14, 10).setFontSize("13px");
     this.hud.targetText.setPosition(left + 14, 26).setWordWrapWidth(Math.max(180, panelWidth - 160)).setFontSize("15px");

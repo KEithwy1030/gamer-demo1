@@ -46,6 +46,7 @@ import {
 } from "./gameScene/lockAssist";
 import { LockAssistFeedbackController } from "./gameScene/lockAssistFeedback";
 import { GAME_CAMERA_CONFIG } from "./gameScene/renderTuning";
+import { anchorScreenSpace } from "./gameScene/renderConfig";
 import {
   getPrimarySkillCooldownMs,
   getPrimarySkillWindupMs,
@@ -696,12 +697,11 @@ export class GameScene extends Phaser.Scene {
 
     const panelWidth = Math.min(540, width - 24);
     const panelHeight = 74;
-    const x = width / 2;
-    const y = 18;
+    const anchor = anchorScreenSpace(this.cameras.main, width / 2, 18);
     const left = -panelWidth / 2;
     const right = panelWidth / 2;
 
-    this.spectateHud.container.setPosition(x, y).setVisible(true);
+    this.spectateHud.container.setPosition(anchor.x, anchor.y).setScale(anchor.scale).setVisible(true);
     this.spectateHud.background.clear();
     this.spectateHud.background.fillStyle(0x120d0a, 0.9);
     this.spectateHud.background.fillRoundedRect(left, 0, panelWidth, panelHeight, 10);
@@ -1056,7 +1056,11 @@ export class GameScene extends Phaser.Scene {
 
   private showTutorial(): void {
     const { width, height } = this.scale;
-    const panel = this.add.container(width / 2, height / 2).setScrollFactor(0).setDepth(1000);
+    const tutorialAnchor = anchorScreenSpace(this.cameras.main, width / 2, height / 2);
+    const panel = this.add.container(tutorialAnchor.x, tutorialAnchor.y)
+      .setScale(tutorialAnchor.scale)
+      .setScrollFactor(0)
+      .setDepth(1000);
     const bg = this.add.graphics().fillStyle(0x0f172a, 0.95).fillRoundedRect(-160, -120, 320, 240, 12);
     const title = this.add.text(0, -100, "任务目标", { fontFamily: "monospace", fontSize: "20px", color: "#f8fafc" }).setOrigin(0.5);
     const hint = navigator.maxTouchPoints > 0 ? "• 移动: 虚拟摇杆\n• 攻击: 攻\n• 技能: 技\n• 交互: 拾" : "• 移动: WASD\n• 攻击: 鼠标左键\n• 技能: Q\n• 闪避: 空格";
@@ -1081,8 +1085,9 @@ export class GameScene extends Phaser.Scene {
 
     const worldX = this.latestState.width / 2;
     const worldY = this.latestState.height / 2;
-    const screenX = (worldX - camera.scrollX) * camera.zoom;
-    const screenY = (worldY - camera.scrollY) * camera.zoom;
+    // worldView 已含 zoom 围绕视口中心的偏移；直接用 scrollX 在 zoom≠1 时会偏几百像素
+    const screenX = (worldX - camera.worldView.x) * camera.zoom;
+    const screenY = (worldY - camera.worldView.y) * camera.zoom;
 
     const radius = Math.max(80, Math.max(this.latestState.width, this.latestState.height) * 0.78 * fogState.visibilityPercent);
     const screenRadius = radius * camera.zoom;

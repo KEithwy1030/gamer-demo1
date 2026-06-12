@@ -3,6 +3,7 @@ import { MATCH_DURATION_SEC, resolveExtractionPressurePhase } from "@gamer/share
 import type { MatchViewState } from "../../game";
 import type { ExtractUiState } from "../createGameClient";
 import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
+import { anchorScreenSpace } from "./renderConfig";
 import {
   formatSeconds,
   formatTenths,
@@ -113,6 +114,7 @@ export class GameHudOverlay {
     const { width, height } = this.scene.scale;
     this.layout = buildHudLayout(width, height, this.isTouchDevice);
     this.container = this.scene.add.container(0, 0).setScrollFactor(0).setDepth(10000);
+    this.pinToCamera();
 
     const statusPanel = addHudImage(this.scene, HUD_ASSETS.status, this.layout.status, 0.98);
     const objectivePanel = addHudImage(this.scene, HUD_ASSETS.objective, this.layout.objective, 0.96);
@@ -461,7 +463,8 @@ export class GameHudOverlay {
   }
 
   pinToCamera(): void {
-    this.container?.setPosition(0, 0).setScale(1).setDepth(10000);
+    const anchor = anchorScreenSpace(this.scene.cameras.main, 0, 0);
+    this.container?.setPosition(anchor.x, anchor.y).setScale(anchor.scale).setDepth(10000);
   }
 
   showPickupFeedback(itemName: string): void {
@@ -487,14 +490,17 @@ export class GameHudOverlay {
       wordWrap: { width: w - 40, useAdvancedWrap: true }
     }).setOrigin(0.5);
 
-    this.pickupToast = this.scene.add.container(width / 2, height - 160, [panel, text])
+    const toastFrom = anchorScreenSpace(this.scene.cameras.main, width / 2, height - 160);
+    const toastTo = anchorScreenSpace(this.scene.cameras.main, width / 2, height - 182);
+    this.pickupToast = this.scene.add.container(toastFrom.x, toastFrom.y, [panel, text])
+      .setScale(toastFrom.scale)
       .setScrollFactor(0)
       .setDepth(10020)
       .setAlpha(0);
 
     this.pickupToastTween = this.scene.tweens.add({
       targets: this.pickupToast,
-      y: height - 182,
+      y: toastTo.y,
       alpha: { from: 0, to: 1 },
       duration: 220,
       ease: "Cubic.out",
@@ -538,14 +544,17 @@ export class GameHudOverlay {
       wordWrap: { width: panelWidth - 36, useAdvancedWrap: true }
     }).setOrigin(0.5);
 
-    this.lockAssistToast = this.scene.add.container(width / 2, height - 228, [panel, textNode])
+    const assistFrom = anchorScreenSpace(this.scene.cameras.main, width / 2, height - 228);
+    const assistTo = anchorScreenSpace(this.scene.cameras.main, width / 2, height - 246);
+    this.lockAssistToast = this.scene.add.container(assistFrom.x, assistFrom.y, [panel, textNode])
+      .setScale(assistFrom.scale)
       .setScrollFactor(0)
       .setDepth(10030)
       .setAlpha(0);
 
     this.lockAssistToastTween = this.scene.tweens.add({
       targets: this.lockAssistToast,
-      y: height - 246,
+      y: assistTo.y,
       alpha: { from: 0, to: 1 },
       duration: 150,
       ease: "Cubic.out",
