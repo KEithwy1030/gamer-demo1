@@ -36,6 +36,7 @@ import { mountLootToastVfx } from "../features/inventory/vfx/lootToastVfx";
 import { mountRareDropVfx } from "../features/inventory/vfx/rareDropVfx";
 import { mountChestVfx } from "../features/chests/vfx/chestVfx";
 import { mountExtractVfx } from "../features/extract/vfx/extractVfx";
+import { mountWorldLighting, type WorldLightingApi } from "../features/environment/vfx/worldLighting";
 import {
   LOCK_ASSIST_CHASE_MAX_DURATION_MS,
   resolveAttackAssist,
@@ -97,6 +98,7 @@ export class GameScene extends Phaser.Scene {
   private monsterSkillFx?: MonsterSkillFxController;
   private lockAssistFeedback?: LockAssistFeedbackController;
   private featureUnsubscribes: Array<() => void> = [];
+  private worldLighting?: WorldLightingApi;
   private latestState: MatchViewState | null = null;
   private worldSignature = "";
   private followedPlayerId: string | null = null;
@@ -277,7 +279,12 @@ export class GameScene extends Phaser.Scene {
     this.lockAssistFeedback = new LockAssistFeedbackController(this);
     this.interactions = new GameSceneInteractions(this);
     this.interactions.mount(undefined, undefined, undefined);
+    this.worldLighting = mountWorldLighting(this);
     this.featureUnsubscribes = [
+      () => {
+        this.worldLighting?.destroy();
+        this.worldLighting = undefined;
+      },
       mountCombatVfx({
         scene: this,
         getSelfPlayerId: () => this.latestState?.selfPlayerId ?? null,
@@ -642,6 +649,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.followedPlayerId !== player.id) {
       this.cameras.main.startFollow(marker.root, true, 0.12, 0.12);
+      this.worldLighting?.setFollowTarget(marker.root);
       this.followedPlayerId = player.id;
     }
   }
