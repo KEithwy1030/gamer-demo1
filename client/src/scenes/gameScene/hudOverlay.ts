@@ -22,6 +22,52 @@ const HUD_ASSETS = {
   skills: "hud_skills"
 } as const;
 
+/**
+ * HUD 资产的实测槽位几何（scripts/measure-hud-slots.py 像素扫描 + 网格目检校准）。
+ * 所有数值是相对资产原生尺寸的比例。文字/血条/技能名必须落进这些槽，
+ * 不许再用目测比例——历史版本的"数据和框对不上"就是这么来的。
+ * aspect 用原生宽高比，面板显示尺寸据此推导，禁止把框拉变形。
+ */
+const HUD_SLOTS = {
+  status: {
+    aspect: 1315 / 325,
+    medallion: { cx: 0.135, cy: 0.5, r: 0.05 },
+    bar: { x0: 0.295, x1: 0.915, y0: 0.31, y1: 0.73 }
+  },
+  objective: {
+    aspect: 675 / 255,
+    panel: { x0: 0.27, x1: 0.8, y0: 0.22, y1: 0.66 }
+  },
+  timer: {
+    aspect: 735 / 275,
+    dial: { cx: 0.155, cy: 0.5, r: 0.088 },
+    panel: { x0: 0.34, x1: 0.855, y0: 0.26, y1: 0.78 }
+  },
+  command: {
+    aspect: 1350 / 215,
+    panel: { x0: 0.17, x1: 0.86, y0: 0.25, y1: 0.77 }
+  },
+  skills: {
+    aspect: 1183 / 227,
+    slotCx: [0.25, 0.413, 0.576, 0.74],
+    slotCy: 0.44,
+    slotW: 0.068,
+    slotH: 0.56
+  }
+} as const;
+
+function slotRect(
+  panel: Phaser.Geom.Rectangle,
+  ratios: { x0: number; x1: number; y0: number; y1: number }
+): Phaser.Geom.Rectangle {
+  return new Phaser.Geom.Rectangle(
+    panel.x + panel.width * ratios.x0,
+    panel.y + panel.height * ratios.y0,
+    panel.width * (ratios.x1 - ratios.x0),
+    panel.height * (ratios.y1 - ratios.y0)
+  );
+}
+
 const SKILL_SLOT_CENTER_Y_RATIO = 0.5;
 const SKILL_NAME_LABEL_Y_RATIO = -0.05;
 const SKILL_KEY_LABEL_Y_RATIO = 0.32;
@@ -29,9 +75,15 @@ const SKILL_KEY_LABEL_Y_RATIO = 0.32;
 type HudLayout = {
   status: Phaser.Geom.Rectangle;
   hpBar: Phaser.Geom.Rectangle;
+  statusMedallion: { x: number; y: number; r: number };
+  statusBar: Phaser.Geom.Rectangle;
   objective: Phaser.Geom.Rectangle;
+  objectiveSlot: Phaser.Geom.Rectangle;
   timer: Phaser.Geom.Rectangle;
+  timerDial: { x: number; y: number; r: number };
+  timerPanel: Phaser.Geom.Rectangle;
   command: Phaser.Geom.Rectangle;
+  commandSlot: Phaser.Geom.Rectangle;
   skills: Phaser.Geom.Rectangle;
   commandAnchorY: number;
   skillSlots: Array<{ x: number; y: number; width: number; height: number }>;
@@ -123,121 +175,105 @@ export class GameHudOverlay {
     const skillPanel = addHudImage(this.scene, HUD_ASSETS.skills, this.layout.skills, 0.98);
 
     const status = this.layout.status;
-    this.hpMetaText = this.scene.add.text(status.x + status.width * 0.29, status.y + status.height * 0.15, "生命线", {
-      fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "10px" : "11px",
-      color: "#6f5534",
-      letterSpacing: 0
-    });
-    
-    // HP Display: Split into 3 parts for subtle slash and specific sizing
-    const hpY = status.y + status.height * 0.22;
-    const hpBaseSize = this.isTouchDevice ? 18 : 20;
-    this.hpValueText = this.scene.add.text(status.x + status.width * 0.29, hpY, "--", {
+    const medallion = this.layout.statusMedallion;
+    const statusBar = this.layout.statusBar;
+
+    // 圆形徽章 = 生命数值（血珠位）；长槽 = 血条 + 武器/战技行
+    this.hpValueText = this.scene.add.text(medallion.x, medallion.y, "--", {
       fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: `${hpBaseSize}px`,
+      fontSize: this.isTouchDevice ? "14px" : "16px",
       color: "#2a1d13",
       stroke: "#efe3c5",
       strokeThickness: 2
-    });
-    this.hpSlashText = this.scene.add.text(this.hpValueText.getBounds().right + 2, hpY + 2, "/", {
+    }).setOrigin(0.5);
+    // 旧三段式 cur/slash/max 收敛为：徽章里只放当前值，槽内血条右端贴 "/max"
+    this.hpSlashText = this.scene.add.text(0, 0, "", {
       fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: `${hpBaseSize - 4}px`,
-      color: "#8a7a6a", // Subtle gray slash
-      stroke: "#efe3c5",
-      strokeThickness: 1
-    });
-    this.hpMaxText = this.scene.add.text(this.hpSlashText.getBounds().right + 2, hpY + 2, "--", {
-      fontFamily: GAMEPLAY_THEME.fonts.display,
-      fontSize: `${hpBaseSize - 2}px`,
-      color: "#4a3d33",
-      stroke: "#efe3c5",
-      strokeThickness: 1
-    });
-
-    this.weaponText = this.scene.add.text(status.x + status.width * 0.29, status.y + status.height * 0.63, "武器 · --", {
+      fontSize: "10px",
+      color: "#8a7a6a"
+    }).setVisible(false);
+    this.hpMaxText = this.scene.add.text(
+      statusBar.right - 4,
+      statusBar.y + this.layout.hpBar.height / 2 + 2,
+      "/ --",
+      {
+        fontFamily: GAMEPLAY_THEME.fonts.body,
+        fontSize: this.isTouchDevice ? "9px" : "10px",
+        color: "#3c2c1c"
+      }
+    ).setOrigin(1, 0.5);
+    this.hpMetaText = this.scene.add.text(0, 0, "", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "11px" : "12px",
+      fontSize: "10px",
+      color: "#6f5534"
+    }).setVisible(false);
+
+    const statusTextY = statusBar.y + this.layout.hpBar.height + 4;
+    this.weaponText = this.scene.add.text(statusBar.x + 2, statusTextY, "武器 · --", {
+      fontFamily: GAMEPLAY_THEME.fonts.body,
+      fontSize: this.isTouchDevice ? "10px" : "11px",
       color: "#4e2c18"
     });
-    this.skillStateText = this.scene.add.text(status.x + status.width * 0.72, status.y + status.height * 0.63, "战技 · 待命", {
+    this.skillStateText = this.scene.add.text(statusBar.right - 2, statusTextY, "战技 · 待命", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "11px" : "12px",
+      fontSize: this.isTouchDevice ? "10px" : "11px",
       color: "#284854"
-      }).setOrigin(0.5, 0);
-    this.weaponText
-      .setPosition(status.x + status.width * 0.29, status.y + status.height * 0.61);
-    this.skillStateText
-      .setPosition(status.x + status.width * 0.86, status.y + status.height * 0.61)
-      .setOrigin(1, 0);
+    }).setOrigin(1, 0);
     this.hpFill = this.scene.add.graphics();
 
-    const objective = this.layout.objective;
-    this.objectiveText = this.scene.add.text(objective.centerX, objective.y + objective.height * 0.52, "搜刮战利品\n等待归营石阵点燃", {
+    const objectiveSlot = this.layout.objectiveSlot;
+    this.objectiveText = this.scene.add.text(objectiveSlot.centerX, objectiveSlot.centerY, "搜刮战利品\n等待归营石阵点燃", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
       fontSize: this.isTouchDevice ? "12px" : "13px",
       color: "#2a1d13",
       align: "center",
       lineSpacing: 2,
-      wordWrap: { width: Math.max(160, objective.width - 110), useAdvancedWrap: true }
+      wordWrap: { width: Math.max(150, objectiveSlot.width - 12), useAdvancedWrap: true }
     }).setOrigin(0.5);
 
-    const timer = this.layout.timer;
-    this.timerText = this.scene.add.text(timer.x + timer.width * 0.62, timer.y + timer.height * 0.27, "00:00", {
+    // 右上面板：表盘 = 击杀数；羊皮纸槽 = 倒计时（上）+ 载荷/战令（下）
+    const timerSlot = this.layout.timerPanel;
+    const timerDial = this.layout.timerDial;
+    this.timerText = this.scene.add.text(timerSlot.centerX, timerSlot.y + 2, "00:00", {
       fontFamily: GAMEPLAY_THEME.fonts.mono,
-      fontSize: this.isTouchDevice ? "22px" : "26px",
+      fontSize: this.isTouchDevice ? "20px" : "22px",
       color: "#4d3517",
       stroke: "#f3e6c6",
       strokeThickness: 2
     }).setOrigin(0.5, 0);
-    this.roomCodeText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.36, "战令 · ------", {
+    const timerLine2Y = timerSlot.bottom - 4;
+    this.inventoryText = this.scene.add.text(timerSlot.x + 2, timerLine2Y, "载荷 · --/--", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "10px" : "11px",
+      fontSize: this.isTouchDevice ? "9px" : "10px",
       color: "#342416"
-    });
-    this.extractText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.56, "队撤 · 未点燃", {
+    }).setOrigin(0, 1);
+    this.roomCodeText = this.scene.add.text(timerSlot.right - 2, timerLine2Y, "战令 · ------", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "10px" : "11px",
+      fontSize: this.isTouchDevice ? "9px" : "10px",
+      color: "#342416"
+    }).setOrigin(1, 1);
+    this.killsText = this.scene.add.text(timerDial.x, timerDial.y, "0", {
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: this.isTouchDevice ? "13px" : "15px",
+      color: "#5a2519",
+      stroke: "#efe3c5",
+      strokeThickness: 2
+    }).setOrigin(0.5);
+    // 撤离状态已由中央目标面板完整表达，右上不再重复
+    this.extractText = this.scene.add.text(0, 0, "", {
+      fontFamily: GAMEPLAY_THEME.fonts.body,
+      fontSize: "10px",
       color: "#284854"
-    });
-    this.killsText = this.scene.add.text(timer.x + timer.width * 0.26, timer.y + timer.height * 0.74, "清怪 · 0/0", {
-      fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "10px" : "11px",
-      color: "#5a2519"
-    });
-    this.inventoryText = this.scene.add.text(timer.x + timer.width * 0.63, timer.y + timer.height * 0.74, "载荷 · --/--", {
-      fontFamily: GAMEPLAY_THEME.fonts.body,
-      fontSize: this.isTouchDevice ? "10px" : "11px",
-      color: "#342416"
-    });
+    }).setVisible(false);
 
-    this.objectiveText
-      .setPosition(objective.centerX, objective.y + objective.height * 0.48)
-      .setWordWrapWidth(Math.max(160, objective.width - 120));
-    const timerPrimaryRight = timer.right - timer.width * 0.12;
-    const timerInfoLeft = timer.x + timer.width * 0.15;
-    const timerBottomY = timer.y + timer.height * 0.74;
-    this.timerText
-      .setPosition(timerPrimaryRight, timer.y + timer.height * 0.12)
-      .setOrigin(1, 0);
-    this.roomCodeText
-      .setPosition(timerInfoLeft, timer.y + timer.height * 0.28);
-    this.extractText
-      .setPosition(timerInfoLeft, timer.y + timer.height * 0.48);
-    this.killsText
-      .setPosition(timerInfoLeft, timerBottomY);
-    this.inventoryText
-      .setPosition(timerPrimaryRight, timerBottomY)
-      .setOrigin(1, 0);
-
-    const command = this.layout.command;
-    this.combatText = this.scene.add.text(command.centerX, command.centerY + 2, "", {
+    const commandSlot = this.layout.commandSlot;
+    this.combatText = this.scene.add.text(commandSlot.centerX, commandSlot.centerY, "", {
       fontFamily: GAMEPLAY_THEME.fonts.body,
       fontSize: this.isTouchDevice ? "12px" : "13px",
       color: "#2a1d13",
       align: "center",
       lineSpacing: 2,
-      wordWrap: { width: Math.max(220, command.width - 140), useAdvancedWrap: true }
+      wordWrap: { width: Math.max(220, commandSlot.width - 16), useAdvancedWrap: true }
     }).setOrigin(0.5);
 
     // Skill Bar: Name above (prominent), Key below (subtle)
@@ -346,11 +382,11 @@ export class GameHudOverlay {
         const bar = this.layout.hpBar;
         this.hpFill.clear();
         this.hpFill.fillStyle(0x1b120c, 0.88);
-        this.hpFill.fillRoundedRect(bar.x, bar.y, bar.width, bar.height, 6);
+        this.hpFill.fillRoundedRect(bar.x, bar.y, bar.width, bar.height, 4);
         this.hpFill.fillStyle(color, 1);
-        this.hpFill.fillRoundedRect(bar.x, bar.y, bar.width * hpRatio, bar.height, 6);
-        this.hpFill.lineStyle(2, 0x382211, 0.55);
-        this.hpFill.strokeRoundedRect(bar.x, bar.y, bar.width, bar.height, 6);
+        this.hpFill.fillRoundedRect(bar.x, bar.y, Math.max(bar.height, bar.width * hpRatio), bar.height, 4);
+        this.hpFill.lineStyle(1, 0x382211, 0.55);
+        this.hpFill.strokeRoundedRect(bar.x, bar.y, bar.width, bar.height, 4);
         this.lastSelfHpRatio = hpRatio;
         this.lastHudHpColor = color;
       }
@@ -358,19 +394,13 @@ export class GameHudOverlay {
       const hpValue = Math.max(0, Math.ceil(player.hp));
       if (this.lastHpValue !== hpValue) {
         this.hpValueText.setText(hpValue.toString());
-        this.hpSlashText.setX(this.hpValueText.getBounds().right + 2);
-        this.hpMaxText.setX(this.hpSlashText.getBounds().right + 2);
+        // 数值低血时跟血条同步变色，徽章本身就是状态灯
+        this.hpValueText.setColor(hpRatio < 0.3 ? "#8a1f10" : hpRatio < 0.6 ? "#7a5a18" : "#2a1d13");
         this.lastHpValue = hpValue;
       }
       if (this.lastHpMax !== player.maxHp) {
-        this.hpMaxText.setText(player.maxHp.toString());
+        this.hpMaxText.setText(`/ ${player.maxHp}`);
         this.lastHpMax = player.maxHp;
-      }
-
-      const hpMetaLabel = hpRatio < 0.3 ? "生命线 · 危险" : hpRatio < 0.6 ? "生命线 · 受压" : "生命线 · 稳定";
-      if (this.hpMetaText && this.lastHudHpMetaLabel !== hpMetaLabel) {
-        this.hpMetaText.setText(hpMetaLabel);
-        this.lastHudHpMetaLabel = hpMetaLabel;
       }
       this.syncLowHpOverlay(hpRatio);
     } else {
@@ -434,8 +464,9 @@ export class GameHudOverlay {
     }
 
     if (this.killsText) {
+      // 表盘空间紧凑，只放数字（语义由表盘图形承担）
       const deadMonsters = state.monsters.filter((monster) => !monster.isAlive).length;
-      const killsLabel = `清怪 · ${deadMonsters}/${state.monsters.length}`;
+      const killsLabel = `${deadMonsters}`;
       if (this.lastKillsLabel !== killsLabel) {
         this.killsText.setText(killsLabel);
         this.lastKillsLabel = killsLabel;
@@ -734,65 +765,80 @@ export class GameHudOverlay {
 }
 
 function buildHudLayout(width: number, height: number, isTouchDevice: boolean): HudLayout {
-  const margin = 12; // [待人工调优] 12 px margin from viewport edges minimum
-  const gap = 6; // [待人工调优] 6 px gap between adjacent panels
-  
-  // Status panel: max 320 px wide on desktop, scale down for narrow screens
-  const statusW = Math.min(320, width * (isTouchDevice ? 0.3 : 0.35)); // [待人工调优] Reduced % on mobile
-  const statusH = Math.round(statusW / 4.16); // [待人工调优] Ratio from existing code
-  
-  // Timer panel: max 280 px wide
-  const timerW = Math.min(280, width * (isTouchDevice ? 0.25 : 0.3)); // [待人工调优] Reduced % on mobile
-  const timerH = Math.round(timerW / 2.82); // [待人工调优] Ratio from existing code
-  
-  // Objective panel: max 260 px wide
-  const objectiveW = Math.min(260, width - statusW - timerW - margin * 4); // [待人工调优]
-  const objectiveH = Math.round(objectiveW / (isTouchDevice ? 3.15 : 2.72)); // [待人工调优] Ratio from existing code
-  
-  // Skills panel (bottom): centered, max 480 px wide
-  const skillsW = Math.min(480, width - margin * 2); // [待人工调优]
-  const skillsH = Math.round(skillsW / 5.46); // [待人工调优] Ratio from existing code
-  
-  // Command panel
-  const commandW = isTouchDevice ? Math.min(500, width - margin * 2) : 360; // [待人工调优] Narrower on desktop to avoid overlap
-  const commandH = Math.round(commandW / 7.2); // [待人工调优] Ratio from existing code
+  const margin = 12;
+  const gap = 6;
+
+  // 面板显示尺寸一律由原生宽高比推导（HUD_SLOTS.aspect），框体零拉伸
+  const statusW = Math.min(330, width * (isTouchDevice ? 0.3 : 0.35));
+  const statusH = Math.round(statusW / HUD_SLOTS.status.aspect);
+
+  const timerW = Math.min(280, width * (isTouchDevice ? 0.25 : 0.3));
+  const timerH = Math.round(timerW / HUD_SLOTS.timer.aspect);
+
+  const objectiveW = Math.min(300, width - statusW - timerW - margin * 4);
+  const objectiveH = Math.round(objectiveW / HUD_SLOTS.objective.aspect);
+
+  const skillsW = Math.min(480, width - margin * 2);
+  const skillsH = Math.round(skillsW / HUD_SLOTS.skills.aspect);
+
+  const commandW = isTouchDevice ? Math.min(500, width - margin * 2) : 400;
+  const commandH = Math.round(commandW / HUD_SLOTS.command.aspect);
 
   const status = new Phaser.Geom.Rectangle(margin, margin, statusW, statusH);
   const timer = new Phaser.Geom.Rectangle(width - timerW - margin, margin, timerW, timerH);
-  
-  // Center objective between status and timer if space allows, otherwise below
+
   let objectiveX = Math.round(width / 2 - objectiveW / 2);
   let objectiveY = margin;
   if (width < statusW + timerW + objectiveW + margin * 4) {
     objectiveY = Math.max(status.bottom, timer.bottom) + gap;
   }
   const objective = new Phaser.Geom.Rectangle(objectiveX, objectiveY, objectiveW, objectiveH);
-  
+
   const skills = new Phaser.Geom.Rectangle(Math.round(width / 2 - skillsW / 2), height - skillsH - margin, skillsW, skillsH);
-  
-  const commandAnchorY = isTouchDevice ? height - margin - 92 : height - margin - 48; // [待人工调优]
+
+  const commandAnchorY = isTouchDevice ? height - margin - 92 : height - margin - 48;
   const commandX = isTouchDevice
     ? Math.round(width / 2 - commandW / 2)
-    : width - margin - commandW; // [待人工调优] Pin to right on desktop to avoid centered skills
+    : width - margin - commandW;
   const command = new Phaser.Geom.Rectangle(commandX, Math.round(commandAnchorY - commandH), commandW, commandH);
 
-  const slotW = Math.round(skills.width * 0.112); // [待人工调优]
-  const slotH = Math.round(skills.height * 0.56); // [待人工调优]
+  const statusBar = slotRect(status, HUD_SLOTS.status.bar);
+  const medallion = {
+    x: status.x + status.width * HUD_SLOTS.status.medallion.cx,
+    y: status.y + status.height * HUD_SLOTS.status.medallion.cy,
+    r: status.width * HUD_SLOTS.status.medallion.r
+  };
+  const timerDial = {
+    x: timer.x + timer.width * HUD_SLOTS.timer.dial.cx,
+    y: timer.y + timer.height * HUD_SLOTS.timer.dial.cy,
+    r: timer.width * HUD_SLOTS.timer.dial.r
+  };
+
+  const slotW = Math.round(skills.width * HUD_SLOTS.skills.slotW);
+  const slotH = Math.round(skills.height * HUD_SLOTS.skills.slotH);
+  const slotCy = skills.y + skills.height * HUD_SLOTS.skills.slotCy;
 
   return {
     status,
-    hpBar: new Phaser.Geom.Rectangle(status.x + status.width * 0.31, status.y + status.height * 0.5, status.width * 0.54, Math.max(12, status.height * 0.12)),
+    // 血条嵌进羊皮纸槽上半段，下半段留给武器/战技文字行
+    hpBar: new Phaser.Geom.Rectangle(statusBar.x + 2, statusBar.y + 2, statusBar.width - 4, Math.max(10, Math.round(statusBar.height * 0.42))),
+    statusMedallion: medallion,
+    statusBar,
     objective,
+    objectiveSlot: slotRect(objective, HUD_SLOTS.objective.panel),
     timer,
+    timerDial,
+    timerPanel: slotRect(timer, HUD_SLOTS.timer.panel),
     command,
+    commandSlot: slotRect(command, HUD_SLOTS.command.panel),
     skills,
     commandAnchorY,
-    skillSlots: [
-      { x: skills.x + skills.width * 0.26, y: skills.y + skills.height * SKILL_SLOT_CENTER_Y_RATIO, width: slotW, height: slotH },
-      { x: skills.x + skills.width * 0.43, y: skills.y + skills.height * SKILL_SLOT_CENTER_Y_RATIO, width: slotW, height: slotH },
-      { x: skills.x + skills.width * 0.60, y: skills.y + skills.height * SKILL_SLOT_CENTER_Y_RATIO, width: slotW, height: slotH },
-      { x: skills.x + skills.width * 0.77, y: skills.y + skills.height * SKILL_SLOT_CENTER_Y_RATIO, width: slotW, height: slotH }
-    ]
+    skillSlots: HUD_SLOTS.skills.slotCx.map((cx) => ({
+      x: skills.x + skills.width * cx,
+      y: slotCy,
+      width: slotW,
+      height: slotH
+    }))
   };
 }
 
