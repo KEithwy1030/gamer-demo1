@@ -1,7 +1,7 @@
-import { downloadLog, exportLog, getLog, isEnabled } from "./runtimeLog";
+import { downloadLog, exportLog, getLog, isEnabled, isPanelRequested } from "./runtimeLog";
 
 export function mountDevLogPanel(): () => void {
-  if (!isEnabled() || typeof document === "undefined" || typeof window === "undefined") {
+  if (!isEnabled() || !isPanelRequested() || typeof document === "undefined" || typeof window === "undefined") {
     return () => {};
   }
 

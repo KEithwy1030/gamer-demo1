@@ -105,6 +105,21 @@ export function isEnabled(): boolean {
   return enabled;
 }
 
+/**
+ * 调试面板（log 计数 / Copy / Download 按钮）是否被显式请求。
+ * 日志采集在 dev 构建下默认开启（验收链依赖），但浮在玩家画面上的
+ * 面板必须显式 ?devLog=1 或 localStorage 开启——游戏画面不许出现开发元素。
+ */
+export function isPanelRequested(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  if (safeReadUrlParam(DEV_LOG_QUERY_KEY) === "1") {
+    return true;
+  }
+  return safeReadLocalStorage(DEV_LOG_STORAGE_KEY) === "1";
+}
+
 export function getDevLogEndpoint(): string {
   const meta = import.meta as ImportMeta & {
     env?: {
