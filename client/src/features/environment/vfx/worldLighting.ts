@@ -20,11 +20,21 @@ import { anchorScreenSpace } from "../../../scenes/gameScene/renderConfig";
 const VIGNETTE_TEXTURE = "wl-vignette";
 const POOL_TEXTURE = "wl-pool";
 
-const AMBIENT_COLOR = 0x0b1020;
-const AMBIENT_ALPHA = 0.16;
-const VIGNETTE_EDGE_ALPHA = 0.62;
-const LANTERN_TINT = 0xffb46a;
-const LANTERN_ALPHA = 0.46;
+export interface WorldLightingPalette {
+  ambientColor: number;
+  ambientAlpha: number;
+  vignetteAlpha: number;
+  lanternColor: number;
+  lanternAlpha: number;
+}
+
+const DEFAULT_PALETTE: WorldLightingPalette = {
+  ambientColor: 0x0b1020,
+  ambientAlpha: 0.16,
+  vignetteAlpha: 0.62,
+  lanternColor: 0xffb46a,
+  lanternAlpha: 0.46
+};
 const LANTERN_DIAMETER = 560;
 const LIGHT_POOL_DEPTH = -20;
 const AMBIENT_DEPTH = 9790;
@@ -38,7 +48,7 @@ export interface WorldLightingApi {
   destroy(): void;
 }
 
-export function mountWorldLighting(scene: Phaser.Scene): WorldLightingApi {
+export function mountWorldLighting(scene: Phaser.Scene, palette: WorldLightingPalette = DEFAULT_PALETTE): WorldLightingApi {
   ensurePoolTexture(scene);
   ensureVignetteTexture(scene);
 
@@ -46,7 +56,7 @@ export function mountWorldLighting(scene: Phaser.Scene): WorldLightingApi {
   const anchor = anchorScreenSpace(camera, camera.width / 2, camera.height / 2);
 
   const ambient = scene.add
-    .rectangle(anchor.x, anchor.y, camera.width, camera.height, AMBIENT_COLOR, AMBIENT_ALPHA)
+    .rectangle(anchor.x, anchor.y, camera.width, camera.height, palette.ambientColor, palette.ambientAlpha)
     .setScale(anchor.scale)
     .setScrollFactor(0)
     .setDepth(AMBIENT_DEPTH);
@@ -56,20 +66,21 @@ export function mountWorldLighting(scene: Phaser.Scene): WorldLightingApi {
     .image(anchor.x, anchor.y, VIGNETTE_TEXTURE)
     .setDisplaySize(camera.width * vignetteScale(camera), camera.height * vignetteScale(camera))
     .setScrollFactor(0)
+    .setAlpha(palette.vignetteAlpha / 0.62)
     .setDepth(VIGNETTE_DEPTH);
 
   const lantern = scene.add
     .image(0, 0, POOL_TEXTURE)
     .setDisplaySize(LANTERN_DIAMETER, LANTERN_DIAMETER)
-    .setTint(LANTERN_TINT)
-    .setAlpha(LANTERN_ALPHA)
+    .setTint(palette.lanternColor)
+    .setAlpha(palette.lanternAlpha)
     .setBlendMode("ADD")
     .setDepth(LIGHT_POOL_DEPTH)
     .setVisible(false);
 
   const flicker = scene.tweens.add({
     targets: lantern,
-    alpha: LANTERN_ALPHA * 0.82,
+    alpha: palette.lanternAlpha * 0.82,
     duration: 1400,
     yoyo: true,
     repeat: -1,
@@ -160,9 +171,11 @@ function ensureVignetteTexture(scene: Phaser.Scene): void {
     height / 2,
     radius
   );
+  // 贴图按参考强度 0.62 烘焙，运行时用 setAlpha 缩放到各方向的 vignetteAlpha
+  const ref = 0.62;
   gradient.addColorStop(0, "rgba(6, 5, 10, 0)");
-  gradient.addColorStop(0.6, `rgba(6, 5, 10, ${VIGNETTE_EDGE_ALPHA * 0.45})`);
-  gradient.addColorStop(1, `rgba(6, 5, 10, ${VIGNETTE_EDGE_ALPHA})`);
+  gradient.addColorStop(0.6, `rgba(6, 5, 10, ${ref * 0.45})`);
+  gradient.addColorStop(1, `rgba(6, 5, 10, ${ref})`);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
   canvas.refresh();

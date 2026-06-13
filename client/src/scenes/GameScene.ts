@@ -37,6 +37,8 @@ import { mountRareDropVfx } from "../features/inventory/vfx/rareDropVfx";
 import { mountChestVfx } from "../features/chests/vfx/chestVfx";
 import { mountExtractVfx } from "../features/extract/vfx/extractVfx";
 import { mountWorldLighting, type WorldLightingApi } from "../features/environment/vfx/worldLighting";
+import { ColorGradePipeline } from "../features/environment/vfx/colorGradePipeline";
+import { resolveArtDirection } from "../features/environment/vfx/artDirectionPresets";
 import { clientEventBus } from "../core/event-bus";
 import {
   LOCK_ASSIST_CHASE_MAX_DURATION_MS,
@@ -100,6 +102,7 @@ export class GameScene extends Phaser.Scene {
   private lockAssistFeedback?: LockAssistFeedbackController;
   private featureUnsubscribes: Array<() => void> = [];
   private worldLighting?: WorldLightingApi;
+  private artDirection = resolveArtDirection();
   private latestState: MatchViewState | null = null;
   private worldSignature = "";
   private followedPlayerId: string | null = null;
@@ -280,7 +283,9 @@ export class GameScene extends Phaser.Scene {
     this.lockAssistFeedback = new LockAssistFeedbackController(this);
     this.interactions = new GameSceneInteractions(this);
     this.interactions.mount(undefined, undefined, undefined);
-    this.worldLighting = mountWorldLighting(this);
+    // 美术方向（?grade=gothic|ember|moonlit 选择，默认 moonlit）：调色 + 光照协同
+    this.artDirection = resolveArtDirection();
+    this.worldLighting = mountWorldLighting(this, this.artDirection.lighting);
     // 撤离点亮灯：点燃/开放的归营火在夜里是一个真实光源（也是远处的导航信标）
     const litExtractZones = new Set<string>();
     const lightExtractZone = (zoneId: string | undefined, at?: { x: number; y: number }) => {
@@ -353,6 +358,7 @@ export class GameScene extends Phaser.Scene {
     });
     this.inputBridge.mount();
     this.miasmaPipeline = this.installMiasmaPipeline();
+    this.installColorGrade();
 
     this.mountSpectateHud();
     this.input.keyboard?.on("keydown", this.handleSpectateKeydown);
@@ -1137,6 +1143,22 @@ export class GameScene extends Phaser.Scene {
 
     const activePipeline = this.cameras.main.getPostPipeline("MiasmaPipeline");
     return Array.isArray(activePipeline) ? activePipeline[0] as MiasmaPipeline | undefined : activePipeline as MiasmaPipeline | undefined;
+  }
+
+  /** 颜色分级（最终成片色）；在 miasma 之后加入，作为最后一道后处理运行。 */
+  private installColorGrade(): void {
+    const renderer = this.renderer as Phaser.Renderer.WebGL.WebGLRenderer | Phaser.Renderer.Canvas.CanvasRenderer;
+    if (!("pipelines" in renderer) || !renderer.pipelines) {
+      return;
+    }
+    const pipelines = renderer.pipelines;
+    if (!pipelines.has("ColorGradePipeline")) {
+      pipelines.addPostPipeline("ColorGradePipeline", ColorGradePipeline);
+    }
+    this.cameras.main.setPostPipeline("ColorGradePipeline");
+    const active = this.cameras.main.getPostPipeline("ColorGradePipeline");
+    const grade = (Array.isArray(active) ? active[0] : active) as ColorGradePipeline | undefined;
+    grade?.setGrade(this.artDirection.grade);
   }
 }
 
