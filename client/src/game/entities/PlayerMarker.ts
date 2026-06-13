@@ -6,12 +6,12 @@ export type AnimationState = "IDLE" | "MOVE" | "ATTACK" | "HURT" | "DIE";
 type DirectionKey = "down" | "left" | "right" | "up";
 type ActionKey = "attack" | "skill" | "dodge" | "hurt";
 
-const BODY_DISPLAY = 158;
-const BODY_BASE_Y = 22;       // 身体中心 y（脚落在接地影上）
-const WEAPON_DISPLAY = 78;
-const HAND_OFFSET_X = 24;     // 手相对身体中心（朝右时）
-const HAND_OFFSET_Y = 6;
-const WEAPON_REST_ANGLE = 28; // 静止时武器斜指前上方（度）
+const BODY_DISPLAY = 150;
+const BODY_BASE_Y = 22;        // 身体中心 y（脚落在接地影上）
+const WEAPON_DISPLAY = 58;
+const HAND_OFFSET_X = 13;      // 手相对身体中心（朝右时）：略偏前，压在身体轮廓上
+const HAND_OFFSET_Y = -8;      // 手在腰胯高度（相对 BODY_BASE_Y）
+const WEAPON_REST_ANGLE = 152; // 静止时武器垂在身侧、刃朝下前方（度，0=刃朝上）
 const PLAYER_HP_Y = -78;
 const PLAYER_NAME_Y = -92;
 const STATUS_BADGE_Y = -61;
@@ -41,6 +41,7 @@ export class PlayerMarker {
   private weaponType: WeaponType;
   private actionLockedUntil = 0;
   private weaponSwing?: Phaser.Tweens.Tween;
+  private walkPhase = 0;
   private lastHp = 0;
   private lastNameplateText = "";
   private lastNameplateColor = "";
@@ -167,34 +168,34 @@ export class PlayerMarker {
     this.swingWeapon();
   }
 
-  /** 武器挥舞：剑/刀走旋转扫劈，枪走前刺。方向左右镜像。 */
+  /** 武器挥舞：剑/刀从身侧抡起劈下，枪向前刺。读作"挥舞"即可，方向力度由战斗特效卖。 */
   private swingWeapon(): void {
     const scene = this.body.scene;
-    const left = this.facing === "left";
-    const sign = left ? -1 : 1;
+    const sign = this.facing === "left" ? -1 : 1;
+    const handX = HAND_OFFSET_X * sign;
+    const handY = BODY_BASE_Y + HAND_OFFSET_Y;
     this.weaponSwing?.stop();
-    this.weapon.setAngle(WEAPON_REST_ANGLE * sign);
-    this.weapon.setPosition(HAND_OFFSET_X * sign, BODY_BASE_Y + HAND_OFFSET_Y);
+    this.weapon.setPosition(handX, handY);
 
     if (this.weaponType === "spear") {
-      // 前刺：沿朝向把武器推出去再收回
-      const reach = 26 * sign;
+      // 前刺：握把保持指向，沿朝向推出再收回
+      this.weapon.setAngle(90 * sign);
       this.weaponSwing = scene.tweens.add({
         targets: this.weapon,
-        x: HAND_OFFSET_X * sign + reach,
-        y: BODY_BASE_Y + HAND_OFFSET_Y - 10,
-        duration: 90,
+        x: handX + 30 * sign,
+        y: handY - 6,
+        duration: 95,
         yoyo: true,
         ease: "Cubic.out",
         onComplete: () => this.resetWeaponRest()
       });
     } else {
-      // 扫劈：从后上方抡到前下方
-      this.weapon.setAngle(-55 * sign);
+      // 扫劈：从抬起（刃朝上前）快速抡到垂下（劈中）
+      this.weapon.setAngle(35 * sign);
       this.weaponSwing = scene.tweens.add({
         targets: this.weapon,
-        angle: 80 * sign,
-        duration: 150,
+        angle: WEAPON_REST_ANGLE * sign,
+        duration: 140,
         ease: "Cubic.in",
         onComplete: () => this.resetWeaponRest()
       });
@@ -202,8 +203,7 @@ export class PlayerMarker {
   }
 
   private resetWeaponRest(): void {
-    const left = this.facing === "left";
-    const sign = left ? -1 : 1;
+    const sign = this.facing === "left" ? -1 : 1;
     this.weapon.setAngle(WEAPON_REST_ANGLE * sign);
     this.weapon.setPosition(HAND_OFFSET_X * sign, BODY_BASE_Y + HAND_OFFSET_Y);
     if (this.currentState !== "DIE") {
@@ -228,8 +228,20 @@ export class PlayerMarker {
         if (this.body.anims.currentAnim?.key !== "scavenger-walk") {
           this.body.anims.play("scavenger-walk", true);
         }
+        // 引擎走路颠动：脚步上下弹 + 轻微左右倾，让走路真正"读"得出来
+        this.walkPhase += 0.35;
+        const bob = Math.abs(Math.sin(this.walkPhase)) * 4;
+        const lean = Math.sin(this.walkPhase) * 2.5;
+        this.body.setY(BODY_BASE_Y - bob);
+        this.body.setAngle(lean);
+        this.weapon.setY(BODY_BASE_Y + HAND_OFFSET_Y - bob);
       } else {
         this.playIdle();
+        if (this.body.y !== BODY_BASE_Y) {
+          this.body.setY(BODY_BASE_Y);
+          this.body.setAngle(0);
+          this.weapon.setY(BODY_BASE_Y + HAND_OFFSET_Y);
+        }
       }
     }
   }
