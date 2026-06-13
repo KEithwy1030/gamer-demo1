@@ -53,7 +53,9 @@ detailed game asset, grounded and ordinary, not flashy.
   不是"重做整套"——成本是多跑一次脚本。生成便宜，owner 接受用 token 换一体动画。
 - **加新长相** = 为该长相生成 sword/blade/spear 三张动作图。跨图靠同一套提示词保持"同一个
   寒酸汉子"（同图内绝对一致，跨图极小漂移，可接受）。
-- 朝向：左右翻转，不画多方向帧。
+- 朝向：左右翻转，不画多方向帧。**动作图默认朝屏幕左**（待机脸朝左、挥砍向左劈），
+  所以代码仅在 facing==="right" 时 flipX（PlayerMarker `shouldFlip()` 单一真源）。写反过
+  就会"人物朝向与移动相反"——这是反复踩的坑，改翻转必走 shouldFlip()，验收必对比左右走两帧。
 
 ## 未来装备-外观（方向已定）
 
