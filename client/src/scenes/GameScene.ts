@@ -153,11 +153,12 @@ export class GameScene extends Phaser.Scene {
   preload(): void {
     this.load.image("terrain_wasteland", "assets/generated/medieval-battlefield-ground-cpa-image2-20260501.png");
     this.load.image("extract_beacon_asset", "assets/generated/medieval-extract-marker-cpa-image2-256-20260501.png");
-    // 广告牌精灵切片（冷月圣经下重生成）：单张高质图，动画由引擎程序化完成。
-    // load.image → frameTotal=1，PlayerMarker / createUnitAnimations 据此走 billboard 分支。
-    this.load.image("unit_player_sword", "assets/generated/image2_processed/characters/billboard_player_sword.png");
-    this.load.spritesheet("unit_player_blade", "assets/generated/image2_processed/characters/unit_player_blade_sheet_8x4.png", { frameWidth: 222, frameHeight: 222 });
-    this.load.spritesheet("unit_player_spear", "assets/generated/image2_processed/characters/unit_player_spear_sheet_8x4.png", { frameWidth: 222, frameHeight: 222 });
+    // 分层角色（冷月圣经）：身体武器无关（一张动作图），武器是独立图层挂在手上、
+    // 引擎驱动挥舞。加新武器=加一张武器图+配置，永不重做角色。见 assets-source SPEC.md。
+    this.load.spritesheet("scavenger_body", "assets/generated/image2_processed/characters/scavenger_body_2x2.png", { frameWidth: 256, frameHeight: 256 });
+    this.load.image("weapon_sword", "assets/generated/image2_processed/weapons/sword.png");
+    this.load.image("weapon_saber", "assets/generated/image2_processed/weapons/saber.png");
+    this.load.image("weapon_spear", "assets/generated/image2_processed/weapons/spear.png");
     this.load.spritesheet("unit_enemy_raider", "assets/generated/image2_processed/characters/unit_enemy_raider_sheet_4x4.png", { frameWidth: 314, frameHeight: 314 });
     for (const contract of Object.values(MONSTER_ASSET_CONTRACTS)) {
       this.load.spritesheet(contract.textureKey, contract.assetPath, {
@@ -215,26 +216,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createUnitAnimations(): void {
-    const directions = ["down", "left", "right", "up"] as const;
-    const playerSheets: WeaponType[] = ["sword", "blade", "spear"];
-
-    for (const weaponType of playerSheets) {
-      // 广告牌纹理（load.image，frameTotal<=1）没有动画帧——跳过建动画，
-      // PlayerMarker 对这类纹理走程序化运动分支。
-      if (this.textures.get(`unit_player_${weaponType}`).frameTotal <= 1) {
-        continue;
-      }
-      for (const [row, direction] of directions.entries()) {
-        const base = row * 8;
-        this.createAnimation(`player-${weaponType}-idle-${direction}`, `unit_player_${weaponType}`, [base, base + 1, base + 2, base + 1], 4, -1);
-        this.createAnimation(`player-${weaponType}-move-${direction}`, `unit_player_${weaponType}`, [base, base + 1, base + 2, base + 1], 8, -1);
-        this.createAnimation(`player-${weaponType}-attack-${direction}`, `unit_player_${weaponType}`, [base + 3, base + 4], getAttackAnimationFrameRate(weaponType), 0);
-        this.createAnimation(`player-${weaponType}-skill-${direction}`, `unit_player_${weaponType}`, [base + 5, base + 6], 12, 0);
-        this.createAnimation(`player-${weaponType}-dodge-${direction}`, `unit_player_${weaponType}`, [base + 6, base + 7], 16, 0);
-        this.createAnimation(`player-${weaponType}-hurt-${direction}`, `unit_player_${weaponType}`, [base + 7, base + 6], 12, 0);
-        this.createAnimation(`player-${weaponType}-die-${direction}`, `unit_player_${weaponType}`, [base + 7], 1, 0);
-      }
-    }
+    // 分层角色：身体动作武器无关。2x2 帧 = 0 待机 / 1 走A / 2 走B / 3 受击。
+    // 朝向用左右翻转（PlayerMarker），不画多方向。武器挥舞由引擎做，不在身体帧里。
+    this.createAnimation("scavenger-idle", "scavenger_body", [0], 1, -1);
+    this.createAnimation("scavenger-walk", "scavenger_body", [1, 0, 2, 0], 7, -1);
+    this.createAnimation("scavenger-hurt", "scavenger_body", [3], 1, 0);
 
     for (const monsterType of Object.keys(MONSTER_ASSET_CONTRACTS) as Array<keyof typeof MONSTER_ASSET_CONTRACTS>) {
       const textureKey = getMonsterTextureKey(monsterType);
