@@ -37,6 +37,7 @@ import { mountRareDropVfx } from "../features/inventory/vfx/rareDropVfx";
 import { mountChestVfx } from "../features/chests/vfx/chestVfx";
 import { mountExtractVfx } from "../features/extract/vfx/extractVfx";
 import { mountWorldLighting, type WorldLightingApi } from "../features/environment/vfx/worldLighting";
+import { clientEventBus } from "../core/event-bus";
 import {
   LOCK_ASSIST_CHASE_MAX_DURATION_MS,
   resolveAttackAssist,
@@ -280,8 +281,25 @@ export class GameScene extends Phaser.Scene {
     this.interactions = new GameSceneInteractions(this);
     this.interactions.mount(undefined, undefined, undefined);
     this.worldLighting = mountWorldLighting(this);
+    // 撤离点亮灯：点燃/开放的归营火在夜里是一个真实光源（也是远处的导航信标）
+    const litExtractZones = new Set<string>();
+    const lightExtractZone = (zoneId: string | undefined, at?: { x: number; y: number }) => {
+      const key = zoneId ?? (at ? `${at.x},${at.y}` : "");
+      if (!key || litExtractZones.has(key)) return;
+      const pos = at ?? this.resolveExtractZonePosition(zoneId);
+      if (!pos) return;
+      litExtractZones.add(key);
+      this.worldLighting?.addStaticLight(pos.x, pos.y, { diameter: 680, color: 0xff9a4d, alpha: 0.4 });
+    };
+    const onBeaconLit = (p: { extractZoneId: string; position: { x: number; y: number } }) =>
+      lightExtractZone(p.extractZoneId, p.position);
+    const onExtractOpened = (p: { zoneIds: string[] }) => p.zoneIds.forEach((id) => lightExtractZone(id));
+    clientEventBus.on("BeaconLit", onBeaconLit);
+    clientEventBus.on("ExtractOpened", onExtractOpened);
     this.featureUnsubscribes = [
       () => {
+        clientEventBus.off("BeaconLit", onBeaconLit);
+        clientEventBus.off("ExtractOpened", onExtractOpened);
         this.worldLighting?.destroy();
         this.worldLighting = undefined;
       },

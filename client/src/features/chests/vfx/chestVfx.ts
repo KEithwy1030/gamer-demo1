@@ -14,12 +14,32 @@ interface ChestVfxContext {
 
 const sprites = new Map<string, Phaser.GameObjects.Image>();
 const labels = new Map<string, Phaser.GameObjects.Text>();
-const glows = new Map<string, Phaser.GameObjects.Graphics>();
-const rings = new Map<string, Phaser.GameObjects.Graphics>();
+const glows = new Map<string, Phaser.GameObjects.Image>();
 const bars = new Map<string, Phaser.GameObjects.Graphics>();
 const barLabels = new Map<string, Phaser.GameObjects.Text>();
 const playerRings = new Map<string, Phaser.GameObjects.Graphics>();
 const dispensed = new Map<string, number>();
+
+export const CHEST_GLOW_TEXTURE = "chest-glow";
+
+/**
+ * 宝箱的存在感来自自身发出的暖光（呼吸式），不是描在地上的矢量圈。
+ * 富宝箱光更亮更大、高危宝箱偏琥珀色——玩家凭光色读危险与价值。
+ */
+export function ensureChestGlowTexture(scene: Phaser.Scene): void {
+  if (scene.textures.exists(CHEST_GLOW_TEXTURE)) return;
+  const size = 256;
+  const canvas = scene.textures.createCanvas(CHEST_GLOW_TEXTURE, size, size);
+  if (!canvas) return;
+  const g = canvas.getContext();
+  const gradient = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, "rgba(255, 255, 255, 0.85)");
+  gradient.addColorStop(0.4, "rgba(255, 255, 255, 0.32)");
+  gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+  g.fillStyle = gradient;
+  g.fillRect(0, 0, size, size);
+  canvas.refresh();
+}
 
 export function mountChestVfx(ctx: ChestVfxContext): () => void {
   const started = (p: ChestRummageStartedEvent["payload"]) => {
@@ -50,8 +70,8 @@ export function mountChestVfx(ctx: ChestVfxContext): () => void {
     spawnOpenBurst(ctx.scene, sprite.x, sprite.y);
     spawnLootPopups(ctx.scene, sprite.x, sprite.y, p.drops);
     labels.get(p.chestId)?.destroy(); labels.delete(p.chestId);
-    glows.get(p.chestId)?.destroy(); glows.delete(p.chestId);
-    rings.get(p.chestId)?.destroy(); rings.delete(p.chestId);
+    const glow = glows.get(p.chestId);
+    if (glow) { ctx.scene.tweens.killTweensOf(glow); glow.destroy(); glows.delete(p.chestId); }
     clearProgress(p.chestId, p.playerId);
   };
   clientEventBus.on("ChestRummageStarted", started);
@@ -82,20 +102,37 @@ function syncChest(ctx: ChestVfxContext, chestId: string): Phaser.GameObjects.Im
     ctx.scene.tweens.add({ targets: sprite, angle: { from: -3, to: 3 }, y: { from: chest.y - 2, to: chest.y + 2 }, duration: 100, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
   }
   const rich = chest.qualityTier === "rich";
-  const glow = glows.get(chestId) ?? ctx.scene.add.graphics().setDepth(chest.y - 1);
-  glows.set(chestId, glow);
-  glow.clear().lineStyle(rich ? 4 : 3, rich ? 0xfacc15 : 0xfbbf24, rich ? 0.75 : 0.55).strokeCircle(chest.x, chest.y, 64);
-  if (chest.lane === "contested" && !rings.has(chestId)) {
-    const ring = ctx.scene.add.graphics().setDepth(chest.y - 1).lineStyle(2, 0xf97316, 0.72).strokeCircle(chest.x, chest.y, 76);
-    rings.set(chestId, ring);
+  const contested = chest.lane === "contested";
+  let glow = glows.get(chestId);
+  if (!glow) {
+    ensureChestGlowTexture(ctx.scene);
+    glow = ctx.scene.add.image(chest.x, chest.y, CHEST_GLOW_TEXTURE).setBlendMode("ADD");
+    glows.set(chestId, glow);
+    ctx.scene.tweens.add({
+      targets: glow,
+      alpha: { from: rich ? 0.5 : 0.3, to: rich ? 0.28 : 0.16 },
+      duration: 1500 + Math.floor(Math.random() * 600),
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.inOut"
+    });
   }
-  const label = labels.get(chestId) ?? ctx.scene.add.text(chest.x, chest.y - 30, "", {
-    fontFamily: GAMEPLAY_THEME.fonts.display, fontSize: "14px", color: "#ffffff", stroke: "#000000", strokeThickness: 3
-  }).setOrigin(0.5).setDepth(chest.y + 1);
-  labels.set(chestId, label);
-  label.setText(chest.state === "interrupted" ? "已中断" : chest.lane === "contested" ? "高危宝箱" : "宝箱")
-    .setColor(chest.state === "interrupted" ? "#ef4444" : chest.lane === "contested" ? "#fed7aa" : "#ffffff")
-    .setPosition(chest.x, chest.y - 30);
+  glow
+    .setPosition(chest.x, chest.y + 8)
+    .setDepth(chest.y - 1)
+    .setDisplaySize(rich ? 240 : 180, rich ? 200 : 150)
+    .setTint(contested ? 0xff8a3d : rich ? 0xffdf8a : 0xffc46a)
+    .setVisible(chest.state !== "interrupted");
+  // 常驻名牌取消（宝箱长什么样玩家看得见，靠近时由交互提示接管）；只保留中断警示
+  if (chest.state === "interrupted") {
+    const label = labels.get(chestId) ?? ctx.scene.add.text(chest.x, chest.y - 30, "", {
+      fontFamily: GAMEPLAY_THEME.fonts.display, fontSize: "14px", color: "#ef4444", stroke: "#000000", strokeThickness: 3
+    }).setOrigin(0.5).setDepth(chest.y + 1);
+    labels.set(chestId, label);
+    label.setText("已中断").setPosition(chest.x, chest.y - 30).setVisible(true);
+  } else {
+    labels.get(chestId)?.setVisible(false);
+  }
   return sprite;
 }
 

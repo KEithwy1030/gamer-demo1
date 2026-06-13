@@ -8,6 +8,8 @@ import type { PlayerMarker } from "../../game/entities/PlayerMarker";
 import { logEvent } from "../../dev/runtimeLog";
 import { GAMEPLAY_THEME } from "../../ui/gameplayTheme";
 
+const INTERACT_CHEST_GLOW_TEXTURE = "chest-glow";
+
 function degToRad(degrees: number): number {
   return degrees * (Math.PI / 180);
 }
@@ -38,8 +40,7 @@ export class GameSceneInteractions {
   private readonly scene: Phaser.Scene;
   private readonly chestSprites = new Map<string, Phaser.GameObjects.Image>();
   private readonly chestLabels = new Map<string, Phaser.GameObjects.Text>();
-  private readonly chestDangerRings = new Map<string, Phaser.GameObjects.Graphics>();
-  private readonly chestGlows = new Map<string, Phaser.GameObjects.Graphics>();
+  private readonly chestGlows = new Map<string, Phaser.GameObjects.Image>();
   private readonly chestProgressBars = new Map<string, Phaser.GameObjects.Graphics>();
   private readonly chestProgressLabels = new Map<string, Phaser.GameObjects.Text>();
   private readonly chestMetadata = new Map<string, { lane?: ChestState["lane"]; noiseRadius?: number; qualityTier?: ChestState["qualityTier"] }>();
@@ -121,9 +122,8 @@ export class GameSceneInteractions {
 
         this.chestLabels.get(payload.chestId)?.destroy();
         this.chestLabels.delete(payload.chestId);
-        this.chestDangerRings.get(payload.chestId)?.destroy();
-        this.chestDangerRings.delete(payload.chestId);
-        this.chestGlows.get(payload.chestId)?.destroy();
+        const openedGlow = this.chestGlows.get(payload.chestId);
+        if (openedGlow) { this.scene.tweens.killTweensOf(openedGlow); openedGlow.destroy(); }
         this.chestGlows.delete(payload.chestId);
         this.chestProgressBars.get(payload.chestId)?.destroy();
         this.chestProgressBars.delete(payload.chestId);
@@ -297,6 +297,21 @@ export class GameSceneInteractions {
     this.extractLastPhase = extractState.phase;
   }
 
+  private ensureChestGlowTexture(): void {
+    if (this.scene.textures.exists(INTERACT_CHEST_GLOW_TEXTURE)) return;
+    const size = 256;
+    const canvas = this.scene.textures.createCanvas(INTERACT_CHEST_GLOW_TEXTURE, size, size);
+    if (!canvas) return;
+    const g = canvas.getContext();
+    const gradient = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    gradient.addColorStop(0, "rgba(255, 255, 255, 0.85)");
+    gradient.addColorStop(0.4, "rgba(255, 255, 255, 0.32)");
+    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    g.fillStyle = gradient;
+    g.fillRect(0, 0, size, size);
+    canvas.refresh();
+  }
+
   private syncChest(chest: ChestState): void {
     const chestId = chest.chestId ?? chest.id;
     if (!chestId) {
@@ -317,7 +332,8 @@ export class GameSceneInteractions {
       sprite.setAlpha(0.6);
       sprite.setAngle(0);
       this.scene.tweens.killTweensOf(sprite);
-      this.chestGlows.get(chestId)?.destroy();
+      const openGlow = this.chestGlows.get(chestId);
+      if (openGlow) { this.scene.tweens.killTweensOf(openGlow); openGlow.destroy(); }
       this.chestGlows.delete(chestId);
       this.chestLabels.get(chestId)?.destroy();
       this.chestLabels.delete(chestId);
@@ -342,29 +358,30 @@ export class GameSceneInteractions {
       this.scene.tweens.killTweensOf(sprite);
     }
 
+    // \u5b9d\u7bb1\u9760\u81ea\u8eab\u7684\u6696\u5149\u547c\u5438\u5ba3\u544a\u5b58\u5728\uff08\u4e0d\u662f\u63cf\u5728\u5730\u4e0a\u7684\u77e2\u91cf\u5708\u2014\u2014\u90a3\u662f\u8c03\u8bd5\u753b\u9762\uff09\u3002
+    // \u5bcc\u5b9d\u7bb1\u5149\u66f4\u4eae\u66f4\u5927\u3001\u9ad8\u5371\u5b9d\u7bb1\u504f\u7425\u73c0\u7ea2\uff0c\u73a9\u5bb6\u51ed\u5149\u8272\u8bfb\u4ef7\u503c\u4e0e\u5371\u9669\u3002
+    const isRich = chest.qualityTier === "rich";
+    const contested = chest.lane === "contested";
     let glow = this.chestGlows.get(chestId);
     if (!glow) {
-      glow = this.scene.add.graphics().setDepth(chest.y - 1);
+      this.ensureChestGlowTexture();
+      glow = this.scene.add.image(chest.x, chest.y + 8, INTERACT_CHEST_GLOW_TEXTURE).setBlendMode(1);
       this.chestGlows.set(chestId, glow);
-    }
-    glow.clear();
-    const isRich = chest.qualityTier === "rich";
-    const glowColor = isRich ? 0xfacc15 : 0xfbbf24;
-    const glowAlpha = isRich ? 0.75 : 0.55;
-    const glowStroke = isRich ? 4 : 3;
-    glow.lineStyle(glowStroke, glowColor, glowAlpha);
-    glow.strokeCircle(chest.x, chest.y, 64);
-
-    if (isRich && !this.scene.tweens.isTweening(glow)) {
       this.scene.tweens.add({
         targets: glow,
-        alpha: { from: 0.85, to: 0.55 },
-        duration: 700,
+        alpha: { from: isRich ? 0.5 : 0.3, to: isRich ? 0.28 : 0.16 },
+        duration: 1500 + randomIntBetween(0, 600),
         yoyo: true,
         repeat: -1,
         ease: "Sine.easeInOut"
       });
     }
+    glow
+      .setPosition(chest.x, chest.y + 8)
+      .setDepth(chest.y - 1)
+      .setDisplaySize(isRich ? 240 : 180, isRich ? 200 : 150)
+      .setTint(contested ? 0xff8a3d : isRich ? 0xffdf8a : 0xffc46a)
+      .setVisible(chest.state !== "interrupted");
 
     if (chest.state === "interrupted") {
       sprite.setTint(0x444444);
@@ -374,31 +391,22 @@ export class GameSceneInteractions {
       sprite.setAlpha(1);
     }
 
-    if (chest.lane === "contested" && !this.chestDangerRings.has(chestId)) {
-      const ring = this.scene.add.graphics().setDepth(chest.y - 1);
-      ring.lineStyle(2, 0xf97316, 0.72);
-      ring.strokeCircle(chest.x, chest.y, 76);
-      this.chestDangerRings.set(chestId, ring);
-    }
-
-    let label = this.chestLabels.get(chestId);
-    if (!label) {
-      label = this.scene.add.text(chest.x, chest.y - 30, "", {
-        fontFamily: GAMEPLAY_THEME.fonts.display,
-        fontSize: "14px",
-        color: "#ffffff",
-        stroke: "#000000",
-        strokeThickness: 3
-      }).setOrigin(0.5).setDepth(chest.y + 1);
-      this.chestLabels.set(chestId, label);
-    }
-
+    // \u5e38\u9a7b\u540d\u724c\u53d6\u6d88\uff08\u5b9d\u7bb1\u81ea\u5df1\u770b\u5f97\u89c1\uff0c\u9760\u8fd1\u65f6\u7531\u4ea4\u4e92\u63d0\u793a\u63a5\u7ba1\uff09\uff1b\u53ea\u5728\u4e2d\u65ad\u65f6\u7ed9\u7ea2\u5b57\u8b66\u793a
     if (chest.state === "interrupted") {
-      label.setText("\u5df2\u4e2d\u65ad").setColor("#ef4444").setPosition(chest.x, chest.y - 30);
+      let label = this.chestLabels.get(chestId);
+      if (!label) {
+        label = this.scene.add.text(chest.x, chest.y - 30, "", {
+          fontFamily: GAMEPLAY_THEME.fonts.display,
+          fontSize: "14px",
+          color: "#ef4444",
+          stroke: "#000000",
+          strokeThickness: 3
+        }).setOrigin(0.5).setDepth(chest.y + 1);
+        this.chestLabels.set(chestId, label);
+      }
+      label.setText("\u5df2\u4e2d\u65ad").setPosition(chest.x, chest.y - 30).setVisible(true);
     } else {
-      label.setText(chest.lane === "contested" ? "\u9ad8\u5371\u5b9d\u7bb1" : "\u5b9d\u7bb1")
-           .setColor(chest.lane === "contested" ? "#fed7aa" : "#ffffff")
-           .setPosition(chest.x, chest.y - 30);
+      this.chestLabels.get(chestId)?.setVisible(false);
     }
 
     if (chest.state === "rummaging" || chest.rummagerId) {
@@ -756,13 +764,11 @@ export class GameSceneInteractions {
     this.interactionPrompt = undefined;
     this.chestLabels.forEach((label) => label.destroy());
     this.chestSprites.forEach((sprite) => sprite.destroy());
-    this.chestDangerRings.forEach((ring) => ring.destroy());
-    this.chestGlows.forEach((glow) => glow.destroy());
+    this.chestGlows.forEach((glow) => { this.scene.tweens.killTweensOf(glow); glow.destroy(); });
     this.chestProgressBars.forEach((bar) => bar.destroy());
     this.chestProgressLabels.forEach((label) => label.destroy());
     this.chestLabels.clear();
     this.chestSprites.clear();
-    this.chestDangerRings.clear();
     this.chestGlows.clear();
     this.chestProgressBars.clear();
     this.chestProgressLabels.clear();

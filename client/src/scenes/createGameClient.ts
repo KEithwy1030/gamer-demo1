@@ -471,6 +471,10 @@ export function createGameClientController(
       pixelArt: GAME_RENDER_CONFIG.pixelArt,
       antialias: GAME_RENDER_CONFIG.antialias,
       autoRound: GAME_RENDER_CONFIG.autoRound,
+      render: {
+        // 动态证据采集（canvas.toDataURL 逐帧抓取）依赖保留绘制缓冲；性能损耗可忽略
+        preserveDrawingBuffer: true
+      },
       backgroundColor: "#020617",
       scene: [GameScene],
       physics: {

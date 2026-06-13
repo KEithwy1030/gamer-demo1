@@ -46,11 +46,18 @@ export function mountCombatVfx(ctx: CombatVfxContext): () => void {
     on("MonsterDamaged", (payload) => {
       const target = ctx.getMonsterMarker(payload.monsterId);
       if (!target) return;
-      (target as { flashHit?: () => void }).flashHit?.();
+      const attackerRoot = ctx.getPlayerMarker(payload.attackerPlayerId)?.root;
+      // 受击挫动方向 = 从攻击者指向怪物（拳拳到肉的"被打退半步"）
+      const dirX = attackerRoot ? target.root.x - attackerRoot.x : 0;
+      const dirY = attackerRoot ? target.root.y - attackerRoot.y : 0;
+      (target as { flashHit?: (dx?: number, dy?: number) => void }).flashHit?.(dirX, dirY);
       showMonsterDamage(ctx.scene, target.root, payload.amount, payload.isCritical === true);
       if (payload.attackerPlayerId === ctx.getSelfPlayerId()) {
-        spawnSparkParticles(ctx.scene, target.root, ctx.getPlayerMarker(payload.attackerPlayerId)?.root);
-        shakeCamera(ctx.scene, 0.005, 90);
+        const crit = payload.isCritical === true;
+        spawnSparkParticles(ctx.scene, target.root, attackerRoot);
+        shakeCamera(ctx.scene, crit ? 0.009 : 0.005, crit ? 130 : 90);
+        // 命中顿帧：自己的刀进肉必须有重量；时长见 QUALITY-BAR 1.2
+        applyHitStop(ctx.scene, crit ? 90 : 50);
       }
     }),
     on("PlayerAttacked", (payload) => {

@@ -29,6 +29,8 @@ export class MonsterMarker {
   private readonly phaseBarFill: Phaser.GameObjects.Rectangle;
   private readonly impactFlash: Phaser.GameObjects.Ellipse;
   private readonly windupRing: Phaser.GameObjects.Graphics;
+  private readonly spriteBaseX: number;
+  private readonly spriteBaseY: number;
   private targetX: number;
   private targetY: number;
   public isAlive = true;
@@ -76,6 +78,8 @@ export class MonsterMarker {
 
     const assetKey = getMonsterTextureKey(monster.type);
     this.sprite = scene.add.sprite(0, 8, assetKey);
+    this.spriteBaseX = 0;
+    this.spriteBaseY = 8;
     this.displaySize = getMonsterDisplaySize(monster.type);
     this.setSpriteDisplayScale(1);
 
@@ -85,15 +89,16 @@ export class MonsterMarker {
       this.sprite.anims.play(idleKey, true);
     }
 
+    // 攻击范围预警：平时隐形，只在蓄力/出手瞬间亮起（常驻圈是调试画面，违反 QUALITY-BAR 铁律 3）
     this.telegraphRing = scene.add.ellipse(
       0,
       profile.telegraphRing.y,
       profile.telegraphRing.width,
       profile.telegraphRing.height,
       0xef4444,
-      isBoss ? 0.10 : 0.06
+      0
     );
-    this.telegraphRing.setStrokeStyle(isBoss ? 3 : 2, isBoss ? 0xfbbf24 : 0xfb923c, 0.6);
+    this.telegraphRing.setVisible(false);
 
     this.impactFlash = scene.add.ellipse(
       0,
@@ -181,15 +186,34 @@ export class MonsterMarker {
     }
   }
 
-  /** 受击反馈：全白闪 + 冲击椭圆。由战斗板块在 MonsterDamaged 时调用。
-   *  不做缩放回弹——sprite 缩放归 applyState 管，避免两个所有者打架。 */
-  flashHit(): void {
+  /** 受击反馈：全白闪 + 冲击椭圆 + 沿攻击方向的受击挫动。由战斗板块在 MonsterDamaged 时调用。
+   *  不做缩放回弹——sprite 缩放归 applyState 管，避免两个所有者打架。
+   *  挫动只动 sprite 的局部坐标（root 坐标归服务端同步管），且必须回到原位。 */
+  flashHit(dirX = 0, dirY = 0): void {
     if (!this.isAlive) {
       return;
     }
     this.hitFlashUntil = Date.now() + 80;
     this.sprite.setTintFill(0xffffff);
     this.impactFlash.setVisible(true).setAlpha(0.55);
+
+    const mag = Math.hypot(dirX, dirY);
+    if (mag > 0) {
+      const scene = this.root.scene;
+      const baseX = this.spriteBaseX;
+      const baseY = this.spriteBaseY;
+      scene.tweens.killTweensOf(this.sprite);
+      this.sprite.setPosition(baseX, baseY);
+      scene.tweens.add({
+        targets: this.sprite,
+        x: baseX + (dirX / mag) * 10,
+        y: baseY + (dirY / mag) * 10,
+        duration: 45,
+        yoyo: true,
+        ease: "Cubic.out",
+        onComplete: () => this.sprite.setPosition(baseX, baseY)
+      });
+    }
   }
 
   destroy(): void {
@@ -233,19 +257,18 @@ export class MonsterMarker {
     this.phaseBarFill.setVisible(snapshot.isWarning || snapshot.isRecovering || snapshot.isAttacking);
     this.phaseBarFill.setFillStyle(snapshot.isWarning ? 0xfbbf24 : snapshot.isAttacking ? 0xef4444 : 0x94a3b8, 1);
 
-    this.telegraphRing.setVisible(monster.isAlive);
-    this.telegraphRing.setScale(snapshot.isWarning ? 1.12 : snapshot.isAttacking ? 1.04 : 1);
-    this.telegraphRing.setFillStyle(
-      snapshot.isBoss ? (monster.isEnraged ? 0xb91c1c : 0xef4444) : snapshot.isElite ? 0xf97316 : 0x7f1d1d,
-      snapshot.isBoss
-        ? (snapshot.isWarning ? 0.1 : snapshot.isAttacking ? 0.08 : 0.04)
-        : snapshot.isWarning ? 0.14 : snapshot.isAttacking ? 0.16 : snapshot.isElite ? 0.08 : 0.05
-    );
-    this.telegraphRing.setStrokeStyle(
-      snapshot.isBoss ? (snapshot.isWarning ? 4 : 3) : snapshot.isElite ? 2 : 1,
-      monster.skillState === "charge" ? 0xf59e0b : snapshot.isBoss ? 0xfbbf24 : 0xfb923c,
-      snapshot.isWarning ? 0.95 : snapshot.isElite || snapshot.isBoss ? 0.55 : 0.24
-    );
+    // 范围预警只在"要打你"的瞬间出现：蓄力渐显、出手最亮、平时不存在
+    const telegraphActive = monster.isAlive
+      && (snapshot.isWarning || snapshot.isAttacking || monster.skillState === "charge");
+    this.telegraphRing.setVisible(telegraphActive);
+    if (telegraphActive) {
+      this.telegraphRing.setScale(snapshot.isWarning ? 1.12 : 1.04);
+      this.telegraphRing.setFillStyle(
+        monster.isEnraged ? 0xb91c1c : snapshot.isBoss ? 0xef4444 : snapshot.isElite ? 0xf97316 : 0xdc2626,
+        snapshot.isAttacking ? 0.2 : 0.13
+      );
+      this.telegraphRing.setStrokeStyle(2, 0x7f1d1d, snapshot.isWarning ? 0.5 : 0.3);
+    }
 
     this.threatAura.setVisible(monster.isAlive);
     this.threatAura.setFillStyle(
