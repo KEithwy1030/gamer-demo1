@@ -6,14 +6,11 @@ export type AnimationState = "IDLE" | "MOVE" | "ATTACK" | "HURT" | "DIE";
 type DirectionKey = "down" | "left" | "right" | "up";
 type ActionKey = "attack" | "skill" | "dodge" | "hurt";
 
+// 焊接动作图（人+武器一体）。每把武器一张 3x2 图，帧序固定：
+const FRAME = { idle: 0, walkA: 1, walkB: 2, windup: 3, strike: 4, hurt: 5 } as const;
+
 const BODY_DISPLAY = 150;
-const BODY_BASE_Y = 22;        // 身体中心 y（脚落在接地影上）
-const WEAPON_DISPLAY = 54;
-// 手部锚点：实测身体图 frame0 的右手在格内 (70%,42%)，按 origin(0.5,0.86)+display150
-// 换算到容器局部 ≈ (30, -44)。HAND_OFFSET_Y 是相对 BODY_BASE_Y 的差值。
-const HAND_OFFSET_X = 30;
-const HAND_OFFSET_Y = -66;
-const WEAPON_REST_ANGLE = 160; // 握把在手、刃朝下前方垂握（度，0=刃朝上，180=朝下）
+const BODY_BASE_Y = 20;        // 身体中心 y（脚落在接地影上）
 const PLAYER_HP_Y = -78;
 const PLAYER_NAME_Y = -92;
 const STATUS_BADGE_Y = -61;
@@ -21,9 +18,10 @@ const STATUS_BADGE_SPACING = 27;
 const MAX_STATUS_BADGES = 4;
 
 /**
- * 分层玩家渲染：身体（武器无关的拾荒者动作图）+ 武器图层（按武器类型选图，
- * 挂在手部锚点，攻击时由引擎挥舞）。加新武器 = 加一张武器图 + 配置，不动身体。
- * 朝向用左右翻转 + 引擎动作表现，不画多方向帧。武器的"个性"= 挥舞轨迹 + 战斗特效。
+ * 焊接式玩家渲染（2026-06-13 owner 拍板，推翻分层）：每把武器一张完整动作图
+ * （站/走/挥砍/受击都把剑画在身上），人和武器天然同步、零脱节、单层调试。
+ * 帧动画由生成图驱动 + 引擎走路颠动/攻击前冲补足。朝向用左右翻转。
+ * 加新武器 = 多生成一张同布局动作图 + 一行 weaponSheetKey，不动代码动画逻辑。
  */
 export class PlayerMarker {
   readonly id: string;
@@ -31,7 +29,6 @@ export class PlayerMarker {
 
   private readonly shadow: Phaser.GameObjects.Graphics;
   private readonly body: Phaser.GameObjects.Sprite;
-  private readonly weapon: Phaser.GameObjects.Image;
   private readonly hpTrack: Phaser.GameObjects.Rectangle;
   private readonly hpFill: Phaser.GameObjects.Rectangle;
   private readonly nameplate: Phaser.GameObjects.Text;
@@ -42,7 +39,6 @@ export class PlayerMarker {
   private facing: DirectionKey = "down";
   private weaponType: WeaponType;
   private actionLockedUntil = 0;
-  private weaponSwing?: Phaser.Tweens.Tween;
   private walkPhase = 0;
   private lastHp = 0;
   private lastNameplateText = "";
@@ -60,24 +56,23 @@ export class PlayerMarker {
     this.weaponType = player.weaponType;
     this.facing = directionToKey(player.direction);
 
-    // 接地影 + 队伍识别光圈（柔和实心椭圆，非描边圈，不是调试感）
     this.shadow = scene.add.graphics();
     this.shadow.fillStyle(0x0a0805, 0.3);
     this.shadow.fillEllipse(6, 40, 84, 24);
     if (isSelf) {
-      this.shadow.fillStyle(0xe8602c, 0.22);
-      this.shadow.fillEllipse(0, 40, 60, 18);
+      this.shadow.fillStyle(0xe8602c, 0.2);
+      this.shadow.fillEllipse(0, 40, 58, 17);
     } else if (player.isBot) {
-      this.shadow.fillStyle(0xb8371f, 0.18);
-      this.shadow.fillEllipse(0, 40, 56, 17);
+      this.shadow.fillStyle(0xb8371f, 0.16);
+      this.shadow.fillEllipse(0, 40, 54, 16);
     } else {
-      this.shadow.fillStyle(0x7fb4c2, 0.16);
-      this.shadow.fillEllipse(0, 40, 56, 17);
+      this.shadow.fillStyle(0x7fb4c2, 0.15);
+      this.shadow.fillEllipse(0, 40, 54, 16);
     }
     this.shadow.fillStyle(0x0e0b08, 0.34);
-    this.shadow.fillEllipse(0, 40, 42, 13);
+    this.shadow.fillEllipse(0, 40, 40, 12);
 
-    this.body = scene.add.sprite(0, BODY_BASE_Y, "scavenger_body", 0);
+    this.body = scene.add.sprite(0, BODY_BASE_Y, weaponSheetKey(player.weaponType), FRAME.idle);
     this.body.setOrigin(0.5, 0.86);
     this.body.setDisplaySize(BODY_DISPLAY, BODY_DISPLAY);
     if (player.isBot) {
@@ -86,11 +81,6 @@ export class PlayerMarker {
       this.body.setTint(0x9fd0dc);
     }
     this.startIdleBreath(scene);
-
-    this.weapon = scene.add.image(HAND_OFFSET_X, BODY_BASE_Y + HAND_OFFSET_Y, weaponTextureKey(player.weaponType));
-    this.weapon.setOrigin(0.5, 0.9);
-    this.sizeWeapon();
-    this.weapon.setAngle(WEAPON_REST_ANGLE);
 
     this.hpTrack = scene.add.rectangle(0, PLAYER_HP_Y, 54, 8, 0x16130f, 0.92);
     this.hpFill = scene.add.rectangle(-27, PLAYER_HP_Y, 54, 8, 0x7fa14a, 1);
@@ -122,14 +112,13 @@ export class PlayerMarker {
     this.root = scene.add.container(player.x, player.y, [
       this.shadow,
       this.body,
-      this.weapon,
       this.hpTrack,
       this.hpFill,
       this.nameplate,
       ...this.statusBadges
     ]);
     this.root.setDepth(this.root.y);
-    this.applyFacing();
+    this.body.setFlipX(this.facing === "left");
     this.playIdle();
     this.applyState(player, isSelf);
   }
@@ -150,68 +139,27 @@ export class PlayerMarker {
     this.applyState(player, isSelf);
   }
 
-  /** 攻击/技能 = 身体武器无关动作（轻前冲由 root 处理）+ 武器挥舞 + 战斗特效。 */
+  /** 攻击播抬刀→挥砍帧（人剑一体）；受击播受击帧。朝向左右翻转。 */
   playAction(action: ActionKey, direction?: { x: number; y: number }): void {
     if (this.currentState === "DIE") return;
     if (direction && (direction.x !== 0 || direction.y !== 0)) {
       this.facing = directionToKey(direction);
     }
-    this.applyFacing();
+    this.body.setFlipX(this.facing === "left");
 
-    if (action === "hurt") {
-      this.currentState = "HURT";
-      this.actionLockedUntil = Date.now() + 180;
-      this.body.anims.play("scavenger-hurt", true);
-      return;
-    }
-
-    this.currentState = "ATTACK";
-    this.actionLockedUntil = Date.now() + 260;
-    this.swingWeapon();
-  }
-
-  /** 武器挥舞：剑/刀从身侧抡起劈下，枪向前刺。读作"挥舞"即可，方向力度由战斗特效卖。 */
-  private swingWeapon(): void {
-    const scene = this.body.scene;
-    const sign = this.facing === "left" ? -1 : 1;
-    const handX = HAND_OFFSET_X * sign;
-    const handY = BODY_BASE_Y + HAND_OFFSET_Y;
-    this.weaponSwing?.stop();
-    this.weapon.setPosition(handX, handY);
-
-    if (this.weaponType === "spear") {
-      // 前刺：握把保持指向，沿朝向推出再收回
-      this.weapon.setAngle(90 * sign);
-      this.weaponSwing = scene.tweens.add({
-        targets: this.weapon,
-        x: handX + 30 * sign,
-        y: handY - 6,
-        duration: 95,
-        yoyo: true,
-        ease: "Cubic.out",
-        onComplete: () => this.resetWeaponRest()
-      });
-    } else {
-      // 扫劈：从抬起（刃朝上前）快速抡到垂下（劈中）
-      this.weapon.setAngle(35 * sign);
-      this.weaponSwing = scene.tweens.add({
-        targets: this.weapon,
-        angle: WEAPON_REST_ANGLE * sign,
-        duration: 140,
-        ease: "Cubic.in",
-        onComplete: () => this.resetWeaponRest()
-      });
-    }
-  }
-
-  private resetWeaponRest(): void {
-    const sign = this.facing === "left" ? -1 : 1;
-    this.weapon.setAngle(WEAPON_REST_ANGLE * sign);
-    this.weapon.setPosition(HAND_OFFSET_X * sign, BODY_BASE_Y + HAND_OFFSET_Y);
-    if (this.currentState !== "DIE") {
-      this.currentState = "IDLE";
-      this.actionLockedUntil = 0;
-    }
+    const animKey = action === "hurt" ? this.anim("hurt") : this.anim("attack");
+    if (!this.body.scene.anims.exists(animKey)) return;
+    this.currentState = action === "hurt" ? "HURT" : "ATTACK";
+    this.actionLockedUntil = Date.now() + (action === "hurt" ? 200 : 300);
+    this.body.off(Phaser.Animations.Events.ANIMATION_COMPLETE);
+    this.body.anims.play(animKey, true);
+    this.body.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      if (this.currentState !== "DIE") {
+        this.currentState = "IDLE";
+        this.actionLockedUntil = 0;
+        this.playIdle();
+      }
+    });
   }
 
   step(alpha: number): void {
@@ -225,37 +173,34 @@ export class PlayerMarker {
 
     if (this.currentState !== "DIE" && Date.now() >= this.actionLockedUntil) {
       const moving = Math.abs(this.root.x - prevX) > 0.6 || Math.abs(this.root.y - prevY) > 0.6;
-      this.applyFacing();
+      this.body.setFlipX(this.facing === "left");
       if (moving) {
-        if (this.body.anims.currentAnim?.key !== "scavenger-walk") {
-          this.body.anims.play("scavenger-walk", true);
+        const walkKey = this.anim("walk");
+        if (this.body.anims.currentAnim?.key !== walkKey) {
+          this.body.anims.play(walkKey, true);
         }
-        // 引擎走路颠动：脚步上下弹 + 轻微左右倾，让走路真正"读"得出来
-        this.walkPhase += 0.35;
+        // 走路颠动 + 轻微侧倾，让移动读得出来
+        this.walkPhase += 0.32;
         const bob = Math.abs(Math.sin(this.walkPhase)) * 4;
-        const lean = Math.sin(this.walkPhase) * 2.5;
         this.body.setY(BODY_BASE_Y - bob);
-        this.body.setAngle(lean);
-        this.weapon.setY(BODY_BASE_Y + HAND_OFFSET_Y - bob);
+        this.body.setAngle(Math.sin(this.walkPhase) * 2.2);
       } else {
         this.playIdle();
         if (this.body.y !== BODY_BASE_Y) {
           this.body.setY(BODY_BASE_Y);
           this.body.setAngle(0);
-          this.weapon.setY(BODY_BASE_Y + HAND_OFFSET_Y);
         }
       }
     }
   }
 
   destroy(): void {
-    this.weaponSwing?.stop();
     this.root.destroy(true);
   }
 
   createGhost(): void {
     const scene = this.root.scene;
-    const ghost = scene.add.sprite(this.root.x, this.root.y + BODY_BASE_Y, "scavenger_body", this.body.frame.name);
+    const ghost = scene.add.sprite(this.root.x, this.root.y + BODY_BASE_Y, weaponSheetKey(this.weaponType), this.body.frame.name);
     ghost.setOrigin(0.5, 0.86);
     ghost.setDisplaySize(BODY_DISPLAY, BODY_DISPLAY);
     ghost.setFlipX(this.facing === "left");
@@ -265,15 +210,8 @@ export class PlayerMarker {
     scene.tweens.add({ targets: ghost, alpha: 0, duration: 300, onComplete: () => ghost.destroy() });
   }
 
-  private applyFacing(): void {
-    const left = this.facing === "left";
-    this.body.setFlipX(left);
-    this.weapon.setFlipX(left);
-    if (this.currentState !== "ATTACK") {
-      const sign = left ? -1 : 1;
-      this.weapon.setPosition(HAND_OFFSET_X * sign, BODY_BASE_Y + HAND_OFFSET_Y);
-      this.weapon.setAngle(WEAPON_REST_ANGLE * sign);
-    }
+  private anim(action: "idle" | "walk" | "attack" | "hurt"): string {
+    return `scavenger-${this.weaponType}-${action}`;
   }
 
   private startIdleBreath(scene: Phaser.Scene): void {
@@ -287,15 +225,15 @@ export class PlayerMarker {
     });
   }
 
-  private sizeWeapon(): void {
-    const tex = this.weapon.scene.textures.get(this.weapon.texture.key).getSourceImage();
-    const ratio = tex && "height" in tex && tex.width ? tex.height / tex.width : 1;
-    this.weapon.setDisplaySize(WEAPON_DISPLAY / Math.max(ratio, 1), WEAPON_DISPLAY * Math.min(ratio, 2.4));
-  }
-
   private playIdle(): void {
-    if (this.body.anims.currentAnim?.key !== "scavenger-idle" || !this.body.anims.isPlaying) {
-      this.body.anims.play("scavenger-idle", true);
+    const idleKey = this.anim("idle");
+    if (this.body.scene.anims.exists(idleKey)) {
+      if (this.body.anims.currentAnim?.key !== idleKey || !this.body.anims.isPlaying) {
+        this.body.anims.play(idleKey, true);
+      }
+    } else {
+      this.body.anims.stop();
+      this.body.setFrame(FRAME.idle);
     }
   }
 
@@ -303,26 +241,21 @@ export class PlayerMarker {
     const hpRatio = Phaser.Math.Clamp(player.maxHp > 0 ? player.hp / player.maxHp : 0, 0, 1);
     if (this.weaponType !== player.weaponType) {
       this.weaponType = player.weaponType;
-      this.weapon.setTexture(weaponTextureKey(player.weaponType));
-      this.sizeWeapon();
-      this.applyFacing();
+      this.body.setTexture(weaponSheetKey(player.weaponType), FRAME.idle);
+      this.playIdle();
     }
 
     if (!player.isAlive) {
       this.currentState = "DIE";
-      this.weaponSwing?.stop();
       this.body.anims.stop();
-      this.body.setFrame(3);
+      this.body.setFrame(FRAME.hurt);
       this.body.setAlpha(0.5);
       this.body.setAngle(this.facing === "left" ? -82 : 82);
-      this.weapon.setAlpha(0.4);
-      this.weapon.setAngle(110);
     } else if (this.currentState === "DIE") {
       this.currentState = "IDLE";
       this.body.setAngle(0);
       this.body.setAlpha(1);
-      this.weapon.setAlpha(1);
-      this.resetWeaponRest();
+      this.playIdle();
     }
 
     const hpWidth = Math.max(5, 50 * hpRatio);
@@ -379,16 +312,14 @@ export class PlayerMarker {
   }
 }
 
-function weaponTextureKey(weaponType: WeaponType): string {
-  switch (weaponType) {
-    case "blade":
-      return "weapon_saber";
-    case "spear":
-      return "weapon_spear";
-    case "sword":
-    default:
-      return "weapon_sword";
-  }
+/** 武器→动作图键。每把武器一张同布局 3x2 图；未生成的暂回退到剑图。 */
+function weaponSheetKey(weaponType: WeaponType): string {
+  const scene_keys: Record<WeaponType, string> = {
+    sword: "scavenger_sword",
+    blade: "scavenger_blade",
+    spear: "scavenger_spear"
+  };
+  return scene_keys[weaponType] ?? "scavenger_sword";
 }
 
 function summarizeStatusEffects(effects: StatusEffectState[]): Array<{ label: string; color: string; backgroundColor: string }> {

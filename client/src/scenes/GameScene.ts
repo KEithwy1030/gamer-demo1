@@ -153,12 +153,11 @@ export class GameScene extends Phaser.Scene {
   preload(): void {
     this.load.image("terrain_wasteland", "assets/generated/medieval-battlefield-ground-cpa-image2-20260501.png");
     this.load.image("extract_beacon_asset", "assets/generated/medieval-extract-marker-cpa-image2-256-20260501.png");
-    // 分层角色（冷月圣经）：身体武器无关（一张动作图），武器是独立图层挂在手上、
-    // 引擎驱动挥舞。加新武器=加一张武器图+配置，永不重做角色。见 assets-source SPEC.md。
-    this.load.spritesheet("scavenger_body", "assets/generated/image2_processed/characters/scavenger_body_2x2.png", { frameWidth: 256, frameHeight: 256 });
-    this.load.image("weapon_sword", "assets/generated/image2_processed/weapons/sword.png");
-    this.load.image("weapon_saber", "assets/generated/image2_processed/weapons/saber.png");
-    this.load.image("weapon_spear", "assets/generated/image2_processed/weapons/spear.png");
+    // 焊接动作图（冷月圣经，owner 拍板）：每把武器一张 3x2 动作图（人+武器一体）。
+    // 帧序 0 待机/1-2 走/3 抬刀/4 挥砍/5 受击。加新武器=多生成一张同布局图。
+    this.load.spritesheet("scavenger_sword", "assets/generated/image2_processed/characters/scavenger_sword_3x2.png", { frameWidth: 240, frameHeight: 240 });
+    this.load.spritesheet("scavenger_blade", "assets/generated/image2_processed/characters/scavenger_blade_3x2.png", { frameWidth: 240, frameHeight: 240 });
+    this.load.spritesheet("scavenger_spear", "assets/generated/image2_processed/characters/scavenger_spear_3x2.png", { frameWidth: 240, frameHeight: 240 });
     this.load.spritesheet("unit_enemy_raider", "assets/generated/image2_processed/characters/unit_enemy_raider_sheet_4x4.png", { frameWidth: 314, frameHeight: 314 });
     for (const contract of Object.values(MONSTER_ASSET_CONTRACTS)) {
       this.load.spritesheet(contract.textureKey, contract.assetPath, {
@@ -216,11 +215,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createUnitAnimations(): void {
-    // 分层角色：身体动作武器无关。2x2 帧 = 0 待机 / 1 走A / 2 走B / 3 受击。
-    // 朝向用左右翻转（PlayerMarker），不画多方向。武器挥舞由引擎做，不在身体帧里。
-    this.createAnimation("scavenger-idle", "scavenger_body", [0], 1, -1);
-    this.createAnimation("scavenger-walk", "scavenger_body", [1, 0, 2, 0], 7, -1);
-    this.createAnimation("scavenger-hurt", "scavenger_body", [3], 1, 0);
+    // 焊接动作图：每把武器一张同布局 3x2（0待机/1走A/2走B/3抬刀/4挥砍/5受击）。
+    // 朝向用左右翻转（PlayerMarker），不画多方向。
+    const weaponSheets: Array<{ weapon: WeaponType; key: string }> = [
+      { weapon: "sword", key: "scavenger_sword" },
+      { weapon: "blade", key: "scavenger_blade" },
+      { weapon: "spear", key: "scavenger_spear" }
+    ];
+    for (const { weapon, key } of weaponSheets) {
+      this.createAnimation(`scavenger-${weapon}-idle`, key, [0], 1, -1);
+      this.createAnimation(`scavenger-${weapon}-walk`, key, [1, 0, 2, 0], 7, -1);
+      this.createAnimation(`scavenger-${weapon}-attack`, key, [3, 4], getAttackAnimationFrameRate(weapon), 0);
+      this.createAnimation(`scavenger-${weapon}-hurt`, key, [5], 1, 0);
+    }
 
     for (const monsterType of Object.keys(MONSTER_ASSET_CONTRACTS) as Array<keyof typeof MONSTER_ASSET_CONTRACTS>) {
       const textureKey = getMonsterTextureKey(monsterType);
