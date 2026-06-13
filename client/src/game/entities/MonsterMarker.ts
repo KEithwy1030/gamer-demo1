@@ -41,6 +41,7 @@ export class MonsterMarker {
   private readonly profile: ReturnType<typeof getMonsterVisualProfile>;
   private readonly displaySize: number;
   private facing: MonsterFacing = "down";
+  private faceRight = false;
 
   constructor(scene: Phaser.Scene, monster: MonsterState) {
     this.id = monster.id;
@@ -345,6 +346,17 @@ export class MonsterMarker {
 
   private applyVisualPose(monster: MonsterState, snapshot: ReturnType<typeof getMonsterReadabilitySnapshot>): void {
     this.facing = resolveMonsterFacing(monster, { x: this.targetX - this.root.x, y: this.targetY - this.root.y }, this.facing);
+    // 水平朝向：动作图默认朝屏幕左，仅朝右时翻转（同 PlayerMarker shouldFlip 规则，防朝向反）。
+    // 优先用攻击瞄准方向，其次移动方向；静止时保持上次朝向。
+    const aim = monster.telegraph?.aimDirection
+      ?? (monster.telegraph?.chargeTarget
+        ? { x: monster.telegraph.chargeTarget.x - monster.x, y: monster.telegraph.chargeTarget.y - monster.y }
+        : undefined);
+    const hx = aim && Math.abs(aim.x) > 1 ? aim.x : (this.targetX - this.root.x);
+    if (Math.abs(hx) > 4) {
+      this.faceRight = hx > 0;
+    }
+    this.sprite.setFlipX(this.faceRight);
     this.playAction(getMonsterAction(monster, { isRecentlyHit: snapshot.isRecentlyHit }));
 
     // 受击白闪窗口内不被状态着色覆盖（20Hz 同步会在闪烁期间跑进来）

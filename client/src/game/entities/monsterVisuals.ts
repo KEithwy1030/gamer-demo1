@@ -120,215 +120,47 @@ const MONSTER_VISUAL_PROFILES: Record<MonsterState["type"], MonsterVisualProfile
   }
 };
 
-function buildDirectionalActionRow(baseFrame: number): MonsterActionFrames {
+
+// 冷月规格焊接动作图（3x2，帧序固定 0待机/1走A/2走B/3抬手/4出手/5受击）。
+// 单朝向：图默认朝屏幕左，MonsterMarker 仅在朝右时 flipX（同 PlayerMarker shouldFlip 规则）。
+// 三张图覆盖 7 个逻辑类型：ghoul=基础群体, butcher=精英重型, colossus=boss。
+const MONSTER_SHEET_ACTIONS = {
+  idle: [0],
+  move: [1, 0, 2, 0],
+  attack: [3, 4],
+  charge: [3, 4],
+  hurt: [5],
+  death: [5]
+} as const;
+const MONSTER_SHEET_RATES = { idle: 3, move: 7, attack: 9, charge: 9, hurt: 6, death: 1 } as const;
+
+function monsterSheet(textureKey: string, assetPath: string, displaySize: number): MonsterAssetContract {
   return {
-    idle: [baseFrame, baseFrame, baseFrame + 1, baseFrame + 2, baseFrame + 1],
-    move: [baseFrame, baseFrame + 1, baseFrame + 2, baseFrame + 3, baseFrame + 2, baseFrame + 1],
-    attack: [baseFrame + 1, baseFrame + 2, baseFrame + 3, baseFrame + 2],
-    charge: [baseFrame + 1, baseFrame + 2, baseFrame + 3, baseFrame + 2],
-    hurt: [baseFrame + 3, baseFrame + 2],
-    death: [baseFrame + 3]
+    textureKey,
+    assetPath,
+    frameWidth: 300,
+    frameHeight: 300,
+    columns: 3,
+    rows: 2,
+    displaySize,
+    directionalCoverage: "fallback-only",
+    actions: { ...MONSTER_SHEET_ACTIONS } as unknown as MonsterAssetContract["actions"],
+    frameRates: { ...MONSTER_SHEET_RATES } as unknown as MonsterAssetContract["frameRates"]
   };
 }
 
-function buildFourDirectionActions(): Record<MonsterFacing, MonsterActionFrames> {
-  return {
-    down: buildDirectionalActionRow(0),
-    left: buildDirectionalActionRow(4),
-    right: buildDirectionalActionRow(8),
-    up: buildDirectionalActionRow(12)
-  };
-}
+const GHOUL = "assets/generated/image2_processed/monsters/ghoul-hound_3x2.png";
+const BUTCHER = "assets/generated/image2_processed/monsters/butcher_3x2.png";
+const COLOSSUS = "assets/generated/image2_processed/monsters/colossus_3x2.png";
 
 export const MONSTER_ASSET_CONTRACTS: Record<MonsterState["type"], MonsterAssetContract> = {
-  basic: {
-    textureKey: "monster_normal_sheet",
-    assetPath: "assets/generated/image2_processed/monsters/monster_normal_sheet_4x4.png",
-    frameWidth: 314,
-    frameHeight: 314,
-    columns: 4,
-    rows: 4,
-    displaySize: MONSTER_VISUAL_PROFILES.basic.displaySize,
-    directionalCoverage: "full",
-    actions: {
-      idle: [0, 0, 1, 2, 1],
-      move: [4, 5, 6, 7, 6, 5],
-      attack: [8, 9, 10, 9],
-      charge: [8, 9, 10, 9],
-      hurt: [10, 9],
-      death: [11]
-    },
-    directionalActions: buildFourDirectionActions(),
-    frameRates: {
-      idle: 4,
-      move: 7,
-      attack: 9,
-      charge: 10,
-      hurt: 11,
-      death: 1
-    }
-  },
-  normal: {
-    textureKey: "monster_normal_sheet",
-    assetPath: "assets/generated/image2_processed/monsters/monster_normal_sheet_4x4.png",
-    frameWidth: 314,
-    frameHeight: 314,
-    columns: 4,
-    rows: 4,
-    displaySize: MONSTER_VISUAL_PROFILES.normal.displaySize,
-    directionalCoverage: "full",
-    actions: {
-      idle: [0, 0, 1, 2, 1],
-      move: [4, 5, 6, 7, 6, 5],
-      attack: [8, 9, 10, 9],
-      charge: [8, 9, 10, 9],
-      hurt: [10, 9],
-      death: [11]
-    },
-    directionalActions: buildFourDirectionActions(),
-    frameRates: {
-      idle: 4,
-      move: 7,
-      attack: 9,
-      charge: 10,
-      hurt: 11,
-      death: 1
-    }
-  },
-  skirmisher: {
-    textureKey: "monster_normal_sheet",
-    assetPath: "assets/generated/image2_processed/monsters/monster_normal_sheet_4x4.png",
-    frameWidth: 314,
-    frameHeight: 314,
-    columns: 4,
-    rows: 4,
-    displaySize: MONSTER_VISUAL_PROFILES.skirmisher.displaySize,
-    directionalCoverage: "full",
-    actions: {
-      idle: [0, 1, 2, 1],
-      move: [4, 5, 6, 7, 6, 5],
-      attack: [8, 9, 10, 9],
-      charge: [8, 9, 10, 9],
-      hurt: [10, 9],
-      death: [11]
-    },
-    directionalActions: buildFourDirectionActions(),
-    frameRates: {
-      idle: 5,
-      move: 9,
-      attack: 10,
-      charge: 11,
-      hurt: 11,
-      death: 1
-    }
-  },
-  elite: {
-    textureKey: "monster_elite_sheet",
-    assetPath: "assets/generated/image2_processed/monsters/monster_elite_sheet_4x4.png",
-    frameWidth: 314,
-    frameHeight: 314,
-    columns: 4,
-    rows: 4,
-    displaySize: MONSTER_VISUAL_PROFILES.elite.displaySize,
-    directionalCoverage: "full",
-    actions: {
-      idle: [0, 1, 1, 2, 1],
-      move: [4, 5, 6, 7, 6, 5],
-      attack: [8, 9, 10, 9],
-      charge: [8, 9, 10, 9],
-      hurt: [10, 9],
-      death: [11]
-    },
-    directionalActions: buildFourDirectionActions(),
-    frameRates: {
-      idle: 4,
-      move: 7,
-      attack: 8,
-      charge: 9,
-      hurt: 10,
-      death: 1
-    }
-  },
-  brute: {
-    textureKey: "monster_elite_sheet",
-    assetPath: "assets/generated/image2_processed/monsters/monster_elite_sheet_4x4.png",
-    frameWidth: 314,
-    frameHeight: 314,
-    columns: 4,
-    rows: 4,
-    displaySize: MONSTER_VISUAL_PROFILES.brute.displaySize,
-    directionalCoverage: "full",
-    actions: {
-      idle: [0, 1, 2, 1],
-      move: [4, 5, 6, 7, 6, 5],
-      attack: [8, 9, 10, 10, 9],
-      charge: [8, 9, 10, 10],
-      hurt: [10, 9],
-      death: [11]
-    },
-    directionalActions: buildFourDirectionActions(),
-    frameRates: {
-      idle: 4,
-      move: 5,
-      attack: 6,
-      charge: 6,
-      hurt: 9,
-      death: 1
-    }
-  },
-  archer: {
-    textureKey: "monster_normal_sheet",
-    assetPath: "assets/generated/image2_processed/monsters/monster_normal_sheet_4x4.png",
-    frameWidth: 314,
-    frameHeight: 314,
-    columns: 4,
-    rows: 4,
-    displaySize: MONSTER_VISUAL_PROFILES.archer.displaySize,
-    directionalCoverage: "full",
-    actions: {
-      idle: [0, 1, 2, 1],
-      move: [4, 5, 6, 7, 6, 5],
-      attack: [8, 9, 10, 9],
-      charge: [8, 9, 10, 9],
-      hurt: [10, 9],
-      death: [11]
-    },
-    directionalActions: buildFourDirectionActions(),
-    frameRates: {
-      idle: 4,
-      move: 6,
-      attack: 7,
-      charge: 8,
-      hurt: 9,
-      death: 1
-    }
-  },
-  boss: {
-    textureKey: "monster_boss_sheet",
-    assetPath: "assets/generated/image2_processed/monsters/monster_boss_sheet_4x4.png",
-    frameWidth: 314,
-    frameHeight: 314,
-    columns: 4,
-    rows: 4,
-    displaySize: MONSTER_VISUAL_PROFILES.boss.displaySize,
-    directionalCoverage: "fallback-only",
-    actions: {
-      idle: [0, 1, 2, 2, 1, 3],
-      move: [4, 5, 6, 7, 6, 5],
-      attack: [8, 9, 10, 9],
-      charge: [8, 9, 10, 11],
-      hurt: [12, 13],
-      death: [14, 15]
-    },
-    frameRates: {
-      idle: 4,
-      move: 6,
-      attack: 7,
-      charge: 8,
-      hurt: 9,
-      death: 1
-    }
-  }
+  basic: monsterSheet("monster_ghoul", GHOUL, MONSTER_VISUAL_PROFILES.basic.displaySize),
+  normal: monsterSheet("monster_ghoul", GHOUL, MONSTER_VISUAL_PROFILES.normal.displaySize),
+  skirmisher: monsterSheet("monster_ghoul", GHOUL, MONSTER_VISUAL_PROFILES.skirmisher.displaySize),
+  archer: monsterSheet("monster_ghoul", GHOUL, MONSTER_VISUAL_PROFILES.archer.displaySize),
+  elite: monsterSheet("monster_butcher", BUTCHER, MONSTER_VISUAL_PROFILES.elite.displaySize),
+  brute: monsterSheet("monster_butcher", BUTCHER, MONSTER_VISUAL_PROFILES.brute.displaySize),
+  boss: monsterSheet("monster_colossus", COLOSSUS, MONSTER_VISUAL_PROFILES.boss.displaySize)
 };
 
 export function getMonsterAssetContract(type: MonsterState["type"]): MonsterAssetContract {

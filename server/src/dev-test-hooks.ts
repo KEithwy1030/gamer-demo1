@@ -98,16 +98,26 @@ function applySandboxPreset(room: RuntimeRoom, player: RuntimePlayer): void {
   const dummySpot = pickClearSpot([
     { x: 220, y: 0 }, { x: 220, y: 140 }, { x: 220, y: -140 }, { x: 0, y: 220 }, { x: 0, y: -220 }
   ]);
+  // 开发自测：DEV_SANDBOX_MONSTER=basic|elite|boss 等强制木桩怪类型，自查三张怪物动作图
+  const dm = process.env.DEV_SANDBOX_MONSTER;
+  const dummyType = (dm === "elite" || dm === "brute" || dm === "boss" || dm === "skirmisher" || dm === "archer" || dm === "normal")
+    ? dm
+    : "basic";
   const dummy = buildRuntimeMonster({
     id: `sandbox_dummy_${crypto.randomUUID().slice(0, 8)}`,
-    type: "basic",
+    type: dummyType,
     x: dummySpot.x,
     y: dummySpot.y
   });
-  dummy.aggroRange = 0;
-  dummy.moveSpeed = 0;
-  dummy.behaviorPhase = "idle";
-  dummy.nextAttackAt = now + 10 * 60 * 1000;
+  if (dm) {
+    // 自测怪物动画：让木桩追玩家，以便验证移动翻转/走路/攻击帧
+    dummy.behaviorPhase = "hunt";
+  } else {
+    dummy.aggroRange = 0;
+    dummy.moveSpeed = 0;
+    dummy.behaviorPhase = "idle";
+    dummy.nextAttackAt = now + 10 * 60 * 1000;
+  }
   room.monsters ??= new Map();
   room.monsters.set(dummy.id, dummy);
 
