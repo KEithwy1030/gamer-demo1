@@ -8,10 +8,12 @@ type ActionKey = "attack" | "skill" | "dodge" | "hurt";
 
 const BODY_DISPLAY = 150;
 const BODY_BASE_Y = 22;        // 身体中心 y（脚落在接地影上）
-const WEAPON_DISPLAY = 58;
-const HAND_OFFSET_X = 13;      // 手相对身体中心（朝右时）：略偏前，压在身体轮廓上
-const HAND_OFFSET_Y = -8;      // 手在腰胯高度（相对 BODY_BASE_Y）
-const WEAPON_REST_ANGLE = 152; // 静止时武器垂在身侧、刃朝下前方（度，0=刃朝上）
+const WEAPON_DISPLAY = 54;
+// 手部锚点：实测身体图 frame0 的右手在格内 (70%,42%)，按 origin(0.5,0.86)+display150
+// 换算到容器局部 ≈ (30, -44)。HAND_OFFSET_Y 是相对 BODY_BASE_Y 的差值。
+const HAND_OFFSET_X = 30;
+const HAND_OFFSET_Y = -66;
+const WEAPON_REST_ANGLE = 160; // 握把在手、刃朝下前方垂握（度，0=刃朝上，180=朝下）
 const PLAYER_HP_Y = -78;
 const PLAYER_NAME_Y = -92;
 const STATUS_BADGE_Y = -61;
