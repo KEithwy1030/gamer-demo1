@@ -153,7 +153,9 @@ export class GameScene extends Phaser.Scene {
   preload(): void {
     this.load.image("terrain_wasteland", "assets/generated/medieval-battlefield-ground-cpa-image2-20260501.png");
     this.load.image("extract_beacon_asset", "assets/generated/medieval-extract-marker-cpa-image2-256-20260501.png");
-    this.load.spritesheet("unit_player_sword", "assets/generated/image2_processed/characters/unit_player_sword_sheet_8x4.png", { frameWidth: 222, frameHeight: 222 });
+    // 广告牌精灵切片（冷月圣经下重生成）：单张高质图，动画由引擎程序化完成。
+    // load.image → frameTotal=1，PlayerMarker / createUnitAnimations 据此走 billboard 分支。
+    this.load.image("unit_player_sword", "assets/generated/image2_processed/characters/billboard_player_sword.png");
     this.load.spritesheet("unit_player_blade", "assets/generated/image2_processed/characters/unit_player_blade_sheet_8x4.png", { frameWidth: 222, frameHeight: 222 });
     this.load.spritesheet("unit_player_spear", "assets/generated/image2_processed/characters/unit_player_spear_sheet_8x4.png", { frameWidth: 222, frameHeight: 222 });
     this.load.spritesheet("unit_enemy_raider", "assets/generated/image2_processed/characters/unit_enemy_raider_sheet_4x4.png", { frameWidth: 314, frameHeight: 314 });
@@ -217,6 +219,11 @@ export class GameScene extends Phaser.Scene {
     const playerSheets: WeaponType[] = ["sword", "blade", "spear"];
 
     for (const weaponType of playerSheets) {
+      // 广告牌纹理（load.image，frameTotal<=1）没有动画帧——跳过建动画，
+      // PlayerMarker 对这类纹理走程序化运动分支。
+      if (this.textures.get(`unit_player_${weaponType}`).frameTotal <= 1) {
+        continue;
+      }
       for (const [row, direction] of directions.entries()) {
         const base = row * 8;
         this.createAnimation(`player-${weaponType}-idle-${direction}`, `unit_player_${weaponType}`, [base, base + 1, base + 2, base + 1], 4, -1);

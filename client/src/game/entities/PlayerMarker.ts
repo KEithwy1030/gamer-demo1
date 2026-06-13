@@ -37,6 +37,9 @@ export class PlayerMarker {
   private lastRootAlpha = -1;
   private lastHpWidth = -1;
   private lastHpColor = -1;
+  private billboard = false;
+  private readonly billboardBaseX = 0;
+  private readonly billboardBaseY = 30; // 脚底落在接地影上（影子中心 ~y38，底边origin）
 
   constructor(scene: Phaser.Scene, player: PlayerState, isSelf: boolean) {
     this.id = player.id;
@@ -66,7 +69,16 @@ export class PlayerMarker {
     this.shadow.fillEllipse(0, 38, 48, 14);
     
     this.sprite = scene.add.sprite(0, PLAYER_BODY_Y, getPlayerTextureKey(player.weaponType));
-    this.sprite.setDisplaySize(PLAYER_FRAME_SIZE, PLAYER_FRAME_SIZE);
+    this.billboard = isBillboardTexture(scene, getPlayerTextureKey(player.weaponType));
+    if (this.billboard) {
+      // 单张广告牌：底边贴地（origin 在脚），动画全程程序化
+      this.sprite.setOrigin(0.5, 0.94);
+      this.sprite.setPosition(this.billboardBaseX, this.billboardBaseY);
+      this.sprite.setDisplaySize(PLAYER_FRAME_SIZE * 1.45, PLAYER_FRAME_SIZE * 1.45);
+      this.startBillboardIdle(scene);
+    } else {
+      this.sprite.setDisplaySize(PLAYER_FRAME_SIZE, PLAYER_FRAME_SIZE);
+    }
     this.playIdle();
     if (player.isBot) {
       this.sprite.setTint(resolveSquadTint(player.squadId));
@@ -154,6 +166,10 @@ export class PlayerMarker {
     if (direction && (direction.x !== 0 || direction.y !== 0)) {
       this.facing = directionToKey(direction);
     }
+    if (this.billboard) {
+      this.playBillboardAction(action, direction);
+      return;
+    }
     const actionFacing = direction ? directionToKey(direction) : this.facing;
     const animKey = getPlayerAnimKey(this.weaponType, action, actionFacing);
     if (this.sprite.scene.anims.exists(animKey)) {
@@ -182,18 +198,68 @@ export class PlayerMarker {
     if (this.currentState !== "DIE" && Date.now() >= this.actionLockedUntil) {
       const dx = this.root.x - prevX;
       const dy = this.root.y - prevY;
+      const moving = Math.abs(dx) > 0.6 || Math.abs(dy) > 0.6;
+
+      if (this.billboard) {
+        // 朝向只翻转左右；上下保持正面广告牌。动作锁外才更新，避免打断攻击前冲。
+        this.sprite.setFlipX(this.facing === "left");
+        return;
+      }
 
       // 朝向只认 sync() 里服务端下发的 direction（真相源）。这里的每帧插值
       // 增量只用来判断"在走还是停"——历史实现用它重写 facing，lerp 收尾的
       // 亚像素抖动会让朝向每帧翻转（人物动作前后对换的根因）。
       // 0.6px/帧 ≈ 36px/s，低于任何真实移动速度，高于插值残余抖动。
-      if (Math.abs(dx) > 0.6 || Math.abs(dy) > 0.6) {
+      if (moving) {
         const moveAnim = getPlayerAnimKey(this.weaponType, "move", this.facing);
         this.sprite.anims.play(moveAnim, true);
       } else {
         this.playIdle();
       }
     }
+  }
+
+  /** 广告牌待机：常驻轻微呼吸（垂直挤压）让静态图"活着"。 */
+  private startBillboardIdle(scene: Phaser.Scene): void {
+    scene.tweens.add({
+      targets: this.sprite,
+      scaleY: this.sprite.scaleY * 0.975,
+      duration: 1300,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.inOut"
+    });
+  }
+
+  /** 广告牌动作：攻击/技能 = 沿朝向前冲再弹回（配合武器弧光特效卖出力度）；
+   *  受击 = 反向后挫。位置增量只动 sprite 局部坐标且必回原位。 */
+  private playBillboardAction(action: ActionKey, direction?: { x: number; y: number }): void {
+    const scene = this.sprite.scene;
+    const dir = direction && (direction.x !== 0 || direction.y !== 0)
+      ? direction
+      : dirKeyToVec(this.facing);
+    const mag = Math.hypot(dir.x, dir.y) || 1;
+    const lunge = action === "hurt" ? -8 : 14;
+    this.currentState = action === "hurt" ? "HURT" : "ATTACK";
+    this.actionLockedUntil = Date.now() + getActionLockMs(action, this.weaponType);
+    this.sprite.setFlipX(this.facing === "left");
+    scene.tweens.killTweensOf(this.sprite);
+    this.startBillboardIdle(scene);
+    scene.tweens.add({
+      targets: this.sprite,
+      x: this.billboardBaseX + (dir.x / mag) * lunge,
+      y: this.billboardBaseY + (dir.y / mag) * lunge * 0.5,
+      duration: action === "hurt" ? 70 : 90,
+      yoyo: true,
+      ease: "Cubic.out",
+      onComplete: () => {
+        this.sprite.setPosition(this.billboardBaseX, this.billboardBaseY);
+        if (this.currentState !== "DIE") {
+          this.currentState = "IDLE";
+          this.actionLockedUntil = 0;
+        }
+      }
+    });
   }
 
   destroy(): void {
@@ -205,14 +271,19 @@ export class PlayerMarker {
     if (this.weaponType !== player.weaponType) {
       this.weaponType = player.weaponType;
       this.sprite.setTexture(getPlayerTextureKey(player.weaponType));
+      this.billboard = isBillboardTexture(this.sprite.scene, getPlayerTextureKey(player.weaponType));
       this.playIdle();
     }
-    
+
     if (!player.isAlive) {
       this.currentState = "DIE";
-      const deathAnim = getPlayerAnimKey(this.weaponType, "die", this.facing);
-      if (this.sprite.scene.anims.exists(deathAnim)) this.sprite.anims.play(deathAnim, true);
-      else this.sprite.anims.stop();
+      if (this.billboard) {
+        this.sprite.scene.tweens.killTweensOf(this.sprite);
+      } else {
+        const deathAnim = getPlayerAnimKey(this.weaponType, "die", this.facing);
+        if (this.sprite.scene.anims.exists(deathAnim)) this.sprite.anims.play(deathAnim, true);
+        else this.sprite.anims.stop();
+      }
       this.sprite.setAlpha(0.5);
       this.sprite.setAngle(90);
     } else if (this.currentState === "DIE") {
@@ -300,6 +371,10 @@ export class PlayerMarker {
   }
 
   private playIdle(): void {
+    if (this.billboard) {
+      this.sprite.setFlipX(this.facing === "left");
+      return;
+    }
     const idleAnim = getPlayerAnimKey(this.weaponType, "idle", this.facing);
     if (this.sprite.scene.anims.exists(idleAnim)) {
       if (this.sprite.anims.currentAnim?.key !== idleAnim || !this.sprite.anims.isPlaying) {
@@ -368,6 +443,21 @@ function resolveHpColor(hpRatio: number): number {
 
 function getPlayerTextureKey(weaponType: WeaponType): string {
   return `unit_player_${weaponType}`;
+}
+
+/** 广告牌纹理 = 单帧（load.image，frameTotal<=1）。多帧图集走原动画分支。 */
+function isBillboardTexture(scene: Phaser.Scene, key: string): boolean {
+  return scene.textures.exists(key) && scene.textures.get(key).frameTotal <= 1;
+}
+
+function dirKeyToVec(direction: DirectionKey): { x: number; y: number } {
+  switch (direction) {
+    case "left": return { x: -1, y: 0 };
+    case "right": return { x: 1, y: 0 };
+    case "up": return { x: 0, y: -1 };
+    case "down":
+    default: return { x: 0, y: 1 };
+  }
 }
 
 function getPlayerAnimKey(weaponType: WeaponType, action: string, direction: DirectionKey): string {
