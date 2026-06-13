@@ -118,7 +118,7 @@ export class PlayerMarker {
       ...this.statusBadges
     ]);
     this.root.setDepth(this.root.y);
-    this.body.setFlipX(this.facing === "left");
+    this.body.setFlipX(this.shouldFlip());
     this.playIdle();
     this.applyState(player, isSelf);
   }
@@ -145,7 +145,7 @@ export class PlayerMarker {
     if (direction && (direction.x !== 0 || direction.y !== 0)) {
       this.facing = directionToKey(direction);
     }
-    this.body.setFlipX(this.facing === "left");
+    this.body.setFlipX(this.shouldFlip());
 
     const animKey = action === "hurt" ? this.anim("hurt") : this.anim("attack");
     if (!this.body.scene.anims.exists(animKey)) return;
@@ -173,7 +173,7 @@ export class PlayerMarker {
 
     if (this.currentState !== "DIE" && Date.now() >= this.actionLockedUntil) {
       const moving = Math.abs(this.root.x - prevX) > 0.6 || Math.abs(this.root.y - prevY) > 0.6;
-      this.body.setFlipX(this.facing === "left");
+      this.body.setFlipX(this.shouldFlip());
       if (moving) {
         const walkKey = this.anim("walk");
         if (this.body.anims.currentAnim?.key !== walkKey) {
@@ -203,7 +203,7 @@ export class PlayerMarker {
     const ghost = scene.add.sprite(this.root.x, this.root.y + BODY_BASE_Y, weaponSheetKey(this.weaponType), this.body.frame.name);
     ghost.setOrigin(0.5, 0.86);
     ghost.setDisplaySize(BODY_DISPLAY, BODY_DISPLAY);
-    ghost.setFlipX(this.facing === "left");
+    ghost.setFlipX(this.shouldFlip());
     ghost.setDepth(this.root.depth - 1);
     ghost.setAlpha(0.5);
     ghost.setTint(0xe8602c);
@@ -212,6 +212,15 @@ export class PlayerMarker {
 
   private anim(action: "idle" | "walk" | "attack" | "hurt"): string {
     return `scavenger-${this.weaponType}-${action}`;
+  }
+
+  /**
+   * 朝向翻转的唯一真源（别再各写各的，历史反复写反这个）。
+   * 生成的拾荒者动作图**默认朝屏幕左**（待机脸朝左、挥砍向左劈，见 SPEC）。
+   * 因此仅在朝右时水平翻转；朝左/上/下都用原图（默认左向）。
+   */
+  private shouldFlip(): boolean {
+    return this.facing === "right";
   }
 
   private startIdleBreath(scene: Phaser.Scene): void {
@@ -250,7 +259,7 @@ export class PlayerMarker {
       this.body.anims.stop();
       this.body.setFrame(FRAME.hurt);
       this.body.setAlpha(0.5);
-      this.body.setAngle(this.facing === "left" ? -82 : 82);
+      this.body.setAngle(this.shouldFlip() ? 82 : -82);
     } else if (this.currentState === "DIE") {
       this.currentState = "IDLE";
       this.body.setAngle(0);
