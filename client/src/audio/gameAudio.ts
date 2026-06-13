@@ -70,18 +70,37 @@ export class GameAudioController {
   private hurtLastStartMs = 0;
   private static readonly HURT_MIN_INTERVAL_MS = 350;
 
+  private unlockDone = false;
+
   private readonly unlock = (): void => {
     void this.ensureContext();
-    // Unlock HTMLAudio elements via a silent play/pause
+    if (this.unlockDone) {
+      return;
+    }
+    this.unlockDone = true;
+    // 一次性解锁：静音 play/pause 一遍解锁 HTMLAudio。
+    // 关键 bug 修复：之前监听常驻，导致**每次按键/点击都把全部音效 play/pause 一遍**，
+    // 产生爆音碎片（owner 听到的"移动/点击出怪声"）。解锁后立刻摘掉监听。
     for (const audio of this.audioCache.values()) {
       audio.play().then(() => {
         audio.pause();
         audio.currentTime = 0;
       }).catch(() => {
-        // Expected failure if browser blocks it, will retry on next interaction
+        // 浏览器拦截则下次交互再试——重挂监听
+        this.unlockDone = false;
       });
     }
+    this.removeUnlockListeners();
   };
+
+  private removeUnlockListeners(): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.removeEventListener("pointerdown", this.unlock);
+    window.removeEventListener("keydown", this.unlock);
+    window.removeEventListener("touchstart", this.unlock);
+  }
 
   constructor() {
     if (typeof window === "undefined") {
