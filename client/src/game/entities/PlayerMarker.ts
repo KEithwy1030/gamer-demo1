@@ -40,6 +40,7 @@ export class PlayerMarker {
   private weaponType: WeaponType;
   private actionLockedUntil = 0;
   private walkPhase = 0;
+  private breathTween?: Phaser.Tweens.Tween;
   private lastHp = 0;
   private lastNameplateText = "";
   private lastNameplateColor = "";
@@ -179,14 +180,17 @@ export class PlayerMarker {
         if (this.body.anims.currentAnim?.key !== walkKey) {
           this.body.anims.play(walkKey, true);
         }
-        // 走路颠动 + 轻微侧倾，让移动读得出来
-        this.walkPhase += 0.32;
-        const bob = Math.abs(Math.sin(this.walkPhase)) * 4;
+        // 走路颠动：~2 步/秒的温和上下弹（0.14/帧），不做侧倾（绕脚旋转会甩头显乱）。
+        // 走路时暂停待机呼吸的 scaleY，避免和颠动叠加成抖动。
+        this.breathTween?.pause();
+        this.walkPhase += 0.14;
+        const bob = Math.abs(Math.sin(this.walkPhase)) * 3;
         this.body.setY(BODY_BASE_Y - bob);
-        this.body.setAngle(Math.sin(this.walkPhase) * 2.2);
+        this.body.setAngle(0);
       } else {
         this.playIdle();
-        if (this.body.y !== BODY_BASE_Y) {
+        this.breathTween?.resume();
+        if (this.body.y !== BODY_BASE_Y || this.body.angle !== 0) {
           this.body.setY(BODY_BASE_Y);
           this.body.setAngle(0);
         }
@@ -224,7 +228,7 @@ export class PlayerMarker {
   }
 
   private startIdleBreath(scene: Phaser.Scene): void {
-    scene.tweens.add({
+    this.breathTween = scene.tweens.add({
       targets: this.body,
       scaleY: this.body.scaleY * 0.975,
       duration: 1300,

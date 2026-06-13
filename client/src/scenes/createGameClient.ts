@@ -192,9 +192,8 @@ export function createGameClientController(
       options.onInventoryChange?.(normalized);
     },
     onPlayerAttack(payload) {
-      if (payload.playerId === controller.getSelfPlayerId()) {
-        audio.play("attack");
-      }
+      // 攻击音效统一由 combatAudio（监听 PlayerAttacked）播放；这里不再重复 play，
+      // 否则同一次攻击会叠两遍音（移动中攻击时尤其像"怪声"）。
       getScene()?.onPlayerAttack?.(payload);
     },
     setTimer(secondsRemaining) {
