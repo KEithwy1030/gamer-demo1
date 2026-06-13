@@ -120,6 +120,12 @@ function applySandboxPreset(room: RuntimeRoom, player: RuntimePlayer): void {
     chest.y = chestSpot.y;
   }
 
+  // 开发自测：DEV_SANDBOX_WEAPON=sword|blade|spear 强制玩家武器，用于自查三把武器的角色动作图
+  const devWeapon = process.env.DEV_SANDBOX_WEAPON;
+  if ((devWeapon === "sword" || devWeapon === "blade" || devWeapon === "spear") && player.state) {
+    player.state.weaponType = devWeapon;
+  }
+
   delayBots(room, now);
 }
 
