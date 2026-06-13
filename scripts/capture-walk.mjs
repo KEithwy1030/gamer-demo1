@@ -82,7 +82,7 @@ try {
   }));
   // 方块路径：右→上(纯竖直)→左→下(纯竖直)。竖直段用来验证朝向不乱飘。
   const drive = async () => {
-    for (const [dir, ms] of [[{x:0.7,y:-0.7},1100],[{x:-0.7,y:-0.7},1100],[{x:0.7,y:0.7},900]]) {
+    for (const [dir, ms] of [[{x:0,y:1},1100],[{x:0,y:-1},1900]]) {
       await page.evaluate((d) => window.__P0B_TEST_HOOKS__?.sendMoveInput(d), dir);
       await sleep(ms);
     }

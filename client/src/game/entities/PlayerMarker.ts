@@ -36,11 +36,10 @@ export class PlayerMarker {
   private targetX: number;
   private targetY: number;
   private currentState: AnimationState = "IDLE";
-  private facing: DirectionKey = "down";
+  private cardinal: DirectionKey = "down";
   private weaponType: WeaponType;
   private actionLockedUntil = 0;
   private walkPhase = 0;
-  private faceRight = false;
   private breathTween?: Phaser.Tweens.Tween;
   private lastHp = 0;
   private lastNameplateText = "";
@@ -56,8 +55,7 @@ export class PlayerMarker {
     this.targetY = player.y;
     this.lastHp = player.hp;
     this.weaponType = player.weaponType;
-    this.facing = directionToKey(player.direction);
-    this.updateFaceRight(player.direction);
+    this.updateCardinal(player.direction);
 
     this.shadow = scene.add.graphics();
     this.shadow.fillStyle(0x0a0805, 0.3);
@@ -136,10 +134,8 @@ export class PlayerMarker {
     this.lastHp = player.hp;
     this.targetX = player.x;
     this.targetY = player.y;
-    if (player.direction.x !== 0 || player.direction.y !== 0) {
-      this.facing = directionToKey(player.direction);
-      this.updateFaceRight(player.direction);
-    }
+    // 不在这里用 player.direction 定朝向（那是鼠标瞄准方向）；走路朝向由 step() 的
+    // 实际位移决定，攻击朝向由 playAction 的 direction 决定。
     this.applyState(player, isSelf);
   }
 
@@ -147,8 +143,7 @@ export class PlayerMarker {
   playAction(action: ActionKey, direction?: { x: number; y: number }): void {
     if (this.currentState === "DIE") return;
     if (direction && (direction.x !== 0 || direction.y !== 0)) {
-      this.facing = directionToKey(direction);
-      this.updateFaceRight(direction);
+      this.updateCardinal(direction);
     }
     this.body.setFlipX(this.shouldFlip());
 
@@ -177,7 +172,14 @@ export class PlayerMarker {
     }
 
     if (this.currentState !== "DIE" && Date.now() >= this.actionLockedUntil) {
-      const moving = Math.abs(this.root.x - prevX) > 0.6 || Math.abs(this.root.y - prevY) > 0.6;
+      const dx = this.root.x - prevX;
+      const dy = this.root.y - prevY;
+      const moving = Math.abs(dx) > 0.6 || Math.abs(dy) > 0.6;
+      if (moving) {
+        // 朝向由**实际移动位移**决定（不是 player.direction——那是鼠标瞄准方向，
+        // 朝下瞄准往上走会导致显示正面）。位移定 cardinal → 正确的正/背/侧面图。
+        this.updateCardinal({ x: dx, y: dy });
+      }
       this.body.setFlipX(this.shouldFlip());
       if (moving) {
         const walkKey = this.anim("walk");
@@ -218,27 +220,32 @@ export class PlayerMarker {
     scene.tweens.add({ targets: ghost, alpha: 0, duration: 300, onComplete: () => ghost.destroy() });
   }
 
+  /**
+   * 四方向动画键。idle/walk 按朝向选行：down=正面图、up=背面图、left/right=侧面图。
+   * attack/hurt 用侧面图（无方向后缀，攻击短暂朝瞄准）。
+   */
   private anim(action: "idle" | "walk" | "attack" | "hurt"): string {
-    return `scavenger-${this.weaponType}-${action}`;
-  }
-
-  /**
-   * 粘滞水平朝向：只在**明确水平移动**时更新左右，竖直/斜向/静止都保持上次朝向。
-   * 直接用 directionToKey 的 left/right 会在 x 分量过零/抖动时反复横跳 → 朝向乱飘。
-   */
-  private updateFaceRight(dir: { x: number; y: number }): void {
-    if (Math.abs(dir.x) > Math.abs(dir.y) * 1.15 && Math.abs(dir.x) > 0.25) {
-      this.faceRight = dir.x > 0;
+    if (action === "attack" || action === "hurt") {
+      return `scavenger-${this.weaponType}-${action}`;
     }
+    const row = this.cardinal === "down" ? "down" : this.cardinal === "up" ? "up" : "side";
+    return `scavenger-${this.weaponType}-${action}-${row}`;
   }
 
   /**
-   * 朝向翻转的唯一真源（别再各写各的，历史反复写反这个）。
-   * 生成的拾荒者动作图**默认朝屏幕左**（待机脸朝左、挥砍向左劈，见 SPEC）。
-   * 因此仅在朝右时水平翻转。faceRight 是粘滞的（见 updateFaceRight），不随竖直移动跳。
+   * 四方向真源：把移动方向贴到最近的主轴（上/下/左/右），只在移动时更新、静止保持。
+   * 竖直移动 → up/down（用正背面图），不会再因 x 抖动在左右间乱飘（历史反复踩的根因）。
    */
+  private updateCardinal(dir: { x: number; y: number }): void {
+    if (dir.x === 0 && dir.y === 0) return;
+    this.cardinal = Math.abs(dir.x) >= Math.abs(dir.y)
+      ? (dir.x >= 0 ? "right" : "left")
+      : (dir.y >= 0 ? "down" : "up");
+  }
+
+  /** 侧面图默认朝屏幕左，仅 cardinal==="right" 时水平翻转。正背面图不翻。 */
   private shouldFlip(): boolean {
-    return this.faceRight;
+    return this.cardinal === "right";
   }
 
   private startIdleBreath(scene: Phaser.Scene): void {
@@ -275,7 +282,8 @@ export class PlayerMarker {
     if (!player.isAlive) {
       this.currentState = "DIE";
       this.body.anims.stop();
-      this.body.setFrame(FRAME.hurt);
+      // 死亡用侧面图的受击帧（当前可能是正/背面图，帧 5 含义不同）
+      this.body.setTexture(`scavenger_${this.weaponType}`, FRAME.hurt);
       this.body.setAlpha(0.5);
       this.body.setAngle(this.shouldFlip() ? 82 : -82);
     } else if (this.currentState === "DIE") {
@@ -386,13 +394,6 @@ function resolveHpColor(hpRatio: number): number {
   if (hpRatio > 0.6) return 0x7fa14a;
   if (hpRatio > 0.3) return 0xd4b24c;
   return 0xb8371f;
-}
-
-function directionToKey(direction: { x: number; y: number }): DirectionKey {
-  if (Math.abs(direction.x) > Math.abs(direction.y)) {
-    return direction.x >= 0 ? "right" : "left";
-  }
-  return direction.y < 0 ? "up" : "down";
 }
 
 function formatNameplate(player: PlayerState, isSelf: boolean): string {
