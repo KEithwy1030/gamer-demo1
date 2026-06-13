@@ -80,8 +80,9 @@ try {
     const grab = () => { tick++; if (tick % 2 === 0) { try { frames.push(c.toDataURL("image/jpeg", 0.8)); } catch {} } if (frames.length >= 90) return res(frames); requestAnimationFrame(grab); };
     requestAnimationFrame(grab);
   }));
+  // 方块路径：右→上(纯竖直)→左→下(纯竖直)。竖直段用来验证朝向不乱飘。
   const drive = async () => {
-    for (const [dir, ms] of [[{x:1,y:0.2},1400],[{x:-1,y:0.1},1400]]) {
+    for (const [dir, ms] of [[{x:0.7,y:-0.7},1100],[{x:-0.7,y:-0.7},1100],[{x:0.7,y:0.7},900]]) {
       await page.evaluate((d) => window.__P0B_TEST_HOOKS__?.sendMoveInput(d), dir);
       await sleep(ms);
     }

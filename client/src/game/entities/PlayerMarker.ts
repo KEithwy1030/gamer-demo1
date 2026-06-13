@@ -40,6 +40,7 @@ export class PlayerMarker {
   private weaponType: WeaponType;
   private actionLockedUntil = 0;
   private walkPhase = 0;
+  private faceRight = false;
   private breathTween?: Phaser.Tweens.Tween;
   private lastHp = 0;
   private lastNameplateText = "";
@@ -56,6 +57,7 @@ export class PlayerMarker {
     this.lastHp = player.hp;
     this.weaponType = player.weaponType;
     this.facing = directionToKey(player.direction);
+    this.updateFaceRight(player.direction);
 
     this.shadow = scene.add.graphics();
     this.shadow.fillStyle(0x0a0805, 0.3);
@@ -136,6 +138,7 @@ export class PlayerMarker {
     this.targetY = player.y;
     if (player.direction.x !== 0 || player.direction.y !== 0) {
       this.facing = directionToKey(player.direction);
+      this.updateFaceRight(player.direction);
     }
     this.applyState(player, isSelf);
   }
@@ -145,6 +148,7 @@ export class PlayerMarker {
     if (this.currentState === "DIE") return;
     if (direction && (direction.x !== 0 || direction.y !== 0)) {
       this.facing = directionToKey(direction);
+      this.updateFaceRight(direction);
     }
     this.body.setFlipX(this.shouldFlip());
 
@@ -219,12 +223,22 @@ export class PlayerMarker {
   }
 
   /**
+   * 粘滞水平朝向：只在**明确水平移动**时更新左右，竖直/斜向/静止都保持上次朝向。
+   * 直接用 directionToKey 的 left/right 会在 x 分量过零/抖动时反复横跳 → 朝向乱飘。
+   */
+  private updateFaceRight(dir: { x: number; y: number }): void {
+    if (Math.abs(dir.x) > Math.abs(dir.y) * 1.15 && Math.abs(dir.x) > 0.25) {
+      this.faceRight = dir.x > 0;
+    }
+  }
+
+  /**
    * 朝向翻转的唯一真源（别再各写各的，历史反复写反这个）。
    * 生成的拾荒者动作图**默认朝屏幕左**（待机脸朝左、挥砍向左劈，见 SPEC）。
-   * 因此仅在朝右时水平翻转；朝左/上/下都用原图（默认左向）。
+   * 因此仅在朝右时水平翻转。faceRight 是粘滞的（见 updateFaceRight），不随竖直移动跳。
    */
   private shouldFlip(): boolean {
-    return this.facing === "right";
+    return this.faceRight;
   }
 
   private startIdleBreath(scene: Phaser.Scene): void {
