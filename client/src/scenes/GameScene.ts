@@ -118,6 +118,12 @@ export class GameScene extends Phaser.Scene {
     didSucceed: false
   };
   private onMoveInput?: (direction: Vector2) => void;
+  private testMoveOverride?: Vector2;
+
+  /** 测试钩子用：合成移动方向作为自机朝向源（绕过键盘输入桥）。 */
+  setTestMoveOverride(v: Vector2): void {
+    this.testMoveOverride = v;
+  }
   private onAttack?: (payload: AttackRequestPayload) => void;
   private onSkill?: (skillId: SkillId) => void;
   private onPickup?: () => void;
@@ -809,7 +815,10 @@ export class GameScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     const alpha = Phaser.Math.Clamp(delta / 120, 0.08, 0.22);
-    for (const m of this.playerMarkers.values()) { m.step(alpha); }
+    const selfId = this.latestState?.selfPlayerId;
+    // 自机朝向源：真键盘走输入桥，合成测试走 testMoveOverride（同一路径，便于自测）
+    const selfMove = this.testMoveOverride ?? this.inputBridge?.getCurrentMoveDirection();
+    for (const m of this.playerMarkers.values()) { m.step(alpha, m.id === selfId ? selfMove : undefined); }
     for (const m of this.monsterMarkers.values()) { m.step(alpha); }
     this.monsterSkillFx?.step(this.monsterMarkers);
     for (const m of this.dropMarkers.values()) {

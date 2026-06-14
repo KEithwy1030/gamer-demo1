@@ -144,10 +144,7 @@ export class PlayerMarker {
   /** 攻击播抬刀→挥砍帧（人剑一体）；受击播受击帧。朝向左右翻转。 */
   playAction(action: ActionKey, direction?: { x: number; y: number }): void {
     if (this.currentState === "DIE") return;
-    if (direction && (direction.x !== 0 || direction.y !== 0)) {
-      // 攻击朝向即时跟瞄准（无滞回，攻击要立刻面向目标）
-      this.cardinal = cardinalOf(direction, this.cardinal);
-    }
+    // 攻击不改身体朝向——保持当前移动朝向（之前用鼠标瞄准 → 永远朝右的 bug）。
     this.body.setFlipX(this.shouldFlip());
 
     const animKey = action === "hurt" ? this.anim("hurt") : this.anim("attack");
@@ -165,7 +162,8 @@ export class PlayerMarker {
     });
   }
 
-  step(alpha: number): void {
+  /** @param moveInput 仅自机传入：玩家的按键移动输入（干净权威）。远程玩家传 undefined。 */
+  step(alpha: number, moveInput?: { x: number; y: number } | null): void {
     const prevX = this.root.x;
     const prevY = this.root.y;
     this.root.x = Phaser.Math.Linear(this.root.x, this.targetX, alpha);
@@ -175,11 +173,16 @@ export class PlayerMarker {
     }
 
     if (this.currentState !== "DIE" && Date.now() >= this.actionLockedUntil) {
-      // 移动向量用"指向服务器目标"的向量（稳定），不用每帧插值差（噪声大、对角线会每帧翻轴）。
+      const inputMag = moveInput ? Math.hypot(moveInput.x, moveInput.y) : 0;
       const mvx = this.targetX - prevX;
       const mvy = this.targetY - prevY;
-      const moving = Math.hypot(mvx, mvy) > 1.5;
-      if (moving) {
+      const posMoving = Math.hypot(mvx, mvy) > 1.5;
+      const moving = inputMag > 0.1 || posMoving;
+      if (inputMag > 0.1) {
+        // 自机：朝向直接跟按键输入——干净、不被插值噪声/撞墙偏转弄闪（彻底解决移动朝向乱跳）。
+        this.cardinal = cardinalOf(moveInput!, this.cardinal);
+      } else if (posMoving) {
+        // 远程玩家：用位置差 + 滞回。
         this.updateCardinal(mvx, mvy);
       }
       this.body.setFlipX(this.shouldFlip());

@@ -244,6 +244,8 @@ export function createGameClientController(
     },
     sendMoveInput(direction) {
       network.sendMoveInput({ direction });
+      // 测试钩子绕过键盘输入桥；同步给场景做自机朝向源，让合成移动走真键盘同一路径
+      (getScene() as unknown as { setTestMoveOverride?: (v: Vector2) => void })?.setTestMoveOverride?.(direction);
     },
     startExtract() {
       network.sendStartExtract();

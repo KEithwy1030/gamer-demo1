@@ -1,6 +1,4 @@
-// 走路动画采集：沙盒里让玩家边走边抓帧，输出玩家居中裁剪的帧序列 + GIF。
-// 用于验收走路循环 + 武器在手 + 比例。一次性工具。
-import { mkdirSync, writeFileSync } from "node:fs";
+﻿// 璧拌矾鍔ㄧ敾閲囬泦锛氭矙鐩掗噷璁╃帺瀹惰竟璧拌竟鎶撳抚锛岃緭鍑虹帺瀹跺眳涓鍓殑甯у簭鍒?+ GIF銆?// 鐢ㄤ簬楠屾敹璧拌矾寰幆 + 姝﹀櫒鍦ㄦ墜 + 姣斾緥銆備竴娆℃€у伐鍏枫€?import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { chromium } from "playwright";
@@ -73,16 +71,14 @@ try {
   await sleep(1200);
   log("match started");
 
-  // 边走边抓帧：先右走，再左走（看左右翻转 + 走路循环）
-  const capturePromise = page.evaluate(() => new Promise((res) => {
+  // 杈硅蛋杈规姄甯э細鍏堝彸璧帮紝鍐嶅乏璧帮紙鐪嬪乏鍙崇炕杞?+ 璧拌矾寰幆锛?  const capturePromise = page.evaluate(() => new Promise((res) => {
     const c = document.querySelector("canvas:not(.lobby-background)");
     const frames = []; let tick = 0;
     const grab = () => { tick++; if (tick % 2 === 0) { try { frames.push(c.toDataURL("image/jpeg", 0.8)); } catch {} } if (frames.length >= 90) return res(frames); requestAnimationFrame(grab); };
     requestAnimationFrame(grab);
   }));
-  // 方块路径：右→上(纯竖直)→左→下(纯竖直)。竖直段用来验证朝向不乱飘。
-  const drive = async () => {
-    for (const [dir, ms] of [[{x:0,y:1},1100],[{x:0,y:-1},1900]]) {
+  // 鏂瑰潡璺緞锛氬彸鈫掍笂(绾珫鐩?鈫掑乏鈫掍笅(绾珫鐩?銆傜珫鐩存鐢ㄦ潵楠岃瘉鏈濆悜涓嶄贡椋樸€?  const drive = async () => {
+    for (const [dir, ms] of [[{x:0,y:1},800],[{x:0,y:-1},2400]]) {
       await page.evaluate((d) => window.__P0B_TEST_HOOKS__?.sendMoveInput(d), dir);
       await sleep(ms);
     }
