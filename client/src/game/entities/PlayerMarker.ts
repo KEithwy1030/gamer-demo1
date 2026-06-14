@@ -40,6 +40,8 @@ export class PlayerMarker {
   private weaponType: WeaponType;
   private actionLockedUntil = 0;
   private walkPhase = 0;
+  private cardinalCandidate?: DirectionKey;
+  private cardinalCandidateSince = 0;
   private breathTween?: Phaser.Tweens.Tween;
   private lastHp = 0;
   private lastNameplateText = "";
@@ -55,7 +57,7 @@ export class PlayerMarker {
     this.targetY = player.y;
     this.lastHp = player.hp;
     this.weaponType = player.weaponType;
-    this.updateCardinal(player.direction);
+    this.cardinal = cardinalOf(player.direction, "down");
 
     this.shadow = scene.add.graphics();
     this.shadow.fillStyle(0x0a0805, 0.3);
@@ -143,7 +145,8 @@ export class PlayerMarker {
   playAction(action: ActionKey, direction?: { x: number; y: number }): void {
     if (this.currentState === "DIE") return;
     if (direction && (direction.x !== 0 || direction.y !== 0)) {
-      this.updateCardinal(direction);
+      // 攻击朝向即时跟瞄准（无滞回，攻击要立刻面向目标）
+      this.cardinal = cardinalOf(direction, this.cardinal);
     }
     this.body.setFlipX(this.shouldFlip());
 
@@ -172,13 +175,12 @@ export class PlayerMarker {
     }
 
     if (this.currentState !== "DIE" && Date.now() >= this.actionLockedUntil) {
-      const dx = this.root.x - prevX;
-      const dy = this.root.y - prevY;
-      const moving = Math.abs(dx) > 0.6 || Math.abs(dy) > 0.6;
+      // 移动向量用"指向服务器目标"的向量（稳定），不用每帧插值差（噪声大、对角线会每帧翻轴）。
+      const mvx = this.targetX - prevX;
+      const mvy = this.targetY - prevY;
+      const moving = Math.hypot(mvx, mvy) > 1.5;
       if (moving) {
-        // 朝向由**实际移动位移**决定（不是 player.direction——那是鼠标瞄准方向，
-        // 朝下瞄准往上走会导致显示正面）。位移定 cardinal → 正确的正/背/侧面图。
-        this.updateCardinal({ x: dx, y: dy });
+        this.updateCardinal(mvx, mvy);
       }
       this.body.setFlipX(this.shouldFlip());
       if (moving) {
@@ -233,14 +235,32 @@ export class PlayerMarker {
   }
 
   /**
-   * 四方向真源：把移动方向贴到最近的主轴（上/下/左/右），只在移动时更新、静止保持。
-   * 竖直移动 → up/down（用正背面图），不会再因 x 抖动在左右间乱飘（历史反复踩的根因）。
+   * 四方向真源，带**滞回 + 停留**，移动中朝向锁死不闪（历史反复踩：每帧从噪声位移取向→乱跳）：
+   * ① 位移过小忽略；② 候选轴必须明显占优（>1.35x），否则保持当前（对角线不翻）；
+   * ③ 候选必须持续 ~110ms 才真正切换（杀单帧闪烁）。
    */
-  private updateCardinal(dir: { x: number; y: number }): void {
-    if (dir.x === 0 && dir.y === 0) return;
-    this.cardinal = Math.abs(dir.x) >= Math.abs(dir.y)
-      ? (dir.x >= 0 ? "right" : "left")
-      : (dir.y >= 0 ? "down" : "up");
+  private updateCardinal(mvx: number, mvy: number): void {
+    if (Math.hypot(mvx, mvy) < 4) return;
+    const horiz = Math.abs(mvx) >= Math.abs(mvy);
+    const candidate: DirectionKey = horiz ? (mvx >= 0 ? "right" : "left") : (mvy >= 0 ? "down" : "up");
+    if (candidate === this.cardinal) {
+      this.cardinalCandidate = undefined;
+      return;
+    }
+    const dominant = horiz
+      ? Math.abs(mvx) > Math.abs(mvy) * 1.35
+      : Math.abs(mvy) > Math.abs(mvx) * 1.35;
+    if (!dominant) return; // 方向暧昧（近对角）→ 保持当前，绝不每帧翻
+    const now = Date.now();
+    if (this.cardinalCandidate !== candidate) {
+      this.cardinalCandidate = candidate;
+      this.cardinalCandidateSince = now;
+      return;
+    }
+    if (now - this.cardinalCandidateSince >= 110) {
+      this.cardinal = candidate;
+      this.cardinalCandidate = undefined;
+    }
   }
 
   /** 侧面图默认朝屏幕左，仅 cardinal==="right" 时水平翻转。正背面图不翻。 */
@@ -394,6 +414,13 @@ function resolveHpColor(hpRatio: number): number {
   if (hpRatio > 0.6) return 0x7fa14a;
   if (hpRatio > 0.3) return 0xd4b24c;
   return 0xb8371f;
+}
+
+function cardinalOf(dir: { x: number; y: number }, fallback: DirectionKey): DirectionKey {
+  if (dir.x === 0 && dir.y === 0) return fallback;
+  return Math.abs(dir.x) >= Math.abs(dir.y)
+    ? (dir.x >= 0 ? "right" : "left")
+    : (dir.y >= 0 ? "down" : "up");
 }
 
 function formatNameplate(player: PlayerState, isSelf: boolean): string {
