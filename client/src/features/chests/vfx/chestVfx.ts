@@ -67,7 +67,9 @@ export function mountChestVfx(ctx: ChestVfxContext): () => void {
     const targetScale = sprite.scaleX;
     sprite.setScale(targetScale * 0.5);
     ctx.scene.tweens.add({ targets: sprite, scale: targetScale, duration: 400, ease: "Back.easeOut" });
+    spawnRewardFlare(ctx.scene, sprite.x, sprite.y);
     spawnOpenBurst(ctx.scene, sprite.x, sprite.y);
+    spawnRewardSummary(ctx.scene, sprite.x, sprite.y, p.drops);
     spawnLootPopups(ctx.scene, sprite.x, sprite.y, p.drops);
     labels.get(p.chestId)?.destroy(); labels.delete(p.chestId);
     const glow = glows.get(p.chestId);
@@ -170,8 +172,128 @@ function clearProgress(chestId: string, playerId: string): void {
 }
 function spawnDropSparks(scene: Phaser.Scene, x: number, y: number): void { for (let i = 0; i < 8; i += 1) { const s = scene.add.circle(x, y, Phaser.Math.Between(2, 4), 0xfacc15, 0.8).setDepth(y + 10); const a = Phaser.Math.FloatBetween(-Math.PI * 0.8, -Math.PI * 0.2), speed = Phaser.Math.Between(100, 200); scene.tweens.add({ targets: s, x: x + Math.cos(a) * speed * 0.5, y: y + Math.sin(a) * speed * 0.5, alpha: 0, scale: 0.2, duration: 500, ease: "Cubic.out", onComplete: () => s.destroy() }); } }
 function spawnNoiseWave(scene: Phaser.Scene, x: number, y: number): void { const wave = scene.add.graphics().setDepth(y - 2).lineStyle(2, 0xd97706, 0.7).strokeCircle(x, y, 30); scene.tweens.add({ targets: wave, scaleX: 8.3, scaleY: 8.3, alpha: 0, duration: 800, ease: "Quad.out", onComplete: () => wave.destroy() }); }
-function spawnOpenBurst(scene: Phaser.Scene, x: number, y: number): void { const g = scene.add.graphics().setPosition(x, y).setDepth(y + 10).lineStyle(2, 0xfacc15, 0.8); for (let i = 0; i < 12; i += 1) { const a = (i / 12) * Math.PI * 2; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * 100, Math.sin(a) * 100); g.strokePath(); } scene.tweens.add({ targets: g, alpha: 0, scale: 1.5, duration: 500, ease: "Cubic.out", onComplete: () => g.destroy() }); spawnDropSparks(scene, x, y); }
-function spawnLootPopups(scene: Phaser.Scene, x: number, y: number, loot: WorldDrop[]): void { loot?.forEach((drop, i) => { const item = drop.item; const text = scene.add.text(x, y - 40, item.name || item.definitionId || "Loot", { fontFamily: GAMEPLAY_THEME.fonts.display, fontSize: "14px", color: "#fbbf24", stroke: "#000000", strokeThickness: 3 }).setOrigin(0.5).setDepth(y + 20 + i); scene.tweens.add({ targets: text, y: y - 120 - i * 20, x: x + (i % 2 === 0 ? 30 : -30), alpha: 0, duration: 1500, delay: i * 100, ease: "Cubic.out", onComplete: () => text.destroy() }); }); }
+function spawnRewardFlare(scene: Phaser.Scene, x: number, y: number): void {
+  ensureChestGlowTexture(scene);
+  const flare = scene.add.image(x, y + 4, CHEST_GLOW_TEXTURE)
+    .setBlendMode("ADD")
+    .setTint(0xffd17a)
+    .setAlpha(0.86)
+    .setDepth(y + 6)
+    .setDisplaySize(92, 68);
+  const targetScaleX = flare.scaleX * 2.4;
+  const targetScaleY = flare.scaleY * 1.9;
+  scene.tweens.add({
+    targets: flare,
+    alpha: 0,
+    scaleX: targetScaleX,
+    scaleY: targetScaleY,
+    duration: 760,
+    ease: "Cubic.out",
+    onComplete: () => flare.destroy()
+  });
+}
+
+function spawnOpenBurst(scene: Phaser.Scene, x: number, y: number): void {
+  const g = scene.add.graphics().setPosition(x, y).setDepth(y + 10).lineStyle(2, 0xfacc15, 0.8);
+  for (let i = 0; i < 12; i += 1) {
+    const a = (i / 12) * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.lineTo(Math.cos(a) * 100, Math.sin(a) * 100);
+    g.strokePath();
+  }
+  scene.tweens.add({ targets: g, alpha: 0, scale: 1.5, duration: 500, ease: "Cubic.out", onComplete: () => g.destroy() });
+  spawnDropSparks(scene, x, y);
+}
+
+function spawnRewardSummary(scene: Phaser.Scene, x: number, y: number, loot: WorldDrop[]): void {
+  const drops = Array.isArray(loot) ? loot : [];
+  if (drops.length === 0) return;
+
+  const totalValue = drops.reduce((sum, drop) => sum + getDropValue(drop), 0);
+  const valueText = totalValue > 0 ? ` · +${formatCompactValue(totalValue)}` : "";
+  const text = scene.add.text(x, y - 58, `收获 ${drops.length} 件${valueText}`, {
+    fontFamily: GAMEPLAY_THEME.fonts.display,
+    fontSize: "20px",
+    color: "#ffe8a3",
+    stroke: "#2a1208",
+    strokeThickness: 5,
+    align: "center"
+  }).setOrigin(0.5).setDepth(y + 28).setAlpha(0).setScale(0.92);
+
+  scene.tweens.add({
+    targets: text,
+    y: y - 86,
+    alpha: 1,
+    scale: 1.05,
+    duration: 180,
+    ease: "Back.easeOut",
+    onComplete: () => {
+      scene.time.delayedCall(760, () => {
+        scene.tweens.add({
+          targets: text,
+          y: y - 118,
+          alpha: 0,
+          duration: 360,
+          ease: "Sine.easeIn",
+          onComplete: () => text.destroy()
+        });
+      });
+    }
+  });
+}
+
+function spawnLootPopups(scene: Phaser.Scene, x: number, y: number, loot: WorldDrop[]): void {
+  const drops = Array.isArray(loot) ? loot : [];
+  drops.forEach((drop, i) => {
+    const text = scene.add.text(x, y - 34, formatDropLabel(drop), {
+      fontFamily: GAMEPLAY_THEME.fonts.display,
+      fontSize: "16px",
+      color: getDropValue(drop) >= 100 ? "#fff1b8" : "#fbbf24",
+      stroke: "#1b1208",
+      strokeThickness: 4
+    }).setOrigin(0.5).setDepth(y + 20 + i).setAlpha(0);
+    scene.tweens.add({
+      targets: text,
+      y: y - 126 - i * 18,
+      x: x + (i % 2 === 0 ? 38 : -38),
+      alpha: { from: 0, to: 1 },
+      duration: 220,
+      delay: i * 90,
+      ease: "Sine.easeOut",
+      onComplete: () => {
+        scene.time.delayedCall(620, () => {
+          scene.tweens.add({
+            targets: text,
+            y: text.y - 28,
+            alpha: 0,
+            duration: 420,
+            ease: "Cubic.out",
+            onComplete: () => text.destroy()
+          });
+        });
+      }
+    });
+  });
+}
+
+function formatDropLabel(drop: WorldDrop): string {
+  const item = drop.item;
+  const name = item.name || item.definitionId || drop.definitionId || "Loot";
+  const value = getDropValue(drop);
+  return value > 0 ? `${name} +${formatCompactValue(value)}` : name;
+}
+
+function getDropValue(drop: WorldDrop): number {
+  return Math.max(0, drop.item.goldValue ?? 0) + Math.max(0, drop.item.treasureValue ?? 0);
+}
+
+function formatCompactValue(value: number): string {
+  if (value >= 1000) {
+    return `${Math.round(value / 100) / 10}k`;
+  }
+  return Math.round(value).toString();
+}
 function updateMonsterAlerts(ctx: ChestVfxContext, x: number, y: number): void { for (const marker of ctx.getMonsterMarkers?.() ?? []) { if (Math.hypot(x - marker.root.x, y - marker.root.y) < 720) showMonsterAlert(marker); } }
 function showMonsterAlert(marker: { root: Phaser.GameObjects.Container; alertIcon?: Phaser.GameObjects.Text | null }): void { if (marker.alertIcon) return; const scene = marker.root.scene; const alert = scene.add.text(0, -24, "!", { fontFamily: "monospace", fontSize: "14px", color: "#facc15", stroke: "#000000", strokeThickness: 3 }).setOrigin(0.5).setAlpha(0); marker.root.add(alert); marker.alertIcon = alert; scene.tweens.add({ targets: alert, alpha: 1, duration: 300 }); scene.time.delayedCall(1000, () => scene.tweens.add({ targets: alert, alpha: 0, duration: 600, onComplete: () => { alert.destroy(); marker.alertIcon = null; } })); }
 function showContestedChestWarning(scene: Phaser.Scene, x: number, y: number, aggroedCount: number): void { const ring = scene.add.graphics().setDepth(y + 3).lineStyle(3, 0xfb923c, 0.9).strokeCircle(x, y, 34); scene.tweens.add({ targets: ring, alpha: 0, scaleX: 2.4, scaleY: 2.4, duration: 720, ease: "Sine.easeOut", onComplete: () => ring.destroy() }); const text = scene.add.text(x, y - 78, aggroedCount > 0 ? `噪音惊动怪物 x${aggroedCount}` : "噪音向四周扩散", { fontFamily: GAMEPLAY_THEME.fonts.display, fontSize: "15px", color: "#fed7aa", stroke: "#2a1208", strokeThickness: 4 }).setOrigin(0.5).setDepth(y + 4); scene.tweens.add({ targets: text, y: y - 104, alpha: 0, duration: 1300, ease: "Sine.easeOut", onComplete: () => text.destroy() }); }

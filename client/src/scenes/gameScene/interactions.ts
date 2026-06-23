@@ -44,6 +44,7 @@ export class GameSceneInteractions {
   private readonly chestProgressBars = new Map<string, Phaser.GameObjects.Graphics>();
   private readonly chestProgressLabels = new Map<string, Phaser.GameObjects.Text>();
   private readonly chestMetadata = new Map<string, { lane?: ChestState["lane"]; noiseRadius?: number; qualityTier?: ChestState["qualityTier"] }>();
+  private readonly chestOpenable = new Map<string, boolean>();
   private readonly chestLastDispensedCount = new Map<string, number>();
   private readonly activeRummageChests = new Set<string>();
   private readonly playerProgressRings = new Map<string, Phaser.GameObjects.Graphics>();
@@ -96,6 +97,8 @@ export class GameSceneInteractions {
 
     if (subscribeChestOpened) {
       this.chestUnsubscribes.push(subscribeChestOpened((payload) => {
+        this.chestOpenable.set(payload.chestId, false);
+        this.hidePromptForChest(payload.chestId);
         const sprite = this.chestSprites.get(payload.chestId);
         if (!sprite) {
           return;
@@ -169,7 +172,7 @@ export class GameSceneInteractions {
     // 历史值 80 > 服务端 60，玩家在 60-80px 看到提示按 E 会被服务端拒绝。
     let minDistance = CHEST_INTERACT_RANGE_PX - 8;
     for (const [id, sprite] of this.chestSprites.entries()) {
-      if (sprite.texture.key === "chest_closed" && sprite.alpha > 0.6) {
+      if (this.chestOpenable.get(id) === true && sprite.texture.key === "chest_closed" && sprite.alpha > 0.6) {
         const distance = distanceBetween(originX, originY, sprite.x, sprite.y);
         if (distance < minDistance) {
           minDistance = distance;
@@ -192,10 +195,12 @@ export class GameSceneInteractions {
     }
 
     this.interactionPrompt.setVisible(false);
+    this.interactionPrompt.setData("chestId", "");
   }
 
   hidePrompt(): void {
     this.interactionPrompt?.setVisible(false);
+    this.interactionPrompt?.setData("chestId", "");
   }
 
   handleInteract(onOpenChest?: (chestId: string) => void, onPickup?: () => void): void {
@@ -205,6 +210,8 @@ export class GameSceneInteractions {
         logEvent("CHEST", "chest.open_request", {
           chestId
         });
+        this.chestOpenable.set(chestId, false);
+        this.hidePromptForChest(chestId);
         onOpenChest?.(chestId);
         return;
       }
@@ -319,6 +326,11 @@ export class GameSceneInteractions {
     }
 
     this.chestMetadata.set(chestId, { lane: chest.lane, noiseRadius: chest.noiseRadius, qualityTier: chest.qualityTier });
+    const openable = !chest.isOpen && (chest.state === undefined || chest.state === "idle");
+    this.chestOpenable.set(chestId, openable);
+    if (!openable) {
+      this.hidePromptForChest(chestId);
+    }
     let sprite = this.chestSprites.get(chestId);
     if (!sprite) {
       sprite = this.scene.add.image(chest.x, chest.y, chest.isOpen ? "chest_open" : "chest_closed").setDepth(chest.y);
@@ -427,6 +439,11 @@ export class GameSceneInteractions {
     const sprite = this.chestSprites.get(chestId);
     if (!sprite) return;
 
+    if (payload.status === "started" || payload.status === "progress" || payload.status === "dispensed") {
+      this.chestOpenable.set(chestId, false);
+      this.hidePromptForChest(chestId);
+    }
+
     if (payload.status === "interrupted") {
       logEvent("CHEST", "chest.interrupted", {
         chestId,
@@ -441,6 +458,8 @@ export class GameSceneInteractions {
     }
 
     if (payload.status === "completed" || payload.state === "empty") {
+      this.chestOpenable.set(chestId, false);
+      this.hidePromptForChest(chestId);
       this.chestProgressBars.get(chestId)?.destroy();
       this.chestProgressBars.delete(chestId);
       this.chestProgressLabels.get(chestId)?.destroy();
@@ -538,6 +557,14 @@ export class GameSceneInteractions {
 
     this.spawnNoiseWave(sprite.x, sprite.y);
     this.updateMonsterAlerts(sprite.x, sprite.y);
+  }
+
+  private hidePromptForChest(chestId: string): void {
+    if (!this.interactionPrompt) return;
+    if (this.interactionPrompt.getData("chestId") === chestId) {
+      this.interactionPrompt.setVisible(false);
+      this.interactionPrompt.setData("chestId", "");
+    }
   }
 
   private spawnDropSparks(x: number, y: number): void {

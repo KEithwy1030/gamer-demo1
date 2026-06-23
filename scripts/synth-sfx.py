@@ -94,8 +94,21 @@ def hit_armor() -> np.ndarray:
     return normalize(ring * 0.7 + clank * 0.8)
 
 
+def rummage_tick() -> np.ndarray:
+    # 0.09s 翻箱短促木响：低频木块瞬态 + 很轻的布料摩擦，反复播放也不刺耳
+    n = int(SR * 0.09)
+    t = np.arange(n) / SR
+    knock = (
+        np.sin(2 * np.pi * 260 * t) * np.exp(-t * 58)
+        + np.sin(2 * np.pi * 520 * t) * 0.35 * np.exp(-t * 72)
+    )
+    rustle = bandpass_noise(n, 900, 2600) * np.exp(-t * 86) * 0.22
+    return normalize(knock * 0.72 + rustle, peak=0.38)
+
+
 if __name__ == "__main__":
     save("attack_whoosh.wav", attack_whoosh())
     save("pickup_coin.wav", pickup_coin())
     save("hit_flesh.wav", hit_flesh())
     save("hit_armor.wav", hit_armor())
+    save("rummage_tick.wav", rummage_tick())

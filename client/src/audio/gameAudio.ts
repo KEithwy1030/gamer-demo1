@@ -47,7 +47,8 @@ const CUE_FILES: Partial<Record<GameAudioCue, string>> = {
   thud: "/assets/audio/hit_armor.wav",
   hurt: "/assets/audio/player_hurt_grunts.wav",
   pickup: "/assets/audio/pickup_coin.wav",
-  chest: "/assets/audio/chest_open.wav"
+  chest: "/assets/audio/chest_open.wav",
+  "rummage-tick": "/assets/audio/rummage_tick.wav"
 };
 
 const CUE_VOLUMES: Partial<Record<GameAudioCue, number>> = {
@@ -57,7 +58,8 @@ const CUE_VOLUMES: Partial<Record<GameAudioCue, number>> = {
   // grunts 是 49.7s 的长文件随机截段，内容不可控——压低存在感待替换
   hurt: 0.5,
   pickup: 0.6,
-  chest: 0.4
+  chest: 0.4,
+  "rummage-tick": 0.32
 };
 
 export class GameAudioController {

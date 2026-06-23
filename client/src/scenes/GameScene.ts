@@ -87,6 +87,13 @@ export interface GameSceneRenderDebugSnapshot {
   selfPlayerId: string | null;
   playerCount: number;
   players: PlayerMarkerDebugSnapshot[];
+  visibleTexts: Array<{
+    text: string;
+    x: number;
+    y: number;
+    alpha: number;
+    depth: number;
+  }>;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -141,7 +148,8 @@ export class GameScene extends Phaser.Scene {
       sceneTimeMs: Math.round(this.time.now),
       selfPlayerId: this.latestState?.selfPlayerId ?? null,
       playerCount: this.playerMarkers.size,
-      players: Array.from(this.playerMarkers.values(), (marker) => marker.getDebugSnapshot())
+      players: Array.from(this.playerMarkers.values(), (marker) => marker.getDebugSnapshot()),
+      visibleTexts: this.getVisibleTextDebugSnapshot()
     };
   }
   private onAttack?: (payload: AttackRequestPayload) => void;
@@ -167,6 +175,21 @@ export class GameScene extends Phaser.Scene {
   ];
   private localBasicAttackEndsAt = 0;
   private pendingBasicAttackFire?: Phaser.Time.TimerEvent;
+
+  private getVisibleTextDebugSnapshot(): GameSceneRenderDebugSnapshot["visibleTexts"] {
+    const texts: GameSceneRenderDebugSnapshot["visibleTexts"] = [];
+    for (const child of this.children.list) {
+      if (!(child instanceof Phaser.GameObjects.Text) || !child.visible || child.alpha <= 0) continue;
+      texts.push({
+        text: child.text,
+        x: Math.round(child.x),
+        y: Math.round(child.y),
+        alpha: Number(child.alpha.toFixed(2)),
+        depth: child.depth
+      });
+    }
+    return texts;
+  }
   private pendingSkillCast?: Phaser.Time.TimerEvent;
   private queuedAttack?: AttackRequestPayload;
   private chaseAssist?: ChaseAssistState;

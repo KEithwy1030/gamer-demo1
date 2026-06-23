@@ -7,6 +7,8 @@ import {
   sleep,
   waitForEventAfter
 } from "../browser-session.mjs";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { bootSandboxMatch } from "./boot-sandbox.mjs";
 
 const INTERACT_KEY = "e";
@@ -133,6 +135,7 @@ export async function runFirstThreeMinutes(context) {
 
   const chestPos = sandboxProbe.firstChest;
   const beforeChestPath = await screenshot("03-before-chest.png");
+  const chestAudioBaseline = readDevLogSnapshot();
   const chestResult = await openSandboxChest(page, chestPos, matchStarted.ts);
   if (!chestResult.opened) {
     const failedShot = await screenshot("04-chest-failed.png");
@@ -159,15 +162,92 @@ export async function runFirstThreeMinutes(context) {
   }
   await sleep(450);
   const chestOpenedShot = await screenshot("04-chest-opened.png");
+  const chestPromptProbe = await readVisibleOpenPromptProbe(page);
+  const chestPromptProbePath = writeJson("chest-prompt-probe.json", chestPromptProbe);
+  const chestAudioProbe = analyzeChestAudioSince(chestAudioBaseline);
+  const chestAudioProbePath = writeJson("chest-audio-probe.json", chestAudioProbe);
+  const lootSummary = summarizeLootFromOpenEvent(chestResult.openEvent);
   addCheckpoint("first-chest", "First chest can be opened from the player flow", "pass", {
     before: beforeChestPath,
     screenshot: chestOpenedShot,
     chestPos,
-    openEvent: summarizeEvent(chestResult.openEvent)
+    openEvent: summarizeEvent(chestResult.openEvent),
+    loot: lootSummary,
+    promptProbe: chestPromptProbePath
   });
+  if (chestPromptProbe.visibleOpenPromptCount > 0) {
+    addFinding({
+      severity: "P1",
+      scope: "game",
+      title: "First chest leaves the open prompt visible after opening",
+      detail: `Observed ${chestPromptProbe.visibleOpenPromptCount} visible text object(s) containing 开箱 after the first chest opened.`,
+      checkpointId: "first-chest-prompt",
+      evidence: { probe: chestPromptProbePath, screenshot: chestOpenedShot }
+    });
+    addCheckpoint("first-chest-prompt", "First chest clears the open prompt after opening", "fail", {
+      probe: chestPromptProbePath,
+      screenshot: chestOpenedShot,
+      visibleOpenPrompts: chestPromptProbe.visibleOpenPrompts
+    });
+  } else {
+    addCheckpoint("first-chest-prompt", "First chest clears the open prompt after opening", "pass", {
+      probe: chestPromptProbePath,
+      screenshot: chestOpenedShot
+    });
+  }
+  if (!chestAudioProbe.available) {
+    addFinding({
+      severity: "P2",
+      scope: "tool",
+      title: "First chest audio evidence is unavailable",
+      detail: `Agent-player could not read ${chestAudioProbe.path}; the first chest cannot be audio-checked from devlog evidence.`,
+      checkpointId: "first-chest-audio",
+      evidence: { probe: chestAudioProbePath, screenshot: chestOpenedShot }
+    });
+    addCheckpoint("first-chest-audio", "First chest emits file-backed rummage audio", "fail", {
+      probe: chestAudioProbePath,
+      screenshot: chestOpenedShot
+    });
+  } else if (chestAudioProbe.rummageTick.total === 0) {
+    addFinding({
+      severity: "P2",
+      scope: "game",
+      title: "First chest rummage has no tick audio evidence",
+      detail: "The chest opened, but no rummage-tick audio.play event appeared in the devlog window for this interaction.",
+      checkpointId: "first-chest-audio",
+      evidence: { probe: chestAudioProbePath, screenshot: chestOpenedShot }
+    });
+    addCheckpoint("first-chest-audio", "First chest emits file-backed rummage audio", "fail", {
+      probe: chestAudioProbePath,
+      screenshot: chestOpenedShot
+    });
+  } else if (!chestAudioProbe.rummageTick.allHaveFiles) {
+    addFinding({
+      severity: "P1",
+      scope: "game",
+      title: "First chest rummage audio falls back to a missing-file cue",
+      detail: `Observed ${chestAudioProbe.rummageTick.missingFile} rummage-tick plays with hasFile!=yes during the first chest interaction.`,
+      checkpointId: "first-chest-audio",
+      evidence: { probe: chestAudioProbePath, screenshot: chestOpenedShot }
+    });
+    addCheckpoint("first-chest-audio", "First chest emits file-backed rummage audio", "fail", {
+      probe: chestAudioProbePath,
+      screenshot: chestOpenedShot,
+      rummageTick: chestAudioProbe.rummageTick
+    });
+  } else {
+    addCheckpoint("first-chest-audio", "First chest emits file-backed rummage audio", "pass", {
+      probe: chestAudioProbePath,
+      rummageTick: chestAudioProbe.rummageTick,
+      chestCue: chestAudioProbe.chestCue,
+      pickupCue: chestAudioProbe.pickupCue
+    });
+  }
   note("first chest opened", {
     chestPos,
-    openEvent: summarizeEvent(chestResult.openEvent)
+    openEvent: summarizeEvent(chestResult.openEvent),
+    loot: lootSummary,
+    chestAudio: chestAudioProbe.summary
   });
 
   const combatResult = await hitSandboxDummy(page, sandboxProbe.firstMonster, matchStarted.ts, writeImageDataUrl);
@@ -259,7 +339,9 @@ export async function runFirstThreeMinutes(context) {
     items: [
       "01-first-glance.png should read as a moonlit ruined world, not a dev/test screen.",
       "02-move-response.png should show clear player position change without visual jitter.",
-      "04-chest-opened.png should make the first chest result obvious.",
+      "04-chest-opened.png should make the first chest result obvious and should not leave the open prompt over the chest.",
+      "chest-prompt-probe.json should show visibleOpenPromptCount=0 after the chest opens.",
+      "chest-audio-probe.json should show rummage-tick with hasFile=yes.",
       "05-hit-feedback-*.jpg should include pre-attack and post-hit continuous frames with a readable hit moment.",
       "06-muted.png should not cover the playfield with heavy UI."
     ]
@@ -276,7 +358,7 @@ async function clearNearbyPickupPrompts(page) {
 async function openSandboxChest(page, chestPos, afterTs) {
   const attempts = [];
   try {
-    await walkTo(page, chestPos.x, chestPos.y - 30);
+    await walkToChestInteractRange(page, chestPos);
   } catch (error) {
     return {
       opened: false,
@@ -293,7 +375,7 @@ async function openSandboxChest(page, chestPos, afterTs) {
     } catch {
       const selfPos = await readSelfPosition(page);
       attempts.push({ attempt, selfPos });
-      await walkTo(page, chestPos.x, chestPos.y - 30).catch(() => {});
+      await walkToChestInteractRange(page, chestPos).catch(() => {});
     }
   }
 
@@ -315,6 +397,40 @@ async function openSandboxChest(page, chestPos, afterTs) {
       detail: `Chest rummage started but no opened event arrived: ${formatError(error)}`
     };
   }
+}
+
+async function walkToChestInteractRange(page, chestPos) {
+  const interactRange = 58;
+  const approachPoints = [
+    { x: chestPos.x, y: chestPos.y - 52 },
+    { x: chestPos.x - 52, y: chestPos.y },
+    { x: chestPos.x + 52, y: chestPos.y },
+    { x: chestPos.x, y: chestPos.y + 52 },
+    { x: chestPos.x - 42, y: chestPos.y - 42 },
+    { x: chestPos.x + 42, y: chestPos.y - 42 }
+  ];
+
+  const current = await readSelfPosition(page);
+  const ordered = current
+    ? [...approachPoints].sort((left, right) => distance(current, left) - distance(current, right))
+    : approachPoints;
+
+  let lastError = null;
+  for (const point of ordered) {
+    try {
+      const reached = await walkTo(page, point.x, point.y, 5_000, {
+        acceptableDistance: 28,
+        stopWhen: (pos) => distance(pos, chestPos) <= interactRange
+      });
+      if (distance(reached, chestPos) <= interactRange + 10) {
+        return reached;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw new Error(`could not reach chest interact range; lastError=${formatError(lastError)}`);
 }
 
 async function hitSandboxDummy(page, monsterPos, afterTs, writeImageDataUrl) {
@@ -490,7 +606,8 @@ function maxVisualDelta(frames) {
   return Number(Math.max(0, ...frames.map((frame) => Number(frame.visualDelta ?? 0))).toFixed(2));
 }
 
-async function walkTo(page, targetX, targetY, timeoutMs = 15_000) {
+async function walkTo(page, targetX, targetY, timeoutMs = 15_000, options = {}) {
+  const acceptableDistance = options.acceptableDistance ?? 20;
   const started = Date.now();
   let last = null;
   let stallCount = 0;
@@ -503,7 +620,10 @@ async function walkTo(page, targetX, targetY, timeoutMs = 15_000) {
     const dx = targetX - pos.x;
     const dy = targetY - pos.y;
     const dist = Math.hypot(dx, dy);
-    if (dist <= 20) {
+    if (options.stopWhen?.(pos)) {
+      return pos;
+    }
+    if (dist <= acceptableDistance) {
       return pos;
     }
     if (last && Math.hypot(pos.x - last.x, pos.y - last.y) < 6) {
@@ -564,6 +684,153 @@ function summarizeEvent(event) {
     name: event.name,
     ts: event.ts,
     payload: event.payload ?? null
+  };
+}
+
+async function readVisibleOpenPromptProbe(page) {
+  const renderSnapshot = await page.evaluate(() => window.__P0B_TEST_HOOKS__?.getRenderSnapshot?.() ?? null);
+  const visibleTexts = Array.isArray(renderSnapshot?.visibleTexts) ? renderSnapshot.visibleTexts : [];
+  const visibleOpenPrompts = visibleTexts.filter((entry) => (
+    typeof entry?.text === "string" && entry.text.includes("开箱")
+  ));
+  return {
+    available: Boolean(renderSnapshot),
+    visibleTextCount: visibleTexts.length,
+    visibleOpenPromptCount: visibleOpenPrompts.length,
+    visibleOpenPrompts,
+    sample: visibleTexts.slice(0, 20)
+  };
+}
+
+function readDevLogSnapshot() {
+  const path = resolve(".devlog", "latest.jsonl");
+  if (!existsSync(path)) {
+    return {
+      available: false,
+      path,
+      lineCount: 0,
+      events: [],
+      parseErrors: [{ line: 0, error: "missing" }]
+    };
+  }
+
+  const lines = readFileSync(path, "utf8").split(/\r?\n/).filter(Boolean);
+  const events = [];
+  const parseErrors = [];
+  lines.forEach((line, index) => {
+    try {
+      events.push(JSON.parse(line));
+    } catch (error) {
+      parseErrors.push({
+        line: index + 1,
+        error: formatError(error)
+      });
+    }
+  });
+
+  return {
+    available: true,
+    path,
+    lineCount: lines.length,
+    events,
+    parseErrors
+  };
+}
+
+function analyzeChestAudioSince(snapshot) {
+  const latest = readDevLogSnapshot();
+  if (!latest.available) {
+    return {
+      available: false,
+      path: latest.path,
+      summary: "missing devlog",
+      parseErrors: latest.parseErrors,
+      rummageTick: emptyCueProbe(),
+      chestCue: emptyCueProbe(),
+      pickupCue: emptyCueProbe(),
+      missingFileCues: []
+    };
+  }
+
+  const startLine = latest.lineCount >= snapshot.lineCount ? snapshot.lineCount : 0;
+  const events = latest.events.slice(startLine);
+  const audioPlays = events.filter((entry) => entry?.category === "AUDIO" && entry?.event === "audio.play");
+  const missingFileCues = unique(
+    audioPlays
+      .filter((entry) => entry?.data?.hasFile !== "yes")
+      .map((entry) => entry?.data?.cue)
+      .filter((cue) => typeof cue === "string")
+  );
+  const rummageTick = cueProbe(audioPlays, "rummage-tick");
+  const chestCue = cueProbe(audioPlays, "chest");
+  const pickupCue = cueProbe(audioPlays, "pickup");
+
+  return {
+    available: true,
+    path: latest.path,
+    fromLineExclusive: startLine,
+    toLine: latest.lineCount,
+    eventCount: events.length,
+    audioPlayCount: audioPlays.length,
+    parseErrors: latest.parseErrors,
+    rummageTick,
+    chestCue,
+    pickupCue,
+    missingFileCues,
+    sample: audioPlays.slice(-20).map((entry) => ({
+      t: entry.t ?? null,
+      cue: entry?.data?.cue ?? null,
+      muted: entry?.data?.muted ?? null,
+      hasFile: entry?.data?.hasFile ?? null
+    })),
+    summary: `rummageTick=${rummageTick.total}, rummageTickMissingFile=${rummageTick.missingFile}, missingFileCues=${missingFileCues.join(",") || "none"}`
+  };
+}
+
+function cueProbe(audioPlays, cue) {
+  const plays = audioPlays.filter((entry) => entry?.data?.cue === cue);
+  const missingFile = plays.filter((entry) => entry?.data?.hasFile !== "yes").length;
+  return {
+    cue,
+    total: plays.length,
+    withFile: plays.length - missingFile,
+    missingFile,
+    allHaveFiles: plays.length > 0 && missingFile === 0
+  };
+}
+
+function emptyCueProbe() {
+  return {
+    cue: null,
+    total: 0,
+    withFile: 0,
+    missingFile: 0,
+    allHaveFiles: false
+  };
+}
+
+function unique(values) {
+  return [...new Set(values)];
+}
+
+function summarizeLootFromOpenEvent(event) {
+  const loot = Array.isArray(event?.payload?.loot)
+    ? event.payload.loot
+    : Array.isArray(event?.payload?.drops)
+      ? event.payload.drops.map((drop) => drop?.item ?? drop)
+      : [];
+  return {
+    count: loot.length,
+    totalValue: loot.reduce((sum, item) => (
+      sum + Math.max(0, item?.goldValue ?? 0) + Math.max(0, item?.treasureValue ?? 0)
+    ), 0),
+    items: loot.slice(0, 6).map((item) => ({
+      definitionId: item?.templateId ?? item?.definitionId ?? null,
+      name: item?.name ?? null,
+      rarity: item?.rarity ?? null,
+      goldValue: item?.goldValue ?? 0,
+      treasureValue: item?.treasureValue ?? 0
+    }))
   };
 }
 
