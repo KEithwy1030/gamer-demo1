@@ -40,6 +40,7 @@
     "validate:lock-assist": "tsx scripts/validate-lock-assist.ts",
     "validate:dev-room-presets": "tsx scripts/validate-dev-room-presets.ts",
     "validate:manual-playtest-entrypoint": "tsx scripts/validate-manual-playtest-entrypoint.ts",
+    "validate:agent-player-report": "node scripts/validate-agent-player-report.mjs",
     "validate:dev-cors-contract": "tsx scripts/validate-dev-cors-contract.ts",
     "validate:project-port-policy": "tsx scripts/validate-project-port-policy.ts",
     "validate:room-loadout-contract": "tsx scripts/validate-room-loadout-contract.ts",
@@ -61,6 +62,7 @@
     "validate:gdd-demo1-contract": "npm run validate:dev-cors-contract && npm run validate:project-port-policy && npm run validate:multiclient-room-contract && npm run validate:room-loadout-contract && npm run validate:manual-playtest-entrypoint && npm run validate:skill-contract && npm run validate:lock-assist && npm run validate:chest-contract && npm run validate:loot-depth && npm run validate:tactical-consumables && npm run validate:item-presentation && npm run validate:carry-loop-release && npm run validate:extract-service && npm run validate:extraction-pressure && npm run validate:pressure-ai-contract && npm run validate:monster-tuning-contract && npm run validate:combat-readability && npm run validate:audio-hooks && npm run validate:death-loot-contract && npm run validate:secure-pouch && npm run validate:merchant-rep && npm run validate:results-overlay && npm run validate:results-replay-prompt && npm run validate:settlement-details && npm run validate:mobile-shell && npm run validate:mobile-controls-contract && npm run validate:drag-contracts && npm run validate:market-lifecycle && npm run validate:profile-carry && npm run validate:map-hazards && npm run validate:miasma-pipeline && npm run typecheck && npm run build",
     "validate:release-readiness": "npm run validate:gdd-demo1-contract && npm run validate:lategame-smoke",
     "validate:launch-readiness": "npm run validate:release-readiness && npm run accept:visual-readiness",
+    "agent:playtest": "node scripts/agent-player/run.mjs",
     "accept:game-feel": "node scripts/accept-game-feel-baseline.mjs",
     "accept:lategame-extract": "node scripts/accept-lategame-extract-baseline.mjs",
     "accept:visual-readiness": "npm run accept:game-feel && npm run accept:lategame-extract"
