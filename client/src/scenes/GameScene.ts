@@ -4,7 +4,7 @@ import type { AttackRequestPayload } from "@gamer/shared";
 import { WEAPON_DEFINITIONS } from "@gamer/shared";
 import { DropMarker } from "../game/entities/DropMarker";
 import { MonsterMarker } from "../game/entities/MonsterMarker";
-import { PlayerMarker } from "../game/entities/PlayerMarker";
+import { PlayerMarker, type PlayerMarkerDebugSnapshot } from "../game/entities/PlayerMarker";
 import {
   MONSTER_ASSET_CONTRACTS,
   MONSTER_FACINGS,
@@ -80,6 +80,15 @@ interface SpectateHudRefs {
   cycleButton: Phaser.GameObjects.Text;
 }
 
+export interface GameSceneRenderDebugSnapshot {
+  scene: string;
+  ts: number;
+  sceneTimeMs: number;
+  selfPlayerId: string | null;
+  playerCount: number;
+  players: PlayerMarkerDebugSnapshot[];
+}
+
 export class GameScene extends Phaser.Scene {
   static readonly KEY = "GameScene";
 
@@ -123,6 +132,17 @@ export class GameScene extends Phaser.Scene {
   /** 测试钩子用：合成移动方向作为自机朝向源（绕过键盘输入桥）。 */
   setTestMoveOverride(v: Vector2): void {
     this.testMoveOverride = v;
+  }
+
+  getRenderDebugSnapshot(): GameSceneRenderDebugSnapshot {
+    return {
+      scene: GameScene.KEY,
+      ts: Date.now(),
+      sceneTimeMs: Math.round(this.time.now),
+      selfPlayerId: this.latestState?.selfPlayerId ?? null,
+      playerCount: this.playerMarkers.size,
+      players: Array.from(this.playerMarkers.values(), (marker) => marker.getDebugSnapshot())
+    };
   }
   private onAttack?: (payload: AttackRequestPayload) => void;
   private onSkill?: (skillId: SkillId) => void;

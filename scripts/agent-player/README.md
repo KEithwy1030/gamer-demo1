@@ -14,6 +14,12 @@ workflow.
 npm run agent:playtest -- --scenario sandbox-smoke
 ```
 
+Dynamic right-walk facing stability:
+
+```bash
+npm run agent:playtest -- --scenario walk-facing-stability
+```
+
 Optional trace capture:
 
 ```bash
@@ -47,7 +53,16 @@ Each run writes to `.codex-artifacts/agent-player/<run-id>/`:
 - `events.json`
 - `devlog-tail.jsonl` when available
 - `trace.zip` only when `--trace` or `AGENT_PLAYER_TRACE=1` is enabled
+- `facing-samples.json` and `facing-analysis.json` for
+  `walk-facing-stability`
 
 Findings must use `scope: "game"` when the game fails, and `scope: "tool"`
 when the automation itself fails. This keeps tool bugs from being mistaken for
 game bugs.
+
+`walk-facing-stability` holds right movement through the real test hook, records
+the live render state during animation frames, captures motion screenshots as
+auxiliary evidence, and fails if the self player leaves `cardinal=right` or
+`flipX=true` after the startup grace window. The JSON render-state sequence is
+the primary evidence for dynamic facing jitter that a single screenshot cannot
+prove.

@@ -61,12 +61,62 @@ export async function waitForEventAfter(page, names, afterTs = 0, timeoutMs = 20
 export async function getHookSnapshot(page) {
   return await page.evaluate(() => {
     const hooks = window.__P0B_TEST_HOOKS__;
+    const snapshot = hooks?.getSnapshot?.();
     return {
       hooksType: typeof hooks,
-      selfPlayerId: hooks?.getSnapshot?.()?.selfPlayerId ?? null,
-      matchSnapshot: hooks?.getSnapshot?.()?.matchSnapshot ?? null
+      selfPlayerId: snapshot?.selfPlayerId ?? null,
+      matchSnapshot: snapshot?.matchSnapshot ?? null,
+      renderSnapshot: snapshot?.renderSnapshot ?? hooks?.getRenderSnapshot?.() ?? null
     };
   });
+}
+
+export async function getRenderSnapshot(page) {
+  return await page.evaluate(() => window.__P0B_TEST_HOOKS__?.getRenderSnapshot?.() ?? null);
+}
+
+export async function sampleSelfRenderDuringMove(page, direction, durationMs, intervalMs) {
+  const hasFrameSampler = await page.evaluate(() => typeof window.__P0B_TEST_HOOKS__?.startRenderSampling === "function");
+  if (hasFrameSampler) {
+    let frameSamples = [];
+    await page.evaluate(() => window.__P0B_TEST_HOOKS__?.startRenderSampling?.());
+    try {
+      await setHookMove(page, direction);
+      await sleep(durationMs);
+    } finally {
+      await setHookMove(page, { x: 0, y: 0 }).catch(() => {});
+      frameSamples = await page.evaluate(() => window.__P0B_TEST_HOOKS__?.stopRenderSampling?.() ?? []).catch(() => []);
+    }
+    return frameSamples
+      .filter((sample) => sample && typeof sample.elapsedMs === "number")
+      .map((sample) => ({
+        ts: sample.ts,
+        elapsedMs: sample.elapsedMs,
+        self: findSelfRenderMarker(sample.renderSnapshot)
+      }));
+  }
+
+  return await sampleSelfRenderByPolling(page, direction, durationMs, intervalMs);
+}
+
+async function sampleSelfRenderByPolling(page, direction, durationMs, intervalMs) {
+  const samples = [];
+  const startedAt = Date.now();
+  await setHookMove(page, direction);
+  try {
+    while (Date.now() - startedAt < durationMs) {
+      const renderSnapshot = await getRenderSnapshot(page);
+      samples.push({
+        ts: new Date().toISOString(),
+        elapsedMs: Date.now() - startedAt,
+        self: findSelfRenderMarker(renderSnapshot)
+      });
+      await sleep(intervalMs);
+    }
+  } finally {
+    await setHookMove(page, { x: 0, y: 0 });
+  }
+  return samples;
 }
 
 export function findSelfPosition(snapshot) {
@@ -82,10 +132,21 @@ export function findSelfPosition(snapshot) {
 }
 
 export async function sendHookMove(page, direction, ms) {
-  await page.evaluate((dir) => window.__P0B_TEST_HOOKS__?.sendMoveInput(dir), direction);
+  await setHookMove(page, direction);
   await sleep(ms);
-  await page.evaluate(() => window.__P0B_TEST_HOOKS__?.sendMoveInput({ x: 0, y: 0 }));
+  await setHookMove(page, { x: 0, y: 0 });
   await sleep(250);
+}
+
+export async function setHookMove(page, direction) {
+  await page.evaluate((dir) => window.__P0B_TEST_HOOKS__?.sendMoveInput(dir), direction);
+}
+
+export function findSelfRenderMarker(renderSnapshot) {
+  const selfId = renderSnapshot?.selfPlayerId;
+  const players = renderSnapshot?.players;
+  if (!selfId || !Array.isArray(players)) return null;
+  return players.find((player) => player.id === selfId) ?? null;
 }
 
 export function distance(left, right) {

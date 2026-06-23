@@ -30,7 +30,7 @@ import { mountLootAudio } from "../features/inventory/audio/lootAudio";
 import { loadAudioSettings, saveAudioSettings } from "../audio/audioSettings";
 import { logEvent } from "../dev/runtimeLog";
 import { translateItemName } from "../ui/itemPresentation";
-import { GameScene } from "./GameScene";
+import { GameScene, type GameSceneRenderDebugSnapshot } from "./GameScene";
 import { applySmoothTextureSampling, GAME_RENDER_CONFIG } from "./gameScene/renderTuning";
 import { GAME_VIEW_HEIGHT, GAME_VIEW_WIDTH } from "./gameScene/renderConfig";
 import {
@@ -69,6 +69,7 @@ export interface GameClientController {
   toggleInventory(): void;
   getSelfPlayerId(): string | null;
   getMatchSnapshot(): RoomRuntimeSnapshot | null;
+  getRenderDebugSnapshot(): GameSceneRenderDebugSnapshot | null;
   sendMoveInput(direction: Vector2): void;
   startExtract(): void;
   setAudioMuted(muted: boolean): void;
@@ -241,6 +242,9 @@ export function createGameClientController(
           landmarks: []
         }
       };
+    },
+    getRenderDebugSnapshot() {
+      return getScene()?.getRenderDebugSnapshot() ?? null;
     },
     sendMoveInput(direction) {
       network.sendMoveInput({ direction });

@@ -23,7 +23,15 @@ declare global {
       getSnapshot?(): {
         selfPlayerId: string | null;
         matchSnapshot: ReturnType<GameClientController["getMatchSnapshot"]>;
+        renderSnapshot: ReturnType<GameClientController["getRenderDebugSnapshot"]>;
       };
+      getRenderSnapshot?(): ReturnType<GameClientController["getRenderDebugSnapshot"]>;
+      startRenderSampling?(): void;
+      stopRenderSampling?(): Array<{
+        ts: string;
+        elapsedMs: number;
+        renderSnapshot: ReturnType<GameClientController["getRenderDebugSnapshot"]>;
+      }>;
     };
   }
 }
@@ -58,6 +66,37 @@ function installP0BTestHooks(gameController: GameClientController): () => void {
   }
 
   let forcedMoveDirection: { x: number; y: number } | null = null;
+  let renderSampler: {
+    startedAt: number;
+    frameId: number | null;
+    samples: Array<{
+      ts: string;
+      elapsedMs: number;
+      renderSnapshot: ReturnType<GameClientController["getRenderDebugSnapshot"]>;
+    }>;
+  } | null = null;
+  const stopRenderSampling = () => {
+    if (!renderSampler) {
+      return [];
+    }
+    const samples = renderSampler.samples;
+    if (renderSampler.frameId !== null) {
+      window.cancelAnimationFrame(renderSampler.frameId);
+    }
+    renderSampler = null;
+    return samples;
+  };
+  const recordRenderSample = () => {
+    if (!renderSampler) {
+      return;
+    }
+    renderSampler.samples.push({
+      ts: new Date().toISOString(),
+      elapsedMs: Math.round(performance.now() - renderSampler.startedAt),
+      renderSnapshot: gameController.getRenderDebugSnapshot()
+    });
+    renderSampler.frameId = window.requestAnimationFrame(recordRenderSample);
+  };
   const moveInterval = window.setInterval(() => {
     if (forcedMoveDirection) {
       gameController.sendMoveInput(forcedMoveDirection);
@@ -76,13 +115,30 @@ function installP0BTestHooks(gameController: GameClientController): () => void {
     getSnapshot() {
       return {
         selfPlayerId: gameController.getSelfPlayerId(),
-        matchSnapshot: gameController.getMatchSnapshot()
+        matchSnapshot: gameController.getMatchSnapshot(),
+        renderSnapshot: gameController.getRenderDebugSnapshot()
       };
+    },
+    getRenderSnapshot() {
+      return gameController.getRenderDebugSnapshot();
+    },
+    startRenderSampling() {
+      stopRenderSampling();
+      renderSampler = {
+        startedAt: performance.now(),
+        frameId: null,
+        samples: []
+      };
+      recordRenderSample();
+    },
+    stopRenderSampling() {
+      return stopRenderSampling();
     }
   };
 
   return () => {
     forcedMoveDirection = null;
+    stopRenderSampling();
     window.clearInterval(moveInterval);
     clearP0BTestHooks();
   };

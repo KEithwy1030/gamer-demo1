@@ -3,8 +3,29 @@ import { type PlayerState, type StatusEffectState, type WeaponType } from "@game
 import { logEvent } from "../../dev/runtimeLog";
 
 export type AnimationState = "IDLE" | "MOVE" | "ATTACK" | "HURT" | "DIE";
-type DirectionKey = "down" | "left" | "right" | "up";
+export type DirectionKey = "down" | "left" | "right" | "up";
 type ActionKey = "attack" | "skill" | "dodge" | "hurt";
+
+export interface PlayerMarkerDebugSnapshot {
+  id: string;
+  x: number;
+  y: number;
+  targetX: number;
+  targetY: number;
+  state: AnimationState;
+  cardinal: DirectionKey;
+  flipX: boolean;
+  textureKey: string;
+  frameName: string;
+  animKey: string | null;
+  animPlaying: boolean;
+  actionLocked: boolean;
+  actionLockedRemainingMs: number;
+  bodyY: number;
+  bodyAngle: number;
+  rootAlpha: number;
+  visible: boolean;
+}
 
 // 焊接动作图（人+武器一体）。每把武器一张 3x2 图，帧序固定：
 const FRAME = { idle: 0, walkA: 1, walkB: 2, windup: 3, strike: 4, hurt: 5 } as const;
@@ -225,6 +246,30 @@ export class PlayerMarker {
     scene.tweens.add({ targets: ghost, alpha: 0, duration: 300, onComplete: () => ghost.destroy() });
   }
 
+  getDebugSnapshot(): PlayerMarkerDebugSnapshot {
+    const now = Date.now();
+    return {
+      id: this.id,
+      x: roundDebug(this.root.x),
+      y: roundDebug(this.root.y),
+      targetX: roundDebug(this.targetX),
+      targetY: roundDebug(this.targetY),
+      state: this.currentState,
+      cardinal: this.cardinal,
+      flipX: this.body.flipX,
+      textureKey: this.body.texture.key,
+      frameName: String(this.body.frame.name),
+      animKey: this.body.anims.currentAnim?.key ?? null,
+      animPlaying: this.body.anims.isPlaying,
+      actionLocked: now < this.actionLockedUntil,
+      actionLockedRemainingMs: Math.max(0, Math.round(this.actionLockedUntil - now)),
+      bodyY: roundDebug(this.body.y),
+      bodyAngle: roundDebug(this.body.angle),
+      rootAlpha: roundDebug(this.root.alpha),
+      visible: this.root.visible
+    };
+  }
+
   /**
    * 四方向动画键。idle/walk 按朝向选行：down=正面图、up=背面图、left/right=侧面图。
    * attack/hurt 用侧面图（无方向后缀，攻击短暂朝瞄准）。
@@ -417,6 +462,10 @@ function resolveHpColor(hpRatio: number): number {
   if (hpRatio > 0.6) return 0x7fa14a;
   if (hpRatio > 0.3) return 0xd4b24c;
   return 0xb8371f;
+}
+
+function roundDebug(value: number): number {
+  return Number(value.toFixed(2));
 }
 
 function cardinalOf(dir: { x: number; y: number }, fallback: DirectionKey): DirectionKey {

@@ -9,6 +9,7 @@ import {
   toMarkdownReport
 } from "./report.mjs";
 import { runSandboxSmoke } from "./scenarios/sandbox-smoke.mjs";
+import { runWalkFacingStability } from "./scenarios/walk-facing-stability.mjs";
 
 const HOST = "127.0.0.1";
 const args = parseArgs(process.argv.slice(2));
@@ -75,7 +76,12 @@ function appendLog(name, chunk) {
 async function screenshot(name) {
   if (!page) throw new Error("page is not initialized");
   const path = join(ARTIFACT_DIR, name);
-  await page.screenshot({ path, fullPage: false });
+  const isJpeg = /\.jpe?g$/i.test(name);
+  await page.screenshot({
+    path,
+    fullPage: false,
+    ...(isJpeg ? { type: "jpeg", quality: 72 } : {})
+  });
   summary.artifacts[name] = path;
   return path;
 }
@@ -108,7 +114,11 @@ function startLauncher() {
 }
 
 async function run() {
-  if (SCENARIO !== "sandbox-smoke") {
+  const scenarioRunner = {
+    "sandbox-smoke": runSandboxSmoke,
+    "walk-facing-stability": runWalkFacingStability
+  }[SCENARIO];
+  if (!scenarioRunner) {
     throw new Error(`Unsupported agent-player scenario: ${SCENARIO}`);
   }
 
@@ -116,7 +126,14 @@ async function run() {
   await waitForHttp(`${SERVER_URL}/health`, 60_000);
   await waitForHttp(`http://${HOST}:${CLIENT_PORT}`, 60_000);
 
-  browser = await chromium.launch({ headless: HEADLESS });
+  browser = await chromium.launch({
+    headless: HEADLESS,
+    args: [
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding"
+    ]
+  });
   context = await browser.newContext({
     viewport: { width: 1600, height: 900 },
     deviceScaleFactor: 1
@@ -129,13 +146,14 @@ async function run() {
   installBrowserDiagnostics(page);
   await installAgentRecorder(page);
 
-  await runSandboxSmoke({
+  await scenarioRunner({
     page,
     appUrl: APP_URL,
     addCheckpoint,
     addFinding,
     note,
-    screenshot
+    screenshot,
+    writeJson
   });
 
   const events = await getRecordedEvents(page);
@@ -257,7 +275,7 @@ function killPidTree(pid) {
 }
 
 function scenarioUrl(scenario, clientPort) {
-  if (scenario === "sandbox-smoke") {
+  if (scenario === "sandbox-smoke" || scenario === "walk-facing-stability") {
     return `http://${HOST}:${clientPort}/?devRoomPreset=sandbox&p0bTestHooks=1&grade=moonlit`;
   }
   throw new Error(`Unsupported scenario url: ${scenario}`);

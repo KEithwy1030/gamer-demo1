@@ -4,6 +4,7 @@ import {
   createAgentPlayerSummary,
   toMarkdownReport
 } from "./agent-player/report.mjs";
+import { analyzeFacingSamples } from "./agent-player/facing-analysis.mjs";
 
 const baseSummary = createAgentPlayerSummary({
   runId: "contract-run",
@@ -68,5 +69,32 @@ assert.match(markdown, /Agent Player Report/);
 assert.match(markdown, /Chest interaction never starts/);
 assert.match(markdown, /Browser automation lost the page/);
 assert.match(markdown, /failureScope: tool/);
+
+const stableFacing = analyzeFacingSamples([
+  { elapsedMs: 0, self: { cardinal: "down", flipX: false, state: "IDLE", animKey: "scavenger-sword-idle-down" } },
+  { elapsedMs: 340, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side" } },
+  { elapsedMs: 410, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side" } },
+  { elapsedMs: 480, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side" } }
+], { expectedCardinal: "right", expectedFlipX: true, initialGraceMs: 300, minSamples: 3 });
+assert.equal(stableFacing.pass, true);
+assert.equal(stableFacing.violations.length, 0);
+
+const jitterFacing = analyzeFacingSamples([
+  { elapsedMs: 350, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side" } },
+  { elapsedMs: 420, self: { cardinal: "left", flipX: false, state: "MOVE", animKey: "scavenger-sword-walk-side" } },
+  { elapsedMs: 490, self: { cardinal: "right", flipX: false, state: "MOVE", animKey: "scavenger-sword-walk-side" } }
+], { expectedCardinal: "right", expectedFlipX: true, initialGraceMs: 300, minSamples: 3 });
+assert.equal(jitterFacing.pass, false);
+assert.equal(jitterFacing.violations.length, 2);
+assert.deepEqual(jitterFacing.uniqueCardinals, ["left", "right"]);
+assert.equal(jitterFacing.flipTransitions, 1);
+
+const staleAttackStateWalking = analyzeFacingSamples([
+  { elapsedMs: 350, self: { cardinal: "right", flipX: true, state: "ATTACK", actionLocked: false, animKey: "scavenger-sword-walk-side" } },
+  { elapsedMs: 420, self: { cardinal: "right", flipX: true, state: "ATTACK", actionLocked: false, animKey: "scavenger-sword-walk-side" } },
+  { elapsedMs: 490, self: { cardinal: "right", flipX: true, state: "ATTACK", actionLocked: false, animKey: "scavenger-sword-walk-side" } }
+], { expectedCardinal: "right", expectedFlipX: true, initialGraceMs: 300, minSamples: 3 });
+assert.equal(staleAttackStateWalking.pass, true);
+assert.equal(staleAttackStateWalking.consideredSamples, 3);
 
 console.log("validate-agent-player-report: ok");
