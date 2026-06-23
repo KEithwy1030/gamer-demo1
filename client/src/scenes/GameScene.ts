@@ -248,12 +248,18 @@ export class GameScene extends Phaser.Scene {
     // 正背面图（key_vert）：0-2 正面朝镜头走 / 3-5 背面远离走。
     // down=正面, up=背面, left/right=侧面（right 由 PlayerMarker flipX）。
     const weapons: WeaponType[] = ["sword", "blade", "spear"];
+    const sideWalkFramesByWeapon: Record<WeaponType, number[]> = {
+      // Sword frame 2 currently reads as a reversed side pose, causing visible left-right sway while running.
+      sword: [1, 0, 1, 0],
+      blade: [1, 0, 2, 0],
+      spear: [1, 0, 2, 0]
+    };
     for (const weapon of weapons) {
       const side = `scavenger_${weapon}`;
       const vert = `scavenger_${weapon}_vert`;
       // 侧面（左右共用）
       this.createAnimation(`scavenger-${weapon}-idle-side`, side, [0], 1, -1);
-      this.createAnimation(`scavenger-${weapon}-walk-side`, side, [1, 0, 2, 0], 7, -1);
+      this.createAnimation(`scavenger-${weapon}-walk-side`, side, sideWalkFramesByWeapon[weapon], 7, -1);
       // 正面（向下/朝镜头）
       this.createAnimation(`scavenger-${weapon}-idle-down`, vert, [0], 1, -1);
       this.createAnimation(`scavenger-${weapon}-walk-down`, vert, [1, 0, 2, 0], 7, -1);

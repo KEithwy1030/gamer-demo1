@@ -72,12 +72,38 @@ assert.match(markdown, /failureScope: tool/);
 
 const stableFacing = analyzeFacingSamples([
   { elapsedMs: 0, self: { cardinal: "down", flipX: false, state: "IDLE", animKey: "scavenger-sword-idle-down" } },
-  { elapsedMs: 340, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side" } },
-  { elapsedMs: 410, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side" } },
-  { elapsedMs: 480, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side" } }
-], { expectedCardinal: "right", expectedFlipX: true, initialGraceMs: 300, minSamples: 3 });
+  { elapsedMs: 340, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side", frameName: 1 } },
+  { elapsedMs: 410, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side", frameName: 0 } },
+  { elapsedMs: 480, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side", frameName: 1 } }
+], {
+  expectedCardinal: "right",
+  expectedFlipX: true,
+  initialGraceMs: 300,
+  minSamples: 3,
+  forbiddenFramesByAnimKey: {
+    "scavenger-sword-walk-side": ["2"]
+  }
+});
 assert.equal(stableFacing.pass, true);
 assert.equal(stableFacing.violations.length, 0);
+assert.deepEqual(stableFacing.frameNamesByAnimKey["scavenger-sword-walk-side"], ["0", "1"]);
+
+const visuallyReversedSwordFrame = analyzeFacingSamples([
+  { elapsedMs: 350, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side", frameName: 1 } },
+  { elapsedMs: 420, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side", frameName: 2 } },
+  { elapsedMs: 490, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side", frameName: 0 } }
+], {
+  expectedCardinal: "right",
+  expectedFlipX: true,
+  initialGraceMs: 300,
+  minSamples: 3,
+  forbiddenFramesByAnimKey: {
+    "scavenger-sword-walk-side": ["2"]
+  }
+});
+assert.equal(visuallyReversedSwordFrame.pass, false);
+assert.equal(visuallyReversedSwordFrame.violations.length, 1);
+assert.match(visuallyReversedSwordFrame.violations[0].reasons[0], /frameName=2 forbidden/);
 
 const jitterFacing = analyzeFacingSamples([
   { elapsedMs: 350, self: { cardinal: "right", flipX: true, state: "MOVE", animKey: "scavenger-sword-walk-side" } },

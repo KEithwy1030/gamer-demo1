@@ -6,11 +6,13 @@ export function analyzeFacingSamples(samples, options = {}) {
   const initialGraceMs = Number(options.initialGraceMs ?? 250);
   const minSamples = Number(options.minSamples ?? 8);
   const minCoveredMs = Number(options.minCoveredMs ?? 0);
+  const forbiddenFramesByAnimKey = normalizeForbiddenFramesByAnimKey(options.forbiddenFramesByAnimKey);
 
   const considered = [];
   const violations = [];
   const cardinals = [];
   const animKeys = [];
+  const frameNamesByAnimKey = new Map();
   let previousCardinal = null;
   let previousFlipX = null;
   let cardinalTransitions = 0;
@@ -35,6 +37,7 @@ export function analyzeFacingSamples(samples, options = {}) {
       flipX: typeof self.flipX === "boolean" ? self.flipX : null,
       state: self.state ?? null,
       animKey: self.animKey ?? null,
+      frameName: self.frameName == null ? null : String(self.frameName),
       x: typeof self.x === "number" ? Number(self.x.toFixed(2)) : null,
       y: typeof self.y === "number" ? Number(self.y.toFixed(2)) : null
     };
@@ -45,6 +48,11 @@ export function analyzeFacingSamples(samples, options = {}) {
     }
     if (normalized.animKey && !animKeys.includes(normalized.animKey)) {
       animKeys.push(normalized.animKey);
+    }
+    if (normalized.animKey && normalized.frameName !== null) {
+      const frameNames = frameNamesByAnimKey.get(normalized.animKey) ?? new Set();
+      frameNames.add(normalized.frameName);
+      frameNamesByAnimKey.set(normalized.animKey, frameNames);
     }
     if (previousCardinal !== null && normalized.cardinal !== previousCardinal) {
       cardinalTransitions += 1;
@@ -61,6 +69,10 @@ export function analyzeFacingSamples(samples, options = {}) {
     }
     if (normalized.flipX !== expectedFlipX) {
       reasons.push(`flipX=${normalized.flipX}`);
+    }
+    const forbiddenFrames = normalized.animKey ? forbiddenFramesByAnimKey.get(normalized.animKey) : null;
+    if (forbiddenFrames?.has(normalized.frameName)) {
+      reasons.push(`frameName=${normalized.frameName} forbidden for ${normalized.animKey}`);
     }
     if (reasons.length > 0) {
       violations.push({
@@ -110,8 +122,23 @@ export function analyzeFacingSamples(samples, options = {}) {
     coveredMs,
     uniqueCardinals: cardinals,
     animKeys,
+    frameNamesByAnimKey: Object.fromEntries(
+      [...frameNamesByAnimKey.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([animKey, frameNames]) => [animKey, [...frameNames].sort()])
+    ),
     cardinalTransitions,
     flipTransitions,
     violations: [...samplingViolations, ...violations]
   };
+}
+
+function normalizeForbiddenFramesByAnimKey(input) {
+  const result = new Map();
+  if (!input || typeof input !== "object") return result;
+  for (const [animKey, frames] of Object.entries(input)) {
+    if (!animKey || !Array.isArray(frames)) continue;
+    result.set(animKey, new Set(frames.map((frame) => String(frame))));
+  }
+  return result;
 }

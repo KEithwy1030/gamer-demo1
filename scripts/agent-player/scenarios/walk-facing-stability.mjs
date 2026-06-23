@@ -86,7 +86,10 @@ export async function runWalkFacingStability(context) {
     expectedFlipX: true,
     initialGraceMs: INITIAL_GRACE_MS,
     minSamples: MIN_FACING_SAMPLES,
-    minCoveredMs: MIN_COVERED_MS
+    minCoveredMs: MIN_COVERED_MS,
+    forbiddenFramesByAnimKey: {
+      "scavenger-sword-walk-side": ["2"]
+    }
   });
 
   const samplesPath = writeJson("facing-samples.json", samples);
@@ -97,6 +100,7 @@ export async function runWalkFacingStability(context) {
     coveredMs: analysis.coveredMs,
     uniqueCardinals: analysis.uniqueCardinals,
     flipTransitions: analysis.flipTransitions,
+    frameNamesByAnimKey: analysis.frameNamesByAnimKey,
     movedDistance: Number(movedDistance.toFixed(1))
   });
 
@@ -179,6 +183,7 @@ export async function runWalkFacingStability(context) {
     screenshots: frameShots,
     uniqueCardinals: analysis.uniqueCardinals,
     flipTransitions: analysis.flipTransitions,
+    frameNamesByAnimKey: analysis.frameNamesByAnimKey,
     coveredMs: analysis.coveredMs,
     animKeys: analysis.animKeys
   });

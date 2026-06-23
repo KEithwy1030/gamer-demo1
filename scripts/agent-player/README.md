@@ -63,6 +63,8 @@ game bugs.
 `walk-facing-stability` holds right movement through the real test hook, records
 the live render state during animation frames, captures motion screenshots as
 auxiliary evidence, and fails if the self player leaves `cardinal=right` or
-`flipX=true` after the startup grace window. The JSON render-state sequence is
-the primary evidence for dynamic facing jitter that a single screenshot cannot
-prove.
+`flipX=true` after the startup grace window. It also fails if the current sword
+side-walk animation plays frame `2`, because that generated frame currently
+reads as a reversed side pose even when the runtime facing state is stable. The
+JSON render-state sequence is the primary evidence for dynamic facing jitter
+that a single screenshot cannot prove.
