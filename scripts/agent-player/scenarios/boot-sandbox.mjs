@@ -13,12 +13,12 @@ export async function bootSandboxMatch({ page, appUrl }) {
   ]).then(([entry]) => entry);
 
   await page.locator("button.btn-primary").first().waitFor({ state: "visible", timeout: 20_000 });
-  await Promise.all([
+  const matchStarted = await Promise.all([
     waitForEventAfter(page, "match:started", roomState.ts, 20_000),
     page.locator("button.btn-primary").first().click()
-  ]);
+  ]).then(([entry]) => entry);
   await page.locator(GAME_CANVAS_SELECTOR).first().waitFor({ state: "visible", timeout: 20_000 });
   await sleep(1_200);
 
-  return { roomState };
+  return { roomState, matchStarted };
 }

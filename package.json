@@ -23,6 +23,7 @@
     "validate:monster-assets": "tsx scripts/validate-monster-asset-contract.ts",
     "validate:monster-tuning-contract": "tsx scripts/validate-monster-tuning-contract.ts",
     "validate:combat-readability": "tsx scripts/validate-combat-readability.ts",
+    "validate:player-visible-labels": "tsx scripts/validate-player-visible-labels.ts",
     "validate:death-loot-contract": "tsx scripts/validate-death-loot-contract.ts",
     "validate:secure-pouch": "npm run build --workspace shared && tsx scripts/validate-secure-pouch.ts",
     "validate:merchant-rep": "npm run build --workspace shared && tsx scripts/validate-merchant-rep.ts",

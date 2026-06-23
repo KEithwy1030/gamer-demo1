@@ -20,6 +20,12 @@ Dynamic right-walk facing stability:
 npm run agent:playtest -- --scenario walk-facing-stability
 ```
 
+Player-visible first-three-minutes flow:
+
+```bash
+npm run agent:playtest -- --scenario first-three-minutes
+```
+
 Optional trace capture:
 
 ```bash
@@ -55,6 +61,8 @@ Each run writes to `.codex-artifacts/agent-player/<run-id>/`:
 - `trace.zip` only when `--trace` or `AGENT_PLAYER_TRACE=1` is enabled
 - `facing-samples.json` and `facing-analysis.json` for
   `walk-facing-stability`
+- `sandbox-probe.json`, `hit-frame-sequence.json`, and
+  `human-review-checklist.json` for `first-three-minutes`
 
 Findings must use `scope: "game"` when the game fails, and `scope: "tool"`
 when the automation itself fails. This keeps tool bugs from being mistaken for
@@ -68,3 +76,9 @@ side-walk animation plays frame `2`, because that generated frame currently
 reads as a reversed side pose even when the runtime facing state is stable. The
 JSON render-state sequence is the primary evidence for dynamic facing jitter
 that a single screenshot cannot prove.
+
+`first-three-minutes` drives the real sandbox preset through first glance,
+movement, first chest, first dummy hit, and audio mute. It starts canvas frame
+capture before the dummy attack and writes each hit frame with elapsed time and
+simple visual-delta metrics, so a later agent can separate "event succeeded"
+from "the hit moment is actually readable".

@@ -69,7 +69,7 @@ export function getMonsterLabel(monster: MonsterState): string {
     return monster.behaviorPhase === "recover" ? "ARCHER EVADE" : "ARCHER";
   }
 
-  return monster.behaviorPhase === "windup" ? "ATTACK" : "MONSTER";
+  return "";
 }
 
 export function getEliteRoleLabel(monster: Pick<MonsterState, "eliteRole">): string {

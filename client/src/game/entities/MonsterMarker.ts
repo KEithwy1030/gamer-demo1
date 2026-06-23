@@ -132,7 +132,8 @@ export class MonsterMarker {
     this.crown.setOrigin(0.5, 0.5);
     this.crown.setVisible(isBoss || isElite);
 
-    this.label = scene.add.text(0, labelOffsetY, getMonsterLabel(monster), {
+    const initialLabel = getMonsterLabel(monster);
+    this.label = scene.add.text(0, labelOffsetY, initialLabel, {
       fontFamily: "monospace",
       fontSize: isBoss ? "10px" : "9px",
       fontStyle: "bold",
@@ -141,6 +142,7 @@ export class MonsterMarker {
       padding: { x: 4, y: 1 }
     });
     this.label.setOrigin(0.5, 0);
+    this.label.setVisible(initialLabel.length > 0);
 
     this.root = scene.add.container(monster.x, monster.y, [
       this.shadow,
@@ -242,7 +244,9 @@ export class MonsterMarker {
       this.lastPhaseWidth = phaseWidth;
     }
 
-    this.label.setText(getMonsterLabel(monster));
+    const labelText = getMonsterLabel(monster);
+    this.label.setText(labelText);
+    this.label.setVisible(monster.isAlive && labelText.length > 0);
     this.crown.setText(snapshot.isBoss
       ? (monster.isEnraged ? "BOSS RAGE" : "BOSS")
       : snapshot.isElite
@@ -293,7 +297,7 @@ export class MonsterMarker {
       this.sprite.setVisible(true);
       this.applyVisualPose(monster, snapshot);
       this.updateWindupRing(monster);
-      this.label.setVisible(true);
+      this.label.setVisible(labelText.length > 0);
       this.hpTrack.setVisible(true);
       this.hpFill.setVisible(true);
       this.phaseBarTrack.setVisible(snapshot.isWarning || snapshot.isRecovering || snapshot.isAttacking);

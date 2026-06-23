@@ -8,6 +8,7 @@ import {
   createAgentPlayerSummary,
   toMarkdownReport
 } from "./report.mjs";
+import { runFirstThreeMinutes } from "./scenarios/first-three-minutes.mjs";
 import { runSandboxSmoke } from "./scenarios/sandbox-smoke.mjs";
 import { runWalkFacingStability } from "./scenarios/walk-facing-stability.mjs";
 
@@ -67,6 +68,17 @@ function writeJson(name, data) {
   return path;
 }
 
+function writeImageDataUrl(name, dataUrl) {
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(String(dataUrl));
+  if (!match) {
+    throw new Error(`Unsupported image data URL for artifact ${name}`);
+  }
+  const path = join(ARTIFACT_DIR, name);
+  writeFileSync(path, Buffer.from(match[2], "base64"));
+  summary.artifacts[name] = path;
+  return path;
+}
+
 function appendLog(name, chunk) {
   const path = join(ARTIFACT_DIR, name);
   writeFileSync(path, String(chunk), { encoding: "utf8", flag: "a" });
@@ -115,6 +127,7 @@ function startLauncher() {
 
 async function run() {
   const scenarioRunner = {
+    "first-three-minutes": runFirstThreeMinutes,
     "sandbox-smoke": runSandboxSmoke,
     "walk-facing-stability": runWalkFacingStability
   }[SCENARIO];
@@ -153,6 +166,7 @@ async function run() {
     addFinding,
     note,
     screenshot,
+    writeImageDataUrl,
     writeJson
   });
 
@@ -275,7 +289,7 @@ function killPidTree(pid) {
 }
 
 function scenarioUrl(scenario, clientPort) {
-  if (scenario === "sandbox-smoke" || scenario === "walk-facing-stability") {
+  if (scenario === "sandbox-smoke" || scenario === "walk-facing-stability" || scenario === "first-three-minutes") {
     return `http://${HOST}:${clientPort}/?devRoomPreset=sandbox&p0bTestHooks=1&grade=moonlit`;
   }
   throw new Error(`Unsupported scenario url: ${scenario}`);
