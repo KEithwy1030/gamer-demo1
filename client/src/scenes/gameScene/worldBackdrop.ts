@@ -270,6 +270,9 @@ const DECOR_COUNT = 240;
 const DECOR_MIN_SCALE = 0.16;
 const DECOR_MAX_SCALE = 0.34;
 const DECOR_EXTRACT_CLEARANCE = 60;
+const DECOR_PLAYER_CLEARANCE = 260;
+const DECOR_CHEST_CLEARANCE = 220;
+const DECOR_DROP_CLEARANCE = 112;
 const DECOR_FRAME_COUNT = 16;
 
 /**
@@ -319,6 +322,11 @@ function drawDecorLayer(scene: Phaser.Scene, state: MatchViewState): Phaser.Game
         return true;
       }
     }
+    for (const chest of layout.chestZones ?? []) {
+      if (Math.hypot(x - chest.x, y - chest.y) < DECOR_CHEST_CLEARANCE) {
+        return true;
+      }
+    }
     for (const hazard of layout.riverHazards ?? []) {
       if (insideRect(x, y, hazard, 24)) {
         return true;
@@ -331,6 +339,17 @@ function drawDecorLayer(scene: Phaser.Scene, state: MatchViewState): Phaser.Game
     }
     for (const obstacle of layout.obstacleZones ?? []) {
       if (insideRect(x, y, obstacle, 8)) {
+        return true;
+      }
+    }
+    // Keep the first-view interaction path readable; decorative props must not sit under pickup feedback.
+    for (const player of state.players) {
+      if (player.isAlive && Math.hypot(x - player.x, y - player.y) < DECOR_PLAYER_CLEARANCE) {
+        return true;
+      }
+    }
+    for (const drop of state.drops) {
+      if (Math.hypot(x - drop.x, y - drop.y) < DECOR_DROP_CLEARANCE) {
         return true;
       }
     }
@@ -349,6 +368,7 @@ function drawDecorLayer(scene: Phaser.Scene, state: MatchViewState): Phaser.Game
     const frame = Math.floor(random() * DECOR_FRAME_COUNT);
     const scale = DECOR_MIN_SCALE + random() * (DECOR_MAX_SCALE - DECOR_MIN_SCALE);
     const sprite = scene.add.image(Math.round(x), Math.round(y), DECOR_TEXTURE_KEY, frame)
+      .setName(`${DECOR_TEXTURE_KEY}:${frame}`)
       .setScale(scale)
       .setDepth(-34.5)
       .setAlpha(0.92)

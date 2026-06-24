@@ -3,6 +3,7 @@ import {
   distance,
   findSelfPosition,
   getHookSnapshot,
+  getRenderSnapshot,
   sendHookMove,
   sleep,
   waitForEventAfter
@@ -13,6 +14,9 @@ import { bootSandboxMatch } from "./boot-sandbox.mjs";
 
 const INTERACT_KEY = "e";
 const MIN_MOVE_DISTANCE = 18;
+const CHEST_PROMPT_SAFE_RANGE = 48;
+const CANVAS_REVIEW_TEXTURE_KEYS = new Set(["world_decor", "world_structures"]);
+const CANVAS_REVIEW_MIN_OBJECT_AREA = 9_000;
 
 export async function runFirstThreeMinutes(context) {
   const {
@@ -135,6 +139,50 @@ export async function runFirstThreeMinutes(context) {
 
   const chestPos = sandboxProbe.firstChest;
   const beforeChestPath = await screenshot("03-before-chest.png");
+  const preChestDomOverlayProbe = await readDomOverlayProbe(page);
+  const preChestDomOverlayProbePath = writeJson("pre-chest-dom-overlay-probe.json", preChestDomOverlayProbe);
+  const preChestCanvasProbe = await readCanvasObjectProbe(page);
+  const preChestCanvasProbePath = writeJson("pre-chest-canvas-object-probe.json", preChestCanvasProbe);
+  if (preChestDomOverlayProbe.blockingOverlayCount > 0) {
+    addFinding({
+      severity: "P1",
+      scope: "game",
+      title: "DOM UI blocks the playfield before the first chest",
+      detail: `Observed ${preChestDomOverlayProbe.blockingOverlayCount} visible DOM overlay(s) crossing the central playfield before the first chest interaction.`,
+      checkpointId: "pre-chest-dom-overlays",
+      evidence: { probe: preChestDomOverlayProbePath, screenshot: beforeChestPath }
+    });
+    addCheckpoint("pre-chest-dom-overlays", "Default play flow keeps blocking DOM overlays off the playfield", "fail", {
+      probe: preChestDomOverlayProbePath,
+      screenshot: beforeChestPath,
+      blockingOverlays: preChestDomOverlayProbe.blockingOverlays
+    });
+  } else {
+    addCheckpoint("pre-chest-dom-overlays", "Default play flow keeps blocking DOM overlays off the playfield", "pass", {
+      probe: preChestDomOverlayProbePath,
+      screenshot: beforeChestPath
+    });
+  }
+  if (preChestCanvasProbe.suspiciousObjectCount > 0) {
+    addFinding({
+      severity: "P2",
+      scope: "game",
+      title: "World art overlaps the pickup feedback review band before the first chest",
+      detail: `Observed ${preChestCanvasProbe.suspiciousObjectCount} large world-art object(s) crossing the lower-center pickup feedback review band before the first chest interaction.`,
+      checkpointId: "pre-chest-canvas-objects",
+      evidence: { probe: preChestCanvasProbePath, screenshot: beforeChestPath }
+    });
+    addCheckpoint("pre-chest-canvas-objects", "Lower-center pickup feedback band is free of large world-art clutter before the first chest", "fail", {
+      probe: preChestCanvasProbePath,
+      screenshot: beforeChestPath,
+      suspiciousObjects: preChestCanvasProbe.suspiciousObjects
+    });
+  } else {
+    addCheckpoint("pre-chest-canvas-objects", "Lower-center pickup feedback band is free of large world-art clutter before the first chest", "pass", {
+      probe: preChestCanvasProbePath,
+      screenshot: beforeChestPath
+    });
+  }
   const chestAudioBaseline = readDevLogSnapshot();
   const chestResult = await openSandboxChest(page, chestPos, matchStarted.ts);
   if (!chestResult.opened) {
@@ -164,6 +212,10 @@ export async function runFirstThreeMinutes(context) {
   const chestOpenedShot = await screenshot("04-chest-opened.png");
   const chestPromptProbe = await readVisibleOpenPromptProbe(page);
   const chestPromptProbePath = writeJson("chest-prompt-probe.json", chestPromptProbe);
+  const chestDomOverlayProbe = await readDomOverlayProbe(page);
+  const chestDomOverlayProbePath = writeJson("chest-dom-overlay-probe.json", chestDomOverlayProbe);
+  const chestCanvasProbe = await readCanvasObjectProbe(page);
+  const chestCanvasProbePath = writeJson("chest-canvas-object-probe.json", chestCanvasProbe);
   const chestAudioProbe = analyzeChestAudioSince(chestAudioBaseline);
   const chestAudioProbePath = writeJson("chest-audio-probe.json", chestAudioProbe);
   const lootSummary = summarizeLootFromOpenEvent(chestResult.openEvent);
@@ -173,7 +225,9 @@ export async function runFirstThreeMinutes(context) {
     chestPos,
     openEvent: summarizeEvent(chestResult.openEvent),
     loot: lootSummary,
-    promptProbe: chestPromptProbePath
+    promptProbe: chestPromptProbePath,
+    domOverlayProbe: chestDomOverlayProbePath,
+    canvasObjectProbe: chestCanvasProbePath
   });
   if (chestPromptProbe.visibleOpenPromptCount > 0) {
     addFinding({
@@ -192,6 +246,46 @@ export async function runFirstThreeMinutes(context) {
   } else {
     addCheckpoint("first-chest-prompt", "First chest clears the open prompt after opening", "pass", {
       probe: chestPromptProbePath,
+      screenshot: chestOpenedShot
+    });
+  }
+  if (chestDomOverlayProbe.blockingOverlayCount > 0) {
+    addFinding({
+      severity: "P1",
+      scope: "game",
+      title: "DOM UI blocks the playfield after the first chest opens",
+      detail: `Observed ${chestDomOverlayProbe.blockingOverlayCount} visible DOM overlay(s) crossing the central playfield after the chest opened.`,
+      checkpointId: "first-chest-dom-overlays",
+      evidence: { probe: chestDomOverlayProbePath, screenshot: chestOpenedShot }
+    });
+    addCheckpoint("first-chest-dom-overlays", "First chest reward feedback does not leave blocking DOM overlays", "fail", {
+      probe: chestDomOverlayProbePath,
+      screenshot: chestOpenedShot,
+      blockingOverlays: chestDomOverlayProbe.blockingOverlays
+    });
+  } else {
+    addCheckpoint("first-chest-dom-overlays", "First chest reward feedback does not leave blocking DOM overlays", "pass", {
+      probe: chestDomOverlayProbePath,
+      screenshot: chestOpenedShot
+    });
+  }
+  if (chestCanvasProbe.suspiciousObjectCount > 0) {
+    addFinding({
+      severity: "P2",
+      scope: "game",
+      title: "World art overlaps the pickup feedback review band after the first chest opens",
+      detail: `Observed ${chestCanvasProbe.suspiciousObjectCount} large world-art object(s) crossing the lower-center pickup feedback review band after the first chest opened.`,
+      checkpointId: "first-chest-canvas-objects",
+      evidence: { probe: chestCanvasProbePath, screenshot: chestOpenedShot }
+    });
+    addCheckpoint("first-chest-canvas-objects", "First chest reward feedback band is free of large world-art clutter", "fail", {
+      probe: chestCanvasProbePath,
+      screenshot: chestOpenedShot,
+      suspiciousObjects: chestCanvasProbe.suspiciousObjects
+    });
+  } else {
+    addCheckpoint("first-chest-canvas-objects", "First chest reward feedback band is free of large world-art clutter", "pass", {
+      probe: chestCanvasProbePath,
       screenshot: chestOpenedShot
     });
   }
@@ -341,6 +435,8 @@ export async function runFirstThreeMinutes(context) {
       "02-move-response.png should show clear player position change without visual jitter.",
       "04-chest-opened.png should make the first chest result obvious and should not leave the open prompt over the chest.",
       "chest-prompt-probe.json should show visibleOpenPromptCount=0 after the chest opens.",
+      "pre-chest-dom-overlay-probe.json and chest-dom-overlay-probe.json should show blockingOverlayCount=0, including mobile touch-control layers.",
+      "pre-chest-canvas-object-probe.json and chest-canvas-object-probe.json should show suspiciousObjectCount=0 so world art does not sit under pickup feedback.",
       "chest-audio-probe.json should show rummage-tick with hasFile=yes.",
       "05-hit-feedback-*.jpg should include pre-attack and post-hit continuous frames with a readable hit moment.",
       "06-muted.png should not cover the playfield with heavy UI."
@@ -369,12 +465,19 @@ async function openSandboxChest(page, chestPos, afterTs) {
 
   let started = null;
   for (let attempt = 0; attempt < 6 && !started; attempt += 1) {
+    const promptProbe = await readVisibleOpenPromptProbe(page);
     await page.keyboard.press(INTERACT_KEY);
     try {
       started = await waitForEventAfter(page, ["chest:progress", "domain:ChestRummageStarted"], afterTs, 1_800);
     } catch {
       const selfPos = await readSelfPosition(page);
-      attempts.push({ attempt, selfPos });
+      attempts.push({
+        attempt,
+        selfPos,
+        chestDistance: selfPos ? Number(distance(selfPos, chestPos).toFixed(1)) : null,
+        visibleOpenPromptCount: promptProbe.visibleOpenPromptCount,
+        visibleOpenPrompts: promptProbe.visibleOpenPrompts
+      });
       await walkToChestInteractRange(page, chestPos).catch(() => {});
     }
   }
@@ -400,14 +503,13 @@ async function openSandboxChest(page, chestPos, afterTs) {
 }
 
 async function walkToChestInteractRange(page, chestPos) {
-  const interactRange = 58;
   const approachPoints = [
-    { x: chestPos.x, y: chestPos.y - 52 },
-    { x: chestPos.x - 52, y: chestPos.y },
-    { x: chestPos.x + 52, y: chestPos.y },
-    { x: chestPos.x, y: chestPos.y + 52 },
-    { x: chestPos.x - 42, y: chestPos.y - 42 },
-    { x: chestPos.x + 42, y: chestPos.y - 42 }
+    { x: chestPos.x, y: chestPos.y - 42 },
+    { x: chestPos.x - 42, y: chestPos.y },
+    { x: chestPos.x + 42, y: chestPos.y },
+    { x: chestPos.x, y: chestPos.y + 42 },
+    { x: chestPos.x - 32, y: chestPos.y - 32 },
+    { x: chestPos.x + 32, y: chestPos.y - 32 }
   ];
 
   const current = await readSelfPosition(page);
@@ -419,10 +521,10 @@ async function walkToChestInteractRange(page, chestPos) {
   for (const point of ordered) {
     try {
       const reached = await walkTo(page, point.x, point.y, 5_000, {
-        acceptableDistance: 28,
-        stopWhen: (pos) => distance(pos, chestPos) <= interactRange
+        acceptableDistance: 14,
+        stopWhen: (pos) => distance(pos, chestPos) <= CHEST_PROMPT_SAFE_RANGE
       });
-      if (distance(reached, chestPos) <= interactRange + 10) {
+      if (distance(reached, chestPos) <= CHEST_PROMPT_SAFE_RANGE) {
         return reached;
       }
     } catch (error) {
@@ -700,6 +802,254 @@ async function readVisibleOpenPromptProbe(page) {
     visibleOpenPrompts,
     sample: visibleTexts.slice(0, 20)
   };
+}
+
+async function readCanvasObjectProbe(page) {
+  const renderSnapshot = await getRenderSnapshot(page);
+  const camera = renderSnapshot?.camera ?? {
+    width: 1920,
+    height: 1080,
+    zoom: null,
+    worldView: null
+  };
+  const viewport = {
+    width: Number(camera.width) || 1920,
+    height: Number(camera.height) || 1080
+  };
+  const reviewBand = {
+    left: Math.round(viewport.width * 0.36),
+    top: Math.round(viewport.height * 0.54),
+    right: Math.round(viewport.width * 0.64),
+    bottom: Math.round(viewport.height * 0.92)
+  };
+  const objects = Array.isArray(renderSnapshot?.visibleObjects) ? renderSnapshot.visibleObjects : [];
+  const reviewTextureObjects = objects
+    .filter((object) => CANVAS_REVIEW_TEXTURE_KEYS.has(object?.textureKey))
+    .map((object) => summarizeCanvasObject(object, reviewBand))
+    .filter(Boolean)
+    .sort((left, right) => right.intersectionArea - left.intersectionArea);
+  const suspiciousObjects = reviewTextureObjects.filter((object) => {
+    const minIntersectionArea = Math.min(6_000, Math.max(2_500, object.area * 0.2));
+    return object.depth <= -20
+      && object.inheritedAlpha > 0.1
+      && object.area >= CANVAS_REVIEW_MIN_OBJECT_AREA
+      && object.intersectionArea >= minIntersectionArea;
+  });
+
+  return {
+    available: Boolean(renderSnapshot),
+    camera,
+    reviewBand,
+    objectCount: objects.length,
+    reviewTextureObjectCount: reviewTextureObjects.length,
+    suspiciousObjectCount: suspiciousObjects.length,
+    suspiciousObjects: suspiciousObjects.slice(0, 24),
+    reviewTextureSample: reviewTextureObjects.slice(0, 80)
+  };
+}
+
+async function readDomOverlayProbe(page) {
+  return await page.evaluate(() => {
+    const viewport = {
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+    const centralPlayfield = {
+      left: viewport.width * 0.25,
+      top: viewport.height * 0.18,
+      right: viewport.width * 0.75,
+      bottom: viewport.height * 0.84
+    };
+    const selectors = [
+      ".inventory-panel",
+      ".inventory-tooltip",
+      ".inventory-item",
+      ".inventory-item-icon",
+      ".inventory-item-name",
+      ".inventory-item-badge",
+      ".inventory-drag-ghost",
+      ".inventory-grid-drop-preview",
+      ".inventory-backpack-items",
+      ".inventory-pouch-items",
+      ".results-overlay",
+      "#gamer-dev-log-panel",
+      ".mobile-action-cluster",
+      ".mobile-action-button",
+      ".mobile-joystick",
+      ".audio-mute-toggle"
+    ];
+    const minimumBlockingArea = Math.max(8_000, viewport.width * viewport.height * 0.008);
+
+    const overlays = Array.from(document.querySelectorAll(selectors.join(",")))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        const backdropFilter = style.backdropFilter || style.webkitBackdropFilter || "none";
+        const selector = selectors.find((candidate) => element.matches(candidate)) ?? element.tagName.toLowerCase();
+        const text = element instanceof HTMLElement ? compactText(element.innerText) : "";
+        const backgroundPainted = alphaFromColor(style.backgroundColor) > 0.03
+          || (style.backgroundImage && style.backgroundImage !== "none");
+        const borderPainted = borderSidePainted(style, "Top")
+          || borderSidePainted(style, "Right")
+          || borderSidePainted(style, "Bottom")
+          || borderSidePainted(style, "Left");
+        const shadowPainted = Boolean(style.boxShadow && style.boxShadow !== "none")
+          || Boolean(backdropFilter && backdropFilter !== "none");
+        const textPainted = text.length > 0 && alphaFromColor(style.color) > 0.03;
+        const visuallyPainted = backgroundPainted || borderPainted || shadowPainted || textPainted;
+        const interactive = style.pointerEvents !== "none";
+        const visible = element instanceof HTMLElement
+          && !element.hidden
+          && style.display !== "none"
+          && style.visibility !== "hidden"
+          && Number(style.opacity || "1") > 0.01
+          && rect.width > 1
+          && rect.height > 1;
+        const intersection = rectIntersection(rect, centralPlayfield);
+        const intersectionArea = intersection.width * intersection.height;
+        const className = element instanceof HTMLElement ? element.className : "";
+        const isCollapsedInventory = element.matches(".inventory-panel")
+          && element.classList.contains("inventory-panel--collapsed");
+        const hasBlockingPresence = visuallyPainted || interactive;
+        const largeMobileActionContainer = element.matches(".mobile-action-cluster")
+          && rect.width * rect.height >= minimumBlockingArea;
+        const crossesCentralPlayfield = intersectionArea >= minimumBlockingArea;
+        const blocksPlayfield = visible
+          && !isCollapsedInventory
+          && hasBlockingPresence
+          && (crossesCentralPlayfield || largeMobileActionContainer);
+
+        return {
+          selector,
+          className: typeof className === "string" ? className : "",
+          hidden: element instanceof HTMLElement ? element.hidden : false,
+          visible,
+          visuallyPainted,
+          interactive,
+          blocksPlayfield,
+          rect: rectToObject(rect),
+          centralIntersection: intersection,
+          centralIntersectionArea: Math.round(intersectionArea),
+          computedStyle: {
+            pointerEvents: style.pointerEvents,
+            opacity: style.opacity,
+            backgroundColor: style.backgroundColor,
+            backgroundImage: style.backgroundImage === "none" ? "none" : style.backgroundImage.slice(0, 180),
+            boxShadow: style.boxShadow === "none" ? "none" : style.boxShadow.slice(0, 180),
+            backdropFilter: backdropFilter === "none" ? "none" : backdropFilter.slice(0, 180)
+          },
+          text
+        };
+      });
+
+    const blockingOverlays = overlays.filter((overlay) => overlay.blocksPlayfield);
+    return {
+      viewport,
+      centralPlayfield,
+      minimumBlockingArea: Math.round(minimumBlockingArea),
+      overlayCount: overlays.length,
+      visibleOverlayCount: overlays.filter((overlay) => overlay.visible).length,
+      blockingOverlayCount: blockingOverlays.length,
+      blockingOverlays,
+      overlays
+    };
+
+    function rectToObject(rect) {
+      return {
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        right: Math.round(rect.right),
+        bottom: Math.round(rect.bottom),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      };
+    }
+
+    function rectIntersection(rect, bounds) {
+      const left = Math.max(rect.left, bounds.left);
+      const top = Math.max(rect.top, bounds.top);
+      const right = Math.min(rect.right, bounds.right);
+      const bottom = Math.min(rect.bottom, bounds.bottom);
+      return {
+        left: Math.round(left),
+        top: Math.round(top),
+        right: Math.round(right),
+        bottom: Math.round(bottom),
+        width: Math.max(0, Math.round(right - left)),
+        height: Math.max(0, Math.round(bottom - top))
+      };
+    }
+
+    function compactText(value) {
+      return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 180);
+    }
+
+    function borderSidePainted(style, side) {
+      const width = Number.parseFloat(style[`border${side}Width`] || "0");
+      const lineStyle = style[`border${side}Style`];
+      const color = style[`border${side}Color`];
+      return width > 0 && lineStyle !== "none" && alphaFromColor(color) > 0.03;
+    }
+
+    function alphaFromColor(value) {
+      const color = String(value ?? "").trim().toLowerCase();
+      if (!color || color === "transparent") return 0;
+      const rgba = color.match(/^rgba?\(([^)]+)\)$/);
+      if (!rgba) return 1;
+      const parts = rgba[1].split(",").map((part) => part.trim());
+      if (parts.length < 4) return 1;
+      const alpha = Number.parseFloat(parts[3]);
+      return Number.isFinite(alpha) ? alpha : 1;
+    }
+  });
+}
+
+function summarizeCanvasObject(object, reviewBand) {
+  const rect = object?.screenRect;
+  if (!rect || typeof rect.width !== "number" || typeof rect.height !== "number") {
+    return null;
+  }
+  const intersection = rectIntersection(rect, reviewBand);
+  const area = Math.max(0, Math.round(rect.width * rect.height));
+  return {
+    type: object.type ?? null,
+    name: object.name ?? "",
+    textureKey: object.textureKey ?? null,
+    frameName: object.frameName ?? null,
+    depth: Number(object.depth ?? 0),
+    inheritedAlpha: Number(object.inheritedAlpha ?? object.alpha ?? 1),
+    alpha: Number(object.alpha ?? 1),
+    x: object.x ?? null,
+    y: object.y ?? null,
+    displayWidth: object.displayWidth ?? null,
+    displayHeight: object.displayHeight ?? null,
+    worldRect: object.worldRect ?? null,
+    screenRect: rect,
+    area,
+    reviewBandIntersection: intersection,
+    intersectionArea: rectArea(intersection),
+    parentType: object.parentType ?? null,
+    childCount: object.childCount ?? 0
+  };
+}
+
+function rectIntersection(rect, bounds) {
+  const left = Math.max(rect.left, bounds.left);
+  const top = Math.max(rect.top, bounds.top);
+  const right = Math.min(rect.right, bounds.right);
+  const bottom = Math.min(rect.bottom, bounds.bottom);
+  return {
+    left: Math.round(left),
+    top: Math.round(top),
+    right: Math.round(right),
+    bottom: Math.round(bottom),
+    width: Math.max(0, Math.round(right - left)),
+    height: Math.max(0, Math.round(bottom - top))
+  };
+}
+
+function rectArea(rect) {
+  return Math.max(0, Math.round((rect?.width ?? 0) * (rect?.height ?? 0)));
 }
 
 function readDevLogSnapshot() {

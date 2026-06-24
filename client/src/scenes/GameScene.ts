@@ -80,10 +80,47 @@ interface SpectateHudRefs {
   cycleButton: Phaser.GameObjects.Text;
 }
 
+interface RenderDebugRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+}
+
+interface RenderObjectDebugSnapshot {
+  type: string;
+  name: string;
+  textureKey: string | null;
+  frameName: string | number | null;
+  text: string | null;
+  x: number | null;
+  y: number | null;
+  alpha: number;
+  inheritedAlpha: number;
+  depth: number;
+  scrollFactorX: number;
+  scrollFactorY: number;
+  displayWidth: number | null;
+  displayHeight: number | null;
+  worldRect: RenderDebugRect | null;
+  screenRect: RenderDebugRect | null;
+  parentType: string | null;
+  childCount: number;
+  data: Record<string, string | number | boolean | null> | null;
+}
+
 export interface GameSceneRenderDebugSnapshot {
   scene: string;
   ts: number;
   sceneTimeMs: number;
+  camera: {
+    width: number;
+    height: number;
+    zoom: number;
+    worldView: RenderDebugRect;
+  };
   selfPlayerId: string | null;
   playerCount: number;
   players: PlayerMarkerDebugSnapshot[];
@@ -94,6 +131,7 @@ export interface GameSceneRenderDebugSnapshot {
     alpha: number;
     depth: number;
   }>;
+  visibleObjects: RenderObjectDebugSnapshot[];
 }
 
 export class GameScene extends Phaser.Scene {
@@ -142,14 +180,29 @@ export class GameScene extends Phaser.Scene {
   }
 
   getRenderDebugSnapshot(): GameSceneRenderDebugSnapshot {
+    const camera = this.cameras.main;
     return {
       scene: GameScene.KEY,
       ts: Date.now(),
       sceneTimeMs: Math.round(this.time.now),
+      camera: {
+        width: Math.round(camera.width),
+        height: Math.round(camera.height),
+        zoom: roundNumber(camera.zoom, 3),
+        worldView: rectToDebugRect(camera.worldView.left, camera.worldView.top, camera.worldView.width, camera.worldView.height) ?? {
+          left: 0,
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: 0,
+          height: 0
+        }
+      },
       selfPlayerId: this.latestState?.selfPlayerId ?? null,
       playerCount: this.playerMarkers.size,
       players: Array.from(this.playerMarkers.values(), (marker) => marker.getDebugSnapshot()),
-      visibleTexts: this.getVisibleTextDebugSnapshot()
+      visibleTexts: this.getVisibleTextDebugSnapshot(),
+      visibleObjects: this.getVisibleObjectDebugSnapshot()
     };
   }
   private onAttack?: (payload: AttackRequestPayload) => void;
@@ -189,6 +242,144 @@ export class GameScene extends Phaser.Scene {
       });
     }
     return texts;
+  }
+
+  private getVisibleObjectDebugSnapshot(): RenderObjectDebugSnapshot[] {
+    const objects: RenderObjectDebugSnapshot[] = [];
+    const visited = new Set<Phaser.GameObjects.GameObject>();
+    const visit = (
+      child: Phaser.GameObjects.GameObject,
+      parentType: string | null,
+      parentAlpha: number,
+      parentVisible: boolean
+    ) => {
+      if (visited.has(child)) return;
+      visited.add(child);
+
+      const obj = child as Phaser.GameObjects.GameObject & {
+        alpha?: number;
+        visible?: boolean;
+        type?: string;
+        name?: string;
+        x?: number;
+        y?: number;
+        depth?: number;
+        scrollFactorX?: number;
+        scrollFactorY?: number;
+        displayWidth?: number;
+        displayHeight?: number;
+        width?: number;
+        height?: number;
+        texture?: { key?: string };
+        frame?: { name?: string | number };
+        text?: string;
+        list?: Phaser.GameObjects.GameObject[];
+        data?: { list?: Record<string, unknown> };
+        getBounds?: () => Phaser.Geom.Rectangle;
+      };
+      const alpha = roundNumber(typeof obj.alpha === "number" ? obj.alpha : 1, 3);
+      const inheritedAlpha = roundNumber(parentAlpha * alpha, 3);
+      const visible = parentVisible && obj.visible !== false;
+      const children = Array.isArray(obj.list) ? obj.list : [];
+
+      if (!visible || inheritedAlpha <= 0.01) {
+        for (const nested of children) {
+          visit(nested, obj.type ?? null, inheritedAlpha, false);
+        }
+        return;
+      }
+
+      const worldRect = this.readObjectWorldRect(obj);
+      objects.push({
+        type: obj.type ?? child.constructor.name,
+        name: obj.name ?? "",
+        textureKey: obj.texture?.key ?? null,
+        frameName: obj.frame?.name ?? null,
+        text: typeof obj.text === "string" ? compactDebugText(obj.text) : null,
+        x: finiteOrNull(obj.x),
+        y: finiteOrNull(obj.y),
+        alpha,
+        inheritedAlpha,
+        depth: Math.round(typeof obj.depth === "number" ? obj.depth : 0),
+        scrollFactorX: roundNumber(typeof obj.scrollFactorX === "number" ? obj.scrollFactorX : 1, 3),
+        scrollFactorY: roundNumber(typeof obj.scrollFactorY === "number" ? obj.scrollFactorY : 1, 3),
+        displayWidth: finiteOrNull(obj.displayWidth ?? obj.width),
+        displayHeight: finiteOrNull(obj.displayHeight ?? obj.height),
+        worldRect,
+        screenRect: worldRect ? this.worldRectToScreenRect(worldRect, obj.scrollFactorX ?? 1, obj.scrollFactorY ?? 1) : null,
+        parentType,
+        childCount: children.length,
+        data: sanitizeDebugData(obj.data?.list)
+      });
+
+      for (const nested of children) {
+        visit(nested, obj.type ?? null, inheritedAlpha, visible);
+      }
+    };
+
+    for (const child of this.children.list) {
+      visit(child, null, 1, true);
+    }
+
+    return objects
+      .filter((entry) => entry.worldRect === null || (entry.worldRect.width > 0 && entry.worldRect.height > 0))
+      .sort((left, right) => left.depth - right.depth || (left.y ?? 0) - (right.y ?? 0))
+      .slice(0, 700);
+  }
+
+  private readObjectWorldRect(obj: { x?: number; y?: number; displayWidth?: number; displayHeight?: number; width?: number; height?: number; getBounds?: () => Phaser.Geom.Rectangle }): RenderDebugRect | null {
+    try {
+      if (typeof obj.getBounds === "function") {
+        const bounds = obj.getBounds();
+        const rect = rectToDebugRect(bounds.left, bounds.top, bounds.width, bounds.height);
+        if (rect) return rect;
+      }
+    } catch {
+      // Debug snapshots must never break gameplay.
+    }
+
+    const width = typeof obj.displayWidth === "number" ? obj.displayWidth : obj.width;
+    const height = typeof obj.displayHeight === "number" ? obj.displayHeight : obj.height;
+    if (
+      typeof obj.x !== "number"
+      || typeof obj.y !== "number"
+      || typeof width !== "number"
+      || typeof height !== "number"
+      || width <= 0
+      || height <= 0
+    ) {
+      return null;
+    }
+    return rectToDebugRect(obj.x - width / 2, obj.y - height / 2, width, height);
+  }
+
+  private worldRectToScreenRect(worldRect: RenderDebugRect, scrollFactorX: number, scrollFactorY: number): RenderDebugRect {
+    const camera = this.cameras.main;
+    const zoom = camera.zoom > 0 ? camera.zoom : 1;
+    const toScreenX = (x: number) => {
+      if (Math.abs(scrollFactorX) <= 0.001) {
+        return camera.width / 2 + (x - camera.width / 2) * zoom;
+      }
+      return (x - camera.worldView.x * scrollFactorX) * zoom;
+    };
+    const toScreenY = (y: number) => {
+      if (Math.abs(scrollFactorY) <= 0.001) {
+        return camera.height / 2 + (y - camera.height / 2) * zoom;
+      }
+      return (y - camera.worldView.y * scrollFactorY) * zoom;
+    };
+    const left = toScreenX(worldRect.left);
+    const top = toScreenY(worldRect.top);
+    const right = toScreenX(worldRect.right);
+    const bottom = toScreenY(worldRect.bottom);
+    return rectToDebugRect(left, top, right - left, bottom - top) ?? {
+      left: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      width: 0,
+      height: 0
+    };
   }
   private pendingSkillCast?: Phaser.Time.TimerEvent;
   private queuedAttack?: AttackRequestPayload;
@@ -1233,6 +1424,61 @@ export class GameScene extends Phaser.Scene {
 function getBasicAttackCooldownMs(weaponType: WeaponType, attackSpeedBonus: number): number {
   const attacksPerSecond = WEAPON_DEFINITIONS[weaponType]?.attacksPerSecond ?? 0.5;
   return Math.round((1000 / Math.max(attacksPerSecond, 0.1)) / Math.max(1 + attackSpeedBonus, 0.1));
+}
+
+function rectToDebugRect(left: number, top: number, width: number, height: number): RenderDebugRect | null {
+  if (
+    !Number.isFinite(left)
+    || !Number.isFinite(top)
+    || !Number.isFinite(width)
+    || !Number.isFinite(height)
+    || width < 0
+    || height < 0
+  ) {
+    return null;
+  }
+  const right = left + width;
+  const bottom = top + height;
+  return {
+    left: Math.round(left),
+    top: Math.round(top),
+    right: Math.round(right),
+    bottom: Math.round(bottom),
+    width: Math.round(width),
+    height: Math.round(height)
+  };
+}
+
+function finiteOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null;
+}
+
+function roundNumber(value: number, digits: number): number {
+  const scale = 10 ** digits;
+  return Math.round(value * scale) / scale;
+}
+
+function compactDebugText(value: string): string {
+  return value.replace(/\s+/g, " ").trim().slice(0, 120);
+}
+
+function sanitizeDebugData(data?: Record<string, unknown>): Record<string, string | number | boolean | null> | null {
+  if (!data) return null;
+  const entries: Array<[string, string | number | boolean | null]> = [];
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value === "string") {
+      entries.push([key, value.slice(0, 120)]);
+      continue;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      entries.push([key, Math.round(value * 100) / 100]);
+      continue;
+    }
+    if (typeof value === "boolean" || value === null) {
+      entries.push([key, value]);
+    }
+  }
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
 function getBasicAttackCadence(weaponType: WeaponType, attackSpeedBonus: number): {

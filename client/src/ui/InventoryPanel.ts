@@ -18,6 +18,7 @@ import {
 
 export interface InventoryPanelApi {
   readonly element: HTMLElement;
+  close(): void;
   render(inventory: MatchInventoryState | null): void;
   destroy(): void;
 }
@@ -237,6 +238,11 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
   }
 
   function showTooltip(item: MatchInventoryItem, area: ItemArea, anchorRect?: DOMRect, point?: { x: number; y: number }): void {
+    if (element.hidden || element.classList.contains("inventory-panel--collapsed")) {
+      hideTooltip(true);
+      return;
+    }
+
     if (activeTooltipInstanceId === item.instanceId) {
       if (hideTooltipTimer) {
         window.clearTimeout(hideTooltipTimer);
@@ -893,6 +899,9 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
     inventoryState = inventory;
     clearHighlights();
     cleanupOrphanGhosts();
+    if (element.hidden || element.classList.contains("inventory-panel--collapsed")) {
+      hideTooltip(true);
+    }
 
     if (!inventory) {
       hideTooltip(true);
@@ -1032,6 +1041,7 @@ export function createInventoryPanel(options: InventoryPanelOptions): InventoryP
 
   return {
     element,
+    close: closeInventory,
     render,
     destroy() {
       cleanup.forEach(fn => fn());

@@ -268,7 +268,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
     const setInventoryAvailable = (available: boolean) => {
       inventoryPanel.element.hidden = !available;
       if (!available) {
-        inventoryPanel.element.classList.add("inventory-panel--collapsed");
+        inventoryPanel.close();
       }
 
       const launcher = document.querySelector(".inventory-mobile-toggle");
@@ -335,6 +335,7 @@ async function mountClientShell(appRoot: HTMLDivElement): Promise<void> {
       (payload) => {
         resultsOverlay.hide();
         inventoryPanel.render(lastInventory);
+        inventoryPanel.close();
         setInventoryAvailable(true);
         lobbyRoot.hidden = true;
         gameRoot.hidden = false;
