@@ -1,0 +1,27 @@
+; Engine configuration file.
+; Godot Segment 01 uses Standard GDScript and the compatibility renderer.
+config_version=5
+
+[application]
+
+config/name="ExilesRun - Ruin Encounter"
+run/main_scene="res://scenes/segment_01.tscn"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
+
+[audio]
+
+default_bus_layout="res://default_bus_layout.tres"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+environment/defaults/default_clear_color=Color(0.018, 0.024, 0.04, 1)
