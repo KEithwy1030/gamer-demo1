@@ -1,5 +1,7 @@
 # Gamer Demo 1
 
+> 当前开发已暂停。未来接管本项目时先读 [DEVELOPMENT-HANDOFF.md](DEVELOPMENT-HANDOFF.md)，按其中分支、候选、验证结论和恢复顺序继续；不要重新做全仓摸底。
+
 Browser-first multiplayer extraction prototype in a monorepo.
 
 - `client/`: TypeScript + Phaser 3 + Vite
